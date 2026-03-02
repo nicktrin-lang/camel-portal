@@ -49,7 +49,15 @@ export default function PartnerLoginPage() {
       });
       if (signInErr) throw signInErr;
 
-      // After login, go to dashboard
+      // ✅ SERVER-SIDE admin check (reliable on Vercel)
+      const res = await fetch("/api/admin/is-admin", { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+
+      if (json?.isAdmin) {
+        router.replace("/admin/approvals");
+        return;
+      }
+
       router.replace("/partner/dashboard");
     } catch (err: any) {
       setError(err?.message || "Login failed.");
