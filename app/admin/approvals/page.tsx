@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
@@ -24,8 +24,19 @@ function fmtDateTime(iso?: string | null) {
   }
 }
 
+// Robust helper: never throws "Unexpected end of JSON input"
+async function safeJson(res: Response): Promise<any> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { _raw: text };
+  }
+}
+
 export default function AdminApprovalsPage() {
-  const supabase = createBrowserSupabaseClient();
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<PartnerApplication[]>([]);
@@ -36,15 +47,27 @@ export default function AdminApprovalsPage() {
     setError(null);
 
     try {
-      // (Optional but helpful) confirm session exists
+      // Ensure a session exists client-side
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData?.user) throw new Error("Not signed in.");
 
-      const res = await fetch("/api/admin/applications", { cache: "no-store" });
-      const json = await res.json().catch(() => null);
+      // ✅ IMPORTANT FOR PRODUCTION:
+      // Send Supabase auth cookies to the API route
+      const res = await fetch("/api/admin/applications", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "include",
+      });
+
+      const json = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(json?.error || "Failed to load applications.");
+        const msg =
+          json?.error ||
+          json?.message ||
+          json?._raw ||
+          "Failed to load applications.";
+        throw new Error(msg);
       }
 
       setRows((json?.data || []) as PartnerApplication[]);
@@ -64,15 +87,22 @@ export default function AdminApprovalsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, status }),
+        cache: "no-store",
+        credentials: "include",
       });
 
-      const json = await res.json().catch(() => null);
+      const json = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(json?.error || "Failed to update status.");
+        const msg =
+          json?.error ||
+          json?.message ||
+          json?._raw ||
+          "Failed to update status.";
+        throw new Error(msg);
       }
 
-      // fast UI update + reload for consistency
+      // Fast UI update + reload for consistency
       setRows((prev) =>
         prev.map((r) => (String(r.id) === String(id) ? { ...r, status } : r))
       );
@@ -97,7 +127,9 @@ export default function AdminApprovalsPage() {
       {/* Header row */}
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-[#003768]">Admin Approvals</h1>
+          <h1 className="text-2xl font-semibold text-[#003768]">
+            Admin Approvals
+          </h1>
           <p className="mt-2 text-gray-600">
             Review partner applications and approve/reject them.
           </p>
@@ -167,7 +199,8 @@ export default function AdminApprovalsPage() {
                 </tr>
               ) : (
                 rows.map((r) => {
-                  const status = (r.status || "pending").toLowerCase() as AppStatus;
+                  const status = (r.status || "pending")
+                    .toLowerCase() as AppStatus;
 
                   const badge =
                     status === "approved"
@@ -181,9 +214,15 @@ export default function AdminApprovalsPage() {
                       <td className="px-4 py-4 text-gray-700">
                         {fmtDateTime(r.created_at)}
                       </td>
-                      <td className="px-4 py-4 text-gray-900">{r.email || "—"}</td>
-                      <td className="px-4 py-4 text-gray-900">{r.full_name || "—"}</td>
-                      <td className="px-4 py-4 text-gray-900">{r.company_name || "—"}</td>
+                      <td className="px-4 py-4 text-gray-900">
+                        {r.email || "—"}
+                      </td>
+                      <td className="px-4 py-4 text-gray-900">
+                        {r.full_name || "—"}
+                      </td>
+                      <td className="px-4 py-4 text-gray-900">
+                        {r.company_name || "—"}
+                      </td>
                       <td className="px-4 py-4">
                         <span
                           className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badge}`}
