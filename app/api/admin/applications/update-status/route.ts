@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  createServerSupabaseClient,
+  createServiceSupabaseClient,
+} from "@/lib/supabase/server";
 import { sendApprovalEmail } from "@/lib/email";
 
 type StatusValue = "pending" | "approved" | "rejected";
@@ -9,7 +12,10 @@ function isAllowedStatus(s: any): s is StatusValue {
 }
 
 function getAdminEmails() {
-  const raw = process.env.CAMEL_ADMIN_EMAILS || "";
+  const raw =
+    process.env.CAMEL_ADMIN_EMAILS ||
+    process.env.NEXT_PUBLIC_CAMEL_ADMIN_EMAILS ||
+    "";
   return raw
     .split(",")
     .map((s) => s.trim().toLowerCase())
@@ -23,7 +29,10 @@ export async function POST(req: Request) {
     const nextStatus = body?.status;
 
     if (!id) {
-      return NextResponse.json({ error: "Missing application id" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing application id" },
+        { status: 400 }
+      );
     }
     if (!isAllowedStatus(nextStatus)) {
       return NextResponse.json(
@@ -32,23 +41,27 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = createServerSupabaseClient();
+    // 1) Cookie-based client to identify logged-in user
+    const authClient = createServerSupabaseClient();
+    const { data: userData, error: userErr } = await authClient.auth.getUser();
 
-    // 1) Who is calling?
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr || !userData?.user?.email) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     }
 
-    // 2) Is caller an admin?
+    // 2) Check admin allowlist
     const adminEmail = userData.user.email.toLowerCase().trim();
     const admins = getAdminEmails();
+
     if (!admins.includes(adminEmail)) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    // 3) Read current
-    const { data: current, error: currentErr } = await supabase
+    // 3) Service role client for DB operations (bypasses RLS)
+    const db = createServiceSupabaseClient();
+
+    // Read current
+    const { data: current, error: currentErr } = await db
       .from("partner_applications")
       .select("id,email,status")
       .eq("id", id)
@@ -60,8 +73,8 @@ export async function POST(req: Request) {
 
     const prevStatus = String(current?.status || "").toLowerCase() as StatusValue;
 
-    // 4) Update
-    const { data: updated, error: updateErr } = await supabase
+    // Update
+    const { data: updated, error: updateErr } = await db
       .from("partner_applications")
       .update({ status: nextStatus })
       .eq("id", id)
@@ -72,7 +85,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: updateErr.message }, { status: 400 });
     }
 
-    // 5) Email if changed -> approved
+    // Email if changed -> approved
     const updatedStatus = String(updated?.status || "").toLowerCase() as StatusValue;
     const toEmail = updated?.email || current?.email || null;
     const becameApproved = prevStatus !== "approved" && updatedStatus === "approved";
@@ -82,7 +95,11 @@ export async function POST(req: Request) {
         await sendApprovalEmail(toEmail);
       } catch (emailErr: any) {
         return NextResponse.json(
-          { ok: true, data: updated, warning: emailErr?.message || "Approved but email failed" },
+          {
+            ok: true,
+            data: updated,
+            warning: emailErr?.message || "Approved but email failed",
+          },
           { status: 200 }
         );
       }
