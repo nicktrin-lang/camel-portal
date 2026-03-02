@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type AppStatus = "pending" | "approved" | "rejected";
 
 type PartnerApplication = {
-  id: string | number;
-  user_id: string;
+  id: string;
   email: string | null;
   full_name: string | null;
   company_name: string | null;
@@ -26,7 +25,7 @@ function fmtDateTime(iso?: string | null) {
 }
 
 export default function AdminApprovalsPage() {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const supabase = createBrowserSupabaseClient();
 
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<PartnerApplication[]>([]);
@@ -37,14 +36,18 @@ export default function AdminApprovalsPage() {
     setError(null);
 
     try {
-      const { data, error: qErr } = await supabase
-        .from("partner_applications")
-        .select("id,user_id,email,full_name,company_name,status,created_at")
-        .order("created_at", { ascending: false });
+      // (Optional but helpful) confirm session exists
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !userData?.user) throw new Error("Not signed in.");
 
-      if (qErr) throw qErr;
+      const res = await fetch("/api/admin/applications", { cache: "no-store" });
+      const json = await res.json().catch(() => null);
 
-      setRows((data || []) as PartnerApplication[]);
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to load applications.");
+      }
+
+      setRows((json?.data || []) as PartnerApplication[]);
     } catch (e: any) {
       setError(e?.message || "Failed to load applications.");
       setRows([]);
@@ -53,23 +56,27 @@ export default function AdminApprovalsPage() {
     }
   }
 
-  async function setStatus(id: string | number, status: AppStatus) {
+  async function setStatus(id: string, status: AppStatus) {
     setError(null);
 
     try {
-      const { error: uErr } = await supabase
-        .from("partner_applications")
-        .update({ status })
-        .eq("id", id);
+      const res = await fetch("/api/admin/applications/update-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
 
-      if (uErr) throw uErr;
+      const json = await res.json().catch(() => null);
 
-      // update locally first
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to update status.");
+      }
+
+      // fast UI update + reload for consistency
       setRows((prev) =>
         prev.map((r) => (String(r.id) === String(id) ? { ...r, status } : r))
       );
 
-      // then refresh for consistency
       await load();
     } catch (e: any) {
       setError(e?.message || "Failed to update status.");
@@ -81,12 +88,11 @@ export default function AdminApprovalsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pending = rows.filter((r) => (r.status || "").toLowerCase() === "pending").length;
-  const approved = rows.filter((r) => (r.status || "").toLowerCase() === "approved").length;
-  const rejected = rows.filter((r) => (r.status || "").toLowerCase() === "rejected").length;
+  const pending = rows.filter((r) => r.status === "pending").length;
+  const approved = rows.filter((r) => r.status === "approved").length;
+  const rejected = rows.filter((r) => r.status === "rejected").length;
 
   return (
-    // Wider container to avoid horizontal scroll
     <div className="mx-auto w-full max-w-7xl">
       {/* Header row */}
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -105,7 +111,7 @@ export default function AdminApprovalsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={load}
@@ -116,7 +122,7 @@ export default function AdminApprovalsPage() {
           </button>
 
           <Link
-            href="/admin"
+            href="/partner/dashboard"
             className="rounded-full bg-[#ff7a00] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
           >
             Dashboard
@@ -133,96 +139,92 @@ export default function AdminApprovalsPage() {
 
       {/* Table */}
       <div className="mt-6 overflow-hidden rounded-xl border border-black/10">
-        {/* No overflow-x scroll by default */}
-        <table className="w-full table-fixed text-left text-sm">
-          <thead className="bg-[#f3f8ff]">
-            <tr className="text-[#003768]">
-              <th className="w-[150px] px-4 py-3 font-semibold">Created</th>
-              <th className="w-[220px] px-4 py-3 font-semibold">Email</th>
-              <th className="w-[140px] px-4 py-3 font-semibold">Name</th>
-              <th className="w-[140px] px-4 py-3 font-semibold">Company</th>
-              <th className="w-[120px] px-4 py-3 font-semibold">Status</th>
-             
-              <th className="w-[170px] px-4 py-3 font-semibold">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y divide-black/5">
-            {loading ? (
-              <tr>
-                <td className="px-4 py-4 text-gray-600" colSpan={6}>
-                  Loading…
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-[#f3f8ff]">
+              <tr className="text-[#003768]">
+                <th className="px-4 py-3 font-semibold">Created</th>
+                <th className="px-4 py-3 font-semibold">Email</th>
+                <th className="px-4 py-3 font-semibold">Name</th>
+                <th className="px-4 py-3 font-semibold">Company</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
+                <th className="px-4 py-3 font-semibold">Actions</th>
               </tr>
-            ) : rows.length === 0 ? (
-              <tr>
-                <td className="px-4 py-4 text-gray-600" colSpan={6}>
-                  No applications found.
-                </td>
-              </tr>
-            ) : (
-              rows.map((r) => {
-                const status = (r.status || "pending").toLowerCase() as AppStatus;
+            </thead>
 
-                const badge =
-                  status === "approved"
-                    ? "bg-green-50 text-green-700 border-green-200"
-                    : status === "rejected"
-                    ? "bg-red-50 text-red-700 border-red-200"
-                    : "bg-yellow-50 text-yellow-800 border-yellow-200";
+            <tbody className="divide-y divide-black/5">
+              {loading ? (
+                <tr>
+                  <td className="px-4 py-4 text-gray-600" colSpan={6}>
+                    Loading…
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-4 text-gray-600" colSpan={6}>
+                    No applications found.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((r) => {
+                  const status = (r.status || "pending").toLowerCase() as AppStatus;
 
-                return (
-                  <tr key={String(r.id)} className="hover:bg-black/[0.02] align-top">
-                    <td className="px-4 py-4 text-gray-700">{fmtDateTime(r.created_at)}</td>
-                    <td className="px-4 py-4 text-gray-900 break-words">{r.email || "—"}</td>
-                    <td className="px-4 py-4 text-gray-900 break-words">{r.full_name || "—"}</td>
-                    <td className="px-4 py-4 text-gray-900 break-words">
-                      {r.company_name || "—"}
-                    </td>
-                    <td className="px-4 py-4">
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badge}`}
-                      >
-                        {status}
-                      </span>
-                    </td>
-                    {/* Allow user_id to wrap so no horizontal scroll */}
-                    
+                  const badge =
+                    status === "approved"
+                      ? "bg-green-50 text-green-700 border-green-200"
+                      : status === "rejected"
+                      ? "bg-red-50 text-red-700 border-red-200"
+                      : "bg-yellow-50 text-yellow-800 border-yellow-200";
 
-                    {/* Stack actions vertically to stay compact */}
-                    <td className="px-4 py-4">
-                      <div className="flex flex-col gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setStatus(r.id, "approved")}
-                          className="rounded-full bg-[#ff7a00] px-4 py-2 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+                  return (
+                    <tr key={String(r.id)} className="hover:bg-black/[0.02]">
+                      <td className="px-4 py-4 text-gray-700">
+                        {fmtDateTime(r.created_at)}
+                      </td>
+                      <td className="px-4 py-4 text-gray-900">{r.email || "—"}</td>
+                      <td className="px-4 py-4 text-gray-900">{r.full_name || "—"}</td>
+                      <td className="px-4 py-4 text-gray-900">{r.company_name || "—"}</td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badge}`}
                         >
-                          Approve
-                        </button>
+                          {status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setStatus(String(r.id), "approved")}
+                            className="rounded-full bg-[#ff7a00] px-4 py-2 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+                          >
+                            Approve
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => setStatus(r.id, "rejected")}
-                          className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
-                        >
-                          Reject
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => setStatus(String(r.id), "rejected")}
+                            className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
+                          >
+                            Reject
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => setStatus(r.id, "pending")}
-                          className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
-                        >
-                          Set pending
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                          <button
+                            type="button"
+                            onClick={() => setStatus(String(r.id), "pending")}
+                            className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
+                          >
+                            Set pending
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
