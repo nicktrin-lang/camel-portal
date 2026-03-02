@@ -1,0 +1,6 @@
+git init
+git add .
+git commit -m "Initial portal setup"
+git branch -M main
+git remote add origin https://github.com/nicktrin-lang/camel-portal.git
+git push -u origin main
