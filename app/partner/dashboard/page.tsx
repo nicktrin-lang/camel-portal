@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
+type AdminRole = "none" | "admin" | "super_admin";
+
 type PartnerApplication = {
   id: string;
   email: string | null;
@@ -13,7 +15,9 @@ type PartnerApplication = {
   company_name: string | null;
   status: string | null;
   created_at: string | null;
-  address: string | null;
+
+  // DB may or may not have these — keep optional and NEVER select columns that don't exist
+  address?: string | null;
   address1?: string | null;
   address2?: string | null;
   province?: string | null;
@@ -45,7 +49,7 @@ export default function PartnerDashboardPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminRole, setAdminRole] = useState<AdminRole>("none");
   const [error, setError] = useState<string | null>(null);
 
   const [app, setApp] = useState<PartnerApplication | null>(null);
@@ -70,22 +74,22 @@ export default function PartnerDashboardPage() {
         if (!mounted) return;
         setEmail(userEmail);
 
-        // Admin check (cookie-auth)
-        const adminRes = await fetch("/api/admin/is-admin", {
+        // Role check (cookie-auth)
+        const meRes = await fetch("/api/admin/me", {
           method: "GET",
           cache: "no-store",
           credentials: "include",
         });
-        const adminJson = await safeJson(adminRes);
+        const meJson = await safeJson(meRes);
         if (!mounted) return;
-        setIsAdmin(!!adminJson?.isAdmin);
 
-        // Load partner application row (for display: name/company/created/address)
+        const role = (meJson?.role || "none") as AdminRole;
+        setAdminRole(role);
+
+        // Load partner application row (ONLY select columns that exist)
         const { data: appRow, error: appErr } = await supabase
           .from("partner_applications")
-          .select(
-            "id,email,full_name,company_name,status,created_at,address,address1,address2,province,postcode,country"
-          )
+          .select("id,email,full_name,company_name,status,created_at,address")
           .eq("email", userEmail)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -111,7 +115,7 @@ export default function PartnerDashboardPage() {
   }, [router, supabase]);
 
   const status = String(app?.status || "approved").toLowerCase();
-  const showApproved = status === "approved" || !app; // keep UI resilient
+  const showApproved = status === "approved" || !app;
 
   const addressLine =
     app?.address ||
@@ -119,6 +123,9 @@ export default function PartnerDashboardPage() {
       .filter(Boolean)
       .join(", ") ||
     "—";
+
+  const isAdmin = adminRole === "admin" || adminRole === "super_admin";
+  const isSuperAdmin = adminRole === "super_admin";
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -193,11 +200,18 @@ export default function PartnerDashboardPage() {
               Admin Approvals
             </Link>
           ) : null}
+
+          {isSuperAdmin ? (
+            <Link
+              href="/admin/users"
+              className="rounded-full border border-black/10 bg-white px-7 py-3 font-semibold text-[#003768] hover:bg-black/5"
+            >
+              Admin Users
+            </Link>
+          ) : null}
         </div>
 
-        {loading ? (
-          <p className="mt-6 text-sm text-gray-500">Loading…</p>
-        ) : null}
+        {loading ? <p className="mt-6 text-sm text-gray-500">Loading…</p> : null}
       </div>
     </div>
   );
