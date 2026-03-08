@@ -3,12 +3,11 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router = useRouter();
   const pathname = usePathname();
 
   const [checking, setChecking] = useState(true);
@@ -22,44 +21,55 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData?.user) {
-        if (mounted) {
-          setIsAdmin(false);
-          setChecking(false);
-        }
-        router.replace("/partner/login?reason=not_authorized");
+        if (!mounted) return;
+        setIsAdmin(false);
+        setChecking(false);
+        window.location.replace("/partner/login?reason=not_authorized");
         return;
       }
 
-      const adminRes = await fetch("/api/admin/is-admin", {
-        method: "GET",
-        cache: "no-store",
-        credentials: "include",
-      });
-      const adminJson = await adminRes.json().catch(() => null);
-      const ok = !!adminJson?.isAdmin;
+      try {
+        const adminRes = await fetch("/api/admin/is-admin", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        });
+        const adminJson = await adminRes.json().catch(() => null);
+        const ok = !!adminJson?.isAdmin;
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      setIsAdmin(ok);
-      setChecking(false);
+        setIsAdmin(ok);
+        setChecking(false);
 
-      if (!ok) {
-        router.replace("/partner/login?reason=not_authorized");
+        if (!ok) {
+          window.location.replace("/partner/login?reason=not_authorized");
+        }
+      } catch {
+        if (!mounted) return;
+        setIsAdmin(false);
+        setChecking(false);
+        window.location.replace("/partner/login?reason=not_authorized");
       }
     }
 
     check();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(() => check());
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      check();
+    });
+
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
-  }, [router, supabase]);
+  }, [supabase]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    router.replace("/partner/login?reason=signed_out");
+    window.location.replace("/partner/login?reason=signed_out");
   }
 
   const isActive = (href: string) =>
@@ -99,6 +109,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
               {!checking && isAdmin ? (
                 <button
+                  type="button"
                   onClick={handleLogout}
                   className="ml-2 rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
                 >
