@@ -6,21 +6,8 @@ import {
 import { sendApprovalEmail } from "@/lib/email";
 
 type StatusValue = "pending" | "approved" | "rejected";
-
 function isAllowedStatus(s: any): s is StatusValue {
   return s === "pending" || s === "approved" || s === "rejected";
-}
-
-function getAdminEmails() {
-  const raw =
-    process.env.CAMEL_ADMIN_EMAILS ||
-    process.env.NEXT_PUBLIC_CAMEL_ADMIN_EMAILS ||
-    "";
-
-  return raw
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
 }
 
 export async function POST(req: Request) {
@@ -34,29 +21,36 @@ export async function POST(req: Request) {
     }
     if (!isAllowedStatus(nextStatus)) {
       return NextResponse.json(
-        { error: "Invalid status (must be pending, approved, or rejected)" },
+        { error: "Invalid status (pending, approved, rejected)" },
         { status: 400 }
       );
     }
 
-    // 1) Identify caller via cookies (real session)
+    // Who is calling (cookie session)
     const authed = await createRouteHandlerSupabaseClient();
     const { data: userData, error: userErr } = await authed.auth.getUser();
 
-    const adminEmail = (userData?.user?.email || "").toLowerCase().trim();
-    if (userErr || !adminEmail) {
+    const email = (userData?.user?.email || "").toLowerCase().trim();
+    if (userErr || !email) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     }
 
-    // 2) Check admin list
-    const admins = getAdminEmails();
-    if (!admins.includes(adminEmail)) {
+    // Check admin_users table (admin OR super_admin)
+    const db = createServiceRoleSupabaseClient();
+    const { data: adminRow, error: adminErr } = await db
+      .from("admin_users")
+      .select("role")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (adminErr) {
+      return NextResponse.json({ error: adminErr.message }, { status: 400 });
+    }
+    if (!adminRow) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    // 3) Use service role for DB reads/writes
-    const db = createServiceRoleSupabaseClient();
-
+    // Read current
     const { data: current, error: currentErr } = await db
       .from("partner_applications")
       .select("id,email,status")
@@ -69,6 +63,7 @@ export async function POST(req: Request) {
 
     const prevStatus = String(current?.status || "").toLowerCase() as StatusValue;
 
+    // Update
     const { data: updated, error: updateErr } = await db
       .from("partner_applications")
       .update({ status: nextStatus })
@@ -80,10 +75,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: updateErr.message }, { status: 400 });
     }
 
+    // Email only when it becomes approved
     const updatedStatus = String(updated?.status || "").toLowerCase() as StatusValue;
     const toEmail = updated?.email || current?.email || null;
-
     const becameApproved = prevStatus !== "approved" && updatedStatus === "approved";
+
     if (becameApproved && toEmail) {
       try {
         await sendApprovalEmail(toEmail);

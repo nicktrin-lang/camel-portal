@@ -11,7 +11,7 @@ export async function GET() {
 
     const email = (userData?.user?.email || "").toLowerCase().trim();
     if (userErr || !email) {
-      return NextResponse.json({ isAdmin: false, role: "none" }, { status: 200 });
+      return NextResponse.json({ role: "none", email: null }, { status: 200 });
     }
 
     const db = createServiceRoleSupabaseClient();
@@ -25,9 +25,8 @@ export async function GET() {
       return NextResponse.json({ error: adminErr.message }, { status: 400 });
     }
 
-    const role = adminRow?.role || "none";
     return NextResponse.json(
-      { isAdmin: role === "admin" || role === "super_admin", role },
+      { email, role: adminRow?.role || "none" },
       { status: 200 }
     );
   } catch (e: any) {
