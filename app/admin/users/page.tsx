@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type AdminRole = "admin" | "super_admin";
+
 type AdminUserRow = {
   id: string;
   email: string;
@@ -45,12 +46,17 @@ export default function AdminUsersPage() {
   const [saving, setSaving] = useState(false);
 
   async function ensureSuperAdmin() {
-    const meRes = await fetch("/api/admin/me", { cache: "no-store", credentials: "include" });
+    const meRes = await fetch("/api/admin/me", {
+      cache: "no-store",
+      credentials: "include",
+    });
     const me = await safeJson(meRes);
+
     if (me?.role !== "super_admin") {
       router.replace("/partner/login?reason=not_authorized");
       return false;
     }
+
     return true;
   }
 
@@ -60,6 +66,7 @@ export default function AdminUsersPage() {
 
     try {
       const { data: userData } = await supabase.auth.getUser();
+
       if (!userData?.user) {
         router.replace("/partner/login?reason=not_authorized");
         return;
@@ -73,9 +80,13 @@ export default function AdminUsersPage() {
         cache: "no-store",
         credentials: "include",
       });
+
       const json = await safeJson(res);
 
-      if (!res.ok) throw new Error(json?.error || json?._raw || "Failed to load admins.");
+      if (!res.ok) {
+        throw new Error(json?.error || json?._raw || "Failed to load admins.");
+      }
+
       setRows((json?.data || []) as AdminUserRow[]);
     } catch (e: any) {
       setError(e?.message || "Failed to load admins.");
@@ -87,6 +98,7 @@ export default function AdminUsersPage() {
 
   async function addAdmin() {
     setError(null);
+
     const email = newEmail.trim().toLowerCase();
     if (!email) {
       setError("Enter an email.");
@@ -94,6 +106,7 @@ export default function AdminUsersPage() {
     }
 
     setSaving(true);
+
     try {
       const res = await fetch("/api/admin/users", {
         method: "POST",
@@ -101,8 +114,12 @@ export default function AdminUsersPage() {
         credentials: "include",
         body: JSON.stringify({ email, role: newRole }),
       });
+
       const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || json?._raw || "Failed to add admin.");
+
+      if (!res.ok) {
+        throw new Error(json?.error || json?._raw || "Failed to add admin.");
+      }
 
       setNewEmail("");
       setNewRole("admin");
@@ -116,6 +133,7 @@ export default function AdminUsersPage() {
 
   async function setRole(email: string, role: AdminRole) {
     setError(null);
+
     try {
       const res = await fetch("/api/admin/users", {
         method: "PATCH",
@@ -123,8 +141,19 @@ export default function AdminUsersPage() {
         credentials: "include",
         body: JSON.stringify({ email, role }),
       });
-      const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || json?._raw || "Failed to update role.");
+
+      const text = await res.text();
+      let json: any = null;
+
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = { _raw: text };
+      }
+
+      if (!res.ok) {
+        throw new Error(json?.error || json?._raw || `HTTP ${res.status}`);
+      }
 
       await load();
     } catch (e: any) {
@@ -134,6 +163,7 @@ export default function AdminUsersPage() {
 
   async function removeAdmin(email: string) {
     setError(null);
+
     try {
       const res = await fetch("/api/admin/users", {
         method: "DELETE",
@@ -141,8 +171,12 @@ export default function AdminUsersPage() {
         credentials: "include",
         body: JSON.stringify({ email }),
       });
+
       const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || json?._raw || "Failed to remove admin.");
+
+      if (!res.ok) {
+        throw new Error(json?.error || json?._raw || "Failed to remove admin.");
+      }
 
       await load();
     } catch (e: any) {
@@ -160,7 +194,9 @@ export default function AdminUsersPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[#003768]">Admin Users</h1>
-          <p className="mt-2 text-gray-600">Super admin can add/remove admins and promote them.</p>
+          <p className="mt-2 text-gray-600">
+            Super admin can add/remove admins and promote them.
+          </p>
         </div>
 
         <div className="flex items-center gap-2">

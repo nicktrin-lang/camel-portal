@@ -25,7 +25,6 @@ function fmtDateTime(iso?: string | null) {
   }
 }
 
-// Robust helper: never throws "Unexpected end of JSON input"
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
   if (!text) return null;
@@ -49,28 +48,25 @@ export default function AdminApprovalsPage() {
     setError(null);
 
     try {
-      // 1) Confirm client session exists (fast feedback)
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData?.user) {
         router.replace("/partner/login?reason=not_authorized");
         return;
       }
 
-      // 2) Server decides if admin (cookie-auth)
-      const isAdminRes = await fetch("/api/admin/is-admin", {
+      const adminRes = await fetch("/api/admin/is-admin", {
         method: "GET",
         cache: "no-store",
         credentials: "include",
       });
-      const isAdminJson = await safeJson(isAdminRes);
+      const adminJson = await safeJson(adminRes);
 
-      if (!isAdminJson?.isAdmin) {
+      if (!adminJson?.isAdmin) {
         setError("Not authorized");
         setRows([]);
         return;
       }
 
-      // 3) Load applications (cookie-auth)
       const res = await fetch("/api/admin/applications", {
         method: "GET",
         cache: "no-store",
@@ -80,12 +76,9 @@ export default function AdminApprovalsPage() {
       const json = await safeJson(res);
 
       if (!res.ok) {
-        const msg =
-          json?.error ||
-          json?.message ||
-          json?._raw ||
-          "Failed to load applications.";
-        throw new Error(msg);
+        throw new Error(
+          json?.error || json?.message || json?._raw || "Failed to load applications."
+        );
       }
 
       setRows((json?.data || []) as PartnerApplication[]);
@@ -112,15 +105,11 @@ export default function AdminApprovalsPage() {
       const json = await safeJson(res);
 
       if (!res.ok) {
-        const msg =
-          json?.error ||
-          json?.message ||
-          json?._raw ||
-          "Failed to update status.";
-        throw new Error(msg);
+        throw new Error(
+          json?.error || json?.message || json?._raw || "Failed to update status."
+        );
       }
 
-      // Fast UI update + reload for consistency
       setRows((prev) =>
         prev.map((r) => (String(r.id) === String(id) ? { ...r, status } : r))
       );
@@ -142,7 +131,6 @@ export default function AdminApprovalsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl">
-      {/* Header row */}
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-[#003768]">Admin Approvals</h1>
@@ -169,31 +157,28 @@ export default function AdminApprovalsPage() {
             {loading ? "Refreshing…" : "Refresh"}
           </button>
 
-          {/* ✅ Admin-only navigation: show BOTH links */}
           <Link
             href="/partner/dashboard"
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#003768] hover:bg-black/5"
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5"
           >
             Partner Dashboard
           </Link>
 
           <Link
-            href="/admin/approvals"
+            href="/admin/users"
             className="rounded-full bg-[#ff7a00] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
           >
-            Admin Approvals
+            Admin Users
           </Link>
         </div>
       </div>
 
-      {/* Error */}
       {error ? (
         <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       ) : null}
 
-      {/* Table */}
       <div className="mt-6 overflow-hidden rounded-xl border border-black/10">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -237,9 +222,27 @@ export default function AdminApprovalsPage() {
                       <td className="px-4 py-4 text-gray-700">
                         {fmtDateTime(r.created_at)}
                       </td>
+
                       <td className="px-4 py-4 text-gray-900">{r.email || "—"}</td>
-                      <td className="px-4 py-4 text-gray-900">{r.full_name || "—"}</td>
-                      <td className="px-4 py-4 text-gray-900">{r.company_name || "—"}</td>
+
+                      <td className="px-4 py-4 text-gray-900">
+                        <Link
+                          href={`/admin/approvals/${r.id}`}
+                          className="font-medium text-[#005b9f] hover:underline"
+                        >
+                          {r.full_name || "—"}
+                        </Link>
+                      </td>
+
+                      <td className="px-4 py-4 text-gray-900">
+                        <Link
+                          href={`/admin/approvals/${r.id}`}
+                          className="font-medium text-[#005b9f] hover:underline"
+                        >
+                          {r.company_name || "—"}
+                        </Link>
+                      </td>
+
                       <td className="px-4 py-4">
                         <span
                           className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badge}`}
@@ -247,6 +250,7 @@ export default function AdminApprovalsPage() {
                           {status}
                         </span>
                       </td>
+
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-2">
                           <button
@@ -270,8 +274,15 @@ export default function AdminApprovalsPage() {
                             onClick={() => setStatus(String(r.id), "pending")}
                             className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
                           >
-                            Set pending
+                            Pause
                           </button>
+
+                          <Link
+                            href={`/admin/approvals/${r.id}`}
+                            className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
+                          >
+                            View
+                          </Link>
                         </div>
                       </td>
                     </tr>
