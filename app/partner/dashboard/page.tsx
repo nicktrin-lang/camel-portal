@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
+type AdminRole = "none" | "admin" | "super_admin";
+
 type PartnerApplication = {
   id: string;
   email: string | null;
@@ -39,7 +41,7 @@ export default function PartnerDashboardPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminRole, setAdminRole] = useState<AdminRole>("none");
   const [error, setError] = useState<string | null>(null);
 
   const [app, setApp] = useState<PartnerApplication | null>(null);
@@ -55,7 +57,7 @@ export default function PartnerDashboardPage() {
       try {
         const { data: userData, error: userErr } = await supabase.auth.getUser();
         if (userErr || !userData?.user) {
-          router.replace("/partner/login?reason=not_authorized");
+          router.replace("/partner/login?reason=not_signed_in");
           return;
         }
 
@@ -63,14 +65,16 @@ export default function PartnerDashboardPage() {
         if (!mounted) return;
         setEmail(userEmail);
 
-        const adminRes = await fetch("/api/admin/is-admin", {
+        const meRes = await fetch("/api/admin/me", {
           method: "GET",
           cache: "no-store",
           credentials: "include",
         });
-        const adminJson = await safeJson(adminRes);
+        const meJson = await safeJson(meRes);
+
         if (!mounted) return;
-        setIsAdmin(!!adminJson?.isAdmin);
+        const role = String(meJson?.role || "none") as AdminRole;
+        setAdminRole(role);
 
         const { data: appRow, error: appErr } = await supabase
           .from("partner_applications")
@@ -94,13 +98,24 @@ export default function PartnerDashboardPage() {
     }
 
     load();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      load();
+    });
+
     return () => {
       mounted = false;
+      subscription.unsubscribe();
     };
   }, [router, supabase]);
 
   const status = String(app?.status || "approved").toLowerCase();
   const showApproved = status === "approved" || !app;
+
+  const isAdmin = adminRole === "admin" || adminRole === "super_admin";
+  const isSuperAdmin = adminRole === "super_admin";
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -115,7 +130,7 @@ export default function PartnerDashboardPage() {
         </div>
       ) : null}
 
-      <div className="mt-8 rounded-2xl bg-white p-6 md:p-10 shadow-[0_18px_45px_rgba(0,0,0,0.10)] border border-black/5">
+      <div className="mt-8 rounded-2xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.10)] md:p-10">
         <h2 className="text-xl font-semibold text-[#003768]">Account</h2>
 
         <div className="mt-5 space-y-2 text-sm text-gray-800">
@@ -173,6 +188,15 @@ export default function PartnerDashboardPage() {
               className="rounded-full border border-black/10 bg-white px-7 py-3 font-semibold text-[#003768] hover:bg-black/5"
             >
               Admin Approvals
+            </Link>
+          ) : null}
+
+          {isSuperAdmin ? (
+            <Link
+              href="/admin/users"
+              className="rounded-full border border-black/10 bg-white px-7 py-3 font-semibold text-[#003768] hover:bg-black/5"
+            >
+              Admin Users
             </Link>
           ) : null}
         </div>

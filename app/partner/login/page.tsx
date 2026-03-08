@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 async function safeJson(res: Response): Promise<any> {
@@ -15,9 +14,31 @@ async function safeJson(res: Response): Promise<any> {
   }
 }
 
+async function getAdminRoleWithRetry(retries = 6, delayMs = 250) {
+  for (let i = 0; i < retries; i++) {
+    const res = await fetch("/api/admin/me", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+    });
+
+    const json = await safeJson(res);
+    const role = String(json?.role || "none");
+
+    if (role === "admin" || role === "super_admin") {
+      return role;
+    }
+
+    if (i < retries - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return "none";
+}
+
 export default function PartnerLoginPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,21 +84,14 @@ export default function PartnerLoginPage() {
 
       if (signInErr) throw signInErr;
 
-      // Important: wait for cookie/session to settle, then ask server if user is admin
-      const adminRes = await fetch("/api/admin/is-admin", {
-        method: "GET",
-        cache: "no-store",
-        credentials: "include",
-      });
+      const role = await getAdminRoleWithRetry();
 
-      const adminJson = await safeJson(adminRes);
-
-      if (adminJson?.isAdmin) {
-        window.location.href = "/admin/approvals";
+      if (role === "admin" || role === "super_admin") {
+        window.location.replace("/admin/approvals");
         return;
       }
 
-      window.location.href = "/partner/dashboard";
+      window.location.replace("/partner/dashboard");
     } catch (err: any) {
       setError(err?.message || "Login failed.");
     } finally {
@@ -86,7 +100,7 @@ export default function PartnerLoginPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl rounded-2xl bg-white p-6 md:p-10 shadow-[0_18px_45px_rgba(0,0,0,0.10)] border border-black/5">
+    <div className="mx-auto w-full max-w-2xl rounded-2xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.10)] md:p-10">
       <h1 className="text-2xl font-semibold text-[#003768]">Partner Login</h1>
       <p className="mt-2 text-gray-600">Log in to manage your profile and requests.</p>
 
