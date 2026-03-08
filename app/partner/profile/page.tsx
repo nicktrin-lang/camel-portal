@@ -17,6 +17,12 @@ type ProfileState = {
   search_address: string;
 };
 
+type Suggestion = {
+  display_name: string;
+  lat: number | null;
+  lng: number | null;
+};
+
 function parseCoordinate(
   value: string | number | null | undefined,
   kind: "lat" | "lng"
@@ -78,6 +84,10 @@ export default function PartnerProfilePage() {
     search_address: "",
   });
 
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
   useEffect(() => {
     let mounted = true;
 
@@ -119,10 +129,8 @@ export default function PartnerProfilePage() {
         if (!mounted) return;
 
         setProfile({
-          company_name:
-            String(existingProfile?.company_name ?? (application as any)?.company_name ?? ""),
-          contact_name:
-            String(existingProfile?.contact_name ?? (application as any)?.full_name ?? ""),
+          company_name: String(existingProfile?.company_name ?? (application as any)?.company_name ?? ""),
+          contact_name: String(existingProfile?.contact_name ?? (application as any)?.full_name ?? ""),
           phone: String(existingProfile?.phone ?? (application as any)?.phone ?? ""),
           address: String(existingProfile?.address ?? (application as any)?.address ?? ""),
           website: String(existingProfile?.website ?? (application as any)?.website ?? ""),
@@ -157,6 +165,22 @@ export default function PartnerProfilePage() {
   function updateField<K extends keyof ProfileState>(key: K, value: ProfileState[K]) {
     setSaved(false);
     setProfile((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function pickSuggestion(item: Suggestion) {
+    if (item.lat === null || item.lng === null) return;
+
+    setSaved(false);
+    setError(null);
+    setProfile((prev) => ({
+      ...prev,
+      search_address: item.display_name,
+      base_address: item.display_name,
+      base_lat: String(item.lat),
+      base_lng: String(item.lng),
+    }));
+    setSuggestions([]);
+    setShowSuggestions(false);
   }
 
   function useCurrentLocation() {
@@ -200,6 +224,8 @@ export default function PartnerProfilePage() {
       return;
     }
 
+    setSearching(true);
+
     try {
       const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
         method: "GET",
@@ -212,23 +238,24 @@ export default function PartnerProfilePage() {
         throw new Error(json?.error || json?._raw || "Address search failed.");
       }
 
-      const lat = json?.lat;
-      const lng = json?.lng;
-      const label = json?.display_name || q;
+      const results = Array.isArray(json?.results) ? (json.results as Suggestion[]) : [];
 
-      if (lat === undefined || lng === undefined) {
-        throw new Error("No coordinates returned for that address.");
+      if (!results.length) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        throw new Error("No address suggestions found.");
       }
 
-      setProfile((prev) => ({
-        ...prev,
-        base_address: String(label),
-        search_address: String(label),
-        base_lat: String(lat),
-        base_lng: String(lng),
-      }));
+      setSuggestions(results);
+      setShowSuggestions(true);
+
+      if (results.length === 1) {
+        pickSuggestion(results[0]);
+      }
     } catch (e: any) {
       setError(e?.message || "Address search failed.");
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -400,7 +427,7 @@ export default function PartnerProfilePage() {
               onClick={searchAddress}
               className="rounded-full bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
             >
-              Search
+              {searching ? "Searching..." : "Search"}
             </button>
           </div>
 
@@ -410,11 +437,38 @@ export default function PartnerProfilePage() {
               type="text"
               className="mt-1 w-full rounded-xl border border-black/10 p-3"
               value={profile.search_address}
-              onChange={(e) => updateField("search_address", e.target.value)}
+              onChange={(e) => {
+                updateField("search_address", e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => {
+                if (suggestions.length) setShowSuggestions(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  searchAddress();
+                }
+              }}
             />
             <p className="mt-2 text-xs text-gray-500">
-              Tip: choose a suggestion for best results, or press Enter to search.
+              Tip: click Search or press Enter, then choose a suggestion.
             </p>
+
+            {showSuggestions && suggestions.length > 0 ? (
+              <div className="mt-2 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg">
+                {suggestions.map((item, idx) => (
+                  <button
+                    key={`${item.display_name}-${idx}`}
+                    type="button"
+                    onClick={() => pickSuggestion(item)}
+                    className="block w-full border-b border-black/5 px-4 py-3 text-left text-sm text-gray-800 hover:bg-[#f3f8ff] last:border-b-0"
+                  >
+                    {item.display_name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-5">
