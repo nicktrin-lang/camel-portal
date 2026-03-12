@@ -174,7 +174,7 @@ const { error: insertErr } = await (supabase as any)
   href="/partner/login"
   className="rounded-full bg-[#ff7a00] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
 >
-  Back to login
+  Login
 </Link>
       </div>
 
