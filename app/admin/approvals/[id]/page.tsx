@@ -33,6 +33,11 @@ type PartnerProfile = {
   contact_name: string | null;
   phone: string | null;
   address: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  province?: string | null;
+  postcode?: string | null;
+  country?: string | null;
   website: string | null;
   service_radius_km: number | null;
   base_address: string | null;
@@ -47,6 +52,10 @@ function fmtDateTime(iso?: string | null) {
   } catch {
     return iso ?? "—";
   }
+}
+
+function buildAddress(parts: Array<string | null | undefined>) {
+  return parts.map((v) => (v || "").trim()).filter(Boolean).join(", ");
 }
 
 async function safeJson(res: Response): Promise<any> {
@@ -152,18 +161,29 @@ export default function AdminApprovalDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
-  const fullAddress = [
+  const profileStructuredAddress = buildAddress([
+    profile?.address1,
+    profile?.address2,
+    profile?.province,
+    profile?.postcode,
+    profile?.country,
+  ]);
+
+  const applicationStructuredAddress = buildAddress([
     application?.address1,
     application?.address2,
     application?.province,
     application?.postcode,
     application?.country,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  ]);
 
   const primaryAddress =
-    application?.address || fullAddress || profile?.base_address || profile?.address || "—";
+    profile?.base_address ||
+    profileStructuredAddress ||
+    profile?.address ||
+    applicationStructuredAddress ||
+    application?.address ||
+    "—";
 
   const status = (application?.status || "pending") as AppStatus;
 
@@ -225,9 +245,11 @@ export default function AdminApprovalDetailPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold text-[#003768]">
-                    {application.full_name || "—"}
+                    {profile?.contact_name || application.full_name || "—"}
                   </h2>
-                  <p className="mt-1 text-gray-600">{application.company_name || "—"}</p>
+                  <p className="mt-1 text-gray-600">
+                    {profile?.company_name || application.company_name || "—"}
+                  </p>
                 </div>
 
                 <span
@@ -246,14 +268,14 @@ export default function AdminApprovalDetailPage() {
                 <div>
                   <span className="font-medium text-[#003768]">Phone:</span>{" "}
                   <span className="text-gray-800">
-                    {application.phone || profile?.phone || "—"}
+                    {profile?.phone || application.phone || "—"}
                   </span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Website:</span>{" "}
                   <span className="text-gray-800">
-                    {application.website || profile?.website || "—"}
+                    {profile?.website || application.website || "—"}
                   </span>
                 </div>
 
@@ -311,27 +333,37 @@ export default function AdminApprovalDetailPage() {
 
                 <div>
                   <span className="font-medium text-[#003768]">Address line 1:</span>{" "}
-                  <span className="text-gray-800">{application.address1 || "—"}</span>
+                  <span className="text-gray-800">
+                    {profile?.address1 || application.address1 || "—"}
+                  </span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Address line 2:</span>{" "}
-                  <span className="text-gray-800">{application.address2 || "—"}</span>
+                  <span className="text-gray-800">
+                    {profile?.address2 || application.address2 || "—"}
+                  </span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Province:</span>{" "}
-                  <span className="text-gray-800">{application.province || "—"}</span>
+                  <span className="text-gray-800">
+                    {profile?.province || application.province || "—"}
+                  </span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Postcode:</span>{" "}
-                  <span className="text-gray-800">{application.postcode || "—"}</span>
+                  <span className="text-gray-800">
+                    {profile?.postcode || application.postcode || "—"}
+                  </span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Country:</span>{" "}
-                  <span className="text-gray-800">{application.country || "—"}</span>
+                  <span className="text-gray-800">
+                    {profile?.country || application.country || "—"}
+                  </span>
                 </div>
 
                 <div>

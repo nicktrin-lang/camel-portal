@@ -48,19 +48,26 @@ export async function GET(
     }
 
     if (!application) {
-      return NextResponse.json({ error: "Partner application not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Partner application not found" },
+        { status: 404 }
+      );
     }
 
     let profile: any = null;
 
     if (application.user_id) {
-      const { data: profileRow } = await db
+      const { data: profileRow, error: profileErr } = await db
         .from("partner_profiles")
         .select(
-          "id,user_id,company_name,contact_name,phone,address,website,service_radius_km,base_address,base_lat,base_lng"
+          "id,user_id,company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_lat,base_lng"
         )
         .eq("user_id", application.user_id)
         .maybeSingle();
+
+      if (profileErr) {
+        return NextResponse.json({ error: profileErr.message }, { status: 400 });
+      }
 
       profile = profileRow || null;
     }
