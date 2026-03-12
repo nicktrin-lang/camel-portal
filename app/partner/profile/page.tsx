@@ -15,6 +15,11 @@ type ProfileState = {
   contact_name: string;
   phone: string;
   address: string;
+  address1: string;
+  address2: string;
+  province: string;
+  postcode: string;
+  country: string;
   website: string;
   service_radius_km: string;
   base_address: string;
@@ -27,6 +32,11 @@ type Suggestion = {
   display_name: string;
   lat: number | null;
   lng: number | null;
+  address_line1?: string;
+  address_line2?: string;
+  province?: string;
+  postcode?: string;
+  country?: string;
 };
 
 type AdminRole = "none" | "admin" | "super_admin";
@@ -85,6 +95,11 @@ export default function PartnerProfilePage() {
     contact_name: "",
     phone: "",
     address: "",
+    address1: "",
+    address2: "",
+    province: "",
+    postcode: "",
+    country: "",
     website: "",
     service_radius_km: "30",
     base_address: "",
@@ -127,14 +142,16 @@ export default function PartnerProfilePage() {
         const { data: existingProfile } = await supabase
           .from("partner_profiles")
           .select(
-            "company_name,contact_name,phone,address,website,service_radius_km,base_address,base_lat,base_lng"
+            "company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_lat,base_lng"
           )
           .eq("user_id", user.id)
           .maybeSingle();
 
         const { data: application } = await supabase
           .from("partner_applications")
-          .select("company_name,full_name,phone,address,website,status")
+          .select(
+            "company_name,full_name,phone,address,address1,address2,province,postcode,country,website,status"
+          )
           .eq("email", email)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -156,6 +173,11 @@ export default function PartnerProfilePage() {
           ),
           phone: String(existingProfile?.phone ?? (application as any)?.phone ?? ""),
           address: String(existingProfile?.address ?? (application as any)?.address ?? ""),
+          address1: String(existingProfile?.address1 ?? (application as any)?.address1 ?? ""),
+          address2: String(existingProfile?.address2 ?? (application as any)?.address2 ?? ""),
+          province: String(existingProfile?.province ?? (application as any)?.province ?? ""),
+          postcode: String(existingProfile?.postcode ?? (application as any)?.postcode ?? ""),
+          country: String(existingProfile?.country ?? (application as any)?.country ?? ""),
           website: String(existingProfile?.website ?? (application as any)?.website ?? ""),
           service_radius_km: String(existingProfile?.service_radius_km ?? "30"),
           base_address: String(existingProfile?.base_address ?? ""),
@@ -190,18 +212,28 @@ export default function PartnerProfilePage() {
     setProfile((prev) => ({ ...prev, [key]: value }));
   }
 
+  function applyAddressParts(item: Suggestion) {
+    setProfile((prev) => ({
+      ...prev,
+      search_address: item.display_name || prev.search_address,
+      base_address: item.display_name || prev.base_address,
+      base_lat: item.lat !== null ? String(item.lat) : prev.base_lat,
+      base_lng: item.lng !== null ? String(item.lng) : prev.base_lng,
+      address1: item.address_line1 || prev.address1,
+      address2: item.address_line2 || prev.address2,
+      province: item.province || prev.province,
+      postcode: item.postcode || prev.postcode,
+      country: item.country || prev.country,
+      address: item.display_name || prev.address,
+    }));
+  }
+
   function pickSuggestion(item: Suggestion) {
     if (item.lat === null || item.lng === null) return;
 
     setSaved(false);
     setError(null);
-    setProfile((prev) => ({
-      ...prev,
-      search_address: item.display_name,
-      base_address: item.display_name,
-      base_lat: String(item.lat),
-      base_lng: String(item.lng),
-    }));
+    applyAddressParts(item);
     setSuggestions([]);
     setShowSuggestions(false);
   }
@@ -233,17 +265,16 @@ export default function PartnerProfilePage() {
         throw new Error(json?.error || json?._raw || "Failed to get address from map location.");
       }
 
-      const displayName = String(json?.display_name || "").trim();
-
-      if (displayName) {
-        setProfile((prev) => ({
-          ...prev,
-          base_lat: String(lat),
-          base_lng: String(lng),
-          base_address: displayName,
-          search_address: displayName,
-        }));
-      }
+      applyAddressParts({
+        display_name: String(json?.display_name || ""),
+        lat,
+        lng,
+        address_line1: String(json?.address_line1 || ""),
+        address_line2: String(json?.address_line2 || ""),
+        province: String(json?.province || ""),
+        postcode: String(json?.postcode || ""),
+        country: String(json?.country || ""),
+      });
     } catch (e: any) {
       setError(e?.message || "Failed to get address from map location.");
     }
@@ -260,10 +291,7 @@ export default function PartnerProfilePage() {
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        await handleMapPick(lat, lng);
+        await handleMapPick(pos.coords.latitude, pos.coords.longitude);
       },
       (err) => {
         setError(err.message || "Could not get your current location.");
@@ -353,6 +381,11 @@ export default function PartnerProfilePage() {
         contact_name: profile.contact_name.trim() || null,
         phone: profile.phone.trim() || null,
         address: profile.address.trim() || null,
+        address1: profile.address1.trim() || null,
+        address2: profile.address2.trim() || null,
+        province: profile.province.trim() || null,
+        postcode: profile.postcode.trim() || null,
+        country: profile.country.trim() || null,
         website: profile.website.trim() || null,
         service_radius_km: radius,
         base_address: profile.base_address.trim() || profile.search_address.trim() || null,
@@ -585,6 +618,59 @@ export default function PartnerProfilePage() {
               value={profile.base_address}
               onChange={(e) => updateField("base_address", e.target.value)}
             />
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium text-[#003768]">Address line 1</label>
+              <input
+                type="text"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                value={profile.address1}
+                onChange={(e) => updateField("address1", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-[#003768]">Address line 2</label>
+              <input
+                type="text"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                value={profile.address2}
+                onChange={(e) => updateField("address2", e.target.value)}
+              />
+            />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-[#003768]">Province</label>
+              <input
+                type="text"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                value={profile.province}
+                onChange={(e) => updateField("province", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-[#003768]">Postcode</label>
+              <input
+                type="text"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                value={profile.postcode}
+                onChange={(e) => updateField("postcode", e.target.value)}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium text-[#003768]">Country</label>
+              <input
+                type="text"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                value={profile.country}
+                onChange={(e) => updateField("country", e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2">

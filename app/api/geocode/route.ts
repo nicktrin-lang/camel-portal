@@ -1,5 +1,31 @@
 import { NextResponse } from "next/server";
 
+function normalizeAddressParts(address: any) {
+  const houseNumber = address?.house_number || "";
+  const road = address?.road || address?.pedestrian || address?.footway || "";
+  const suburb =
+    address?.suburb ||
+    address?.neighbourhood ||
+    address?.city_district ||
+    address?.quarter ||
+    "";
+  const province =
+    address?.state || address?.county || address?.region || address?.city || "";
+  const postcode = address?.postcode || "";
+  const country = address?.country || "";
+
+  const address_line1 = [houseNumber, road].filter(Boolean).join(" ").trim() || road || "";
+  const address_line2 = suburb || "";
+
+  return {
+    address_line1,
+    address_line2,
+    province,
+    postcode,
+    country,
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -10,7 +36,7 @@ export async function GET(req: Request) {
 
     // Reverse geocode
     if (lat && lng) {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${encodeURIComponent(
         lat
       )}&lon=${encodeURIComponent(lng)}`;
 
@@ -30,12 +56,14 @@ export async function GET(req: Request) {
       }
 
       const data = await res.json();
+      const parts = normalizeAddressParts(data?.address || {});
 
       return NextResponse.json(
         {
           display_name: data?.display_name || "",
           lat: data?.lat ? Number(data.lat) : null,
           lng: data?.lon ? Number(data.lon) : null,
+          ...parts,
         },
         { status: 200 }
       );
@@ -72,6 +100,7 @@ export async function GET(req: Request) {
           display_name: item.display_name || "",
           lat: item.lat ? Number(item.lat) : null,
           lng: item.lon ? Number(item.lon) : null,
+          ...normalizeAddressParts(item.address || {}),
         }))
       : [];
 
