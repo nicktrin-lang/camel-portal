@@ -428,7 +428,7 @@ export default function PartnerProfilePage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-[#003768]">Edit Profile</h1>
-          <p className="mt-2 text-gray-600">Update your partner details and base location.</p>
+          <p className="mt-2 text-gray-600">Update your partner details and car fleet location.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -524,7 +524,7 @@ export default function PartnerProfilePage() {
           </div>
 
           <div className="md:col-span-2">
-            <label className="text-sm font-medium text-[#003768]">Address</label>
+            <label className="text-sm font-medium text-[#003768]">Business Address</label>
             <input
               type="text"
               className="mt-1 w-full rounded-xl border border-black/10 p-3"
@@ -547,7 +547,7 @@ export default function PartnerProfilePage() {
         </div>
 
         <div className="mt-8 rounded-2xl border border-black/10 p-4">
-          <h2 className="text-xl font-semibold text-[#003768]">Base location</h2>
+          <h2 className="text-xl font-semibold text-[#003768]">Car Fleet location</h2>
           <p className="mt-2 text-sm text-gray-600">
             Type an address to see suggestions, use GPS, or click on the map. Then click Save.
           </p>
@@ -611,7 +611,7 @@ export default function PartnerProfilePage() {
           </div>
 
           <div className="mt-5">
-            <label className="text-sm font-medium text-[#003768]">Base address</label>
+            <label className="text-sm font-medium text-[#003768]">Car Fleet Address</label>
             <input
               type="text"
               className="mt-1 w-full rounded-xl border border-black/10 p-3"
@@ -697,7 +697,7 @@ export default function PartnerProfilePage() {
           <div className="mt-6">
             <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
             <p className="mt-2 text-xs text-gray-500">
-              Click anywhere on the map to set the partner base location.
+              Click anywhere on the map to set the partner car fleet location.
             </p>
           </div>
         </div>
