@@ -62,7 +62,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-[#e3f4ff]">
-        {!isHomepage ? (
+
+        {/* GLOBAL HEADER (hidden on homepage) */}
+        {!isHomepage && (
           <>
             <header className="fixed left-0 top-0 z-50 w-full shadow-[0_4px_12px_rgba(0,0,0,0.25)]">
               <div className="bg-gradient-to-br from-[#003768] to-[#005b9f] text-white">
@@ -88,6 +90,7 @@ export default function RootLayout({
                         <Link href="/partner/signup" className="hover:opacity-90">
                           Partner Sign Up
                         </Link>
+
                         <Link href="/partner/login" className="hover:opacity-90">
                           Partner Login
                         </Link>
@@ -110,9 +113,10 @@ export default function RootLayout({
 
             <div className="h-[105px] md:h-[115px]" />
           </>
-        ) : null}
+        )}
 
         <main>{children}</main>
+
       </body>
     </html>
   );
