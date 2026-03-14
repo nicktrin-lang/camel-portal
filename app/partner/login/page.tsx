@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
@@ -19,7 +19,7 @@ function reasonMessage(reason: string | null) {
   }
 }
 
-export default function PartnerLoginPage() {
+function PartnerLoginInner() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -147,5 +147,13 @@ export default function PartnerLoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PartnerLoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#f7f9fc]" />}>
+      <PartnerLoginInner />
+    </Suspense>
   );
 }
