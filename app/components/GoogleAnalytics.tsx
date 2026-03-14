@@ -2,7 +2,7 @@
 
 import Script from "next/script";
 import { useEffect, useMemo } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 declare global {
   interface Window {
@@ -13,7 +13,6 @@ declare global {
 
 export default function GoogleAnalytics() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const gaId = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -25,13 +24,12 @@ export default function GoogleAnalytics() {
   useEffect(() => {
     if (!gaId || typeof window === "undefined" || !window.gtag) return;
 
-    const page =
-      pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : "");
+    const page = window.location.pathname + window.location.search;
 
     window.gtag("config", gaId, {
       page_path: page,
     });
-  }, [gaId, pathname, searchParams]);
+  }, [gaId, pathname]);
 
   if (!gaId) return null;
 
