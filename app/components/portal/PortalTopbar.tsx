@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type MeResponse = {
@@ -12,48 +11,27 @@ type MeResponse = {
 
 export default function PortalTopbar() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router = useRouter();
 
-  const [displayName, setDisplayName] = useState<string>("");
+  const [displayName, setDisplayName] = useState("");
+  const [homeHref, setHomeHref] = useState("/partner/dashboard");
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadUserName() {
+    async function loadHeaderData() {
       try {
         const { data: userData } = await supabase.auth.getUser();
         const user = userData?.user;
 
         if (!user) {
-          if (mounted) setDisplayName("");
+          if (mounted) {
+            setDisplayName("");
+            setHomeHref("/partner/login");
+          }
           return;
         }
 
         const email = String(user.email || "").toLowerCase().trim();
-
-        const { data: profile } = await supabase
-          .from("partner_profiles")
-          .select("contact_name,company_name")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (profile?.contact_name && mounted) {
-          setDisplayName(String(profile.contact_name));
-          return;
-        }
-
-        const { data: application } = await supabase
-          .from("partner_applications")
-          .select("full_name,company_name")
-          .eq("email", email)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (application?.full_name && mounted) {
-          setDisplayName(String(application.full_name));
-          return;
-        }
 
         const meRes = await fetch("/api/admin/me", {
           method: "GET",
@@ -62,37 +40,65 @@ export default function PortalTopbar() {
         });
 
         const meJson = (await meRes.json().catch(() => null)) as MeResponse | null;
+        const role = meJson?.role || "none";
 
-        if (
-          mounted &&
-          (meJson?.role === "admin" || meJson?.role === "super_admin")
-        ) {
-          const fallback =
-            user.user_metadata?.full_name ||
-            user.user_metadata?.name ||
-            user.email ||
-            "";
+        if (mounted) {
+          if (role === "admin" || role === "super_admin") {
+            setHomeHref("/admin/approvals");
+          } else {
+            setHomeHref("/partner/dashboard");
+          }
+        }
 
-          setDisplayName(String(fallback));
+        const { data: profile } = await supabase
+          .from("partner_profiles")
+          .select("contact_name")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (profile?.contact_name) {
+          if (mounted) setDisplayName(String(profile.contact_name));
           return;
         }
 
+        const { data: application } = await supabase
+          .from("partner_applications")
+          .select("full_name")
+          .eq("email", email)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (application?.full_name) {
+          if (mounted) setDisplayName(String(application.full_name));
+          return;
+        }
+
+        const fallback =
+          String(
+            user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              user.email ||
+              ""
+          ).trim();
+
         if (mounted) {
-          setDisplayName(
-            String(user.user_metadata?.full_name || user.user_metadata?.name || user.email || "")
-          );
+          setDisplayName(fallback);
         }
       } catch {
-        if (mounted) setDisplayName("");
+        if (mounted) {
+          setDisplayName("");
+          setHomeHref("/partner/dashboard");
+        }
       }
     }
 
-    loadUserName();
+    loadHeaderData();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      loadUserName();
+      loadHeaderData();
     });
 
     return () => {
@@ -110,7 +116,7 @@ export default function PortalTopbar() {
     <header className="fixed inset-x-0 top-0 z-50 h-20 border-b border-black/10 bg-[#123d78] text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
       <div className="flex h-full w-full items-center justify-between px-4 md:px-8">
         <div className="flex items-center">
-          <Link href="/partner/dashboard" className="flex items-center">
+          <Link href={homeHref} className="flex items-center">
             <Image
               src="/camel-logo.png"
               alt="Camel Global logo"
@@ -129,7 +135,7 @@ export default function PortalTopbar() {
             </div>
           ) : null}
 
-          <Link href="/" className="text-sm font-semibold text-white hover:opacity-90">
+          <Link href={homeHref} className="text-sm font-semibold text-white hover:opacity-90">
             Home
           </Link>
 

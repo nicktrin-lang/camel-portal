@@ -22,7 +22,6 @@ export function middleware(req: NextRequest) {
   const url = req.nextUrl.clone();
   const pathname = url.pathname;
 
-  // Never redirect static assets
   if (isStaticAsset(pathname)) {
     return NextResponse.next();
   }
@@ -30,7 +29,6 @@ export function middleware(req: NextRequest) {
   const isPartnerOrAdminPath =
     pathname.startsWith("/partner") || pathname.startsWith("/admin");
 
-  // Main website → portal for partner/admin routes
   if (MAIN_HOSTS.has(host) && isPartnerOrAdminPath) {
     const redirectUrl = new URL(req.url);
     redirectUrl.protocol = "https:";
@@ -40,10 +38,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl, 308);
   }
 
-  // Portal root → portal login
   if (host === PORTAL_HOST && pathname === "/") {
     return NextResponse.redirect(
-      new URL("https://portal.camel-global.com/partner/login"),
+      new URL("https://portal.camel-global.com/partner/dashboard"),
       308
     );
   }
