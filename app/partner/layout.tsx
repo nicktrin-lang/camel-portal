@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import PartnerSidebar from "@/components/partner/PartnerSidebar";
-import PartnerTopbar from "@/components/partner/PartnerTopbar";
+import PartnerSidebar from "@/app/components/partner/PartnerSidebar";
+import PartnerTopbar from "@/app/components/partner/PartnerTopbar";
 
 type AdminRole = "none" | "admin" | "super_admin";
 
