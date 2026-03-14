@@ -1,5 +1,39 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
+const MapContainer = dynamic(
+  async () => {
+    const mod = await import("react-leaflet");
+    return mod.MapContainer;
+  },
+  { ssr: false }
+);
+
+const TileLayer = dynamic(
+  async () => {
+    const mod = await import("react-leaflet");
+    return mod.TileLayer;
+  },
+  { ssr: false }
+);
+
+const Marker = dynamic(
+  async () => {
+    const mod = await import("react-leaflet");
+    return mod.Marker;
+  },
+  { ssr: false }
+);
+
+const Popup = dynamic(
+  async () => {
+    const mod = await import("react-leaflet");
+    return mod.Popup;
+  },
+  { ssr: false }
+);
+
 type Props = {
   lat: number | null;
   lng: number | null;
@@ -9,39 +43,28 @@ type Props = {
 export default function PartnerLocationMap({ lat, lng, label }: Props) {
   if (lat === null || lng === null) {
     return (
-      <div className="rounded-xl border border-black/10 bg-white p-4 text-sm text-gray-600">
-        No saved map location for this partner.
+      <div className="flex h-[280px] items-center justify-center rounded-2xl border border-black/10 bg-[#f8fbff] text-sm text-slate-500">
+        No map location available.
       </div>
     );
   }
 
-  const bbox = `${lng - 0.01}%2C${lat - 0.01}%2C${lng + 0.01}%2C${lat + 0.01}`;
-  const marker = `${lat}%2C${lng}`;
-
-  const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${marker}`;
-  const openStreetMapUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}`;
-
   return (
-    <div className="overflow-hidden rounded-xl border border-black/10 bg-white">
-      <iframe
-        title={label || "Partner location"}
-        src={src}
-        className="h-[340px] w-full border-0"
-        loading="lazy"
-      />
-      <div className="flex items-center justify-between border-t border-black/10 px-4 py-3 text-sm">
-        <span className="text-gray-700">
-          {label || "Saved location"} — {lat}, {lng}
-        </span>
-        <a
-          href={openStreetMapUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="font-medium text-[#005b9f] hover:underline"
-        >
-          Open larger map
-        </a>
-      </div>
+    <div className="overflow-hidden rounded-2xl border border-black/10">
+      <MapContainer
+        center={[lat, lng]}
+        zoom={13}
+        scrollWheelZoom={false}
+        style={{ height: 320, width: "100%" }}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <Marker position={[lat, lng]}>
+          <Popup>{label || "Partner location"}</Popup>
+        </Marker>
+      </MapContainer>
     </div>
   );
 }
