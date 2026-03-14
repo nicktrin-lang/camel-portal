@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import PartnerLocationMap from "./PartnerLocationMap";
@@ -54,10 +53,6 @@ function fmtDateTime(iso?: string | null) {
   }
 }
 
-function buildAddress(parts: Array<string | null | undefined>) {
-  return parts.map((v) => (v || "").trim()).filter(Boolean).join(", ");
-}
-
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
   if (!text) return null;
@@ -86,7 +81,6 @@ export default function AdminApprovalDetailPage() {
 
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
-
       if (userErr || !userData?.user) {
         router.replace("/partner/login?reason=not_authorized");
         return;
@@ -161,29 +155,21 @@ export default function AdminApprovalDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
-  const profileStructuredAddress = buildAddress([
-    profile?.address1,
-    profile?.address2,
-    profile?.province,
-    profile?.postcode,
-    profile?.country,
-  ]);
-
-  const applicationStructuredAddress = buildAddress([
-    application?.address1,
-    application?.address2,
-    application?.province,
-    application?.postcode,
-    application?.country,
-  ]);
-
   const primaryAddress =
-    profile?.base_address ||
-    profileStructuredAddress ||
-    profile?.address ||
-    applicationStructuredAddress ||
     application?.address ||
+    profile?.address ||
+    [
+      profile?.address1,
+      profile?.address2,
+      profile?.province,
+      profile?.postcode,
+      profile?.country,
+    ]
+      .filter(Boolean)
+      .join(", ") ||
     "—";
+
+  const fleetAddress = profile?.base_address || "—";
 
   const status = (application?.status || "pending") as AppStatus;
 
@@ -191,65 +177,31 @@ export default function AdminApprovalDetailPage() {
     status === "approved"
       ? "bg-green-50 text-green-700 border-green-200"
       : status === "rejected"
-        ? "bg-red-50 text-red-700 border-red-200"
-        : "bg-yellow-50 text-yellow-800 border-yellow-200";
+      ? "bg-red-50 text-red-700 border-red-200"
+      : "bg-yellow-50 text-yellow-800 border-yellow-200";
 
   return (
-    <div className="mx-auto w-full max-w-7xl">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-[#003768]">Partner Detail</h1>
-          <p className="mt-2 text-gray-600">
-            View the full partner record and approve, reject, or pause them.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Link
-            href="/admin/approvals"
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5"
-          >
-            Back to Approvals
-          </Link>
-
-          <Link
-            href="/admin/users"
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5"
-          >
-            Admin Users
-          </Link>
-
-          <Link
-            href="/partner/dashboard"
-            className="rounded-full bg-[#ff7a00] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-          >
-            Partner Dashboard
-          </Link>
-        </div>
-      </div>
-
+    <div className="space-y-6">
       {error ? (
-        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       ) : null}
 
       {loading ? (
-        <div className="mt-6 rounded-xl border border-black/10 bg-white p-6 text-gray-600">
+        <div className="rounded-xl border border-black/10 bg-white p-6 text-gray-600">
           Loading…
         </div>
       ) : application ? (
         <>
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="rounded-xl border border-black/10 bg-white p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold text-[#003768]">
-                    {profile?.contact_name || application.full_name || "—"}
+                    {application.full_name || "—"}
                   </h2>
-                  <p className="mt-1 text-gray-600">
-                    {profile?.company_name || application.company_name || "—"}
-                  </p>
+                  <p className="mt-1 text-gray-600">{application.company_name || "—"}</p>
                 </div>
 
                 <span
@@ -268,14 +220,14 @@ export default function AdminApprovalDetailPage() {
                 <div>
                   <span className="font-medium text-[#003768]">Phone:</span>{" "}
                   <span className="text-gray-800">
-                    {profile?.phone || application.phone || "—"}
+                    {application.phone || profile?.phone || "—"}
                   </span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Website:</span>{" "}
                   <span className="text-gray-800">
-                    {profile?.website || application.website || "—"}
+                    {application.website || profile?.website || "—"}
                   </span>
                 </div>
 
@@ -327,48 +279,38 @@ export default function AdminApprovalDetailPage() {
 
               <div className="mt-5 space-y-3 text-sm">
                 <div>
-                  <span className="font-medium text-[#003768]">Business address:</span>{" "}
+                  <span className="font-medium text-[#003768]">Business Address:</span>{" "}
                   <span className="text-gray-800">{primaryAddress}</span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Address line 1:</span>{" "}
-                  <span className="text-gray-800">
-                    {profile?.address1 || application.address1 || "—"}
-                  </span>
+                  <span className="text-gray-800">{profile?.address1 || "—"}</span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Address line 2:</span>{" "}
-                  <span className="text-gray-800">
-                    {profile?.address2 || application.address2 || "—"}
-                  </span>
+                  <span className="text-gray-800">{profile?.address2 || "—"}</span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Province:</span>{" "}
-                  <span className="text-gray-800">
-                    {profile?.province || application.province || "—"}
-                  </span>
+                  <span className="text-gray-800">{profile?.province || "—"}</span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Postcode:</span>{" "}
-                  <span className="text-gray-800">
-                    {profile?.postcode || application.postcode || "—"}
-                  </span>
+                  <span className="text-gray-800">{profile?.postcode || "—"}</span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Country:</span>{" "}
-                  <span className="text-gray-800">
-                    {profile?.country || application.country || "—"}
-                  </span>
+                  <span className="text-gray-800">{profile?.country || "—"}</span>
                 </div>
 
                 <div>
                   <span className="font-medium text-[#003768]">Car Fleet Address:</span>{" "}
-                  <span className="text-gray-800">{profile?.base_address || "—"}</span>
+                  <span className="text-gray-800">{fleetAddress}</span>
                 </div>
 
                 <div>
@@ -392,7 +334,7 @@ export default function AdminApprovalDetailPage() {
             </div>
           </div>
 
-          <div className="mt-6">
+          <div>
             <PartnerLocationMap
               lat={profile?.base_lat ?? null}
               lng={profile?.base_lng ?? null}
@@ -401,7 +343,7 @@ export default function AdminApprovalDetailPage() {
           </div>
         </>
       ) : (
-        <div className="mt-6 rounded-xl border border-black/10 bg-white p-6 text-gray-600">
+        <div className="rounded-xl border border-black/10 bg-white p-6 text-gray-600">
           Partner record not found.
         </div>
       )}

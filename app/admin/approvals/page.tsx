@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type AppStatus = "pending" | "approved" | "rejected";
@@ -10,8 +9,8 @@ type AppStatus = "pending" | "approved" | "rejected";
 type PartnerApplication = {
   id: string;
   email: string | null;
-  full_name: string | null;
   company_name: string | null;
+  full_name: string | null;
   status: AppStatus;
   created_at: string | null;
 };
@@ -37,10 +36,10 @@ async function safeJson(res: Response): Promise<any> {
 
 export default function AdminApprovalsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<PartnerApplication[]>([]);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [applications, setApplications] = useState<PartnerApplication[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -50,8 +49,7 @@ export default function AdminApprovalsPage() {
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData?.user) {
-        router.replace("/partner/login?reason=not_authorized");
-        return;
+        throw new Error("Not authorized");
       }
 
       const adminRes = await fetch("/api/admin/is-admin", {
@@ -59,12 +57,11 @@ export default function AdminApprovalsPage() {
         cache: "no-store",
         credentials: "include",
       });
+
       const adminJson = await safeJson(adminRes);
 
       if (!adminJson?.isAdmin) {
-        setError("Not authorized");
-        setRows([]);
-        return;
+        throw new Error("Not authorized");
       }
 
       const res = await fetch("/api/admin/applications", {
@@ -76,47 +73,42 @@ export default function AdminApprovalsPage() {
       const json = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(
-          json?.error || json?.message || json?._raw || "Failed to load applications."
-        );
+        throw new Error(json?.error || json?._raw || "Failed to load applications.");
       }
 
-      setRows((json?.data || []) as PartnerApplication[]);
+      setApplications(Array.isArray(json?.applications) ? json.applications : []);
     } catch (e: any) {
       setError(e?.message || "Failed to load applications.");
-      setRows([]);
     } finally {
       setLoading(false);
     }
   }
 
   async function setStatus(id: string, status: AppStatus) {
+    setSavingId(id);
     setError(null);
 
     try {
       const res = await fetch("/api/admin/applications/update-status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status }),
-        cache: "no-store",
         credentials: "include",
+        body: JSON.stringify({ id, status }),
       });
 
       const json = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(
-          json?.error || json?.message || json?._raw || "Failed to update status."
-        );
+        throw new Error(json?.error || json?._raw || "Failed to update status.");
       }
 
-      setRows((prev) =>
-        prev.map((r) => (String(r.id) === String(id) ? { ...r, status } : r))
+      setApplications((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, status } : item))
       );
-
-      await load();
     } catch (e: any) {
       setError(e?.message || "Failed to update status.");
+    } finally {
+      setSavingId(null);
     }
   }
 
@@ -125,172 +117,127 @@ export default function AdminApprovalsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pending = rows.filter((r) => r.status === "pending").length;
-  const approved = rows.filter((r) => r.status === "approved").length;
-  const rejected = rows.filter((r) => r.status === "rejected").length;
+  const pendingCount = applications.filter((a) => a.status === "pending").length;
+  const approvedCount = applications.filter((a) => a.status === "approved").length;
+  const rejectedCount = applications.filter((a) => a.status === "rejected").length;
 
   return (
-    <div className="mx-auto w-full max-w-7xl">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-[#003768]">Admin Approvals</h1>
-          <p className="mt-2 text-gray-600">
-            Review partner applications and approve/reject them.
-          </p>
+    <div className="space-y-6">
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold text-[#003768]">Admin Approvals</h2>
+            <p className="mt-2 text-slate-600">
+              Review partner applications and approve/reject them.
+            </p>
+            <p className="mt-4 text-slate-600">
+              Pending: {pendingCount} • Approved: {approvedCount} • Rejected: {rejectedCount}
+            </p>
+          </div>
 
-          <p className="mt-3 text-sm text-gray-600">
-            <span className="font-medium">Pending:</span> {pending}{" "}
-            <span className="text-gray-400">•</span>{" "}
-            <span className="font-medium">Approved:</span> {approved}{" "}
-            <span className="text-gray-400">•</span>{" "}
-            <span className="font-medium">Rejected:</span> {rejected}
-          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={load}
+              disabled={loading}
+              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#003768] hover:bg-black/5 disabled:opacity-60"
+            >
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={load}
-            disabled={loading}
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#003768] hover:bg-black/5 disabled:opacity-60"
-          >
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
+        {error ? (
+          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
 
-          <Link
-            href="/partner/dashboard"
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5"
-          >
-            Partner Dashboard
-          </Link>
-
-          <Link
-            href="/admin/users"
-            className="rounded-full bg-[#ff7a00] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-          >
-            Admin Users
-          </Link>
-        </div>
-      </div>
-
-      {error ? (
-        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="mt-6 overflow-hidden rounded-xl border border-black/10">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-[#f3f8ff]">
-              <tr className="text-[#003768]">
-                <th className="px-4 py-3 font-semibold">Created</th>
-                <th className="px-4 py-3 font-semibold">Email</th>
-                <th className="px-4 py-3 font-semibold">Name</th>
-                <th className="px-4 py-3 font-semibold">Company</th>
-                <th className="px-4 py-3 font-semibold">Status</th>
-                <th className="px-4 py-3 font-semibold">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-black/5">
-              {loading ? (
+        <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-[#f3f8ff] text-[#003768]">
                 <tr>
-                  <td className="px-4 py-4 text-gray-600" colSpan={6}>
-                    Loading…
-                  </td>
+                  <th className="px-4 py-3 font-semibold">Created</th>
+                  <th className="px-4 py-3 font-semibold">Email</th>
+                  <th className="px-4 py-3 font-semibold">Name</th>
+                  <th className="px-4 py-3 font-semibold">Company</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Actions</th>
                 </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-4 text-gray-600" colSpan={6}>
-                    No applications found.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r) => {
-                  const status = (r.status || "pending").toLowerCase() as AppStatus;
+              </thead>
 
-                  const badge =
-                    status === "approved"
-                      ? "bg-green-50 text-green-700 border-green-200"
-                      : status === "rejected"
-                      ? "bg-red-50 text-red-700 border-red-200"
-                      : "bg-yellow-50 text-yellow-800 border-yellow-200";
+              <tbody className="divide-y divide-black/5">
+                {applications.map((app) => (
+                  <tr key={app.id}>
+                    <td className="px-4 py-4">{fmtDateTime(app.created_at)}</td>
+                    <td className="px-4 py-4">{app.email || "—"}</td>
+                    <td className="px-4 py-4">{app.full_name || "—"}</td>
+                    <td className="px-4 py-4">{app.company_name || "—"}</td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={[
+                          "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                          app.status === "approved"
+                            ? "bg-green-50 text-green-700"
+                            : app.status === "rejected"
+                            ? "bg-red-50 text-red-700"
+                            : "bg-yellow-50 text-yellow-800",
+                        ].join(" ")}
+                      >
+                        {app.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={savingId === app.id}
+                          onClick={() => setStatus(app.id, "approved")}
+                          className="rounded-full bg-[#ff7a00] px-4 py-2 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
+                        >
+                          Approve
+                        </button>
 
-                  return (
-                    <tr key={String(r.id)} className="hover:bg-black/[0.02]">
-                      <td className="px-4 py-4 text-gray-700">
-                        {fmtDateTime(r.created_at)}
-                      </td>
+                        <button
+                          type="button"
+                          disabled={savingId === app.id}
+                          onClick={() => setStatus(app.id, "rejected")}
+                          className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5 disabled:opacity-60"
+                        >
+                          Reject
+                        </button>
 
-                      <td className="px-4 py-4 text-gray-900">{r.email || "—"}</td>
+                        <button
+                          type="button"
+                          disabled={savingId === app.id}
+                          onClick={() => setStatus(app.id, "pending")}
+                          className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5 disabled:opacity-60"
+                        >
+                          Pause
+                        </button>
 
-                      <td className="px-4 py-4 text-gray-900">
                         <Link
-                          href={`/admin/approvals/${r.id}`}
-                          className="font-medium text-[#005b9f] hover:underline"
+                          href={`/admin/approvals/${app.id}`}
+                          className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
                         >
-                          {r.full_name || "—"}
+                          View
                         </Link>
-                      </td>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
 
-                      <td className="px-4 py-4 text-gray-900">
-                        <Link
-                          href={`/admin/approvals/${r.id}`}
-                          className="font-medium text-[#005b9f] hover:underline"
-                        >
-                          {r.company_name || "—"}
-                        </Link>
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badge}`}
-                        >
-                          {status}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setStatus(String(r.id), "approved")}
-                            className="rounded-full bg-[#ff7a00] px-4 py-2 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-                          >
-                            Approve
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setStatus(String(r.id), "rejected")}
-                            className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
-                          >
-                            Reject
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setStatus(String(r.id), "pending")}
-                            className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
-                          >
-                            Pause
-                          </button>
-
-                          <Link
-                            href={`/admin/approvals/${r.id}`}
-                            className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
-                          >
-                            View
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                {!applications.length ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-5 text-slate-600">
+                      No partner applications found.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
