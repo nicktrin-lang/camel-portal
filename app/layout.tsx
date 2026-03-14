@@ -55,8 +55,7 @@ export default function RootLayout({
   }
 
   const isHomepage = pathname === "/";
-  const isPartnerAuthPage =
-    pathname === "/partner/login" || pathname === "/partner/signup";
+const isPartnerAuthPage = pathname === "/partner/login";
 
   const isPortalAppPage =
     pathname?.startsWith("/partner") || pathname?.startsWith("/admin");
