@@ -42,18 +42,17 @@ export default function PartnerSidebar({ open, onClose }: Props) {
           "lg:translate-x-0",
         ].join(" ")}
       >
-        <div className="flex h-full flex-col">
-          <div className="border-b border-white/10 px-6 py-6">
-            <Link href="/partner/dashboard" onClick={onClose} className="block">
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
-                Camel Global
-              </div>
-              <div className="mt-2 text-2xl font-semibold">Partner Portal</div>
-              <div className="mt-1 text-sm text-white/75">
-                Operations dashboard
-              </div>
-            </Link>
-          </div>
+        <div className="border-b border-white/10 px-6 pt-12 pb-6">
+  <Link href="/partner/dashboard" onClick={onClose} className="block">
+    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+      Camel Global
+    </div>
+    <div className="mt-2 text-2xl font-semibold">Partner Portal</div>
+    <div className="mt-3 text-sm text-white/75">
+      Operations dashboard
+    </div>
+  </Link>
+</div>
 
           <nav className="flex-1 px-4 py-5">
             <div className="mb-3 px-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/55">
