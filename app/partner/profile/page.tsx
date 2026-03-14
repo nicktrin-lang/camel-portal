@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
@@ -38,8 +37,6 @@ type Suggestion = {
   postcode?: string;
   country?: string;
 };
-
-type AdminRole = "none" | "admin" | "super_admin";
 
 function parseCoordinate(
   value: string | number | null | undefined,
@@ -88,7 +85,6 @@ export default function PartnerProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [adminRole, setAdminRole] = useState<AdminRole>("none");
 
   const [profile, setProfile] = useState<ProfileState>({
     company_name: "",
@@ -125,16 +121,6 @@ export default function PartnerProfilePage() {
           router.replace("/partner/login?reason=not_signed_in");
           return;
         }
-
-        const meRes = await fetch("/api/admin/me", {
-          method: "GET",
-          cache: "no-store",
-          credentials: "include",
-        });
-        const meJson = await safeJson(meRes);
-
-        if (!mounted) return;
-        setAdminRole(String(meJson?.role || "none") as AdminRole);
 
         const user = userData.user;
         const email = (user.email || "").toLowerCase().trim();
@@ -410,84 +396,38 @@ export default function PartnerProfilePage() {
   const lat = parseCoordinate(profile.base_lat, "lat");
   const lng = parseCoordinate(profile.base_lng, "lng");
 
-  const isAdmin = adminRole === "admin" || adminRole === "super_admin";
-  const isSuperAdmin = adminRole === "super_admin";
-
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-7xl">
-        <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.10)] md:p-10">
-          <p className="text-gray-600">Loading…</p>
-        </div>
+      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <p className="text-slate-600">Loading…</p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold text-[#003768]">Edit Profile</h1>
-          <p className="mt-2 text-gray-600">Update your partner details and car fleet location.</p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/partner/dashboard"
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5"
-          >
-            Partner Dashboard
-          </Link>
-
-          <Link
-            href="/partner/requests"
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5"
-          >
-            View Requests
-          </Link>
-
-          {isAdmin ? (
-            <Link
-              href="/admin/approvals"
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5"
-            >
-              Admin Approvals
-            </Link>
-          ) : null}
-
-          {isSuperAdmin ? (
-            <Link
-              href="/admin/users"
-              className="rounded-full bg-[#ff7a00] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-            >
-              Admin Users
-            </Link>
-          ) : null}
-        </div>
-      </div>
-
+    <div className="space-y-6">
       {error ? (
-        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       ) : null}
 
       {saved ? (
-        <div className="mt-6 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+        <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
           Profile saved successfully.
         </div>
       ) : null}
 
       <form
         onSubmit={handleSave}
-        className="mt-8 rounded-2xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.10)] md:p-10"
+        className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] md:p-10"
       >
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-[#003768]">Company name</label>
             <input
               type="text"
-              className="mt-1 w-full rounded-xl border border-black/10 p-3"
+              className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
               value={profile.company_name}
               onChange={(e) => updateField("company_name", e.target.value)}
             />
@@ -497,7 +437,7 @@ export default function PartnerProfilePage() {
             <label className="text-sm font-medium text-[#003768]">Contact name</label>
             <input
               type="text"
-              className="mt-1 w-full rounded-xl border border-black/10 p-3"
+              className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
               value={profile.contact_name}
               onChange={(e) => updateField("contact_name", e.target.value)}
             />
@@ -507,7 +447,7 @@ export default function PartnerProfilePage() {
             <label className="text-sm font-medium text-[#003768]">Phone</label>
             <input
               type="text"
-              className="mt-1 w-full rounded-xl border border-black/10 p-3"
+              className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
               value={profile.phone}
               onChange={(e) => updateField("phone", e.target.value)}
             />
@@ -517,7 +457,7 @@ export default function PartnerProfilePage() {
             <label className="text-sm font-medium text-[#003768]">Website</label>
             <input
               type="text"
-              className="mt-1 w-full rounded-xl border border-black/10 p-3"
+              className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
               value={profile.website}
               onChange={(e) => updateField("website", e.target.value)}
             />
@@ -527,7 +467,7 @@ export default function PartnerProfilePage() {
             <label className="text-sm font-medium text-[#003768]">Business Address</label>
             <input
               type="text"
-              className="mt-1 w-full rounded-xl border border-black/10 p-3"
+              className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
               value={profile.address}
               onChange={(e) => updateField("address", e.target.value)}
             />
@@ -539,7 +479,7 @@ export default function PartnerProfilePage() {
               type="number"
               min="1"
               step="1"
-              className="mt-1 w-full rounded-xl border border-black/10 p-3"
+              className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
               value={profile.service_radius_km}
               onChange={(e) => updateField("service_radius_km", e.target.value)}
             />
@@ -547,8 +487,8 @@ export default function PartnerProfilePage() {
         </div>
 
         <div className="mt-8 rounded-2xl border border-black/10 p-4">
-          <h2 className="text-xl font-semibold text-[#003768]">Car Fleet location</h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <h2 className="text-xl font-semibold text-[#003768]">Car Fleet Address</h2>
+          <p className="mt-2 text-sm text-slate-600">
             Type an address to see suggestions, use GPS, or click on the map. Then click Save.
           </p>
 
@@ -574,7 +514,7 @@ export default function PartnerProfilePage() {
             <label className="text-sm font-medium text-[#003768]">Search address</label>
             <input
               type="text"
-              className="mt-1 w-full rounded-xl border border-black/10 p-3"
+              className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
               value={profile.search_address}
               onChange={(e) => {
                 updateField("search_address", e.target.value);
@@ -590,7 +530,7 @@ export default function PartnerProfilePage() {
                 }
               }}
             />
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-slate-500">
               Tip: click Search or press Enter, then choose a suggestion.
             </p>
 
@@ -614,7 +554,7 @@ export default function PartnerProfilePage() {
             <label className="text-sm font-medium text-[#003768]">Car Fleet Address</label>
             <input
               type="text"
-              className="mt-1 w-full rounded-xl border border-black/10 p-3"
+              className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
               value={profile.base_address}
               onChange={(e) => updateField("base_address", e.target.value)}
             />
@@ -625,7 +565,7 @@ export default function PartnerProfilePage() {
               <label className="text-sm font-medium text-[#003768]">Address line 1</label>
               <input
                 type="text"
-                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
                 value={profile.address1}
                 onChange={(e) => updateField("address1", e.target.value)}
               />
@@ -635,7 +575,7 @@ export default function PartnerProfilePage() {
               <label className="text-sm font-medium text-[#003768]">Address line 2</label>
               <input
                 type="text"
-                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
                 value={profile.address2}
                 onChange={(e) => updateField("address2", e.target.value)}
               />
@@ -645,7 +585,7 @@ export default function PartnerProfilePage() {
               <label className="text-sm font-medium text-[#003768]">Province</label>
               <input
                 type="text"
-                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
                 value={profile.province}
                 onChange={(e) => updateField("province", e.target.value)}
               />
@@ -655,7 +595,7 @@ export default function PartnerProfilePage() {
               <label className="text-sm font-medium text-[#003768]">Postcode</label>
               <input
                 type="text"
-                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
                 value={profile.postcode}
                 onChange={(e) => updateField("postcode", e.target.value)}
               />
@@ -665,7 +605,7 @@ export default function PartnerProfilePage() {
               <label className="text-sm font-medium text-[#003768]">Country</label>
               <input
                 type="text"
-                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
                 value={profile.country}
                 onChange={(e) => updateField("country", e.target.value)}
               />
@@ -677,7 +617,7 @@ export default function PartnerProfilePage() {
               <label className="text-sm font-medium text-[#003768]">Base latitude</label>
               <input
                 type="text"
-                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
                 value={profile.base_lat}
                 onChange={(e) => updateField("base_lat", e.target.value)}
               />
@@ -687,7 +627,7 @@ export default function PartnerProfilePage() {
               <label className="text-sm font-medium text-[#003768]">Base longitude</label>
               <input
                 type="text"
-                className="mt-1 w-full rounded-xl border border-black/10 p-3"
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
                 value={profile.base_lng}
                 onChange={(e) => updateField("base_lng", e.target.value)}
               />
@@ -696,8 +636,8 @@ export default function PartnerProfilePage() {
 
           <div className="mt-6">
             <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
-            <p className="mt-2 text-xs text-gray-500">
-              Click anywhere on the map to set the partner car fleet location.
+            <p className="mt-2 text-xs text-slate-500">
+              Click anywhere on the map to set the partner base location.
             </p>
           </div>
         </div>

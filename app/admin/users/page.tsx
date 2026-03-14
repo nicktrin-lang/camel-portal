@@ -1,13 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
-type AdminUser = {
-  id: string;
+type AdminRole = "admin" | "super_admin";
+
+type AdminUserRow = {
+  id?: string;
   email: string;
-  role: "admin" | "super_admin";
+  role: AdminRole;
   created_at: string | null;
 };
+
+function fmtDateTime(iso?: string | null) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso ?? "—";
+  }
+}
 
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
@@ -19,28 +32,47 @@ async function safeJson(res: Response): Promise<any> {
   }
 }
 
-function fmtDateTime(iso?: string | null) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso ?? "—";
-  }
-}
-
 export default function AdminUsersPage() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "super_admin">("admin");
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const [newEmail, setNewEmail] = useState("");
+  const [newRole, setNewRole] = useState<AdminRole>("admin");
+  const [saving, setSaving] = useState(false);
+
+  async function ensureSuperAdmin() {
+    const meRes = await fetch("/api/admin/me", {
+      cache: "no-store",
+      credentials: "include",
+    });
+    const me = await safeJson(meRes);
+
+    if (me?.role !== "super_admin") {
+      router.replace("/partner/login?reason=not_authorized");
+      return false;
+    }
+
+    return true;
+  }
 
   async function load() {
     setLoading(true);
     setError(null);
 
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        router.replace("/partner/login?reason=not_authorized");
+        return;
+      }
+
+      const ok = await ensureSuperAdmin();
+      if (!ok) return;
+
       const res = await fetch("/api/admin/users", {
         method: "GET",
         cache: "no-store",
@@ -50,50 +82,54 @@ export default function AdminUsersPage() {
       const json = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(json?.error || json?._raw || "Failed to load admin users.");
+        throw new Error(json?.error || json?._raw || "Failed to load admins.");
       }
 
-      setUsers(Array.isArray(json?.users) ? json.users : []);
+      setRows((json?.users || []) as AdminUserRow[]);
     } catch (e: any) {
-      setError(e?.message || "Failed to load admin users.");
+      setError(e?.message || "Failed to load admins.");
+      setRows([]);
     } finally {
       setLoading(false);
     }
   }
 
   async function addAdmin() {
-    setSaving(true);
     setError(null);
+    const email = newEmail.trim().toLowerCase();
+
+    if (!email) {
+      setError("Enter an email.");
+      return;
+    }
+
+    setSaving(true);
 
     try {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          email: email.trim(),
-          role,
-        }),
+        body: JSON.stringify({ email, role: newRole }),
       });
 
       const json = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(json?.error || json?._raw || "Failed to add admin user.");
+        throw new Error(json?.error || json?._raw || "Failed to add admin.");
       }
 
-      setEmail("");
-      setRole("admin");
+      setNewEmail("");
+      setNewRole("admin");
       await load();
     } catch (e: any) {
-      setError(e?.message || "Failed to add admin user.");
+      setError(e?.message || "Failed to add admin.");
     } finally {
       setSaving(false);
     }
   }
 
-  async function updateRole(userId: string, nextRole: "admin" | "super_admin") {
-    setSaving(true);
+  async function setRole(email: string, role: AdminRole) {
     setError(null);
 
     try {
@@ -101,10 +137,7 @@ export default function AdminUsersPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          id: userId,
-          role: nextRole,
-        }),
+        body: JSON.stringify({ email, role }),
       });
 
       const json = await safeJson(res);
@@ -116,32 +149,29 @@ export default function AdminUsersPage() {
       await load();
     } catch (e: any) {
       setError(e?.message || "Failed to update role.");
-    } finally {
-      setSaving(false);
     }
   }
 
-  async function removeUser(userId: string) {
-    setSaving(true);
+  async function removeAdmin(email: string) {
     setError(null);
 
     try {
-      const res = await fetch(`/api/admin/users?id=${encodeURIComponent(userId)}`, {
+      const res = await fetch("/api/admin/users", {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ email }),
       });
 
       const json = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(json?.error || json?._raw || "Failed to remove admin user.");
+        throw new Error(json?.error || json?._raw || "Failed to remove admin.");
       }
 
       await load();
     } catch (e: any) {
-      setError(e?.message || "Failed to remove admin user.");
-    } finally {
-      setSaving(false);
+      setError(e?.message || "Failed to remove admin.");
     }
   }
 
@@ -151,8 +181,14 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-[#003768]">Admin Users</h2>
             <p className="mt-2 text-slate-600">
@@ -165,38 +201,32 @@ export default function AdminUsersPage() {
               type="button"
               onClick={load}
               disabled={loading}
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#003768] hover:bg-black/5 disabled:opacity-60"
+              className="rounded-full bg-[#ff7a00] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
             >
               {loading ? "Refreshing…" : "Refresh"}
             </button>
           </div>
         </div>
 
-        {error ? (
-          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
-
         <div className="mt-6 rounded-2xl border border-black/10 bg-white p-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.5fr_1fr_1fr]">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-[#003768]">Email</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@email.com"
                 className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="admin@email.com"
+                autoComplete="off"
               />
             </div>
 
             <div>
               <label className="text-sm font-medium text-[#003768]">Role</label>
               <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as "admin" | "super_admin")}
                 className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value as AdminRole)}
               >
                 <option value="admin">admin</option>
                 <option value="super_admin">super_admin</option>
@@ -207,10 +237,10 @@ export default function AdminUsersPage() {
               <button
                 type="button"
                 onClick={addAdmin}
-                disabled={saving || !email.trim()}
-                className="w-full rounded-full bg-[#ff7a00] px-5 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
+                disabled={saving}
+                className="w-full rounded-full bg-[#ff7a00] px-6 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
               >
-                Add Admin
+                {saving ? "Saving…" : "Add Admin"}
               </button>
             </div>
           </div>
@@ -229,57 +259,60 @@ export default function AdminUsersPage() {
               </thead>
 
               <tbody className="divide-y divide-black/5">
-                {users.map((user) => (
-                  <tr key={user.id}>
-                    <td className="px-4 py-4">{fmtDateTime(user.created_at)}</td>
-                    <td className="px-4 py-4">{user.email}</td>
-                    <td className="px-4 py-4">
-                      <span className="inline-flex rounded-full bg-[#f3f8ff] px-3 py-1 text-xs font-semibold text-[#003768]">
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        {user.role === "admin" ? (
-                          <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => updateRole(user.id, "super_admin")}
-                            className="rounded-full bg-[#ff7a00] px-4 py-2 text-xs font-semibold text-white hover:opacity-95 disabled:opacity-60"
-                          >
-                            Promote to super_admin
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => updateRole(user.id, "admin")}
-                            className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5 disabled:opacity-60"
-                          >
-                            Demote to admin
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => removeUser(user.id)}
-                          className="rounded-full border border-red-200 bg-white px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
-                        >
-                          Remove
-                        </button>
-                      </div>
+                {loading ? (
+                  <tr>
+                    <td className="px-4 py-4 text-slate-600" colSpan={4}>
+                      Loading…
                     </td>
                   </tr>
-                ))}
-
-                {!users.length ? (
+                ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-5 text-slate-600">
+                    <td className="px-4 py-4 text-slate-600" colSpan={4}>
                       No admin users found.
                     </td>
                   </tr>
-                ) : null}
+                ) : (
+                  rows.map((r, idx) => (
+                    <tr key={`${r.email}-${idx}`} className="hover:bg-black/[0.02]">
+                      <td className="px-4 py-4 text-slate-700">{fmtDateTime(r.created_at)}</td>
+                      <td className="px-4 py-4 text-slate-900">{r.email}</td>
+                      <td className="px-4 py-4">
+                        <span className="inline-flex rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-semibold text-[#003768]">
+                          {r.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {r.role !== "admin" ? (
+                            <button
+                              type="button"
+                              onClick={() => setRole(r.email, "admin")}
+                              className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-[#003768] hover:bg-black/5"
+                            >
+                              Demote to admin
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setRole(r.email, "super_admin")}
+                              className="rounded-full bg-[#ff7a00] px-4 py-2 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+                            >
+                              Promote to super_admin
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => removeAdmin(r.email)}
+                            className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
