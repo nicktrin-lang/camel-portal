@@ -85,7 +85,7 @@ export default function AdminUsersPage() {
         throw new Error(json?.error || json?._raw || "Failed to load admins.");
       }
 
-      setRows((json?.users || []) as AdminUserRow[]);
+      setRows(Array.isArray(json?.data) ? json.data : []);
     } catch (e: any) {
       setError(e?.message || "Failed to load admins.");
       setRows([]);
@@ -203,7 +203,7 @@ export default function AdminUsersPage() {
               disabled={loading}
               className="rounded-full bg-[#ff7a00] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
             >
-              {loading ? "Refreshing…" : "Refresh"}
+              {loading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
         </div>
@@ -240,7 +240,7 @@ export default function AdminUsersPage() {
                 disabled={saving}
                 className="w-full rounded-full bg-[#ff7a00] px-6 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
               >
-                {saving ? "Saving…" : "Add Admin"}
+                {saving ? "Saving..." : "Add Admin"}
               </button>
             </div>
           </div>
@@ -262,7 +262,7 @@ export default function AdminUsersPage() {
                 {loading ? (
                   <tr>
                     <td className="px-4 py-4 text-slate-600" colSpan={4}>
-                      Loading…
+                      Loading...
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
