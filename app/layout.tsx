@@ -3,13 +3,9 @@
 import "./globals.css";
 import Link from "next/link";
 import Image from "next/image";
-import Script from "next/script";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-
-const MAIN_GA_ID = "G-1Y758X38G4";
-const PORTAL_GA_ID = "G-YCZMDQJDM7";
 
 export default function RootLayout({
   children,
@@ -21,7 +17,6 @@ export default function RootLayout({
   const pathname = usePathname();
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [gaId, setGaId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -46,25 +41,9 @@ export default function RootLayout({
     };
   }, [supabase]);
 
-  useEffect(() => {
-    const host =
-      typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
-
-    if (host === "portal.camel-global.com") {
-      setGaId(PORTAL_GA_ID);
-      return;
-    }
-
-    if (host === "camel-global.com" || host === "www.camel-global.com") {
-      setGaId(MAIN_GA_ID);
-      return;
-    }
-
-    setGaId(null);
-  }, []);
-
   async function handleLogout() {
     await supabase.auth.signOut();
+
     setIsLoggedIn(false);
 
     router.replace("/partner/login?reason=signed_out");
@@ -76,32 +55,23 @@ export default function RootLayout({
   }
 
   const isHomepage = pathname === "/";
+  const isPartnerPortalPage =
+    pathname?.startsWith("/partner") || pathname?.startsWith("/admin");
+
+  const hideGlobalHeader =
+    isHomepage ||
+    pathname === "/partner/login" ||
+    pathname === "/partner/signup" ||
+    isPartnerPortalPage;
 
   return (
     <html lang="en">
       <body className="min-h-screen bg-[#e3f4ff]">
-        {gaId ? (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
-              strategy="afterInteractive"
-            />
-            <Script id="google-analytics" strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${gaId}');
-              `}
-            </Script>
-          </>
-        ) : null}
-
-        {!isHomepage ? (
+        {!hideGlobalHeader && (
           <>
             <header className="fixed left-0 top-0 z-50 w-full shadow-[0_4px_12px_rgba(0,0,0,0.25)]">
-              <div className="w-full bg-gradient-to-br from-[#003768] to-[#005b9f] text-white">
-                <div className="flex w-full items-center gap-4 px-6 py-3 md:px-8">
+              <div className="bg-gradient-to-br from-[#003768] to-[#005b9f] text-white">
+                <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
                   <Link href="/" className="flex items-center">
                     <Image
                       src="/camel-logo.png"
@@ -117,6 +87,18 @@ export default function RootLayout({
                     <Link href="/" className="hover:opacity-90">
                       Home
                     </Link>
+
+                    {!isLoggedIn ? (
+                      <>
+                        <Link href="/partner/signup" className="hover:opacity-90">
+                          Partner Sign Up
+                        </Link>
+
+                        <Link href="/partner/login" className="hover:opacity-90">
+                          Partner Login
+                        </Link>
+                      </>
+                    ) : null}
 
                     {isLoggedIn ? (
                       <button
@@ -134,7 +116,7 @@ export default function RootLayout({
 
             <div className="h-[105px] md:h-[115px]" />
           </>
-        ) : null}
+        )}
 
         <main>{children}</main>
       </body>
