@@ -5,101 +5,35 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
-type MeResponse = {
-  role?: "none" | "admin" | "super_admin";
+type PortalTopbarProps = {
+  onMenuClick?: () => void;
 };
 
-export default function PortalTopbar() {
+export default function PortalTopbar({ onMenuClick }: PortalTopbarProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-
   const [displayName, setDisplayName] = useState("");
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadHeaderData() {
-      try {
-        const { data: userData } = await supabase.auth.getUser();
-        const user = userData?.user;
+    async function loadUser() {
+      const { data } = await supabase.auth.getUser();
+      if (!mounted) return;
 
-        if (!user) {
-          if (mounted) {
-            setDisplayName("");
-          }
-          return;
-        }
+      const user = data?.user;
+      const fullName =
+        String(user?.user_metadata?.full_name || "").trim() ||
+        String(user?.user_metadata?.name || "").trim() ||
+        String(user?.email || "").split("@")[0] ||
+        "";
 
-        const email = String(user.email || "").toLowerCase().trim();
-
-        const { data: profile } = await supabase
-          .from("partner_profiles")
-          .select("contact_name")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (profile?.contact_name) {
-          if (mounted) setDisplayName(String(profile.contact_name));
-          return;
-        }
-
-        const { data: application } = await supabase
-          .from("partner_applications")
-          .select("full_name")
-          .eq("email", email)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (application?.full_name) {
-          if (mounted) setDisplayName(String(application.full_name));
-          return;
-        }
-
-        const meRes = await fetch("/api/admin/me", {
-          method: "GET",
-          cache: "no-store",
-          credentials: "include",
-        });
-
-        const meJson = (await meRes.json().catch(() => null)) as MeResponse | null;
-
-        if (
-          mounted &&
-          (meJson?.role === "admin" || meJson?.role === "super_admin")
-        ) {
-          const fallback =
-            user.user_metadata?.full_name ||
-            user.user_metadata?.name ||
-            user.email ||
-            "";
-
-          setDisplayName(String(fallback));
-          return;
-        }
-
-        if (mounted) {
-          setDisplayName(
-            String(user.user_metadata?.full_name || user.user_metadata?.name || user.email || "")
-          );
-        }
-      } catch {
-        if (mounted) {
-          setDisplayName("");
-        }
-      }
+      setDisplayName(fullName);
     }
 
-    loadHeaderData();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      loadHeaderData();
-    });
+    loadUser();
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
     };
   }, [supabase]);
 
@@ -109,9 +43,29 @@ export default function PortalTopbar() {
   }
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 h-20 border-b border-black/10 bg-[#123d78] text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
-      <div className="flex h-full w-full items-center justify-between px-4 md:px-8">
-        <div className="flex items-center">
+    <header className="fixed inset-x-0 top-0 z-40 h-20 border-b border-black/10 bg-[#0f4f8a] text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
+      <div className="flex h-full items-center justify-between px-4 md:px-8">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onMenuClick}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/15 lg:hidden"
+            aria-label="Open menu"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M3 6h18" />
+              <path d="M3 12h18" />
+              <path d="M3 18h18" />
+            </svg>
+          </button>
+
           <Link href="/partner/dashboard" className="flex items-center">
             <Image
               src="/camel-logo.png"
@@ -124,17 +78,17 @@ export default function PortalTopbar() {
           </Link>
         </div>
 
-        <div className="flex items-center gap-4 md:gap-6">
+        <div className="flex items-center gap-3">
           {displayName ? (
-            <div className="hidden text-sm font-medium text-white/90 md:block">
-              Welcome: <span className="font-semibold text-white">{displayName}</span>
+            <div className="hidden text-sm font-semibold text-white/95 md:block">
+              Welcome: {displayName}
             </div>
           ) : null}
 
           <button
             type="button"
             onClick={handleLogout}
-            className="rounded-full bg-[#f28a32] px-5 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+            className="rounded-full bg-[#ff7a00] px-5 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
           >
             Logout
           </button>
