@@ -1,122 +1,141 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import PartnerSidebar from "@/components/partner/PartnerSidebar";
+import PartnerTopbar from "@/components/partner/PartnerTopbar";
 
-export default function PartnerLayout({ children }: { children: ReactNode }) {
+type AdminRole = "none" | "admin" | "super_admin";
+
+const pageMeta: Record<string, { title: string; subtitle: string }> = {
+  "/partner/dashboard": {
+    title: "Partner Dashboard",
+    subtitle: "Overview of your account and portal activity.",
+  },
+  "/partner/requests": {
+    title: "Requests",
+    subtitle: "Review booking requests and submit bids.",
+  },
+  "/partner/bookings": {
+    title: "Bookings",
+    subtitle: "Manage active, completed, and cancelled bookings.",
+  },
+  "/partner/account": {
+    title: "Account Management",
+    subtitle: "Business details, fleet settings, and operating profile.",
+  },
+  "/partner/reports": {
+    title: "Report Management",
+    subtitle: "Track bids, bookings, and revenue performance.",
+  },
+  "/partner/profile": {
+    title: "Edit Profile",
+    subtitle: "Update your business and car fleet location details.",
+  },
+};
+
+async function safeJson(res: Response): Promise<any> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { _raw: text };
+  }
+}
+
+function getMeta(pathname: string) {
+  for (const key of Object.keys(pageMeta)) {
+    if (pathname === key || pathname.startsWith(`${key}/`)) {
+      return pageMeta[key];
+    }
+  }
+
+  return {
+    title: "Partner Portal",
+    subtitle: "Manage requests, bookings, and your partner account.",
+  };
+}
+
+export default function PartnerLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
   const pathname = usePathname();
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [, setAdminRole] = useState<AdminRole>("none");
 
   useEffect(() => {
     let mounted = true;
 
-    async function refreshUser() {
-      const { data } = await supabase.auth.getUser();
-      const user = data?.user || null;
+    async function guard() {
+      setLoading(true);
 
-      if (!mounted) return;
+      try {
+        const { data: userData, error: userErr } = await supabase.auth.getUser();
 
-      setIsLoggedIn(!!user);
-
-      if (user) {
-        try {
-          const res = await fetch("/api/admin/is-admin", {
-            method: "GET",
-            cache: "no-store",
-            credentials: "include",
-          });
-          const json = await res.json().catch(() => null);
-          if (!mounted) return;
-          setIsAdmin(!!json?.isAdmin);
-        } catch {
-          if (!mounted) return;
-          setIsAdmin(false);
+        if (userErr || !userData?.user) {
+          router.replace("/partner/login?reason=not_signed_in");
+          return;
         }
-      } else {
-        setIsAdmin(false);
+
+        const meRes = await fetch("/api/admin/me", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        });
+        const meJson = await safeJson(meRes);
+
+        if (!mounted) return;
+        setAdminRole(String(meJson?.role || "none") as AdminRole);
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
       }
     }
 
-    refreshUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      refreshUser();
-    });
+    guard();
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [router, supabase]);
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    window.location.replace("/partner/login?reason=signed_out");
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  const meta = getMeta(pathname || "");
+
+  if (loading) {
+    return (
+      <div className="min-h-[calc(100vh-115px)] bg-[#e3f4ff] px-4 py-8 md:px-8">
+        <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+          <p className="text-slate-600">Loading portal…</p>
+        </div>
+      </div>
+    );
   }
 
-  const isActive = (href: string) =>
-    pathname === href || (href !== "/" && pathname?.startsWith(href));
-
-  const linkClass = (href: string) =>
-    `hover:opacity-90 ${isActive(href) ? "font-semibold" : ""}`;
-
   return (
-    <div className="min-h-screen bg-[#e3f4ff]">
-      <header className="fixed left-0 top-0 z-50 w-full shadow-[0_4px_12px_rgba(0,0,0,0.25)]">
-        <div className="bg-gradient-to-br from-[#003768] to-[#005b9f] text-white">
-          <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
-            <Link href="/" className="flex items-center">
-              <Image
-                src="/camel-logo.png"
-                alt="Camel Global Ltd logo"
-                width={220}
-                height={80}
-                priority
-                className="h-[64px] w-auto"
-              />
-            </Link>
+    <div className="min-h-[calc(100vh-115px)] bg-[#e3f4ff]">
+      <PartnerSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-            <nav className="ml-auto flex items-center gap-6 text-sm font-medium">
-              <Link href="/" className={linkClass("/")}>
-                Home
-              </Link>
+      <div className="lg:pl-[290px]">
+        <PartnerTopbar
+          title={meta.title}
+          subtitle={meta.subtitle}
+          onMenuClick={() => setSidebarOpen(true)}
+        />
 
-              {!isLoggedIn ? (
-                <>
-                  <Link href="/partner/signup" className={linkClass("/partner/signup")}>
-                    Partner Sign Up
-                  </Link>
-                  <Link href="/partner/login" className={linkClass("/partner/login")}>
-                    Partner Login
-                  </Link>
-                </>
-              ) : null}
-
-              {isLoggedIn ? (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="rounded-full bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-                >
-                  Logout
-                </button>
-              ) : null}
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      <div className="h-[105px] md:h-[115px]" />
-
-      <main className="mx-auto max-w-7xl px-6 py-10">{children}</main>
+        <div className="px-4 py-5 md:px-8 md:py-8">{children}</div>
+      </div>
     </div>
   );
 }
