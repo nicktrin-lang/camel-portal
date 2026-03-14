@@ -3,8 +3,8 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import AdminSidebar from "@/app/components/admin/AdminSidebar";
-import AdminTopbar from "@/app/components/admin/AdminTopbar";
+import PortalSidebar, { PortalRole } from "@/app/components/portal/PortalSidebar";
+import PortalTopbar from "@/app/components/portal/PortalTopbar";
 
 const pageMeta: Record<string, { title: string; subtitle: string }> = {
   "/admin/approvals": {
@@ -35,7 +35,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   const [checking, setChecking] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState<PortalRole>("admin");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -47,49 +47,44 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData?.user) {
         if (!mounted) return;
-        setIsAdmin(false);
         setChecking(false);
         window.location.replace("/partner/login?reason=not_authorized");
         return;
       }
 
       try {
-        const adminRes = await fetch("/api/admin/is-admin", {
+        const meRes = await fetch("/api/admin/me", {
           method: "GET",
           cache: "no-store",
           credentials: "include",
         });
-        const adminJson = await adminRes.json().catch(() => null);
-        const ok = !!adminJson?.isAdmin;
+        const meJson = await meRes.json().catch(() => null);
+
+        const nextRole =
+          meJson?.role === "super_admin"
+            ? "super_admin"
+            : meJson?.role === "admin"
+            ? "admin"
+            : null;
 
         if (!mounted) return;
 
-        setIsAdmin(ok);
-        setChecking(false);
-
-        if (!ok) {
+        if (!nextRole) {
+          setChecking(false);
           window.location.replace("/partner/login?reason=not_authorized");
+          return;
         }
+
+        setRole(nextRole);
+        setChecking(false);
       } catch {
         if (!mounted) return;
-        setIsAdmin(false);
         setChecking(false);
         window.location.replace("/partner/login?reason=not_authorized");
       }
     }
 
     check();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      check();
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
   }, [supabase]);
 
   useEffect(() => {
@@ -108,16 +103,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!isAdmin) {
-    return null;
-  }
-
   return (
     <div className="min-h-[calc(100vh-115px)] bg-[#e3f4ff]">
-      <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <PortalSidebar
+        role={role}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
       <div className="lg:pl-[290px]">
-        <AdminTopbar
+        <PortalTopbar
           title={meta.title}
           subtitle={meta.subtitle}
           onMenuClick={() => setSidebarOpen(true)}

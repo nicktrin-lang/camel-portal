@@ -3,10 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import PartnerSidebar from "@/app/components/partner/PartnerSidebar";
-import PartnerTopbar from "@/app/components/partner/PartnerTopbar";
-
-type AdminRole = "none" | "admin" | "super_admin";
+import PortalSidebar, { PortalRole } from "@/app/components/portal/PortalSidebar";
+import PortalTopbar from "@/app/components/portal/PortalTopbar";
 
 const pageMeta: Record<string, { title: string; subtitle: string }> = {
   "/partner/dashboard": {
@@ -69,7 +67,7 @@ export default function PartnerLayout({
 
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [, setAdminRole] = useState<AdminRole>("none");
+  const [role, setRole] = useState<PortalRole>("partner");
 
   const isAuthPage =
     pathname === "/partner/login" || pathname === "/partner/signup";
@@ -101,7 +99,15 @@ export default function PartnerLayout({
         const meJson = await safeJson(meRes);
 
         if (!mounted) return;
-        setAdminRole(String(meJson?.role || "none") as AdminRole);
+
+        const nextRole =
+          meJson?.role === "super_admin"
+            ? "super_admin"
+            : meJson?.role === "admin"
+            ? "admin"
+            : "partner";
+
+        setRole(nextRole);
       } finally {
         if (!mounted) return;
         setLoading(false);
@@ -137,10 +143,14 @@ export default function PartnerLayout({
 
   return (
     <div className="min-h-[calc(100vh-115px)] bg-[#e3f4ff]">
-      <PartnerSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <PortalSidebar
+        role={role}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
       <div className="lg:pl-[290px]">
-        <PartnerTopbar
+        <PortalTopbar
           title={meta.title}
           subtitle={meta.subtitle}
           onMenuClick={() => setSidebarOpen(true)}
