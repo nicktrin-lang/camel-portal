@@ -17,7 +17,7 @@ function isStaticAsset(pathname: string) {
   );
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const host = (req.headers.get("host") || "").split(":")[0];
   const url = req.nextUrl.clone();
   const pathname = url.pathname;
