@@ -13,7 +13,6 @@ export default function PortalTopbar() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [displayName, setDisplayName] = useState("");
-  const [homeHref, setHomeHref] = useState("/partner/dashboard");
 
   useEffect(() => {
     let mounted = true;
@@ -26,29 +25,11 @@ export default function PortalTopbar() {
         if (!user) {
           if (mounted) {
             setDisplayName("");
-            setHomeHref("/partner/login");
           }
           return;
         }
 
         const email = String(user.email || "").toLowerCase().trim();
-
-        const meRes = await fetch("/api/admin/me", {
-          method: "GET",
-          cache: "no-store",
-          credentials: "include",
-        });
-
-        const meJson = (await meRes.json().catch(() => null)) as MeResponse | null;
-        const role = meJson?.role || "none";
-
-        if (mounted) {
-          if (role === "admin" || role === "super_admin") {
-            setHomeHref("/admin/approvals");
-          } else {
-            setHomeHref("/partner/dashboard");
-          }
-        }
 
         const { data: profile } = await supabase
           .from("partner_profiles")
@@ -74,21 +55,36 @@ export default function PortalTopbar() {
           return;
         }
 
-        const fallback =
-          String(
+        const meRes = await fetch("/api/admin/me", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        });
+
+        const meJson = (await meRes.json().catch(() => null)) as MeResponse | null;
+
+        if (
+          mounted &&
+          (meJson?.role === "admin" || meJson?.role === "super_admin")
+        ) {
+          const fallback =
             user.user_metadata?.full_name ||
-              user.user_metadata?.name ||
-              user.email ||
-              ""
-          ).trim();
+            user.user_metadata?.name ||
+            user.email ||
+            "";
+
+          setDisplayName(String(fallback));
+          return;
+        }
 
         if (mounted) {
-          setDisplayName(fallback);
+          setDisplayName(
+            String(user.user_metadata?.full_name || user.user_metadata?.name || user.email || "")
+          );
         }
       } catch {
         if (mounted) {
           setDisplayName("");
-          setHomeHref("/partner/dashboard");
         }
       }
     }
@@ -116,7 +112,7 @@ export default function PortalTopbar() {
     <header className="fixed inset-x-0 top-0 z-50 h-20 border-b border-black/10 bg-[#123d78] text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
       <div className="flex h-full w-full items-center justify-between px-4 md:px-8">
         <div className="flex items-center">
-          <Link href={homeHref} className="flex items-center">
+          <Link href="/partner/dashboard" className="flex items-center">
             <Image
               src="/camel-logo.png"
               alt="Camel Global logo"
@@ -134,10 +130,6 @@ export default function PortalTopbar() {
               Welcome: <span className="font-semibold text-white">{displayName}</span>
             </div>
           ) : null}
-
-          <Link href={homeHref} className="text-sm font-semibold text-white hover:opacity-90">
-            Home
-          </Link>
 
           <button
             type="button"
