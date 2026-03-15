@@ -2,15 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createCustomerBrowserClient } from "@/lib/supabase-customer/browser";
 
 export default function TestBookingSignupPage() {
   const supabase = useMemo(() => createCustomerBrowserClient(), []);
-
-  const customerProjectHost =
-    typeof window !== "undefined" && process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL
-      ? new URL(process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL).host
-      : "";
+  const router = useRouter();
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -19,15 +16,11 @@ export default function TestBookingSignupPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [debug, setDebug] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setDebug(null);
-    setSuccess(false);
 
     try {
       const cleanEmail = email.trim().toLowerCase();
@@ -44,18 +37,6 @@ export default function TestBookingSignupPage() {
         },
       });
 
-      const signUpDebug = {
-        projectHost: customerProjectHost,
-        signUpError: signUpErr ? signUpErr.message : null,
-        userId: data?.user?.id || null,
-        userEmail: data?.user?.email || null,
-        userCreatedAt: data?.user?.created_at || null,
-        sessionExists: !!data?.session,
-        identitiesCount: data?.user?.identities?.length || 0,
-      };
-
-      setDebug(JSON.stringify(signUpDebug, null, 2));
-
       if (signUpErr) throw signUpErr;
 
       const userId = data.user?.id;
@@ -63,35 +44,18 @@ export default function TestBookingSignupPage() {
         throw new Error("Could not create customer account.");
       }
 
-      const { data: profileData, error: profileErr } = await supabase
+      const { error: profileErr } = await supabase
         .from("customer_profiles")
         .upsert({
           user_id: userId,
           full_name: fullName.trim() || null,
           phone: phone.trim() || null,
-        })
-        .select();
-
-      const profileDebug = {
-        profileError: profileErr ? profileErr.message : null,
-        profileRowsReturned: profileData || null,
-      };
-
-      setDebug(
-        JSON.stringify(
-          {
-            ...signUpDebug,
-            ...profileDebug,
-          },
-          null,
-          2
-        )
-      );
+        });
 
       if (profileErr) throw profileErr;
 
-      setSuccess(true);
-      return;
+      router.push("/test-booking/requests");
+      router.refresh();
     } catch (e: any) {
       setError(e?.message || "Failed to create customer account.");
     } finally {
@@ -107,26 +71,10 @@ export default function TestBookingSignupPage() {
           Create a separate customer account for booking flow testing.
         </p>
 
-        <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-          Customer auth project: {customerProjectHost || "not loaded"}
-        </div>
-
         {error ? (
           <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {error}
           </div>
-        ) : null}
-
-        {success ? (
-          <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-            Signup completed. Redirect is intentionally disabled for debugging.
-          </div>
-        ) : null}
-
-        {debug ? (
-          <pre className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
-            {debug}
-          </pre>
         ) : null}
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5">
