@@ -17,30 +17,27 @@ export async function GET() {
     const db = createServiceRoleSupabaseClient();
 
     const { data, error } = await db
-      .from("request_partner_matches")
-      .select(`
+      .from("partner_bookings")
+      .select(
+        `
         id,
-        match_status,
-        matched_fleet_id,
+        booking_status,
+        amount,
         created_at,
+        request_id,
+        winning_bid_id,
         customer_requests (
-          id,
           pickup_address,
           dropoff_address,
           pickup_at,
-          dropoff_at,
-          journey_duration_minutes,
           passengers,
           suitcases,
           hand_luggage,
-          vehicle_category_slug,
           vehicle_category_name,
-          notes,
-          status,
-          created_at,
-          expires_at
+          status
         )
-      `)
+      `
+      )
       .eq("partner_user_id", userId)
       .order("created_at", { ascending: false });
 

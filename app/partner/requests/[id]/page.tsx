@@ -32,6 +32,8 @@ type RequestDetailResponse = {
       dropoff_lat: number | null;
       dropoff_lng: number | null;
       pickup_at: string;
+      dropoff_at: string | null;
+      journey_duration_minutes: number | null;
       passengers: number;
       suitcases: number;
       hand_luggage: number;
@@ -65,6 +67,14 @@ function fmtDateTime(value?: string | null) {
   } catch {
     return value;
   }
+}
+
+function fmtDuration(minutes?: number | null) {
+  if (minutes === null || minutes === undefined || Number.isNaN(minutes)) return "—";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
 export default function PartnerRequestDetailPage({
@@ -248,6 +258,8 @@ export default function PartnerRequestDetailPage({
             <p><span className="font-semibold text-slate-900">Pickup:</span> {req.pickup_address}</p>
             <p><span className="font-semibold text-slate-900">Dropoff:</span> {req.dropoff_address || "—"}</p>
             <p><span className="font-semibold text-slate-900">Pickup time:</span> {fmtDateTime(req.pickup_at)}</p>
+            <p><span className="font-semibold text-slate-900">Dropoff time:</span> {fmtDateTime(req.dropoff_at)}</p>
+            <p><span className="font-semibold text-slate-900">Journey duration:</span> {fmtDuration(req.journey_duration_minutes)}</p>
             <p><span className="font-semibold text-slate-900">Passengers:</span> {req.passengers}</p>
             <p><span className="font-semibold text-slate-900">Suitcases:</span> {req.suitcases}</p>
             <p><span className="font-semibold text-slate-900">Hand luggage:</span> {req.hand_luggage}</p>
