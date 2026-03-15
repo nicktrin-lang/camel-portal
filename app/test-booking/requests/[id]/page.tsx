@@ -6,6 +6,7 @@ import { createCustomerBrowserClient } from "@/lib/supabase-customer/browser";
 
 type RequestData = {
   id: string;
+  job_number: number | null;
   pickup_address: string;
   dropoff_address: string | null;
   pickup_at: string;
@@ -67,7 +68,6 @@ export default function TestBookingRequestDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const supabase = useMemo(() => createCustomerBrowserClient(), []);
-
   const [requestId, setRequestId] = useState("");
   const [loading, setLoading] = useState(true);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
@@ -132,7 +132,7 @@ export default function TestBookingRequestDetailPage({
 
   useEffect(() => {
     load();
-  }, [requestId]);
+  }, [requestId, supabase]);
 
   async function acceptBid(bidId: string) {
     setAcceptingId(bidId);
@@ -227,16 +227,51 @@ export default function TestBookingRequestDetailPage({
         <h2 className="text-2xl font-semibold text-[#003768]">Request Information</h2>
 
         <div className="mt-6 space-y-4 text-slate-700">
-          <p><span className="font-semibold text-slate-900">Pickup:</span> {data.request.pickup_address}</p>
-          <p><span className="font-semibold text-slate-900">Dropoff:</span> {data.request.dropoff_address || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Pickup time:</span> {fmtDateTime(data.request.pickup_at)}</p>
-          <p><span className="font-semibold text-slate-900">Dropoff time:</span> {fmtDateTime(data.request.dropoff_at)}</p>
-          <p><span className="font-semibold text-slate-900">Duration:</span> {fmtDuration(data.request.journey_duration_minutes)}</p>
-          <p><span className="font-semibold text-slate-900">Passengers:</span> {data.request.passengers}</p>
-          <p><span className="font-semibold text-slate-900">Bags:</span> {data.request.suitcases} suitcases / {data.request.hand_luggage} hand luggage</p>
-          <p><span className="font-semibold text-slate-900">Vehicle:</span> {data.request.vehicle_category_name || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Notes:</span> {data.request.notes || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Status:</span> <span className="capitalize">{data.request.status}</span></p>
+          <p>
+            <span className="font-semibold text-slate-900">Job number:</span>{" "}
+            {data.request.job_number ?? "—"}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Pickup:</span>{" "}
+            {data.request.pickup_address}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Dropoff:</span>{" "}
+            {data.request.dropoff_address || "—"}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Pickup time:</span>{" "}
+            {fmtDateTime(data.request.pickup_at)}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Dropoff time:</span>{" "}
+            {fmtDateTime(data.request.dropoff_at)}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Duration:</span>{" "}
+            {fmtDuration(data.request.journey_duration_minutes)}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Passengers:</span>{" "}
+            {data.request.passengers}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Bags:</span>{" "}
+            {data.request.suitcases} suitcases / {data.request.hand_luggage} hand
+            luggage
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Vehicle:</span>{" "}
+            {data.request.vehicle_category_name || "—"}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Notes:</span>{" "}
+            {data.request.notes || "—"}
+          </p>
+          <p>
+            <span className="font-semibold text-slate-900">Status:</span>{" "}
+            <span className="capitalize">{data.request.status}</span>
+          </p>
         </div>
       </div>
 
@@ -254,16 +289,46 @@ export default function TestBookingRequestDetailPage({
                     <h3 className="text-xl font-semibold text-[#003768]">
                       {bid.partner_company_name || "Partner"}
                     </h3>
-                    <p><span className="font-semibold text-slate-900">Contact:</span> {bid.partner_contact_name || "—"}</p>
-                    <p><span className="font-semibold text-slate-900">Phone:</span> {bid.partner_phone || "—"}</p>
-                    <p><span className="font-semibold text-slate-900">Vehicle:</span> {bid.vehicle_category_name}</p>
-                    <p><span className="font-semibold text-slate-900">Car hire:</span> {bid.car_hire_price}</p>
-                    <p><span className="font-semibold text-slate-900">Fuel:</span> {bid.fuel_price}</p>
-                    <p><span className="font-semibold text-slate-900">Total:</span> {bid.total_price}</p>
-                    <p><span className="font-semibold text-slate-900">Insurance included:</span> {bid.full_insurance_included ? "Yes" : "No"}</p>
-                    <p><span className="font-semibold text-slate-900">Full tank included:</span> {bid.full_tank_included ? "Yes" : "No"}</p>
-                    <p><span className="font-semibold text-slate-900">Notes:</span> {bid.notes || "—"}</p>
-                    <p><span className="font-semibold text-slate-900">Status:</span> <span className="capitalize">{bid.status}</span></p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Contact:</span>{" "}
+                      {bid.partner_contact_name || "—"}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Phone:</span>{" "}
+                      {bid.partner_phone || "—"}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Vehicle:</span>{" "}
+                      {bid.vehicle_category_name}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Car hire:</span>{" "}
+                      {bid.car_hire_price}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Fuel:</span>{" "}
+                      {bid.fuel_price}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Total:</span>{" "}
+                      {bid.total_price}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Insurance included:</span>{" "}
+                      {bid.full_insurance_included ? "Yes" : "No"}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Full tank included:</span>{" "}
+                      {bid.full_tank_included ? "Yes" : "No"}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Notes:</span>{" "}
+                      {bid.notes || "—"}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-900">Status:</span>{" "}
+                      <span className="capitalize">{bid.status}</span>
+                    </p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">

@@ -6,6 +6,7 @@ import { createCustomerBrowserClient } from "@/lib/supabase-customer/browser";
 
 type RequestRow = {
   id: string;
+  job_number: number | null;
   pickup_address: string;
   dropoff_address: string | null;
   pickup_at: string;
@@ -64,9 +65,14 @@ export default function TestBookingRequestsPage() {
     <div className="mx-auto max-w-6xl px-4 py-10">
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-semibold text-[#003768]">
-            My Test Requests
-          </h1>
+          <div>
+            <h1 className="text-3xl font-semibold text-[#003768]">
+              My Test Requests
+            </h1>
+            <p className="mt-2 text-slate-600">
+              Review requests and accept partner bids.
+            </p>
+          </div>
 
           <Link
             href="/test-booking/new"
@@ -87,16 +93,17 @@ export default function TestBookingRequestsPage() {
         ) : rows.length === 0 ? (
           <p className="mt-6 text-slate-600">No requests yet.</p>
         ) : (
-          <div className="mt-6 overflow-x-auto">
+          <div className="mt-6 overflow-x-auto rounded-3xl border border-black/10">
             <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b text-left text-slate-700">
-                  <th className="py-3">Created</th>
-                  <th>Pickup</th>
-                  <th>Dropoff</th>
-                  <th>Pickup Time</th>
-                  <th>Vehicle</th>
-                  <th>Status</th>
+              <thead className="bg-slate-100 text-left text-[#003768]">
+                <tr>
+                  <th className="px-4 py-3">Job No.</th>
+                  <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3">Pickup</th>
+                  <th className="px-4 py-3">Dropoff</th>
+                  <th className="px-4 py-3">Pickup Time</th>
+                  <th className="px-4 py-3">Vehicle</th>
+                  <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
 
@@ -104,28 +111,24 @@ export default function TestBookingRequestsPage() {
                 {rows.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-b hover:bg-slate-50 cursor-pointer"
+                    className="cursor-pointer border-t hover:bg-slate-50"
                     onClick={() =>
                       (window.location.href = `/test-booking/requests/${r.id}`)
                     }
                   >
-                    <td className="py-3">
+                    <td className="px-4 py-4 font-semibold text-[#003768]">
+                      {r.job_number ?? "—"}
+                    </td>
+                    <td className="px-4 py-4">
                       {new Date(r.created_at).toLocaleDateString()}
                     </td>
-
-                    <td>{r.pickup_address}</td>
-
-                    <td>{r.dropoff_address || "—"}</td>
-
-                    <td>
-                      {r.pickup_at
-                        ? new Date(r.pickup_at).toLocaleString()
-                        : "—"}
+                    <td className="px-4 py-4">{r.pickup_address}</td>
+                    <td className="px-4 py-4">{r.dropoff_address || "—"}</td>
+                    <td className="px-4 py-4">
+                      {r.pickup_at ? new Date(r.pickup_at).toLocaleString() : "—"}
                     </td>
-
-                    <td>{r.vehicle_category_name || "—"}</td>
-
-                    <td className="capitalize">{r.status}</td>
+                    <td className="px-4 py-4">{r.vehicle_category_name || "—"}</td>
+                    <td className="px-4 py-4 capitalize">{r.status}</td>
                   </tr>
                 ))}
               </tbody>

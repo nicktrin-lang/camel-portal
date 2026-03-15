@@ -6,12 +6,12 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type FleetOption = {
   id: string;
-  vehicle_name: string | null;
   category_slug: string;
   category_name: string;
   max_passengers: number;
   max_suitcases: number;
   max_hand_luggage: number;
+  service_level: string | null;
   label: string;
 };
 
@@ -39,6 +39,7 @@ type ExistingBooking = {
 
 type RequestRow = {
   id: string;
+  job_number: number | null;
   customer_name: string | null;
   customer_email: string | null;
   customer_phone: string | null;
@@ -170,7 +171,7 @@ export default function PartnerRequestDetailPage({
 
   useEffect(() => {
     load();
-  }, [requestId]);
+  }, [requestId, supabase]);
 
   async function submitBid(e: React.FormEvent) {
     e.preventDefault();
@@ -234,7 +235,7 @@ export default function PartnerRequestDetailPage({
 
   if (loading) {
     return (
-      <div className="px-4 py-8 md:px-8">
+      <div className="space-y-6 px-4 py-8 md:px-8">
         <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <p className="text-slate-600">Loading request…</p>
         </div>
@@ -244,7 +245,7 @@ export default function PartnerRequestDetailPage({
 
   if (!data?.request) {
     return (
-      <div className="px-4 py-8 md:px-8">
+      <div className="space-y-6 px-4 py-8 md:px-8">
         <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">
           {error || "Request not found"}
         </div>
@@ -298,6 +299,10 @@ export default function PartnerRequestDetailPage({
           </h2>
 
           <div className="mt-6 space-y-4 text-slate-700">
+            <p>
+              <span className="font-semibold text-slate-900">Job number:</span>{" "}
+              {request.job_number ?? "—"}
+            </p>
             <p>
               <span className="font-semibold text-slate-900">Customer:</span>{" "}
               {request.customer_name || "—"}

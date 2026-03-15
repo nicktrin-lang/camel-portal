@@ -1,28 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type BookingRow = {
   id: string;
-  booking_status: string;
-  amount: number;
-  notes: string | null;
-  created_at: string;
   request_id: string;
-  winning_bid_id: string | null;
-  customer_requests: {
-    pickup_address: string;
-    dropoff_address: string | null;
-    pickup_at: string;
-    dropoff_at: string | null;
-    journey_duration_minutes: number | null;
-    passengers: number;
-    suitcases: number;
-    hand_luggage: number;
-    vehicle_category_name: string | null;
-    status: string;
-  } | null;
+  job_number: number | null;
+  created_at: string;
+  pickup_address: string;
+  dropoff_address: string | null;
+  pickup_at: string;
+  dropoff_at: string | null;
+  journey_duration_minutes: number | null;
+  passengers: number;
+  suitcases: number;
+  hand_luggage: number;
+  vehicle_category_name: string | null;
+  amount: number | null;
+  notes: string | null;
+  booking_status: string;
 };
 
 function fmtDateTime(value?: string | null) {
@@ -39,32 +37,13 @@ function fmtDuration(minutes?: number | null) {
     return "—";
   }
   if (minutes < 60) return `${minutes} min`;
-
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-
-  return mins ? `${hours}h ${mins}m` : `${hours}h`;
-}
-
-function statusClasses(status?: string | null) {
-  const s = String(status || "").toLowerCase();
-
-  if (s === "completed") {
-    return "border-green-200 bg-green-50 text-green-700";
-  }
-
-  if (s === "cancelled") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  if (s === "confirmed") {
-    return "border-blue-200 bg-blue-50 text-blue-700";
-  }
-
-  return "border-amber-200 bg-amber-50 text-amber-700";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
 }
 
 export default function PartnerBookingsPage() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +65,7 @@ export default function PartnerBookingsPage() {
         throw new Error(json?.error || "Failed to load bookings.");
       }
 
-      setRows((json?.data || []) as BookingRow[]);
+      setRows(json?.data || []);
     } catch (e: any) {
       setError(e?.message || "Failed to load bookings.");
       setRows([]);
@@ -97,20 +76,14 @@ export default function PartnerBookingsPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [supabase]);
 
   return (
-    <div className="space-y-6">
-      {error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] md:p-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="px-4 py-8 md:px-8">
+      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-semibold text-[#003768]">Bookings</h2>
+            <h1 className="text-3xl font-semibold text-[#003768]">Bookings</h1>
             <p className="mt-2 text-slate-600">
               Accepted bookings assigned to your partner account.
             </p>
@@ -119,107 +92,69 @@ export default function PartnerBookingsPage() {
           <button
             type="button"
             onClick={load}
-            className="rounded-full bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+            className="rounded-full bg-[#ff7a00] px-5 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
           >
             Refresh
           </button>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
-          <div className="overflow-x-auto">
-            <table className="min-w-[1500px] w-full text-left text-sm">
-              <thead className="bg-[#f3f8ff] text-[#003768]">
+        {error ? (
+          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        {loading ? (
+          <p className="mt-6 text-slate-600">Loading bookings…</p>
+        ) : rows.length === 0 ? (
+          <p className="mt-6 text-slate-600">No bookings yet.</p>
+        ) : (
+          <div className="mt-6 overflow-x-auto rounded-3xl border border-black/10">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-100 text-[#003768]">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Created</th>
-                  <th className="px-4 py-3 font-semibold">Pickup</th>
-                  <th className="px-4 py-3 font-semibold">Dropoff</th>
-                  <th className="px-4 py-3 font-semibold">Pickup Time</th>
-                  <th className="px-4 py-3 font-semibold">Dropoff Time</th>
-                  <th className="px-4 py-3 font-semibold">Duration</th>
-                  <th className="px-4 py-3 font-semibold">Passengers</th>
-                  <th className="px-4 py-3 font-semibold">Vehicle</th>
-                  <th className="px-4 py-3 font-semibold">Amount</th>
-                  <th className="px-4 py-3 font-semibold">Notes</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Action</th>
+                  <th className="px-4 py-3">Job No.</th>
+                  <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3">Pickup</th>
+                  <th className="px-4 py-3">Dropoff</th>
+                  <th className="px-4 py-3">Pickup Time</th>
+                  <th className="px-4 py-3">Dropoff Time</th>
+                  <th className="px-4 py-3">Duration</th>
+                  <th className="px-4 py-3">Passengers</th>
+                  <th className="px-4 py-3">Vehicle</th>
+                  <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3">Notes</th>
+                  <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-black/5">
-                {loading ? (
-                  <tr>
-                    <td colSpan={12} className="px-4 py-5 text-slate-600">
-                      Loading…
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id} className="border-t border-black/5">
+                    <td className="px-4 py-4 font-semibold text-[#003768]">
+                      {row.job_number ?? "—"}
                     </td>
-                  </tr>
-                ) : rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={12} className="px-4 py-5 text-slate-600">
-                      No bookings yet.
+                    <td className="px-4 py-4">{fmtDateTime(row.created_at)}</td>
+                    <td className="px-4 py-4">{row.pickup_address}</td>
+                    <td className="px-4 py-4">{row.dropoff_address || "—"}</td>
+                    <td className="px-4 py-4">{fmtDateTime(row.pickup_at)}</td>
+                    <td className="px-4 py-4">{fmtDateTime(row.dropoff_at)}</td>
+                    <td className="px-4 py-4">
+                      {fmtDuration(row.journey_duration_minutes)}
                     </td>
+                    <td className="px-4 py-4">{row.passengers}</td>
+                    <td className="px-4 py-4">
+                      {row.vehicle_category_name || "—"}
+                    </td>
+                    <td className="px-4 py-4">{row.amount ?? "—"}</td>
+                    <td className="px-4 py-4">{row.notes || "—"}</td>
+                    <td className="px-4 py-4 capitalize">{row.booking_status}</td>
                   </tr>
-                ) : (
-                  rows.map((row) => {
-                    const req = row.customer_requests;
-
-                    return (
-                      <tr key={row.id} className="hover:bg-black/[0.02]">
-                        <td className="px-4 py-4 text-slate-700">
-                          {fmtDateTime(row.created_at)}
-                        </td>
-                        <td className="px-4 py-4 text-slate-900">
-                          {req?.pickup_address || "—"}
-                        </td>
-                        <td className="px-4 py-4 text-slate-900">
-                          {req?.dropoff_address || "—"}
-                        </td>
-                        <td className="px-4 py-4 text-slate-700">
-                          {fmtDateTime(req?.pickup_at)}
-                        </td>
-                        <td className="px-4 py-4 text-slate-700">
-                          {fmtDateTime(req?.dropoff_at)}
-                        </td>
-                        <td className="px-4 py-4 text-slate-700">
-                          {fmtDuration(req?.journey_duration_minutes)}
-                        </td>
-                        <td className="px-4 py-4 text-slate-700">
-                          {req?.passengers || 0}
-                        </td>
-                        <td className="px-4 py-4 text-slate-700">
-                          {req?.vehicle_category_name || "—"}
-                        </td>
-                        <td className="px-4 py-4 text-slate-700">
-                          {row.amount}
-                        </td>
-                        <td className="px-4 py-4 text-slate-700">
-                          {row.notes || "—"}
-                        </td>
-                        <td className="px-4 py-4">
-                          <span
-                            className={[
-                              "inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize",
-                              statusClasses(row.booking_status),
-                            ].join(" ")}
-                          >
-                            {row.booking_status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <Link
-                            href={`/partner/bookings/${row.id}`}
-                            className="rounded-full bg-[#ff7a00] px-4 py-2 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-                          >
-                            View
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                ))}
               </tbody>
             </table>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
