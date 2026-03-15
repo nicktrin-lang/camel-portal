@@ -7,6 +7,7 @@ import {
 async function getUser() {
   const authed = await createRouteHandlerSupabaseClient();
   const { data, error } = await authed.auth.getUser();
+
   if (error || !data?.user) return null;
   return data.user;
 }
@@ -14,6 +15,7 @@ async function getUser() {
 export async function GET() {
   try {
     const user = await getUser();
+
     if (!user) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     }
@@ -45,7 +47,7 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ data: data || [] });
+    return NextResponse.json({ data: data || [] }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "Server error" },
@@ -57,6 +59,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await getUser();
+
     if (!user) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     }
@@ -78,14 +81,20 @@ export async function POST(req: Request) {
     if (!pickup_address) {
       return NextResponse.json({ error: "Pickup is required" }, { status: 400 });
     }
+
     if (!dropoff_address) {
       return NextResponse.json({ error: "Dropoff is required" }, { status: 400 });
     }
+
     if (!pickup_at) {
       return NextResponse.json({ error: "Pickup time is required" }, { status: 400 });
     }
+
     if (!vehicle_category_slug || !vehicle_category_name) {
-      return NextResponse.json({ error: "Vehicle category is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Vehicle category is required" },
+        { status: 400 }
+      );
     }
 
     const db = createServiceRoleSupabaseClient();
@@ -107,13 +116,15 @@ export async function POST(req: Request) {
       .insert({
         customer_user_id: user.id,
         customer_name:
-          String(user.user_metadata?.full_name || "").trim() || user.email || "Customer",
+          String(user.user_metadata?.full_name || "").trim() ||
+          user.email ||
+          "Customer",
         customer_email: user.email || null,
         customer_phone: String(user.user_metadata?.phone || "").trim() || null,
         pickup_address,
         dropoff_address,
         pickup_at,
-        dropoff_at || null,
+        dropoff_at: dropoff_at || null,
         journey_duration_minutes: journey_duration_minutes || null,
         passengers,
         suitcases,
@@ -132,7 +143,9 @@ export async function POST(req: Request) {
 
     const { data: fleetRows, error: fleetErr } = await db
       .from("partner_fleet")
-      .select("id, user_id, category_slug, max_passengers, max_suitcases, max_hand_luggage, is_active")
+      .select(
+        "id, user_id, category_slug, max_passengers, max_suitcases, max_hand_luggage, is_active"
+      )
       .eq("is_active", true);
 
     if (fleetErr) {
@@ -143,16 +156,22 @@ export async function POST(req: Request) {
 
     for (const fleet of fleetRows || []) {
       const fitsCategory =
-        String(fleet.category_slug || "") === String(requestRow.vehicle_category_slug || "");
+        String(fleet.category_slug || "") ===
+        String(requestRow.vehicle_category_slug || "");
+
       const fitsPassengers =
         Number(fleet.max_passengers || 0) >= Number(requestRow.passengers || 0);
+
       const fitsSuitcases =
         Number(fleet.max_suitcases || 0) >= Number(requestRow.suitcases || 0);
+
       const fitsHand =
-        Number(fleet.max_hand_luggage || 0) >= Number(requestRow.hand_luggage || 0);
+        Number(fleet.max_hand_luggage || 0) >=
+        Number(requestRow.hand_luggage || 0);
 
       if (fitsCategory && fitsPassengers && fitsSuitcases && fitsHand) {
         const partnerUserId = String(fleet.user_id || "");
+
         if (partnerUserId && !eligiblePartners.has(partnerUserId)) {
           eligiblePartners.set(partnerUserId, {
             fleet_id: String(fleet.id || "") || null,
@@ -161,12 +180,14 @@ export async function POST(req: Request) {
       }
     }
 
-    const matchRows = Array.from(eligiblePartners.entries()).map(([partner_user_id, meta]) => ({
-      request_id: requestRow.id,
-      partner_user_id,
-      matched_fleet_id: meta.fleet_id,
-      match_status: "open",
-    }));
+    const matchRows = Array.from(eligiblePartners.entries()).map(
+      ([partner_user_id, meta]) => ({
+        request_id: requestRow.id,
+        partner_user_id,
+        matched_fleet_id: meta.fleet_id,
+        match_status: "open",
+      })
+    );
 
     if (matchRows.length > 0) {
       const { error: matchErr } = await db
