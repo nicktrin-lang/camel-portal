@@ -1,31 +1,44 @@
-import { NextRequest, NextResponse } from "next/server";
-import {
-  createRouteHandlerSupabaseClient,
-  createServiceRoleSupabaseClient,
-} from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
+import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
+import { createCustomerServiceRoleSupabaseClient } from "@/lib/supabase-customer/server";
+
+function getBearerToken(req: Request) {
+  const auth = req.headers.get("authorization") || "";
+  if (!auth.toLowerCase().startsWith("bearer ")) return null;
+  return auth.slice(7).trim() || null;
+}
+
+async function getCustomerUserFromAccessToken(accessToken?: string | null) {
+  if (!accessToken) return null;
+
+  const customerSupabase = createCustomerServiceRoleSupabaseClient();
+  const { data, error } = await customerSupabase.auth.getUser(accessToken);
+
+  if (error || !data?.user) return null;
+  return data.user;
+}
 
 export async function GET(
-  _req: NextRequest,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
 
-    const authed = await createRouteHandlerSupabaseClient();
-    const { data: userData, error: userErr } = await authed.auth.getUser();
+    const accessToken = getBearerToken(req);
+    const customerUser = await getCustomerUserFromAccessToken(accessToken);
 
-    if (userErr || !userData?.user) {
+    if (!customerUser) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     }
 
-    const customerUserId = userData.user.id;
-    const db = createServiceRoleSupabaseClient();
+    const partnerDb = createServiceRoleSupabaseClient();
 
-    const { data: requestRow, error: requestErr } = await db
+    const { data: requestRow, error: requestErr } = await partnerDb
       .from("customer_requests")
       .select("*")
       .eq("id", id)
-      .eq("customer_user_id", customerUserId)
+      .eq("customer_user_id", customerUser.id)
       .maybeSingle();
 
     if (requestErr) {
@@ -36,7 +49,7 @@ export async function GET(
       return NextResponse.json({ error: "Request not found" }, { status: 404 });
     }
 
-    const { data: bids, error: bidsErr } = await db
+    const { data: bids, error: bidsErr } = await partnerDb
       .from("partner_bids")
       .select(`
         id,
@@ -62,13 +75,17 @@ export async function GET(
     }
 
     const partnerUserIds = Array.from(
-      new Set((bids || []).map((b: any) => String(b.partner_user_id || "")).filter(Boolean))
+      new Set(
+        (bids || [])
+          .map((b: any) => String(b.partner_user_id || ""))
+          .filter(Boolean)
+      )
     );
 
     let profileMap = new Map<string, any>();
 
-    if (partnerUserIds.length) {
-      const { data: profiles, error: profilesErr } = await db
+    if (partnerUserIds.length > 0) {
+      const { data: profiles, error: profilesErr } = await partnerDb
         .from("partner_profiles")
         .select("user_id, company_name, contact_name, phone, address")
         .in("user_id", partnerUserIds);
@@ -78,7 +95,7 @@ export async function GET(
       }
 
       profileMap = new Map(
-        (profiles || []).map((p: any) => [String(p.user_id), p])
+        (profiles || []).map((profile: any) => [String(profile.user_id), profile])
       );
     }
 
