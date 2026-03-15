@@ -21,11 +21,13 @@ export default function TestBookingSignupPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debug, setDebug] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setDebug(null);
 
     try {
       const cleanEmail = email.trim().toLowerCase();
@@ -42,6 +44,21 @@ export default function TestBookingSignupPage() {
         },
       });
 
+      setDebug(
+        JSON.stringify(
+          {
+            projectHost: customerProjectHost,
+            signUpError: signUpErr ? signUpErr.message : null,
+            userId: data?.user?.id || null,
+            userEmail: data?.user?.email || null,
+            sessionExists: !!data?.session,
+            identitiesCount: data?.user?.identities?.length || 0,
+          },
+          null,
+          2
+        )
+      );
+
       if (signUpErr) throw signUpErr;
 
       const userId = data.user?.id;
@@ -55,7 +72,16 @@ export default function TestBookingSignupPage() {
         phone: phone.trim() || null,
       });
 
-      if (profileErr) throw profileErr;
+      if (profileErr) {
+        setDebug((prev) =>
+          `${prev || ""}\n\nPROFILE ERROR:\n${JSON.stringify(
+            { message: profileErr.message, code: (profileErr as any).code || null },
+            null,
+            2
+          )}`
+        );
+        throw profileErr;
+      }
 
       router.push("/test-booking/requests");
       router.refresh();
@@ -82,6 +108,12 @@ export default function TestBookingSignupPage() {
           <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {error}
           </div>
+        ) : null}
+
+        {debug ? (
+          <pre className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
+            {debug}
+          </pre>
         ) : null}
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5">
