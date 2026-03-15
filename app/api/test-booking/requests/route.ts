@@ -18,13 +18,8 @@ async function getCustomerUserFromAccessToken(accessToken?: string | null) {
   return data.user;
 }
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: Request) {
   try {
-    const { id } = await params;
-
     const accessToken = getBearerToken(req);
     const customerUser = await getCustomerUserFromAccessToken(accessToken);
 
@@ -34,15 +29,11 @@ export async function GET(
 
     const partnerDb = createServiceRoleSupabaseClient();
 
-    const { data: requestRow, error: requestErr } = await partnerDb
+    const { data, error } = await partnerDb
       .from("customer_requests")
       .select(`
         id,
         job_number,
-        customer_user_id,
-        customer_name,
-        customer_email,
-        customer_phone,
         pickup_address,
         dropoff_address,
         pickup_at,
@@ -57,84 +48,165 @@ export async function GET(
         status,
         created_at
       `)
-      .eq("id", id)
       .eq("customer_user_id", customerUser.id)
-      .maybeSingle();
+      .order("created_at", { ascending: false });
 
-    if (requestErr) {
-      return NextResponse.json({ error: requestErr.message }, { status: 400 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    if (!requestRow) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 });
-    }
-
-    const { data: bids, error: bidsErr } = await partnerDb
-      .from("partner_bids")
-      .select(`
-        id,
-        request_id,
-        partner_user_id,
-        fleet_id,
-        vehicle_category_slug,
-        vehicle_category_name,
-        car_hire_price,
-        fuel_price,
-        total_price,
-        full_insurance_included,
-        full_tank_included,
-        notes,
-        status,
-        created_at
-      `)
-      .eq("request_id", id)
-      .order("created_at", { ascending: true });
-
-    if (bidsErr) {
-      return NextResponse.json({ error: bidsErr.message }, { status: 400 });
-    }
-
-    const partnerUserIds = Array.from(
-      new Set(
-        (bids || [])
-          .map((b: any) => String(b.partner_user_id || ""))
-          .filter(Boolean)
-      )
+    return NextResponse.json({ data: data || [] }, { status: 200 });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message || "Server error" },
+      { status: 500 }
     );
+  }
+}
 
-    let profileMap = new Map<string, any>();
+export async function POST(req: Request) {
+  try {
+    const accessToken = getBearerToken(req);
+    const customerUser = await getCustomerUserFromAccessToken(accessToken);
 
-    if (partnerUserIds.length > 0) {
-      const { data: profiles, error: profilesErr } = await partnerDb
-        .from("partner_profiles")
-        .select("user_id, company_name, contact_name, phone, address")
-        .in("user_id", partnerUserIds);
+    if (!customerUser) {
+      return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+    }
 
-      if (profilesErr) {
-        return NextResponse.json({ error: profilesErr.message }, { status: 400 });
-      }
+    const body = await req.json().catch(() => null);
 
-      profileMap = new Map(
-        (profiles || []).map((profile: any) => [String(profile.user_id), profile])
+    const pickup_address = String(body?.pickup_address || "").trim();
+    const dropoff_address = String(body?.dropoff_address || "").trim();
+    const pickup_at = String(body?.pickup_at || "").trim();
+    const dropoff_at = String(body?.dropoff_at || "").trim();
+    const journey_duration_minutes = Number(body?.journey_duration_minutes || 0);
+    const passengers = Number(body?.passengers || 0);
+    const suitcases = Number(body?.suitcases || 0);
+    const hand_luggage = Number(body?.hand_luggage || 0);
+    const vehicle_category_slug = String(body?.vehicle_category_slug || "").trim();
+    const vehicle_category_name = String(body?.vehicle_category_name || "").trim();
+    const notes = String(body?.notes || "").trim();
+
+    if (!pickup_address) {
+      return NextResponse.json({ error: "Pickup is required" }, { status: 400 });
+    }
+
+    if (!dropoff_address) {
+      return NextResponse.json({ error: "Dropoff is required" }, { status: 400 });
+    }
+
+    if (!pickup_at) {
+      return NextResponse.json({ error: "Pickup time is required" }, { status: 400 });
+    }
+
+    if (!vehicle_category_slug || !vehicle_category_name) {
+      return NextResponse.json(
+        { error: "Vehicle category is required" },
+        { status: 400 }
       );
     }
 
-    const bidRows = (bids || []).map((bid: any) => {
-      const profile = profileMap.get(String(bid.partner_user_id)) || null;
+    const partnerDb = createServiceRoleSupabaseClient();
 
-      return {
-        ...bid,
-        partner_company_name: profile?.company_name || null,
-        partner_contact_name: profile?.contact_name || null,
-        partner_phone: profile?.phone || null,
-        partner_address: profile?.address || null,
-      };
-    });
+    const customer_name =
+      String(customerUser.user_metadata?.full_name || "").trim() ||
+      String(customerUser.email || "").trim() ||
+      "Customer";
+
+    const customer_phone =
+      String(customerUser.user_metadata?.phone || "").trim() || null;
+
+    const { data: requestRow, error: insertErr } = await partnerDb
+      .from("customer_requests")
+      .insert({
+        customer_user_id: customerUser.id,
+        customer_name,
+        customer_email: customerUser.email || null,
+        customer_phone,
+        pickup_address,
+        dropoff_address,
+        pickup_at,
+        dropoff_at: dropoff_at || null,
+        journey_duration_minutes: journey_duration_minutes || null,
+        passengers,
+        suitcases,
+        hand_luggage,
+        vehicle_category_slug,
+        vehicle_category_name,
+        notes: notes || null,
+        status: "open",
+      })
+      .select("id, job_number, passengers, suitcases, hand_luggage, vehicle_category_slug")
+      .single();
+
+    if (insertErr) {
+      return NextResponse.json({ error: insertErr.message }, { status: 400 });
+    }
+
+    const { data: fleetRows, error: fleetErr } = await partnerDb
+      .from("partner_fleet")
+      .select(
+        "id, user_id, category_slug, max_passengers, max_suitcases, max_hand_luggage, is_active"
+      )
+      .eq("is_active", true);
+
+    if (fleetErr) {
+      return NextResponse.json({ error: fleetErr.message }, { status: 400 });
+    }
+
+    const eligiblePartners = new Map<string, { fleet_id: string | null }>();
+
+    for (const fleet of fleetRows || []) {
+      const fitsCategory =
+        String(fleet.category_slug || "") ===
+        String(requestRow.vehicle_category_slug || "");
+
+      const fitsPassengers =
+        Number(fleet.max_passengers || 0) >= Number(requestRow.passengers || 0);
+
+      const fitsSuitcases =
+        Number(fleet.max_suitcases || 0) >= Number(requestRow.suitcases || 0);
+
+      const fitsHandLuggage =
+        Number(fleet.max_hand_luggage || 0) >=
+        Number(requestRow.hand_luggage || 0);
+
+      if (fitsCategory && fitsPassengers && fitsSuitcases && fitsHandLuggage) {
+        const partnerUserId = String(fleet.user_id || "");
+        if (partnerUserId && !eligiblePartners.has(partnerUserId)) {
+          eligiblePartners.set(partnerUserId, {
+            fleet_id: String(fleet.id || "") || null,
+          });
+        }
+      }
+    }
+
+    const matchRows = Array.from(eligiblePartners.entries()).map(
+      ([partner_user_id, meta]) => ({
+        request_id: requestRow.id,
+        partner_user_id,
+        matched_fleet_id: meta.fleet_id,
+        match_status: "open",
+      })
+    );
+
+    if (matchRows.length > 0) {
+      const { error: matchErr } = await partnerDb
+        .from("request_partner_matches")
+        .insert(matchRows);
+
+      if (matchErr) {
+        return NextResponse.json({ error: matchErr.message }, { status: 400 });
+      }
+    }
 
     return NextResponse.json(
       {
-        request: requestRow,
-        bids: bidRows,
+        ok: true,
+        data: {
+          id: requestRow.id,
+          job_number: requestRow.job_number,
+        },
       },
       { status: 200 }
     );
