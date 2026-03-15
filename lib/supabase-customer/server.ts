@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
 export async function createCustomerServerClient() {
@@ -18,6 +19,19 @@ export async function createCustomerServerClient() {
         remove(name: string, options: any) {
           cookieStore.set({ name, value: "", ...options });
         },
+      },
+    }
+  );
+}
+
+export function createCustomerServiceRoleSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
+    process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
     }
   );

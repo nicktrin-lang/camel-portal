@@ -6,25 +6,26 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const email = (url.searchParams.get("email") || "").trim().toLowerCase();
 
-    const supabase = await createCustomerServiceRoleSupabaseClient();
+    const supabase = createCustomerServiceRoleSupabaseClient();
 
     const result: any = {
       projectUrl: process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL || null,
       email,
     };
 
-    if (email) {
-      const { data: users, error: userErr } = await supabase.auth.admin.listUsers();
+    const { data: usersData, error: usersErr } = await supabase.auth.admin.listUsers();
 
-      result.authError = userErr ? userErr.message : null;
+    result.authError = usersErr ? usersErr.message : null;
+
+    if (email) {
       result.authUsers =
-        users?.users?.filter((u) => (u.email || "").toLowerCase() === email) || [];
+        usersData?.users?.filter(
+          (u) => (u.email || "").toLowerCase() === email
+        ) || [];
     } else {
-      const { data: users, error: userErr } = await supabase.auth.admin.listUsers();
-      result.authError = userErr ? userErr.message : null;
-      result.authUsersCount = users?.users?.length || 0;
+      result.authUsersCount = usersData?.users?.length || 0;
       result.authUsersSample =
-        users?.users?.slice(0, 5).map((u) => ({
+        usersData?.users?.slice(0, 5).map((u) => ({
           id: u.id,
           email: u.email,
           created_at: u.created_at,
