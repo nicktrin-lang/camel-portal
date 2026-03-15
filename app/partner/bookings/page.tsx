@@ -1,26 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { useEffect, useState } from "react";
 
 type BookingRow = {
   id: string;
   request_id: string;
-  job_number: number | null;
-  created_at: string;
-  pickup_address: string;
-  dropoff_address: string | null;
-  pickup_at: string;
-  dropoff_at: string | null;
-  journey_duration_minutes: number | null;
-  passengers: number;
-  suitcases: number;
-  hand_luggage: number;
-  vehicle_category_name: string | null;
+  partner_user_id: string;
+  winning_bid_id: string | null;
+  booking_status: string;
   amount: number | null;
   notes: string | null;
-  booking_status: string;
+  created_at: string | null;
+  job_number: number | null;
+  pickup_address: string | null;
+  dropoff_address: string | null;
+  pickup_at: string | null;
+  dropoff_at: string | null;
+  journey_duration_minutes: number | null;
+  passengers: number | null;
+  suitcases: number | null;
+  hand_luggage: number | null;
+  vehicle_category_name: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  request_notes: string | null;
 };
 
 function fmtDateTime(value?: string | null) {
@@ -42,8 +47,12 @@ function fmtDuration(minutes?: number | null) {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
+function fmtStatus(status?: string | null) {
+  if (!status) return "Active";
+  return status.replaceAll("_", " ");
+}
+
 export default function PartnerBookingsPage() {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +85,7 @@ export default function PartnerBookingsPage() {
 
   useEffect(() => {
     load();
-  }, [supabase]);
+  }, []);
 
   return (
     <div className="px-4 py-8 md:px-8">
@@ -110,21 +119,22 @@ export default function PartnerBookingsPage() {
           <p className="mt-6 text-slate-600">No bookings yet.</p>
         ) : (
           <div className="mt-6 overflow-x-auto rounded-3xl border border-black/10">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-100 text-[#003768]">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 text-left text-[#003768]">
                 <tr>
-                  <th className="px-4 py-3">Job No.</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3">Pickup</th>
-                  <th className="px-4 py-3">Dropoff</th>
-                  <th className="px-4 py-3">Pickup Time</th>
-                  <th className="px-4 py-3">Dropoff Time</th>
-                  <th className="px-4 py-3">Duration</th>
-                  <th className="px-4 py-3">Passengers</th>
-                  <th className="px-4 py-3">Vehicle</th>
-                  <th className="px-4 py-3">Amount</th>
-                  <th className="px-4 py-3">Notes</th>
-                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 font-semibold">Job No.</th>
+                  <th className="px-4 py-3 font-semibold">Created</th>
+                  <th className="px-4 py-3 font-semibold">Pickup</th>
+                  <th className="px-4 py-3 font-semibold">Dropoff</th>
+                  <th className="px-4 py-3 font-semibold">Pickup Time</th>
+                  <th className="px-4 py-3 font-semibold">Dropoff Time</th>
+                  <th className="px-4 py-3 font-semibold">Duration</th>
+                  <th className="px-4 py-3 font-semibold">Passengers</th>
+                  <th className="px-4 py-3 font-semibold">Vehicle</th>
+                  <th className="px-4 py-3 font-semibold">Amount</th>
+                  <th className="px-4 py-3 font-semibold">Notes</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Action</th>
                 </tr>
               </thead>
 
@@ -135,20 +145,30 @@ export default function PartnerBookingsPage() {
                       {row.job_number ?? "—"}
                     </td>
                     <td className="px-4 py-4">{fmtDateTime(row.created_at)}</td>
-                    <td className="px-4 py-4">{row.pickup_address}</td>
+                    <td className="px-4 py-4">{row.pickup_address || "—"}</td>
                     <td className="px-4 py-4">{row.dropoff_address || "—"}</td>
                     <td className="px-4 py-4">{fmtDateTime(row.pickup_at)}</td>
                     <td className="px-4 py-4">{fmtDateTime(row.dropoff_at)}</td>
                     <td className="px-4 py-4">
                       {fmtDuration(row.journey_duration_minutes)}
                     </td>
-                    <td className="px-4 py-4">{row.passengers}</td>
+                    <td className="px-4 py-4">{row.passengers ?? "—"}</td>
                     <td className="px-4 py-4">
                       {row.vehicle_category_name || "—"}
                     </td>
                     <td className="px-4 py-4">{row.amount ?? "—"}</td>
                     <td className="px-4 py-4">{row.notes || "—"}</td>
-                    <td className="px-4 py-4 capitalize">{row.booking_status}</td>
+                    <td className="px-4 py-4 capitalize">
+                      {fmtStatus(row.booking_status)}
+                    </td>
+                    <td className="px-4 py-4">
+                      <Link
+                        href={`/partner/bookings/${row.id}`}
+                        className="inline-flex rounded-full bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+                      >
+                        View
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
