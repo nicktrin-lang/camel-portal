@@ -1,28 +1,35 @@
 import { NextResponse } from "next/server";
-import {
-  createRouteHandlerSupabaseClient,
-  createServiceRoleSupabaseClient,
-} from "@/lib/supabase/server";
+import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
+import { createCustomerServiceRoleSupabaseClient } from "@/lib/supabase-customer/server";
 
-async function getUser() {
-  const authed = await createRouteHandlerSupabaseClient();
-  const { data, error } = await authed.auth.getUser();
+function getBearerToken(req: Request) {
+  const auth = req.headers.get("authorization") || "";
+  if (!auth.toLowerCase().startsWith("bearer ")) return null;
+  return auth.slice(7).trim() || null;
+}
+
+async function getCustomerUserFromAccessToken(accessToken?: string | null) {
+  if (!accessToken) return null;
+
+  const customerSupabase = createCustomerServiceRoleSupabaseClient();
+  const { data, error } = await customerSupabase.auth.getUser(accessToken);
 
   if (error || !data?.user) return null;
   return data.user;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const user = await getUser();
+    const accessToken = getBearerToken(req);
+    const customerUser = await getCustomerUserFromAccessToken(accessToken);
 
-    if (!user) {
+    if (!customerUser) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     }
 
-    const db = createServiceRoleSupabaseClient();
+    const partnerDb = createServiceRoleSupabaseClient();
 
-    const { data, error } = await db
+    const { data, error } = await partnerDb
       .from("customer_requests")
       .select(`
         id,
@@ -40,7 +47,7 @@ export async function GET() {
         status,
         created_at
       `)
-      .eq("customer_user_id", user.id)
+      .eq("customer_user_id", customerUser.id)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -58,9 +65,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await getUser();
+    const accessToken = getBearerToken(req);
+    const customerUser = await getCustomerUserFromAccessToken(accessToken);
 
-    if (!user) {
+    if (!customerUser) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     }
 
@@ -97,30 +105,23 @@ export async function POST(req: Request) {
       );
     }
 
-    const db = createServiceRoleSupabaseClient();
+    const partnerDb = createServiceRoleSupabaseClient();
 
-    const { error: profileErr } = await db
-      .from("customer_profiles")
-      .upsert({
-        user_id: user.id,
-        full_name: String(user.user_metadata?.full_name || "").trim() || null,
-        phone: String(user.user_metadata?.phone || "").trim() || null,
-      });
+    const customer_name =
+      String(customerUser.user_metadata?.full_name || "").trim() ||
+      String(customerUser.email || "").trim() ||
+      "Customer";
 
-    if (profileErr) {
-      return NextResponse.json({ error: profileErr.message }, { status: 400 });
-    }
+    const customer_phone =
+      String(customerUser.user_metadata?.phone || "").trim() || null;
 
-    const { data: requestRow, error: insertErr } = await db
+    const { data: requestRow, error: insertErr } = await partnerDb
       .from("customer_requests")
       .insert({
-        customer_user_id: user.id,
-        customer_name:
-          String(user.user_metadata?.full_name || "").trim() ||
-          user.email ||
-          "Customer",
-        customer_email: user.email || null,
-        customer_phone: String(user.user_metadata?.phone || "").trim() || null,
+        customer_user_id: customerUser.id,
+        customer_name,
+        customer_email: customerUser.email || null,
+        customer_phone,
         pickup_address,
         dropoff_address,
         pickup_at,
@@ -141,7 +142,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: insertErr.message }, { status: 400 });
     }
 
-    const { data: fleetRows, error: fleetErr } = await db
+    const { data: fleetRows, error: fleetErr } = await partnerDb
       .from("partner_fleet")
       .select(
         "id, user_id, category_slug, max_passengers, max_suitcases, max_hand_luggage, is_active"
@@ -165,13 +166,12 @@ export async function POST(req: Request) {
       const fitsSuitcases =
         Number(fleet.max_suitcases || 0) >= Number(requestRow.suitcases || 0);
 
-      const fitsHand =
+      const fitsHandLuggage =
         Number(fleet.max_hand_luggage || 0) >=
         Number(requestRow.hand_luggage || 0);
 
-      if (fitsCategory && fitsPassengers && fitsSuitcases && fitsHand) {
+      if (fitsCategory && fitsPassengers && fitsSuitcases && fitsHandLuggage) {
         const partnerUserId = String(fleet.user_id || "");
-
         if (partnerUserId && !eligiblePartners.has(partnerUserId)) {
           eligiblePartners.set(partnerUserId, {
             fleet_id: String(fleet.id || "") || null,
@@ -190,7 +190,7 @@ export async function POST(req: Request) {
     );
 
     if (matchRows.length > 0) {
-      const { error: matchErr } = await db
+      const { error: matchErr } = await partnerDb
         .from("request_partner_matches")
         .insert(matchRows);
 
@@ -200,7 +200,12 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(
-      { ok: true, data: { id: requestRow.id } },
+      {
+        ok: true,
+        data: {
+          id: requestRow.id,
+        },
+      },
       { status: 200 }
     );
   } catch (e: any) {
