@@ -52,7 +52,9 @@ function fmtDateTime(value?: string | null) {
 }
 
 function fmtDuration(minutes?: number | null) {
-  if (minutes === null || minutes === undefined || Number.isNaN(minutes)) return "—";
+  if (minutes === null || minutes === undefined || Number.isNaN(minutes)) {
+    return "—";
+  }
   if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -65,9 +67,12 @@ export default function TestBookingRequestDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const supabase = useMemo(() => createCustomerBrowserClient(), []);
+
   const [requestId, setRequestId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
   const [data, setData] = useState<ResponseShape | null>(null);
 
   useEffect(() => {
@@ -86,48 +91,87 @@ export default function TestBookingRequestDetailPage({
     };
   }, [params]);
 
-  useEffect(() => {
-    async function load() {
-      if (!requestId) return;
+  async function load() {
+    if (!requestId) return;
 
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-        const accessToken = session?.access_token;
-        if (!accessToken) {
-          throw new Error("Not signed in");
-        }
-
-        const res = await fetch(`/api/test-booking/requests/${requestId}`, {
-          method: "GET",
-          cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-
-        const json = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          throw new Error(json?.error || "Failed to load request.");
-        }
-
-        setData(json as ResponseShape);
-      } catch (e: any) {
-        setError(e?.message || "Failed to load request.");
-        setData(null);
-      } finally {
-        setLoading(false);
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("Not signed in");
       }
-    }
 
+      const res = await fetch(`/api/test-booking/requests/${requestId}`, {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to load request.");
+      }
+
+      setData(json as ResponseShape);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load request.");
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
     load();
-  }, [requestId, supabase]);
+  }, [requestId]);
+
+  async function acceptBid(bidId: string) {
+    setAcceptingId(bidId);
+    setError(null);
+    setOk(null);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error("Not signed in");
+      }
+
+      const res = await fetch("/api/test-booking/bids/accept", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ bid_id: bidId }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to accept bid.");
+      }
+
+      setOk("Bid accepted. Booking confirmed.");
+      await load();
+    } catch (e: any) {
+      setError(e?.message || "Failed to accept bid.");
+    } finally {
+      setAcceptingId(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -151,6 +195,18 @@ export default function TestBookingRequestDetailPage({
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-10">
+      {error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+
+      {ok ? (
+        <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+          {ok}
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-[#003768]">Request Detail</h1>
@@ -193,20 +249,43 @@ export default function TestBookingRequestDetailPage({
           <div className="mt-6 space-y-4">
             {data.bids.map((bid) => (
               <div key={bid.id} className="rounded-2xl border border-black/10 p-5">
-                <div className="space-y-2 text-slate-700">
-                  <h3 className="text-xl font-semibold text-[#003768]">
-                    {bid.partner_company_name || "Partner"}
-                  </h3>
-                  <p><span className="font-semibold text-slate-900">Contact:</span> {bid.partner_contact_name || "—"}</p>
-                  <p><span className="font-semibold text-slate-900">Phone:</span> {bid.partner_phone || "—"}</p>
-                  <p><span className="font-semibold text-slate-900">Vehicle:</span> {bid.vehicle_category_name}</p>
-                  <p><span className="font-semibold text-slate-900">Car hire:</span> {bid.car_hire_price}</p>
-                  <p><span className="font-semibold text-slate-900">Fuel:</span> {bid.fuel_price}</p>
-                  <p><span className="font-semibold text-slate-900">Total:</span> {bid.total_price}</p>
-                  <p><span className="font-semibold text-slate-900">Insurance included:</span> {bid.full_insurance_included ? "Yes" : "No"}</p>
-                  <p><span className="font-semibold text-slate-900">Full tank included:</span> {bid.full_tank_included ? "Yes" : "No"}</p>
-                  <p><span className="font-semibold text-slate-900">Notes:</span> {bid.notes || "—"}</p>
-                  <p><span className="font-semibold text-slate-900">Status:</span> <span className="capitalize">{bid.status}</span></p>
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="space-y-2 text-slate-700">
+                    <h3 className="text-xl font-semibold text-[#003768]">
+                      {bid.partner_company_name || "Partner"}
+                    </h3>
+                    <p><span className="font-semibold text-slate-900">Contact:</span> {bid.partner_contact_name || "—"}</p>
+                    <p><span className="font-semibold text-slate-900">Phone:</span> {bid.partner_phone || "—"}</p>
+                    <p><span className="font-semibold text-slate-900">Vehicle:</span> {bid.vehicle_category_name}</p>
+                    <p><span className="font-semibold text-slate-900">Car hire:</span> {bid.car_hire_price}</p>
+                    <p><span className="font-semibold text-slate-900">Fuel:</span> {bid.fuel_price}</p>
+                    <p><span className="font-semibold text-slate-900">Total:</span> {bid.total_price}</p>
+                    <p><span className="font-semibold text-slate-900">Insurance included:</span> {bid.full_insurance_included ? "Yes" : "No"}</p>
+                    <p><span className="font-semibold text-slate-900">Full tank included:</span> {bid.full_tank_included ? "Yes" : "No"}</p>
+                    <p><span className="font-semibold text-slate-900">Notes:</span> {bid.notes || "—"}</p>
+                    <p><span className="font-semibold text-slate-900">Status:</span> <span className="capitalize">{bid.status}</span></p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {bid.status === "accepted" ? (
+                      <span className="rounded-full border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700">
+                        Accepted
+                      </span>
+                    ) : data.request.status === "confirmed" ? (
+                      <span className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-slate-500">
+                        Closed
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => acceptBid(bid.id)}
+                        disabled={!!acceptingId}
+                        className="rounded-full bg-[#ff7a00] px-5 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
+                      >
+                        {acceptingId === bid.id ? "Accepting..." : "Accept Bid"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
