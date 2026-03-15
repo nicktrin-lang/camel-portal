@@ -84,14 +84,23 @@ export async function POST(req: Request) {
     if (!pickup_at) {
       return NextResponse.json({ error: "Pickup time is required" }, { status: 400 });
     }
-    if (!dropoff_at) {
-      return NextResponse.json({ error: "Dropoff time is required" }, { status: 400 });
-    }
     if (!vehicle_category_slug || !vehicle_category_name) {
       return NextResponse.json({ error: "Vehicle category is required" }, { status: 400 });
     }
 
     const db = createServiceRoleSupabaseClient();
+
+    const { error: profileErr } = await db
+      .from("customer_profiles")
+      .upsert({
+        user_id: user.id,
+        full_name: String(user.user_metadata?.full_name || "").trim() || null,
+        phone: String(user.user_metadata?.phone || "").trim() || null,
+      });
+
+    if (profileErr) {
+      return NextResponse.json({ error: profileErr.message }, { status: 400 });
+    }
 
     const { data: requestRow, error: insertErr } = await db
       .from("customer_requests")
@@ -104,8 +113,8 @@ export async function POST(req: Request) {
         pickup_address,
         dropoff_address,
         pickup_at,
-        dropoff_at,
-        journey_duration_minutes,
+        dropoff_at || null,
+        journey_duration_minutes: journey_duration_minutes || null,
         passengers,
         suitcases,
         hand_luggage,
@@ -114,7 +123,7 @@ export async function POST(req: Request) {
         notes: notes || null,
         status: "open",
       })
-      .select("id, passengers, suitcases, hand_luggage, vehicle_category_slug, vehicle_category_name")
+      .select("id, passengers, suitcases, hand_luggage, vehicle_category_slug")
       .single();
 
     if (insertErr) {
@@ -135,14 +144,19 @@ export async function POST(req: Request) {
     for (const fleet of fleetRows || []) {
       const fitsCategory =
         String(fleet.category_slug || "") === String(requestRow.vehicle_category_slug || "");
-      const fitsPassengers = Number(fleet.max_passengers || 0) >= Number(requestRow.passengers || 0);
-      const fitsSuitcases = Number(fleet.max_suitcases || 0) >= Number(requestRow.suitcases || 0);
-      const fitsHand = Number(fleet.max_hand_luggage || 0) >= Number(requestRow.hand_luggage || 0);
+      const fitsPassengers =
+        Number(fleet.max_passengers || 0) >= Number(requestRow.passengers || 0);
+      const fitsSuitcases =
+        Number(fleet.max_suitcases || 0) >= Number(requestRow.suitcases || 0);
+      const fitsHand =
+        Number(fleet.max_hand_luggage || 0) >= Number(requestRow.hand_luggage || 0);
 
       if (fitsCategory && fitsPassengers && fitsSuitcases && fitsHand) {
         const partnerUserId = String(fleet.user_id || "");
         if (partnerUserId && !eligiblePartners.has(partnerUserId)) {
-          eligiblePartners.set(partnerUserId, { fleet_id: String(fleet.id || "") || null });
+          eligiblePartners.set(partnerUserId, {
+            fleet_id: String(fleet.id || "") || null,
+          });
         }
       }
     }
@@ -164,7 +178,10 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, request_id: requestRow.id });
+    return NextResponse.json(
+      { ok: true, data: { id: requestRow.id } },
+      { status: 200 }
+    );
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "Server error" },
