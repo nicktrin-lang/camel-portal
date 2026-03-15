@@ -13,47 +13,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
   const pathname = usePathname();
-
-  const [isPartnerLoggedIn, setIsPartnerLoggedIn] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function refreshUser() {
-      const { data } = await supabase.auth.getUser();
-      if (!mounted) return;
-      setIsPartnerLoggedIn(!!data?.user);
-    }
-
-    refreshUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      refreshUser();
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
-
-  async function handlePartnerLogout() {
-    await supabase.auth.signOut();
-
-    setIsPartnerLoggedIn(false);
-
-    router.replace("/partner/login?reason=signed_out");
-    router.refresh();
-
-    setTimeout(() => {
-      window.location.href = "/partner/login?reason=signed_out";
-    }, 50);
-  }
 
   const isHomepage = pathname === "/";
 
@@ -73,6 +34,55 @@ export default function RootLayout({
 
   const showGlobalHeader =
     !isHomepage && !isPartnerAuthPage && !isPortalAppPage;
+
+  const partnerSupabase = useMemo(() => {
+    if (isTestBookingArea) return null;
+    return createBrowserSupabaseClient();
+  }, [isTestBookingArea]);
+
+  const [isPartnerLoggedIn, setIsPartnerLoggedIn] = useState(false);
+
+  useEffect(() => {
+    if (!partnerSupabase) {
+      setIsPartnerLoggedIn(false);
+      return;
+    }
+
+    let mounted = true;
+
+    async function refreshUser() {
+      const { data } = await partnerSupabase.auth.getUser();
+      if (!mounted) return;
+      setIsPartnerLoggedIn(!!data?.user);
+    }
+
+    refreshUser();
+
+    const {
+      data: { subscription },
+    } = partnerSupabase.auth.onAuthStateChange(() => {
+      refreshUser();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [partnerSupabase]);
+
+  async function handlePartnerLogout() {
+    if (!partnerSupabase) return;
+
+    await partnerSupabase.auth.signOut();
+    setIsPartnerLoggedIn(false);
+
+    router.replace("/partner/login?reason=signed_out");
+    router.refresh();
+
+    setTimeout(() => {
+      window.location.href = "/partner/login?reason=signed_out";
+    }, 50);
+  }
 
   return (
     <html lang="en">
