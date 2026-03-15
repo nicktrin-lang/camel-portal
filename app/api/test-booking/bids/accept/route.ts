@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
     const { data: requestRow, error: requestErr } = await partnerDb
       .from("customer_requests")
-      .select("id, customer_user_id, status")
+      .select("id, customer_user_id, status, job_number")
       .eq("id", requestId)
       .eq("customer_user_id", customerUser.id)
       .maybeSingle();
@@ -80,6 +80,8 @@ export async function POST(req: Request) {
         { status: 404 }
       );
     }
+
+    const jobNumber = (requestRow as any).job_number ?? null;
 
     const { error: acceptErr } = await partnerDb
       .from("partner_bids")
@@ -143,6 +145,7 @@ export async function POST(req: Request) {
         booking_status: "active",
         amount: totalPrice,
         notes: bidNotes,
+        job_number: jobNumber,
       });
 
       if (bookingErr) {
