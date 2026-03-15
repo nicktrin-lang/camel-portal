@@ -9,6 +9,7 @@ import PortalTopbar from "@/app/components/portal/PortalTopbar";
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
   if (!text) return null;
+
   try {
     return JSON.parse(text);
   } catch {
@@ -16,7 +17,7 @@ async function safeJson(res: Response): Promise<any> {
   }
 }
 
-export default function PartnerLayout({
+export default function FleetLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -46,7 +47,8 @@ export default function PartnerLayout({
       setLoading(true);
 
       try {
-        const { data: userData, error: userErr } = await supabase.auth.getUser();
+        const { data: userData, error: userErr } =
+          await supabase.auth.getUser();
 
         if (userErr || !userData?.user) {
           router.replace("/partner/login?reason=not_signed_in");
@@ -58,18 +60,22 @@ export default function PartnerLayout({
           cache: "no-store",
           credentials: "include",
         });
+
         const meJson = await safeJson(meRes);
 
         if (!mounted) return;
 
-        const nextRole =
+        const nextRole: PortalRole =
           meJson?.role === "super_admin"
             ? "super_admin"
             : meJson?.role === "admin"
-              ? "admin"
-              : "partner";
+            ? "admin"
+            : "partner";
 
         setRole(nextRole);
+      } catch {
+        if (!mounted) return;
+        setRole("partner");
       } finally {
         if (!mounted) return;
         setLoading(false);
