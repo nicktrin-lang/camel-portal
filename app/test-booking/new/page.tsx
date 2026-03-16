@@ -2,20 +2,51 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { createCustomerBrowserClient } from "@/lib/supabase-customer/browser";
 import { FLEET_CATEGORIES } from "@/app/components/portal/fleetCategories";
+import "leaflet/dist/leaflet.css";
+
+const MapContainer = dynamic(
+  async () => (await import("react-leaflet")).MapContainer,
+  { ssr: false }
+);
+const TileLayer = dynamic(
+  async () => (await import("react-leaflet")).TileLayer,
+  { ssr: false }
+);
+const Marker = dynamic(async () => (await import("react-leaflet")).Marker, {
+  ssr: false,
+});
+const Popup = dynamic(async () => (await import("react-leaflet")).Popup, {
+  ssr: false,
+});
+
+type SearchResult = {
+  display_name: string;
+  lat: string;
+  lon: string;
+};
+
+const DEFAULT_CENTER: [number, number] = [38.3452, -0.481];
 
 export default function TestBookingNewPage() {
   const router = useRouter();
   const supabase = useMemo(() => createCustomerBrowserClient(), []);
 
   const [pickupAddress, setPickupAddress] = useState("");
-  const [pickupLat, setPickupLat] = useState("");
-  const [pickupLng, setPickupLng] = useState("");
+  const [pickupLat, setPickupLat] = useState<number | null>(null);
+  const [pickupLng, setPickupLng] = useState<number | null>(null);
 
   const [dropoffAddress, setDropoffAddress] = useState("");
-  const [dropoffLat, setDropoffLat] = useState("");
-  const [dropoffLng, setDropoffLng] = useState("");
+  const [dropoffLat, setDropoffLat] = useState<number | null>(null);
+  const [dropoffLng, setDropoffLng] = useState<number | null>(null);
+
+  const [pickupResults, setPickupResults] = useState<SearchResult[]>([]);
+  const [dropoffResults, setDropoffResults] = useState<SearchResult[]>([]);
+
+  const [pickupSearching, setPickupSearching] = useState(false);
+  const [dropoffSearching, setDropoffSearching] = useState(false);
 
   const [pickupAt, setPickupAt] = useState("");
   const [dropoffAt, setDropoffAt] = useState("");
@@ -30,6 +61,71 @@ export default function TestBookingNewPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function searchAddress(
+    query: string,
+    kind: "pickup" | "dropoff"
+  ) {
+    const clean = query.trim();
+
+    if (kind === "pickup") {
+      setPickupAddress(query);
+      setPickupLat(null);
+      setPickupLng(null);
+    } else {
+      setDropoffAddress(query);
+      setDropoffLat(null);
+      setDropoffLng(null);
+    }
+
+    if (clean.length < 3) {
+      if (kind === "pickup") setPickupResults([]);
+      else setDropoffResults([]);
+      return;
+    }
+
+    try {
+      if (kind === "pickup") setPickupSearching(true);
+      else setDropoffSearching(true);
+
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(
+          clean
+        )}`
+      );
+
+      if (!res.ok) {
+        throw new Error("Address search failed.");
+      }
+
+      const data = (await res.json()) as SearchResult[];
+
+      if (kind === "pickup") {
+        setPickupResults(data || []);
+      } else {
+        setDropoffResults(data || []);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Address search failed.");
+    } finally {
+      if (kind === "pickup") setPickupSearching(false);
+      else setDropoffSearching(false);
+    }
+  }
+
+  function selectPickup(result: SearchResult) {
+    setPickupAddress(result.display_name);
+    setPickupLat(Number(result.lat));
+    setPickupLng(Number(result.lon));
+    setPickupResults([]);
+  }
+
+  function selectDropoff(result: SearchResult) {
+    setDropoffAddress(result.display_name);
+    setDropoffLat(Number(result.lat));
+    setDropoffLng(Number(result.lon));
+    setDropoffResults([]);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,36 +151,12 @@ export default function TestBookingNewPage() {
         throw new Error("Please select a vehicle category.");
       }
 
-      const parsedPickupLat =
-        pickupLat.trim() === "" ? null : Number(pickupLat.trim());
-      const parsedPickupLng =
-        pickupLng.trim() === "" ? null : Number(pickupLng.trim());
-      const parsedDropoffLat =
-        dropoffLat.trim() === "" ? null : Number(dropoffLat.trim());
-      const parsedDropoffLng =
-        dropoffLng.trim() === "" ? null : Number(dropoffLng.trim());
-
-      if (
-        parsedPickupLat === null ||
-        parsedPickupLng === null ||
-        Number.isNaN(parsedPickupLat) ||
-        Number.isNaN(parsedPickupLng)
-      ) {
-        throw new Error("Pickup latitude and longitude are required.");
+      if (pickupLat === null || pickupLng === null) {
+        throw new Error("Please choose a pickup address from the search results.");
       }
 
-      if (
-        parsedDropoffLat !== null &&
-        Number.isNaN(parsedDropoffLat)
-      ) {
-        throw new Error("Dropoff latitude must be a valid number.");
-      }
-
-      if (
-        parsedDropoffLng !== null &&
-        Number.isNaN(parsedDropoffLng)
-      ) {
-        throw new Error("Dropoff longitude must be a valid number.");
+      if (dropoffLat === null || dropoffLng === null) {
+        throw new Error("Please choose a dropoff address from the search results.");
       }
 
       const res = await fetch("/api/test-booking/requests", {
@@ -95,11 +167,11 @@ export default function TestBookingNewPage() {
         },
         body: JSON.stringify({
           pickup_address: pickupAddress,
-          pickup_lat: parsedPickupLat,
-          pickup_lng: parsedPickupLng,
+          pickup_lat: pickupLat,
+          pickup_lng: pickupLng,
           dropoff_address: dropoffAddress,
-          dropoff_lat: parsedDropoffLat,
-          dropoff_lng: parsedDropoffLng,
+          dropoff_lat: dropoffLat,
+          dropoff_lng: dropoffLng,
           pickup_at: pickupAt,
           dropoff_at: dropoffAt || null,
           journey_duration_minutes: Number(journeyDurationMinutes || 0),
@@ -132,6 +204,13 @@ export default function TestBookingNewPage() {
     }
   }
 
+  const mapCenter: [number, number] =
+    pickupLat !== null && pickupLng !== null
+      ? [pickupLat, pickupLng]
+      : dropoffLat !== null && dropoffLng !== null
+        ? [dropoffLat, dropoffLng]
+        : DEFAULT_CENTER;
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
@@ -143,11 +222,6 @@ export default function TestBookingNewPage() {
           portal.
         </p>
 
-        <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
-          For radius testing, enter pickup and dropoff coordinates. We can replace
-          these with map search/autocomplete next.
-        </div>
-
         {error ? (
           <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {error}
@@ -155,91 +229,95 @@ export default function TestBookingNewPage() {
         ) : null}
 
         <form onSubmit={onSubmit} className="mt-8 space-y-6">
-          <div>
+          <div className="relative">
             <label className="text-sm font-medium text-[#003768]">
               Pickup address
             </label>
             <input
               value={pickupAddress}
-              onChange={(e) => setPickupAddress(e.target.value)}
+              onChange={(e) => searchAddress(e.target.value, "pickup")}
               className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
-              placeholder="e.g. Alicante Airport"
+              placeholder="Search pickup address"
               required
             />
+
+            {pickupSearching ? (
+              <p className="mt-2 text-sm text-slate-500">Searching pickup…</p>
+            ) : null}
+
+            {pickupResults.length > 0 ? (
+              <div className="mt-2 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg">
+                {pickupResults.map((result, index) => (
+                  <button
+                    key={`${result.lat}-${result.lon}-${index}`}
+                    type="button"
+                    onClick={() => selectPickup(result)}
+                    className="block w-full border-b border-black/5 px-4 py-3 text-left text-sm hover:bg-slate-50"
+                  >
+                    {result.display_name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium text-[#003768]">
-                Pickup latitude
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={pickupLat}
-                onChange={(e) => setPickupLat(e.target.value)}
-                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
-                placeholder="e.g. 38.2822"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-[#003768]">
-                Pickup longitude
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={pickupLng}
-                onChange={(e) => setPickupLng(e.target.value)}
-                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
-                placeholder="e.g. -0.5582"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
+          <div className="relative">
             <label className="text-sm font-medium text-[#003768]">
               Dropoff address
             </label>
             <input
               value={dropoffAddress}
-              onChange={(e) => setDropoffAddress(e.target.value)}
+              onChange={(e) => searchAddress(e.target.value, "dropoff")}
               className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
-              placeholder="e.g. Benidorm"
+              placeholder="Search dropoff address"
               required
             />
+
+            {dropoffSearching ? (
+              <p className="mt-2 text-sm text-slate-500">Searching dropoff…</p>
+            ) : null}
+
+            {dropoffResults.length > 0 ? (
+              <div className="mt-2 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg">
+                {dropoffResults.map((result, index) => (
+                  <button
+                    key={`${result.lat}-${result.lon}-${index}`}
+                    type="button"
+                    onClick={() => selectDropoff(result)}
+                    className="block w-full border-b border-black/5 px-4 py-3 text-left text-sm hover:bg-slate-50"
+                  >
+                    {result.display_name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium text-[#003768]">
-                Dropoff latitude
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={dropoffLat}
-                onChange={(e) => setDropoffLat(e.target.value)}
-                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
-                placeholder="e.g. 38.5411"
-              />
-            </div>
+          <div className="overflow-hidden rounded-3xl border border-black/10">
+            <div style={{ height: 320, width: "100%" }}>
+              <MapContainer
+                center={mapCenter}
+                zoom={10}
+                scrollWheelZoom={true}
+                style={{ height: "100%", width: "100%" }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
 
-            <div>
-              <label className="text-sm font-medium text-[#003768]">
-                Dropoff longitude
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={dropoffLng}
-                onChange={(e) => setDropoffLng(e.target.value)}
-                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
-                placeholder="e.g. -0.1225"
-              />
+                {pickupLat !== null && pickupLng !== null ? (
+                  <Marker position={[pickupLat, pickupLng]}>
+                    <Popup>Pickup</Popup>
+                  </Marker>
+                ) : null}
+
+                {dropoffLat !== null && dropoffLng !== null ? (
+                  <Marker position={[dropoffLat, dropoffLng]}>
+                    <Popup>Dropoff</Popup>
+                  </Marker>
+                ) : null}
+              </MapContainer>
             </div>
           </div>
 
