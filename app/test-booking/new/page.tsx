@@ -10,7 +10,13 @@ export default function TestBookingNewPage() {
   const supabase = useMemo(() => createCustomerBrowserClient(), []);
 
   const [pickupAddress, setPickupAddress] = useState("");
+  const [pickupLat, setPickupLat] = useState("");
+  const [pickupLng, setPickupLng] = useState("");
+
   const [dropoffAddress, setDropoffAddress] = useState("");
+  const [dropoffLat, setDropoffLat] = useState("");
+  const [dropoffLng, setDropoffLng] = useState("");
+
   const [pickupAt, setPickupAt] = useState("");
   const [dropoffAt, setDropoffAt] = useState("");
   const [journeyDurationMinutes, setJourneyDurationMinutes] = useState("45");
@@ -49,6 +55,38 @@ export default function TestBookingNewPage() {
         throw new Error("Please select a vehicle category.");
       }
 
+      const parsedPickupLat =
+        pickupLat.trim() === "" ? null : Number(pickupLat.trim());
+      const parsedPickupLng =
+        pickupLng.trim() === "" ? null : Number(pickupLng.trim());
+      const parsedDropoffLat =
+        dropoffLat.trim() === "" ? null : Number(dropoffLat.trim());
+      const parsedDropoffLng =
+        dropoffLng.trim() === "" ? null : Number(dropoffLng.trim());
+
+      if (
+        parsedPickupLat === null ||
+        parsedPickupLng === null ||
+        Number.isNaN(parsedPickupLat) ||
+        Number.isNaN(parsedPickupLng)
+      ) {
+        throw new Error("Pickup latitude and longitude are required.");
+      }
+
+      if (
+        parsedDropoffLat !== null &&
+        Number.isNaN(parsedDropoffLat)
+      ) {
+        throw new Error("Dropoff latitude must be a valid number.");
+      }
+
+      if (
+        parsedDropoffLng !== null &&
+        Number.isNaN(parsedDropoffLng)
+      ) {
+        throw new Error("Dropoff longitude must be a valid number.");
+      }
+
       const res = await fetch("/api/test-booking/requests", {
         method: "POST",
         headers: {
@@ -57,7 +95,11 @@ export default function TestBookingNewPage() {
         },
         body: JSON.stringify({
           pickup_address: pickupAddress,
+          pickup_lat: parsedPickupLat,
+          pickup_lng: parsedPickupLng,
           dropoff_address: dropoffAddress,
+          dropoff_lat: parsedDropoffLat,
+          dropoff_lng: parsedDropoffLng,
           pickup_at: pickupAt,
           dropoff_at: dropoffAt || null,
           journey_duration_minutes: Number(journeyDurationMinutes || 0),
@@ -101,6 +143,11 @@ export default function TestBookingNewPage() {
           portal.
         </p>
 
+        <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+          For radius testing, enter pickup and dropoff coordinates. We can replace
+          these with map search/autocomplete next.
+        </div>
+
         {error ? (
           <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {error}
@@ -121,6 +168,38 @@ export default function TestBookingNewPage() {
             />
           </div>
 
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium text-[#003768]">
+                Pickup latitude
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={pickupLat}
+                onChange={(e) => setPickupLat(e.target.value)}
+                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                placeholder="e.g. 38.2822"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-[#003768]">
+                Pickup longitude
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={pickupLng}
+                onChange={(e) => setPickupLng(e.target.value)}
+                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                placeholder="e.g. -0.5582"
+                required
+              />
+            </div>
+          </div>
+
           <div>
             <label className="text-sm font-medium text-[#003768]">
               Dropoff address
@@ -132,6 +211,36 @@ export default function TestBookingNewPage() {
               placeholder="e.g. Benidorm"
               required
             />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium text-[#003768]">
+                Dropoff latitude
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={dropoffLat}
+                onChange={(e) => setDropoffLat(e.target.value)}
+                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                placeholder="e.g. 38.5411"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-[#003768]">
+                Dropoff longitude
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={dropoffLng}
+                onChange={(e) => setDropoffLng(e.target.value)}
+                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                placeholder="e.g. -0.1225"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

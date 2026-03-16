@@ -18,6 +18,31 @@ async function getCustomerUserFromAccessToken(accessToken?: string | null) {
   return data.user;
 }
 
+function toRad(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+) {
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 export async function GET(req: Request) {
   try {
     const accessToken = getBearerToken(req);
@@ -76,7 +101,25 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => null);
 
     const pickup_address = String(body?.pickup_address || "").trim();
+    const pickup_lat =
+      body?.pickup_lat === null || body?.pickup_lat === undefined
+        ? null
+        : Number(body.pickup_lat);
+    const pickup_lng =
+      body?.pickup_lng === null || body?.pickup_lng === undefined
+        ? null
+        : Number(body.pickup_lng);
+
     const dropoff_address = String(body?.dropoff_address || "").trim();
+    const dropoff_lat =
+      body?.dropoff_lat === null || body?.dropoff_lat === undefined || body?.dropoff_lat === ""
+        ? null
+        : Number(body.dropoff_lat);
+    const dropoff_lng =
+      body?.dropoff_lng === null || body?.dropoff_lng === undefined || body?.dropoff_lng === ""
+        ? null
+        : Number(body.dropoff_lng);
+
     const pickup_at = String(body?.pickup_at || "").trim();
     const dropoff_at = String(body?.dropoff_at || "").trim();
     const journey_duration_minutes = Number(body?.journey_duration_minutes || 0);
@@ -91,8 +134,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Pickup is required" }, { status: 400 });
     }
 
+    if (pickup_lat === null || pickup_lng === null) {
+      return NextResponse.json(
+        { error: "Pickup latitude and longitude are required" },
+        { status: 400 }
+      );
+    }
+
+    if (Number.isNaN(pickup_lat) || Number.isNaN(pickup_lng)) {
+      return NextResponse.json(
+        { error: "Pickup coordinates must be valid numbers" },
+        { status: 400 }
+      );
+    }
+
     if (!dropoff_address) {
       return NextResponse.json({ error: "Dropoff is required" }, { status: 400 });
+    }
+
+    if (dropoff_lat !== null && Number.isNaN(dropoff_lat)) {
+      return NextResponse.json(
+        { error: "Dropoff latitude must be valid" },
+        { status: 400 }
+      );
+    }
+
+    if (dropoff_lng !== null && Number.isNaN(dropoff_lng)) {
+      return NextResponse.json(
+        { error: "Dropoff longitude must be valid" },
+        { status: 400 }
+      );
     }
 
     if (!pickup_at) {
@@ -124,7 +195,11 @@ export async function POST(req: Request) {
         customer_email: customerUser.email || null,
         customer_phone,
         pickup_address,
+        pickup_lat,
+        pickup_lng,
         dropoff_address,
+        dropoff_lat,
+        dropoff_lng,
         pickup_at,
         dropoff_at: dropoff_at || null,
         journey_duration_minutes: journey_duration_minutes || null,
@@ -136,7 +211,7 @@ export async function POST(req: Request) {
         notes: notes || null,
         status: "open",
       })
-      .select("id, job_number, passengers, suitcases, hand_luggage, vehicle_category_slug")
+      .select("id, job_number, passengers, suitcases, hand_luggage, vehicle_category_slug, pickup_lat, pickup_lng")
       .single();
 
     if (insertErr) {
@@ -154,7 +229,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: fleetErr.message }, { status: 400 });
     }
 
-    const eligiblePartners = new Map<string, { fleet_id: string | null }>();
+    const partnerUserIds = Array.from(
+      new Set((fleetRows || []).map((fleet: any) => String(fleet.user_id || "")).filter(Boolean))
+    );
+
+    let partnerProfileMap = new Map<string, any>();
+
+    if (partnerUserIds.length > 0) {
+      const { data: profileRows, error: profileErr } = await partnerDb
+        .from("partner_profiles")
+        .select("user_id, base_lat, base_lng, service_radius_km")
+        .in("user_id", partnerUserIds);
+
+      if (profileErr) {
+        return NextResponse.json({ error: profileErr.message }, { status: 400 });
+      }
+
+      partnerProfileMap = new Map(
+        (profileRows || []).map((row: any) => [String(row.user_id), row])
+      );
+    }
+
+    const eligiblePartners = new Map<
+      string,
+      { fleet_id: string | null; distance_km: number | null }
+    >();
 
     for (const fleet of fleetRows || []) {
       const fitsCategory =
@@ -171,13 +270,56 @@ export async function POST(req: Request) {
         Number(fleet.max_hand_luggage || 0) >=
         Number(requestRow.hand_luggage || 0);
 
-      if (fitsCategory && fitsPassengers && fitsSuitcases && fitsHandLuggage) {
-        const partnerUserId = String(fleet.user_id || "");
-        if (partnerUserId && !eligiblePartners.has(partnerUserId)) {
-          eligiblePartners.set(partnerUserId, {
-            fleet_id: String(fleet.id || "") || null,
-          });
-        }
+      if (!fitsCategory || !fitsPassengers || !fitsSuitcases || !fitsHandLuggage) {
+        continue;
+      }
+
+      const partnerUserId = String(fleet.user_id || "");
+      if (!partnerUserId) continue;
+
+      const profile = partnerProfileMap.get(partnerUserId);
+      if (!profile) continue;
+
+      const baseLat =
+        profile.base_lat === null || profile.base_lat === undefined
+          ? null
+          : Number(profile.base_lat);
+      const baseLng =
+        profile.base_lng === null || profile.base_lng === undefined
+          ? null
+          : Number(profile.base_lng);
+      const radiusKm =
+        profile.service_radius_km === null || profile.service_radius_km === undefined
+          ? null
+          : Number(profile.service_radius_km);
+
+      if (
+        baseLat === null ||
+        baseLng === null ||
+        radiusKm === null ||
+        Number.isNaN(baseLat) ||
+        Number.isNaN(baseLng) ||
+        Number.isNaN(radiusKm)
+      ) {
+        continue;
+      }
+
+      const distanceKm = haversineKm(
+        Number(requestRow.pickup_lat),
+        Number(requestRow.pickup_lng),
+        baseLat,
+        baseLng
+      );
+
+      if (distanceKm > radiusKm) {
+        continue;
+      }
+
+      if (!eligiblePartners.has(partnerUserId)) {
+        eligiblePartners.set(partnerUserId, {
+          fleet_id: String(fleet.id || "") || null,
+          distance_km: distanceKm,
+        });
       }
     }
 
@@ -206,6 +348,7 @@ export async function POST(req: Request) {
         data: {
           id: requestRow.id,
           job_number: requestRow.job_number,
+          matched_partners_count: matchRows.length,
         },
       },
       { status: 200 }
