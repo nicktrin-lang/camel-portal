@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type RequestRow = {
   id: string;
@@ -16,8 +16,25 @@ type RequestRow = {
   hand_luggage: number;
   vehicle_category_name: string | null;
   status: string;
+  request_status: string;
   created_at: string;
+  expires_at?: string | null;
 };
+
+type ApiResponse = {
+  data: RequestRow[];
+  role: string | null;
+  adminMode: boolean;
+};
+
+const REQUEST_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "open", label: "Open" },
+  { value: "bid_submitted", label: "Bid Submitted" },
+  { value: "bid_successful", label: "Bid Successful" },
+  { value: "bid_unsuccessful", label: "Bid Unsuccessful" },
+  { value: "expired", label: "Expired" },
+] as const;
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -47,8 +64,32 @@ function formatDuration(minutes?: number | null) {
   return mins ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
+function formatStatusLabel(value?: string | null) {
+  return String(value || "—").replaceAll("_", " ");
+}
+
+function statusPillClasses(status?: string | null) {
+  switch (status) {
+    case "open":
+      return "border-blue-200 bg-blue-50 text-blue-700";
+    case "bid_submitted":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "bid_successful":
+      return "border-green-200 bg-green-50 text-green-700";
+    case "bid_unsuccessful":
+      return "border-red-200 bg-red-50 text-red-700";
+    case "expired":
+      return "border-slate-200 bg-slate-50 text-slate-600";
+    default:
+      return "border-black/10 bg-white text-slate-700";
+  }
+}
+
 export default function PartnerRequestsPage() {
   const [rows, setRows] = useState<RequestRow[]>([]);
+  const [role, setRole] = useState<string | null>(null);
+  const [adminMode, setAdminMode] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,16 +104,20 @@ export default function PartnerRequestsPage() {
         credentials: "include",
       });
 
-      const json = await res.json().catch(() => null);
+      const json = (await res.json().catch(() => null)) as ApiResponse | null;
 
       if (!res.ok) {
-        throw new Error(json?.error || "Failed to load requests.");
+        throw new Error((json as any)?.error || "Failed to load requests.");
       }
 
       setRows(json?.data || []);
+      setRole(json?.role || null);
+      setAdminMode(!!json?.adminMode);
     } catch (e: any) {
       setError(e?.message || "Failed to load requests.");
       setRows([]);
+      setRole(null);
+      setAdminMode(false);
     } finally {
       setLoading(false);
     }
@@ -81,6 +126,11 @@ export default function PartnerRequestsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const filteredRows = useMemo(() => {
+    if (selectedFilter === "all") return rows;
+    return rows.filter((row) => row.status === selectedFilter);
+  }, [rows, selectedFilter]);
 
   return (
     <div className="space-y-6 px-4 py-8 md:px-8">
@@ -91,29 +141,48 @@ export default function PartnerRequestsPage() {
       ) : null}
 
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-3xl font-semibold text-[#003768]">
-              Booking Requests
+              Requests
             </h1>
             <p className="mt-2 text-slate-600">
-              Open booking requests matched to your fleet and service area.
+              {adminMode
+                ? "All request history across the network."
+                : "Request history matched to your partner account."}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Signed in role: {role || "—"}
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={load}
-            className="rounded-full bg-[#ff7a00] px-5 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-          >
-            Refresh
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <select
+              value={selectedFilter}
+              onChange={(e) => setSelectedFilter(e.target.value)}
+              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-[#0f4f8a]"
+            >
+              {REQUEST_FILTERS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={load}
+              className="rounded-full bg-[#ff7a00] px-5 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         {loading ? (
           <p className="mt-6 text-slate-600">Loading requests…</p>
-        ) : rows.length === 0 ? (
-          <p className="mt-6 text-slate-600">No requests found.</p>
+        ) : filteredRows.length === 0 ? (
+          <p className="mt-6 text-slate-600">No requests found for this filter.</p>
         ) : (
           <div className="mt-6 overflow-x-auto rounded-3xl border border-black/10">
             <table className="min-w-full text-sm">
@@ -129,13 +198,14 @@ export default function PartnerRequestsPage() {
                   <th className="px-4 py-3 font-semibold">Passengers</th>
                   <th className="px-4 py-3 font-semibold">Bags</th>
                   <th className="px-4 py-3 font-semibold">Vehicle</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Partner Status</th>
+                  <th className="px-4 py-3 font-semibold">Request Status</th>
                   <th className="px-4 py-3 font-semibold">Action</th>
                 </tr>
               </thead>
 
               <tbody>
-                {rows.map((row) => (
+                {filteredRows.map((row) => (
                   <tr key={row.id} className="border-t border-black/5 align-top">
                     <td className="px-4 py-4 font-semibold text-[#003768]">
                       {row.job_number ?? "—"}
@@ -153,11 +223,23 @@ export default function PartnerRequestsPage() {
                       {row.suitcases} suitcases / {row.hand_luggage} hand luggage
                     </td>
                     <td className="px-4 py-4">{row.vehicle_category_name || "—"}</td>
+
                     <td className="px-4 py-4">
-                      <span className="capitalize">
-                        {String(row.status || "—").replaceAll("_", " ")}
+                      <span
+                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(
+                          row.status
+                        )}`}
+                      >
+                        {formatStatusLabel(row.status)}
                       </span>
                     </td>
+
+                    <td className="px-4 py-4">
+                      <span className="capitalize text-slate-700">
+                        {formatStatusLabel(row.request_status)}
+                      </span>
+                    </td>
+
                     <td className="px-4 py-4">
                       <Link
                         href={`/partner/requests/${row.id}`}
@@ -172,7 +254,7 @@ export default function PartnerRequestsPage() {
             </table>
 
             <div className="border-t border-black/5 px-4 py-4 text-sm text-slate-500">
-              Requests shown here should later be filtered by both your fleet capability and service radius.
+              Requests remain visible as history and can be filtered by partner outcome.
             </div>
           </div>
         )}
