@@ -143,7 +143,7 @@ export async function GET(
     let booking: any = null;
 
     if (acceptedBid) {
-      const { data: bookingRow, error: bookingErr } = await db
+      const { data: bookingRows, error: bookingErr } = await db
         .from("partner_bookings")
         .select(`
           id,
@@ -161,12 +161,15 @@ export async function GET(
           driver_notes,
           driver_assigned_at
         `)
-        .eq("request_id", id)
-        .maybeSingle();
+        .eq("winning_bid_id", acceptedBid.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
 
       if (bookingErr) {
         return NextResponse.json({ error: bookingErr.message }, { status: 400 });
       }
+
+      const bookingRow = bookingRows?.[0] || null;
 
       if (bookingRow) {
         const winnerProfile =
@@ -182,8 +185,12 @@ export async function GET(
           notes: bookingRow.notes,
           created_at: bookingRow.created_at,
           job_number: bookingRow.job_number,
-          company_name: winnerProfile?.company_name || acceptedBid.partner_company_name || "Car Hire Company",
-          company_phone: winnerProfile?.phone || acceptedBid.partner_phone || null,
+          company_name:
+            winnerProfile?.company_name ||
+            acceptedBid.partner_company_name ||
+            "Car Hire Company",
+          company_phone:
+            winnerProfile?.phone || acceptedBid.partner_phone || null,
           driver_name: bookingRow.driver_name || null,
           driver_phone: bookingRow.driver_phone || null,
           driver_vehicle: bookingRow.driver_vehicle || null,
