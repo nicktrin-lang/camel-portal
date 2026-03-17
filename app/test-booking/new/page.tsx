@@ -1,11 +1,13 @@
 "use client";
 
+import "leaflet/dist/leaflet.css";
+
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import L from "leaflet";
 import { createCustomerBrowserClient } from "@/lib/supabase-customer/browser";
 import { FLEET_CATEGORIES } from "@/app/components/portal/fleetCategories";
-import "leaflet/dist/leaflet.css";
 
 const MapContainer = dynamic(
   async () => (await import("react-leaflet")).MapContainer,
@@ -21,6 +23,23 @@ const Marker = dynamic(async () => (await import("react-leaflet")).Marker, {
 const Popup = dynamic(async () => (await import("react-leaflet")).Popup, {
   ssr: false,
 });
+const useMapEventsDynamic = dynamic(
+  async () => {
+    const mod = await import("react-leaflet");
+    return function ClickHandler(props: {
+      mode: "pickup" | "dropoff";
+      onPick: (lat: number, lng: number) => void;
+    }) {
+      mod.useMapEvents({
+        click(e) {
+          props.onPick(e.latlng.lat, e.latlng.lng);
+        },
+      });
+      return null;
+    };
+  },
+  { ssr: false }
+);
 
 type SearchResult = {
   display_name: string;
@@ -29,6 +48,35 @@ type SearchResult = {
 };
 
 const DEFAULT_CENTER: [number, number] = [38.3452, -0.481];
+
+const markerIcon = L.icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+async function reverseLookup(lat: number, lng: number) {
+  const res = await fetch(
+    `/api/maps/reverse?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(
+      String(lng)
+    )}`,
+    {
+      method: "GET",
+      cache: "no-store",
+    }
+  );
+
+  const json = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    throw new Error(json?.error || "Reverse lookup failed.");
+  }
+
+  return String(json?.data?.display_name || "").trim();
+}
 
 export default function TestBookingNewPage() {
   const router = useRouter();
@@ -48,6 +96,8 @@ export default function TestBookingNewPage() {
   const [pickupSearching, setPickupSearching] = useState(false);
   const [dropoffSearching, setDropoffSearching] = useState(false);
 
+  const [mapMode, setMapMode] = useState<"pickup" | "dropoff">("pickup");
+
   const [pickupAt, setPickupAt] = useState("");
   const [dropoffAt, setDropoffAt] = useState("");
   const [journeyDurationMinutes, setJourneyDurationMinutes] = useState("45");
@@ -60,50 +110,47 @@ export default function TestBookingNewPage() {
   const [notes, setNotes] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [mapPicking, setMapPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function searchAddress(
-    query: string,
-    kind: "pickup" | "dropoff"
-  ) {
+  async function searchAddress(query: string, kind: "pickup" | "dropoff") {
     const clean = query.trim();
 
     if (kind === "pickup") {
       setPickupAddress(query);
       setPickupLat(null);
       setPickupLng(null);
+      setPickupResults([]);
     } else {
       setDropoffAddress(query);
       setDropoffLat(null);
       setDropoffLng(null);
+      setDropoffResults([]);
     }
 
-    if (clean.length < 3) {
-      if (kind === "pickup") setPickupResults([]);
-      else setDropoffResults([]);
-      return;
-    }
+    if (clean.length < 3) return;
 
     try {
       if (kind === "pickup") setPickupSearching(true);
       else setDropoffSearching(true);
 
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(
-          clean
-        )}`
-      );
+      const res = await fetch(`/api/maps/search?q=${encodeURIComponent(clean)}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const json = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error("Address search failed.");
+        throw new Error(json?.error || "Address search failed.");
       }
 
-      const data = (await res.json()) as SearchResult[];
+      const results = (json?.data || []) as SearchResult[];
 
       if (kind === "pickup") {
-        setPickupResults(data || []);
+        setPickupResults(results);
       } else {
-        setDropoffResults(data || []);
+        setDropoffResults(results);
       }
     } catch (e: any) {
       setError(e?.message || "Address search failed.");
@@ -125,6 +172,31 @@ export default function TestBookingNewPage() {
     setDropoffLat(Number(result.lat));
     setDropoffLng(Number(result.lon));
     setDropoffResults([]);
+  }
+
+  async function handleMapPick(lat: number, lng: number) {
+    try {
+      setMapPicking(true);
+      setError(null);
+
+      const address = await reverseLookup(lat, lng);
+
+      if (mapMode === "pickup") {
+        setPickupLat(lat);
+        setPickupLng(lng);
+        setPickupAddress(address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        setPickupResults([]);
+      } else {
+        setDropoffLat(lat);
+        setDropoffLng(lng);
+        setDropoffAddress(address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        setDropoffResults([]);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Map selection failed.");
+    } finally {
+      setMapPicking(false);
+    }
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -152,11 +224,11 @@ export default function TestBookingNewPage() {
       }
 
       if (pickupLat === null || pickupLng === null) {
-        throw new Error("Please choose a pickup address from the search results.");
+        throw new Error("Please choose a pickup address from the search results or map.");
       }
 
       if (dropoffLat === null || dropoffLng === null) {
-        throw new Error("Please choose a dropoff address from the search results.");
+        throw new Error("Please choose a dropoff address from the search results or map.");
       }
 
       const res = await fetch("/api/test-booking/requests", {
@@ -227,6 +299,38 @@ export default function TestBookingNewPage() {
             {error}
           </div>
         ) : null}
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => setMapMode("pickup")}
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${
+              mapMode === "pickup"
+                ? "bg-[#003768] text-white"
+                : "border border-black/10 bg-white text-[#003768]"
+            }`}
+          >
+            Map click sets pickup
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMapMode("dropoff")}
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${
+              mapMode === "dropoff"
+                ? "bg-[#003768] text-white"
+                : "border border-black/10 bg-white text-[#003768]"
+            }`}
+          >
+            Map click sets dropoff
+          </button>
+
+          {mapPicking ? (
+            <span className="self-center text-sm text-slate-500">
+              Looking up map address…
+            </span>
+          ) : null}
+        </div>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-6">
           <div className="relative">
@@ -306,14 +410,16 @@ export default function TestBookingNewPage() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
 
+                <useMapEventsDynamic mode={mapMode} onPick={handleMapPick} />
+
                 {pickupLat !== null && pickupLng !== null ? (
-                  <Marker position={[pickupLat, pickupLng]}>
+                  <Marker position={[pickupLat, pickupLng]} icon={markerIcon}>
                     <Popup>Pickup</Popup>
                   </Marker>
                 ) : null}
 
                 {dropoffLat !== null && dropoffLng !== null ? (
-                  <Marker position={[dropoffLat, dropoffLng]}>
+                  <Marker position={[dropoffLat, dropoffLng]} icon={markerIcon}>
                     <Popup>Dropoff</Popup>
                   </Marker>
                 ) : null}
@@ -434,7 +540,7 @@ export default function TestBookingNewPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || mapPicking}
             className="rounded-full bg-[#ff7a00] px-6 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
           >
             {loading ? "Creating..." : "Create Test Request"}
