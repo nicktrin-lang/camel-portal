@@ -15,12 +15,11 @@ type RequestRow = {
   suitcases: number;
   hand_luggage: number;
   vehicle_category_name: string | null;
-  request_status: string;
   status: string;
   created_at: string;
 };
 
-function fmtDateTime(value?: string | null) {
+function formatDateTime(value?: string | null) {
   if (!value) return "—";
   try {
     return new Date(value).toLocaleString();
@@ -29,26 +28,23 @@ function fmtDateTime(value?: string | null) {
   }
 }
 
-function fmtDuration(minutes?: number | null) {
+function formatDuration(minutes?: number | null) {
   if (minutes === null || minutes === undefined || Number.isNaN(minutes)) {
     return "—";
   }
-  if (minutes < 60) return `${minutes} min`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
-}
 
-function statusLabel(status?: string) {
-  switch (status) {
-    case "bid_submitted":
-      return "Bid Submitted";
-    case "accepted":
-      return "Accepted";
-    case "open":
-    default:
-      return "Open";
+  const minutesPerDay = 24 * 60;
+
+  if (minutes >= minutesPerDay) {
+    const days = Math.ceil(minutes / minutesPerDay);
+    return `${days} day${days === 1 ? "" : "s"}`;
   }
+
+  if (minutes < 60) return `${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
 export default function PartnerRequestsPage() {
@@ -87,7 +83,13 @@ export default function PartnerRequestsPage() {
   }, []);
 
   return (
-    <div className="px-4 py-8 md:px-8">
+    <div className="space-y-6 px-4 py-8 md:px-8">
+      {error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -108,16 +110,10 @@ export default function PartnerRequestsPage() {
           </button>
         </div>
 
-        {error ? (
-          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
-
         {loading ? (
           <p className="mt-6 text-slate-600">Loading requests…</p>
         ) : rows.length === 0 ? (
-          <p className="mt-6 text-slate-600">No requests available.</p>
+          <p className="mt-6 text-slate-600">No requests found.</p>
         ) : (
           <div className="mt-6 overflow-x-auto rounded-3xl border border-black/10">
             <table className="min-w-full text-sm">
@@ -140,34 +136,32 @@ export default function PartnerRequestsPage() {
 
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id} className="border-t border-black/5">
+                  <tr key={row.id} className="border-t border-black/5 align-top">
                     <td className="px-4 py-4 font-semibold text-[#003768]">
                       {row.job_number ?? "—"}
                     </td>
-                    <td className="px-4 py-4">{fmtDateTime(row.created_at)}</td>
-                    <td className="px-4 py-4">{row.pickup_address}</td>
+                    <td className="px-4 py-4">{formatDateTime(row.created_at)}</td>
+                    <td className="px-4 py-4">{row.pickup_address || "—"}</td>
                     <td className="px-4 py-4">{row.dropoff_address || "—"}</td>
-                    <td className="px-4 py-4">{fmtDateTime(row.pickup_at)}</td>
-                    <td className="px-4 py-4">{fmtDateTime(row.dropoff_at)}</td>
+                    <td className="px-4 py-4">{formatDateTime(row.pickup_at)}</td>
+                    <td className="px-4 py-4">{formatDateTime(row.dropoff_at)}</td>
                     <td className="px-4 py-4">
-                      {fmtDuration(row.journey_duration_minutes)}
+                      {formatDuration(row.journey_duration_minutes)}
                     </td>
                     <td className="px-4 py-4">{row.passengers}</td>
                     <td className="px-4 py-4">
                       {row.suitcases} suitcases / {row.hand_luggage} hand luggage
                     </td>
+                    <td className="px-4 py-4">{row.vehicle_category_name || "—"}</td>
                     <td className="px-4 py-4">
-                      {row.vehicle_category_name || "—"}
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="rounded-full border border-[#f3d36b] bg-[#fff9e8] px-4 py-1 text-xs font-semibold text-[#b96a00]">
-                        {statusLabel(row.status)}
+                      <span className="capitalize">
+                        {String(row.status || "—").replaceAll("_", " ")}
                       </span>
                     </td>
                     <td className="px-4 py-4">
                       <Link
                         href={`/partner/requests/${row.id}`}
-                        className="inline-flex rounded-full bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+                        className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
                       >
                         View
                       </Link>
@@ -177,9 +171,8 @@ export default function PartnerRequestsPage() {
               </tbody>
             </table>
 
-            <div className="px-4 py-4 text-sm text-slate-500">
-              Requests shown here should later be filtered by both your fleet
-              capability and service radius.
+            <div className="border-t border-black/5 px-4 py-4 text-sm text-slate-500">
+              Requests shown here should later be filtered by both your fleet capability and service radius.
             </div>
           </div>
         )}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 type BookingRow = {
   id: string;
@@ -59,7 +60,16 @@ function formatDuration(minutes?: number | null) {
   if (minutes === null || minutes === undefined || Number.isNaN(minutes)) {
     return "—";
   }
+
+  const minutesPerDay = 24 * 60;
+
+  if (minutes >= minutesPerDay) {
+    const days = Math.ceil(minutes / minutesPerDay);
+    return `${days} day${days === 1 ? "" : "s"}`;
+  }
+
   if (minutes < 60) return `${minutes} min`;
+
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return mins ? `${hours}h ${mins}m` : `${hours}h`;
@@ -73,12 +83,10 @@ function formatGBP(value?: number | null) {
   }).format(value);
 }
 
-export default function PartnerBookingDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [bookingId, setBookingId] = useState("");
+export default function PartnerBookingDetailPage() {
+  const params = useParams<{ id: string }>();
+  const bookingId = String(params?.id || "");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,24 +99,12 @@ export default function PartnerBookingDetailPage({
   const [driverVehicle, setDriverVehicle] = useState("");
   const [driverNotes, setDriverNotes] = useState("");
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function init() {
-      const resolved = await params;
-      if (!mounted) return;
-      setBookingId(resolved.id);
-    }
-
-    init();
-
-    return () => {
-      mounted = false;
-    };
-  }, [params]);
-
   async function load() {
-    if (!bookingId) return;
+    if (!bookingId) {
+      setLoading(false);
+      setError("Missing booking ID.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -245,32 +241,12 @@ export default function PartnerBookingDetailPage({
           </h2>
 
           <div className="mt-6 space-y-4 text-slate-700">
-            <p>
-              <span className="font-semibold text-slate-900">Job No.:</span>{" "}
-              {booking.job_number ?? "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Booking created:</span>{" "}
-              {formatDateTime(booking.created_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Booking status:</span>{" "}
-              <span className="capitalize">
-                {String(booking.booking_status || "—").replaceAll("_", " ")}
-              </span>
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Amount:</span>{" "}
-              {formatGBP(booking.amount)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Booking notes:</span>{" "}
-              {booking.notes || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Driver assigned at:</span>{" "}
-              {formatDateTime(booking.driver_assigned_at)}
-            </p>
+            <p><span className="font-semibold text-slate-900">Job No.:</span> {booking.job_number ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Booking created:</span> {formatDateTime(booking.created_at)}</p>
+            <p><span className="font-semibold text-slate-900">Booking status:</span> <span className="capitalize">{String(booking.booking_status || "—").replaceAll("_", " ")}</span></p>
+            <p><span className="font-semibold text-slate-900">Amount:</span> {formatGBP(booking.amount)}</p>
+            <p><span className="font-semibold text-slate-900">Booking notes:</span> {booking.notes || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Driver assigned at:</span> {formatDateTime(booking.driver_assigned_at)}</p>
           </div>
         </div>
 
@@ -280,58 +256,19 @@ export default function PartnerBookingDetailPage({
           </h2>
 
           <div className="mt-6 space-y-4 text-slate-700">
-            <p>
-              <span className="font-semibold text-slate-900">Customer:</span>{" "}
-              {request?.customer_name || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Email:</span>{" "}
-              {request?.customer_email || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Phone:</span>{" "}
-              {request?.customer_phone || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Pickup:</span>{" "}
-              {request?.pickup_address || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Dropoff:</span>{" "}
-              {request?.dropoff_address || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Pickup time:</span>{" "}
-              {formatDateTime(request?.pickup_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Dropoff time:</span>{" "}
-              {formatDateTime(request?.dropoff_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Duration:</span>{" "}
-              {formatDuration(request?.journey_duration_minutes)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Passengers:</span>{" "}
-              {request?.passengers ?? "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Suitcases:</span>{" "}
-              {request?.suitcases ?? "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Hand luggage:</span>{" "}
-              {request?.hand_luggage ?? "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Vehicle:</span>{" "}
-              {request?.vehicle_category_name || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Request notes:</span>{" "}
-              {request?.notes || "—"}
-            </p>
+            <p><span className="font-semibold text-slate-900">Customer:</span> {request?.customer_name || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Email:</span> {request?.customer_email || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Phone:</span> {request?.customer_phone || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Pickup:</span> {request?.pickup_address || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Dropoff:</span> {request?.dropoff_address || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Pickup time:</span> {formatDateTime(request?.pickup_at)}</p>
+            <p><span className="font-semibold text-slate-900">Dropoff time:</span> {formatDateTime(request?.dropoff_at)}</p>
+            <p><span className="font-semibold text-slate-900">Duration:</span> {formatDuration(request?.journey_duration_minutes)}</p>
+            <p><span className="font-semibold text-slate-900">Passengers:</span> {request?.passengers ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Suitcases:</span> {request?.suitcases ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Hand luggage:</span> {request?.hand_luggage ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Vehicle:</span> {request?.vehicle_category_name || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Request notes:</span> {request?.notes || "—"}</p>
           </div>
         </div>
       </div>
@@ -343,9 +280,7 @@ export default function PartnerBookingDetailPage({
 
         <form onSubmit={saveBookingOps} className="mt-6 space-y-5">
           <div>
-            <label className="text-sm font-medium text-[#003768]">
-              Booking status
-            </label>
+            <label className="text-sm font-medium text-[#003768]">Booking status</label>
             <select
               value={bookingStatus}
               onChange={(e) => setBookingStatus(e.target.value)}
@@ -362,9 +297,7 @@ export default function PartnerBookingDetailPage({
 
           <div className="grid gap-5 md:grid-cols-2">
             <div>
-              <label className="text-sm font-medium text-[#003768]">
-                Driver name
-              </label>
+              <label className="text-sm font-medium text-[#003768]">Driver name</label>
               <input
                 value={driverName}
                 onChange={(e) => setDriverName(e.target.value)}
@@ -374,9 +307,7 @@ export default function PartnerBookingDetailPage({
             </div>
 
             <div>
-              <label className="text-sm font-medium text-[#003768]">
-                Driver phone
-              </label>
+              <label className="text-sm font-medium text-[#003768]">Driver phone</label>
               <input
                 value={driverPhone}
                 onChange={(e) => setDriverPhone(e.target.value)}
@@ -387,9 +318,7 @@ export default function PartnerBookingDetailPage({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-[#003768]">
-              Driver vehicle
-            </label>
+            <label className="text-sm font-medium text-[#003768]">Driver vehicle</label>
             <input
               value={driverVehicle}
               onChange={(e) => setDriverVehicle(e.target.value)}
@@ -399,9 +328,7 @@ export default function PartnerBookingDetailPage({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-[#003768]">
-              Driver notes
-            </label>
+            <label className="text-sm font-medium text-[#003768]">Driver notes</label>
             <textarea
               rows={4}
               value={driverNotes}

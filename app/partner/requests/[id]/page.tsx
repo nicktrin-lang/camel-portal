@@ -66,7 +66,7 @@ type ApiResponse = {
   existingBooking: ExistingBooking | null;
   fleetOptions: FleetOption[];
   adminMode: boolean;
-  role: string;
+  role: string | null;
 };
 
 function fmtDateTime(value?: string | null) {
@@ -78,14 +78,56 @@ function fmtDateTime(value?: string | null) {
   }
 }
 
-function fmtDuration(minutes?: number | null) {
+function formatDuration(minutes?: number | null) {
   if (minutes === null || minutes === undefined || Number.isNaN(minutes)) {
     return "—";
   }
+
+  const minutesPerDay = 24 * 60;
+
+  if (minutes >= minutesPerDay) {
+    const days = Math.ceil(minutes / minutesPerDay);
+    return `${days} day${days === 1 ? "" : "s"}`;
+  }
+
   if (minutes < 60) return `${minutes} min`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
+
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+function getTimeRemaining(expiresAt?: string | null) {
+  if (!expiresAt) return null;
+
+  const diffMs = new Date(expiresAt).getTime() - Date.now();
+
+  if (diffMs <= 0) {
+    return {
+      expired: true,
+      label: "Expired",
+    };
+  }
+
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  let label = "";
+  if (days > 0) {
+    label = `${days}d ${hours}h ${minutes}m`;
+  } else if (hours > 0) {
+    label = `${hours}h ${minutes}m ${seconds}s`;
+  } else {
+    label = `${minutes}m ${seconds}s`;
+  }
+
+  return {
+    expired: false,
+    label,
+  };
 }
 
 function formatGBP(value?: number | null) {
@@ -94,24 +136,6 @@ function formatGBP(value?: number | null) {
     style: "currency",
     currency: "GBP",
   }).format(value);
-}
-
-function getTimeLeftLabel(expiresAt?: string | null) {
-  if (!expiresAt) return "—";
-
-  const diffMs = new Date(expiresAt).getTime() - Date.now();
-
-  if (diffMs <= 0) return "Expired";
-
-  const totalSeconds = Math.floor(diffMs / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-  return `${minutes}m ${seconds}s`;
 }
 
 export default function PartnerRequestDetailPage({
@@ -127,7 +151,8 @@ export default function PartnerRequestDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [data, setData] = useState<ApiResponse | null>(null);
-  const [timeLeft, setTimeLeft] = useState("—");
+  const [timeLabel, setTimeLabel] = useState<string>("—");
+  const [expired, setExpired] = useState(false);
 
   const [fleetId, setFleetId] = useState("");
   const [carHirePrice, setCarHirePrice] = useState("");
@@ -173,7 +198,6 @@ export default function PartnerRequestDetailPage({
 
       const nextData = json as ApiResponse;
       setData(nextData);
-      setTimeLeft(getTimeLeftLabel(nextData.request?.expires_at));
 
       if (nextData.existingBid) {
         setFleetId(nextData.existingBid.fleet_id || "");
@@ -204,13 +228,24 @@ export default function PartnerRequestDetailPage({
   }, [requestId, supabase]);
 
   useEffect(() => {
-    if (!data?.request?.expires_at) return;
+    const expiresAt = data?.request?.expires_at || null;
 
-    const timer = window.setInterval(() => {
-      setTimeLeft(getTimeLeftLabel(data.request.expires_at));
-    }, 1000);
+    if (!expiresAt) {
+      setTimeLabel("—");
+      setExpired(false);
+      return;
+    }
 
-    return () => window.clearInterval(timer);
+    function refreshTimer() {
+      const next = getTimeRemaining(expiresAt);
+      setTimeLabel(next?.label || "—");
+      setExpired(!!next?.expired);
+    }
+
+    refreshTimer();
+    const interval = setInterval(refreshTimer, 1000);
+
+    return () => clearInterval(interval);
   }, [data?.request?.expires_at]);
 
   async function submitBid(e: React.FormEvent) {
@@ -299,8 +334,6 @@ export default function PartnerRequestDetailPage({
   const existingBid = data.existingBid;
   const existingBooking = data.existingBooking;
 
-  const expired = timeLeft === "Expired";
-
   const formDisabled =
     expired ||
     !!existingBooking ||
@@ -338,8 +371,14 @@ export default function PartnerRequestDetailPage({
         </Link>
       </div>
 
-      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
-        <span className="font-semibold">Time remaining:</span> {timeLeft}
+      <div
+        className={`rounded-2xl border p-4 text-sm ${
+          expired
+            ? "border-red-200 bg-red-50 text-red-700"
+            : "border-blue-200 bg-blue-50 text-blue-700"
+        }`}
+      >
+        <span className="font-semibold">Time remaining:</span> {timeLabel}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
@@ -349,74 +388,23 @@ export default function PartnerRequestDetailPage({
           </h2>
 
           <div className="mt-6 space-y-4 text-slate-700">
-            <p>
-              <span className="font-semibold text-slate-900">Job No.:</span>{" "}
-              {request.job_number ?? "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Customer:</span>{" "}
-              {request.customer_name || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Email:</span>{" "}
-              {request.customer_email || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Phone:</span>{" "}
-              {request.customer_phone || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Pickup:</span>{" "}
-              {request.pickup_address}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Dropoff:</span>{" "}
-              {request.dropoff_address || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Pickup time:</span>{" "}
-              {fmtDateTime(request.pickup_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Dropoff time:</span>{" "}
-              {fmtDateTime(request.dropoff_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Journey duration:</span>{" "}
-              {fmtDuration(request.journey_duration_minutes)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Passengers:</span>{" "}
-              {request.passengers}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Suitcases:</span>{" "}
-              {request.suitcases}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Hand luggage:</span>{" "}
-              {request.hand_luggage}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Requested vehicle:</span>{" "}
-              {request.vehicle_category_name || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Notes:</span>{" "}
-              {request.notes || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Request status:</span>{" "}
-              <span className="capitalize">{request.status}</span>
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Expires at:</span>{" "}
-              {fmtDateTime(request.expires_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Matched status:</span>{" "}
-              <span className="capitalize">{request.matched_status || "—"}</span>
-            </p>
+            <p><span className="font-semibold text-slate-900">Job No.:</span> {request.job_number ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Customer:</span> {request.customer_name || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Email:</span> {request.customer_email || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Phone:</span> {request.customer_phone || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Pickup:</span> {request.pickup_address}</p>
+            <p><span className="font-semibold text-slate-900">Dropoff:</span> {request.dropoff_address || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Pickup time:</span> {fmtDateTime(request.pickup_at)}</p>
+            <p><span className="font-semibold text-slate-900">Dropoff time:</span> {fmtDateTime(request.dropoff_at)}</p>
+            <p><span className="font-semibold text-slate-900">Journey duration:</span> {formatDuration(request.journey_duration_minutes)}</p>
+            <p><span className="font-semibold text-slate-900">Passengers:</span> {request.passengers}</p>
+            <p><span className="font-semibold text-slate-900">Suitcases:</span> {request.suitcases}</p>
+            <p><span className="font-semibold text-slate-900">Hand luggage:</span> {request.hand_luggage}</p>
+            <p><span className="font-semibold text-slate-900">Requested vehicle:</span> {request.vehicle_category_name || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Notes:</span> {request.notes || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Request status:</span> <span className="capitalize">{request.status}</span></p>
+            <p><span className="font-semibold text-slate-900">Expires at:</span> {fmtDateTime(request.expires_at)}</p>
+            <p><span className="font-semibold text-slate-900">Matched status:</span> <span className="capitalize">{request.matched_status || "—"}</span></p>
           </div>
         </div>
 
@@ -425,7 +413,7 @@ export default function PartnerRequestDetailPage({
 
           {expired || request.status === "expired" ? (
             <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
-              This request has expired and is no longer available for bidding.
+              This request has expired and can no longer receive bids.
             </div>
           ) : existingBooking ? (
             <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-5 text-green-700">
