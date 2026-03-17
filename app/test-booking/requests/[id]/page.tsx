@@ -179,23 +179,25 @@ export default function TestBookingRequestDetailPage({
   }, [requestId]);
 
   useEffect(() => {
-    if (!data?.request?.expires_at) {
-      setTimeLabel("—");
-      setExpired(false);
-      return;
-    }
+  const expiresAt = data?.request?.expires_at || null;
 
-    function refreshTimer() {
-      const next = getTimeRemaining(data.request.expires_at);
-      setTimeLabel(next?.label || "—");
-      setExpired(!!next?.expired);
-    }
+  if (!expiresAt) {
+    setTimeLabel("—");
+    setExpired(false);
+    return;
+  }
 
-    refreshTimer();
-    const interval = setInterval(refreshTimer, 1000);
+  function refreshTimer() {
+    const next = getTimeRemaining(expiresAt);
+    setTimeLabel(next?.label || "—");
+    setExpired(!!next?.expired);
+  }
 
-    return () => clearInterval(interval);
-  }, [data?.request?.expires_at]);
+  refreshTimer();
+  const interval = setInterval(refreshTimer, 1000);
+
+  return () => clearInterval(interval);
+}, [data?.request?.expires_at]);
 
   async function acceptBid(bidId: string) {
     setAcceptingId(bidId);
