@@ -5,7 +5,6 @@ import "leaflet/dist/leaflet.css";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-
 import { createCustomerBrowserClient } from "@/lib/supabase-customer/browser";
 import { FLEET_CATEGORIES } from "@/app/components/portal/fleetCategories";
 
@@ -49,8 +48,6 @@ type SearchResult = {
 
 const DEFAULT_CENTER: [number, number] = [38.3452, -0.481];
 
-
-
 async function reverseLookup(lat: number, lng: number) {
   const res = await fetch(
     `/api/maps/reverse?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(
@@ -69,6 +66,34 @@ async function reverseLookup(lat: number, lng: number) {
   }
 
   return String(json?.data?.display_name || "").trim();
+}
+
+function calculateWholeDayDurationMinutes(
+  pickupAt: string,
+  dropoffAt: string
+): number | null {
+  if (!pickupAt || !dropoffAt) return null;
+
+  const pickup = new Date(pickupAt);
+  const dropoff = new Date(dropoffAt);
+
+  const pickupMs = pickup.getTime();
+  const dropoffMs = dropoff.getTime();
+
+  if (Number.isNaN(pickupMs) || Number.isNaN(dropoffMs)) return null;
+  if (dropoffMs <= pickupMs) return null;
+
+  const diffMs = dropoffMs - pickupMs;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const wholeDays = Math.ceil(diffMs / dayMs);
+
+  return wholeDays * 24 * 60;
+}
+
+function formatWholeDayDuration(minutes: number | null) {
+  if (!minutes) return "—";
+  const days = Math.ceil(minutes / (24 * 60));
+  return `${days} day${days === 1 ? "" : "s"}`;
 }
 
 export default function TestBookingNewPage() {
@@ -93,7 +118,6 @@ export default function TestBookingNewPage() {
 
   const [pickupAt, setPickupAt] = useState("");
   const [dropoffAt, setDropoffAt] = useState("");
-  const [journeyDurationMinutes, setJourneyDurationMinutes] = useState("45");
   const [passengers, setPassengers] = useState("4");
   const [suitcases, setSuitcases] = useState("2");
   const [handLuggage, setHandLuggage] = useState("2");
@@ -105,6 +129,11 @@ export default function TestBookingNewPage() {
   const [loading, setLoading] = useState(false);
   const [mapPicking, setMapPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const calculatedDurationMinutes = calculateWholeDayDurationMinutes(
+    pickupAt,
+    dropoffAt
+  );
 
   async function searchAddress(query: string, kind: "pickup" | "dropoff") {
     const clean = query.trim();
@@ -224,6 +253,18 @@ export default function TestBookingNewPage() {
         throw new Error("Please choose a dropoff address from the search results or map.");
       }
 
+      if (!pickupAt) {
+        throw new Error("Please select a pickup date and time.");
+      }
+
+      if (!dropoffAt) {
+        throw new Error("Please select a dropoff date and time.");
+      }
+
+      if (!calculatedDurationMinutes) {
+        throw new Error("Dropoff must be after pickup, and duration must be at least 1 day.");
+      }
+
       const res = await fetch("/api/test-booking/requests", {
         method: "POST",
         headers: {
@@ -238,8 +279,8 @@ export default function TestBookingNewPage() {
           dropoff_lat: dropoffLat,
           dropoff_lng: dropoffLng,
           pickup_at: pickupAt,
-          dropoff_at: dropoffAt || null,
-          journey_duration_minutes: Number(journeyDurationMinutes || 0),
+          dropoff_at: dropoffAt,
+          journey_duration_minutes: calculatedDurationMinutes,
           passengers: Number(passengers || 0),
           suitcases: Number(suitcases || 0),
           hand_luggage: Number(handLuggage || 0),
@@ -443,24 +484,17 @@ export default function TestBookingNewPage() {
                 value={dropoffAt}
                 onChange={(e) => setDropoffAt(e.target.value)}
                 className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                required
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <div>
-              <label className="text-sm font-medium text-[#003768]">
-                Duration (mins)
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={journeyDurationMinutes}
-                onChange={(e) => setJourneyDurationMinutes(e.target.value)}
-                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
-              />
-            </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <span className="font-semibold">Calculated duration:</span>{" "}
+            {formatWholeDayDuration(calculatedDurationMinutes)}
+          </div>
 
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <div>
               <label className="text-sm font-medium text-[#003768]">
                 Passengers

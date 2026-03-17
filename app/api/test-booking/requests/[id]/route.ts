@@ -23,8 +23,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-
     const accessToken = getBearerToken(req);
     const customerUser = await getCustomerUserFromAccessToken(accessToken);
 
@@ -32,11 +30,29 @@ export async function GET(
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     }
 
-    const partnerDb = createServiceRoleSupabaseClient();
+    const { id } = await params;
+    const db = createServiceRoleSupabaseClient();
 
-    const { data: requestRow, error: requestErr } = await partnerDb
+    const { data: requestRow, error: requestErr } = await db
       .from("customer_requests")
-      .select("*")
+      .select(`
+        id,
+        job_number,
+        customer_user_id,
+        pickup_address,
+        dropoff_address,
+        pickup_at,
+        dropoff_at,
+        journey_duration_minutes,
+        passengers,
+        suitcases,
+        hand_luggage,
+        vehicle_category_name,
+        notes,
+        status,
+        created_at,
+        expires_at
+      `)
       .eq("id", id)
       .eq("customer_user_id", customerUser.id)
       .maybeSingle();
@@ -49,14 +65,11 @@ export async function GET(
       return NextResponse.json({ error: "Request not found" }, { status: 404 });
     }
 
-    const { data: bids, error: bidsErr } = await partnerDb
+    const { data: bidRows, error: bidErr } = await db
       .from("partner_bids")
       .select(`
         id,
-        request_id,
         partner_user_id,
-        fleet_id,
-        vehicle_category_slug,
         vehicle_category_name,
         car_hire_price,
         fuel_price,
@@ -68,53 +81,62 @@ export async function GET(
         created_at
       `)
       .eq("request_id", id)
-      .order("created_at", { ascending: true });
+      .order("total_price", { ascending: true });
 
-    if (bidsErr) {
-      return NextResponse.json({ error: bidsErr.message }, { status: 400 });
+    if (bidErr) {
+      return NextResponse.json({ error: bidErr.message }, { status: 400 });
     }
 
-    const partnerUserIds = Array.from(
-      new Set(
-        (bids || [])
-          .map((b: any) => String(b.partner_user_id || ""))
-          .filter(Boolean)
-      )
+    const partnerIds = Array.from(
+      new Set((bidRows || []).map((row: any) => String(row.partner_user_id || "")).filter(Boolean))
     );
 
     let profileMap = new Map<string, any>();
 
-    if (partnerUserIds.length > 0) {
-      const { data: profiles, error: profilesErr } = await partnerDb
+    if (partnerIds.length > 0) {
+      const { data: profileRows, error: profileErr } = await db
         .from("partner_profiles")
-        .select("user_id, company_name, contact_name, phone, address")
-        .in("user_id", partnerUserIds);
+        .select(`
+          user_id,
+          company_name,
+          phone
+        `)
+        .in("user_id", partnerIds);
 
-      if (profilesErr) {
-        return NextResponse.json({ error: profilesErr.message }, { status: 400 });
+      if (profileErr) {
+        return NextResponse.json({ error: profileErr.message }, { status: 400 });
       }
 
       profileMap = new Map(
-        (profiles || []).map((profile: any) => [String(profile.user_id), profile])
+        (profileRows || []).map((row: any) => [String(row.user_id), row])
       );
     }
 
-    const bidRows = (bids || []).map((bid: any) => {
+    const bids = (bidRows || []).map((bid: any) => {
       const profile = profileMap.get(String(bid.partner_user_id)) || null;
 
       return {
-        ...bid,
-        partner_company_name: profile?.company_name || null,
-        partner_contact_name: profile?.contact_name || null,
+        id: bid.id,
+        partner_company_name: profile?.company_name || "Car Hire Company",
+        partner_contact_name: null,
         partner_phone: profile?.phone || null,
-        partner_address: profile?.address || null,
+        partner_address: null,
+        vehicle_category_name: bid.vehicle_category_name,
+        car_hire_price: bid.car_hire_price,
+        fuel_price: bid.fuel_price,
+        total_price: bid.total_price,
+        full_insurance_included: !!bid.full_insurance_included,
+        full_tank_included: !!bid.full_tank_included,
+        notes: bid.notes || null,
+        status: bid.status,
+        created_at: bid.created_at,
       };
     });
 
     return NextResponse.json(
       {
         request: requestRow,
-        bids: bidRows,
+        bids,
       },
       { status: 200 }
     );

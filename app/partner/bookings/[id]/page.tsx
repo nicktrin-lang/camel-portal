@@ -3,19 +3,24 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-type BookingData = {
+type BookingRow = {
   id: string;
   request_id: string;
   partner_user_id: string;
-  winning_bid_id: string | null;
+  winning_bid_id: string;
   booking_status: string;
   amount: number | null;
   notes: string | null;
-  created_at: string | null;
+  created_at: string;
   job_number: number | null;
+  driver_name: string | null;
+  driver_phone: string | null;
+  driver_vehicle: string | null;
+  driver_notes: string | null;
+  driver_assigned_at: string | null;
 };
 
-type RequestData = {
+type RequestRow = {
   id: string;
   job_number: number | null;
   customer_name: string | null;
@@ -35,12 +40,13 @@ type RequestData = {
   created_at: string | null;
 };
 
-type ResponseShape = {
-  booking: BookingData;
-  request: RequestData | null;
+type ApiResponse = {
+  booking: BookingRow;
+  request: RequestRow | null;
+  role: string | null;
 };
 
-function fmtDateTime(value?: string | null) {
+function formatDateTime(value?: string | null) {
   if (!value) return "—";
   try {
     return new Date(value).toLocaleString();
@@ -49,14 +55,22 @@ function fmtDateTime(value?: string | null) {
   }
 }
 
-function fmtDuration(minutes?: number | null) {
+function formatDuration(minutes?: number | null) {
   if (minutes === null || minutes === undefined || Number.isNaN(minutes)) {
     return "—";
   }
   if (minutes < 60) return `${minutes} min`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+function formatGBP(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+  }).format(value);
 }
 
 export default function PartnerBookingDetailPage({
@@ -66,8 +80,16 @@ export default function PartnerBookingDetailPage({
 }) {
   const [bookingId, setBookingId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ResponseShape | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+  const [data, setData] = useState<ApiResponse | null>(null);
+
+  const [bookingStatus, setBookingStatus] = useState("confirmed");
+  const [driverName, setDriverName] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
+  const [driverVehicle, setDriverVehicle] = useState("");
+  const [driverNotes, setDriverNotes] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -85,41 +107,87 @@ export default function PartnerBookingDetailPage({
     };
   }, [params]);
 
-  useEffect(() => {
-    async function load() {
-      if (!bookingId) return;
+  async function load() {
+    if (!bookingId) return;
 
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      try {
-        const res = await fetch(`/api/partner/bookings/${bookingId}`, {
-          method: "GET",
-          cache: "no-store",
-          credentials: "include",
-        });
+    try {
+      const res = await fetch(`/api/partner/bookings/${bookingId}`, {
+        method: "GET",
+        cache: "no-store",
+        credentials: "include",
+      });
 
-        const json = await res.json().catch(() => null);
+      const json = await res.json().catch(() => null);
 
-        if (!res.ok) {
-          throw new Error(json?.error || "Failed to load booking.");
-        }
-
-        setData(json as ResponseShape);
-      } catch (e: any) {
-        setError(e?.message || "Failed to load booking.");
-        setData(null);
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to load booking.");
       }
-    }
 
+      const nextData = json as ApiResponse;
+      setData(nextData);
+
+      setBookingStatus(nextData.booking.booking_status || "confirmed");
+      setDriverName(nextData.booking.driver_name || "");
+      setDriverPhone(nextData.booking.driver_phone || "");
+      setDriverVehicle(nextData.booking.driver_vehicle || "");
+      setDriverNotes(nextData.booking.driver_notes || "");
+    } catch (e: any) {
+      setError(e?.message || "Failed to load booking.");
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
     load();
   }, [bookingId]);
 
+  async function saveBookingOps(e: React.FormEvent) {
+    e.preventDefault();
+    if (!bookingId) return;
+
+    setSaving(true);
+    setError(null);
+    setOk(null);
+
+    try {
+      const res = await fetch(`/api/partner/bookings/${bookingId}/update`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          booking_status: bookingStatus,
+          driver_name: driverName,
+          driver_phone: driverPhone,
+          driver_vehicle: driverVehicle,
+          driver_notes: driverNotes,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to update booking.");
+      }
+
+      setOk("Booking details updated.");
+      await load();
+    } catch (e: any) {
+      setError(e?.message || "Failed to update booking.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return (
-      <div className="px-4 py-8 md:px-8">
+      <div className="space-y-6 px-4 py-8 md:px-8">
         <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <p className="text-slate-600">Loading booking…</p>
         </div>
@@ -129,7 +197,7 @@ export default function PartnerBookingDetailPage({
 
   if (!data?.booking) {
     return (
-      <div className="px-4 py-8 md:px-8">
+      <div className="space-y-6 px-4 py-8 md:px-8">
         <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">
           {error || "Booking not found"}
         </div>
@@ -142,11 +210,23 @@ export default function PartnerBookingDetailPage({
 
   return (
     <div className="space-y-6 px-4 py-8 md:px-8">
+      {error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+
+      {ok ? (
+        <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+          {ok}
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-[#003768]">Booking Detail</h1>
           <p className="mt-2 text-slate-600">
-            View full accepted booking information.
+            View and manage accepted booking information.
           </p>
         </div>
 
@@ -158,35 +238,187 @@ export default function PartnerBookingDetailPage({
         </Link>
       </div>
 
-      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <h2 className="text-2xl font-semibold text-[#003768]">Booking Information</h2>
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+          <h2 className="text-2xl font-semibold text-[#003768]">
+            Booking Information
+          </h2>
 
-        <div className="mt-6 space-y-4 text-slate-700">
-          <p><span className="font-semibold text-slate-900">Job No.:</span> {booking.job_number ?? request?.job_number ?? "—"}</p>
-          <p><span className="font-semibold text-slate-900">Booking created:</span> {fmtDateTime(booking.created_at)}</p>
-          <p><span className="font-semibold text-slate-900">Booking status:</span> <span className="capitalize">{booking.booking_status}</span></p>
-          <p><span className="font-semibold text-slate-900">Amount:</span> {booking.amount ?? "—"}</p>
-          <p><span className="font-semibold text-slate-900">Booking notes:</span> {booking.notes || "—"}</p>
+          <div className="mt-6 space-y-4 text-slate-700">
+            <p>
+              <span className="font-semibold text-slate-900">Job No.:</span>{" "}
+              {booking.job_number ?? "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Booking created:</span>{" "}
+              {formatDateTime(booking.created_at)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Booking status:</span>{" "}
+              <span className="capitalize">
+                {String(booking.booking_status || "—").replaceAll("_", " ")}
+              </span>
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Amount:</span>{" "}
+              {formatGBP(booking.amount)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Booking notes:</span>{" "}
+              {booking.notes || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Driver assigned at:</span>{" "}
+              {formatDateTime(booking.driver_assigned_at)}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+          <h2 className="text-2xl font-semibold text-[#003768]">
+            Journey Information
+          </h2>
+
+          <div className="mt-6 space-y-4 text-slate-700">
+            <p>
+              <span className="font-semibold text-slate-900">Customer:</span>{" "}
+              {request?.customer_name || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Email:</span>{" "}
+              {request?.customer_email || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Phone:</span>{" "}
+              {request?.customer_phone || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Pickup:</span>{" "}
+              {request?.pickup_address || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Dropoff:</span>{" "}
+              {request?.dropoff_address || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Pickup time:</span>{" "}
+              {formatDateTime(request?.pickup_at)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Dropoff time:</span>{" "}
+              {formatDateTime(request?.dropoff_at)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Duration:</span>{" "}
+              {formatDuration(request?.journey_duration_minutes)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Passengers:</span>{" "}
+              {request?.passengers ?? "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Suitcases:</span>{" "}
+              {request?.suitcases ?? "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Hand luggage:</span>{" "}
+              {request?.hand_luggage ?? "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Vehicle:</span>{" "}
+              {request?.vehicle_category_name || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Request notes:</span>{" "}
+              {request?.notes || "—"}
+            </p>
+          </div>
         </div>
       </div>
 
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <h2 className="text-2xl font-semibold text-[#003768]">Journey Information</h2>
+        <h2 className="text-2xl font-semibold text-[#003768]">
+          Driver Assignment & Booking Progress
+        </h2>
 
-        <div className="mt-6 space-y-4 text-slate-700">
-          <p><span className="font-semibold text-slate-900">Customer:</span> {request?.customer_name || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Email:</span> {request?.customer_email || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Phone:</span> {request?.customer_phone || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Pickup:</span> {request?.pickup_address || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Dropoff:</span> {request?.dropoff_address || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Pickup time:</span> {fmtDateTime(request?.pickup_at)}</p>
-          <p><span className="font-semibold text-slate-900">Dropoff time:</span> {fmtDateTime(request?.dropoff_at)}</p>
-          <p><span className="font-semibold text-slate-900">Duration:</span> {fmtDuration(request?.journey_duration_minutes)}</p>
-          <p><span className="font-semibold text-slate-900">Passengers:</span> {request?.passengers ?? "—"}</p>
-          <p><span className="font-semibold text-slate-900">Bags:</span> {request?.suitcases ?? "—"} suitcases / {request?.hand_luggage ?? "—"} hand luggage</p>
-          <p><span className="font-semibold text-slate-900">Vehicle:</span> {request?.vehicle_category_name || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Request notes:</span> {request?.notes || "—"}</p>
-        </div>
+        <form onSubmit={saveBookingOps} className="mt-6 space-y-5">
+          <div>
+            <label className="text-sm font-medium text-[#003768]">
+              Booking status
+            </label>
+            <select
+              value={bookingStatus}
+              onChange={(e) => setBookingStatus(e.target.value)}
+              className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-4 outline-none focus:border-[#0f4f8a]"
+            >
+              <option value="confirmed">confirmed</option>
+              <option value="driver_assigned">driver_assigned</option>
+              <option value="en_route">en_route</option>
+              <option value="arrived">arrived</option>
+              <option value="completed">completed</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium text-[#003768]">
+                Driver name
+              </label>
+              <input
+                value={driverName}
+                onChange={(e) => setDriverName(e.target.value)}
+                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                placeholder="e.g. John Smith"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-[#003768]">
+                Driver phone
+              </label>
+              <input
+                value={driverPhone}
+                onChange={(e) => setDriverPhone(e.target.value)}
+                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                placeholder="e.g. +44 7700 900123"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-[#003768]">
+              Driver vehicle
+            </label>
+            <input
+              value={driverVehicle}
+              onChange={(e) => setDriverVehicle(e.target.value)}
+              className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+              placeholder="e.g. Mercedes E-Class / AB12 CDE"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-[#003768]">
+              Driver notes
+            </label>
+            <textarea
+              rows={4}
+              value={driverNotes}
+              onChange={(e) => setDriverNotes(e.target.value)}
+              className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+              placeholder="Optional notes about the assigned driver or collection"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-full bg-[#ff7a00] px-6 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Save Booking Update"}
+          </button>
+        </form>
       </div>
     </div>
   );

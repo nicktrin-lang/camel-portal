@@ -35,7 +35,12 @@ export async function GET(
         amount,
         notes,
         created_at,
-        job_number
+        job_number,
+        driver_name,
+        driver_phone,
+        driver_vehicle,
+        driver_notes,
+        driver_assigned_at
       `)
       .eq("id", id);
 

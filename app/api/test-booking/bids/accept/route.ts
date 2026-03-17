@@ -180,16 +180,16 @@ export async function POST(req: Request) {
 
     if (!existingBooking?.id) {
       const { error: bookingErr } = await partnerDb
-        .from("partner_bookings")
-        .insert({
-          request_id: requestId,
-          winning_bid_id: bidId,
-          partner_user_id: partnerUserId,
-          booking_status: "active",
-          amount: totalPrice,
-          notes: bidNotes,
-          job_number: jobNumber,
-        });
+  .from("partner_bookings")
+  .insert({
+    request_id: requestId,
+    winning_bid_id: bidId,
+    partner_user_id: partnerUserId,
+    booking_status: "confirmed",
+    amount: totalPrice,
+    notes: bidNotes,
+    job_number: jobNumber,
+  });
 
       if (bookingErr) {
         return NextResponse.json({ error: bookingErr.message }, { status: 400 });

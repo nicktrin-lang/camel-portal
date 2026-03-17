@@ -71,12 +71,17 @@ function formatGBP(value?: number | null) {
   }).format(value);
 }
 
-function getTimeLeftLabel(expiresAt?: string | null) {
-  if (!expiresAt) return "—";
+function getTimeRemaining(expiresAt?: string | null) {
+  if (!expiresAt) return null;
 
   const diffMs = new Date(expiresAt).getTime() - Date.now();
 
-  if (diffMs <= 0) return "Expired";
+  if (diffMs <= 0) {
+    return {
+      expired: true,
+      label: "Expired",
+    };
+  }
 
   const totalSeconds = Math.floor(diffMs / 1000);
   const days = Math.floor(totalSeconds / 86400);
@@ -84,9 +89,19 @@ function getTimeLeftLabel(expiresAt?: string | null) {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-  return `${minutes}m ${seconds}s`;
+  let label = "";
+  if (days > 0) {
+    label = `${days}d ${hours}h ${minutes}m`;
+  } else if (hours > 0) {
+    label = `${hours}h ${minutes}m ${seconds}s`;
+  } else {
+    label = `${minutes}m ${seconds}s`;
+  }
+
+  return {
+    expired: false,
+    label,
+  };
 }
 
 export default function TestBookingRequestDetailPage({
@@ -101,7 +116,8 @@ export default function TestBookingRequestDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [data, setData] = useState<ResponseShape | null>(null);
-  const [timeLeft, setTimeLeft] = useState("—");
+  const [timeLabel, setTimeLabel] = useState<string>("—");
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -149,9 +165,7 @@ export default function TestBookingRequestDetailPage({
         throw new Error(json?.error || "Failed to load request.");
       }
 
-      const nextData = json as ResponseShape;
-      setData(nextData);
-      setTimeLeft(getTimeLeftLabel(nextData.request?.expires_at));
+      setData(json as ResponseShape);
     } catch (e: any) {
       setError(e?.message || "Failed to load request.");
       setData(null);
@@ -165,13 +179,22 @@ export default function TestBookingRequestDetailPage({
   }, [requestId]);
 
   useEffect(() => {
-    if (!data?.request?.expires_at) return;
+    if (!data?.request?.expires_at) {
+      setTimeLabel("—");
+      setExpired(false);
+      return;
+    }
 
-    const timer = window.setInterval(() => {
-      setTimeLeft(getTimeLeftLabel(data.request.expires_at));
-    }, 1000);
+    function refreshTimer() {
+      const next = getTimeRemaining(data.request.expires_at);
+      setTimeLabel(next?.label || "—");
+      setExpired(!!next?.expired);
+    }
 
-    return () => window.clearInterval(timer);
+    refreshTimer();
+    const interval = setInterval(refreshTimer, 1000);
+
+    return () => clearInterval(interval);
   }, [data?.request?.expires_at]);
 
   async function acceptBid(bidId: string) {
@@ -233,8 +256,6 @@ export default function TestBookingRequestDetailPage({
     );
   }
 
-  const expired = timeLeft === "Expired" || data.request.status === "expired";
-
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-10">
       {error ? (
@@ -265,8 +286,14 @@ export default function TestBookingRequestDetailPage({
         </Link>
       </div>
 
-      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
-        <span className="font-semibold">Time remaining:</span> {timeLeft}
+      <div
+        className={`rounded-2xl border p-4 text-sm ${
+          expired
+            ? "border-red-200 bg-red-50 text-red-700"
+            : "border-amber-200 bg-amber-50 text-amber-700"
+        }`}
+      >
+        <span className="font-semibold">Bid window:</span> {timeLabel}
       </div>
 
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
@@ -327,10 +354,10 @@ export default function TestBookingRequestDetailPage({
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">Partner Bids</h2>
 
-        {expired ? (
-          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
+        {expired || data.request.status === "expired" ? (
+          <p className="mt-4 text-red-700">
             This request has expired and can no longer be accepted.
-          </div>
+          </p>
         ) : data.bids.length === 0 ? (
           <p className="mt-4 text-slate-600">No bids submitted yet.</p>
         ) : (
