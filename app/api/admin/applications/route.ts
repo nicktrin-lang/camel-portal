@@ -4,29 +4,34 @@ import {
   createServiceRoleSupabaseClient,
 } from "@/lib/supabase/server";
 
+function isAllowed(role?: string | null) {
+  return role === "admin" || role === "super_admin";
+}
+
 export async function GET() {
   try {
     const authed = await createRouteHandlerSupabaseClient();
     const { data: userData, error: userErr } = await authed.auth.getUser();
 
-    const email = (userData?.user?.email || "").toLowerCase().trim();
-    if (userErr || !email) {
+    const userId = String(userData?.user?.id || "").trim();
+
+    if (userErr || !userId) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     }
 
     const db = createServiceRoleSupabaseClient();
 
-    const { data: adminRow, error: adminErr } = await db
-      .from("admins")
-      .select("role")
-      .eq("email", email)
+    const { data: me, error: meErr } = await db
+      .from("partner_profiles")
+      .select("user_id, role")
+      .eq("user_id", userId)
       .maybeSingle();
 
-    if (adminErr) {
-      return NextResponse.json({ error: adminErr.message }, { status: 400 });
+    if (meErr) {
+      return NextResponse.json({ error: meErr.message }, { status: 400 });
     }
 
-    if (!adminRow) {
+    if (!me || !isAllowed(me.role)) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
@@ -60,9 +65,9 @@ export async function GET() {
     const emailToUserId = new Map<string, string>();
     for (const user of authUsers?.users || []) {
       const userEmail = String(user.email || "").toLowerCase().trim();
-      const userId = String(user.id || "").trim();
-      if (userEmail && userId && applicationEmails.includes(userEmail)) {
-        emailToUserId.set(userEmail, userId);
+      const authUserId = String(user.id || "").trim();
+      if (userEmail && authUserId && applicationEmails.includes(userEmail)) {
+        emailToUserId.set(userEmail, authUserId);
       }
     }
 
@@ -96,8 +101,8 @@ export async function GET() {
 
     const data = applicationRows.map((row: any) => {
       const applicationEmail = String(row.email || "").toLowerCase().trim();
-      const userId = emailToUserId.get(applicationEmail) || null;
-      const profile = userId ? profileMap.get(userId) || null : null;
+      const matchedUserId = emailToUserId.get(applicationEmail) || null;
+      const profile = matchedUserId ? profileMap.get(matchedUserId) || null : null;
 
       return {
         id: row.id,
@@ -109,7 +114,7 @@ export async function GET() {
         role: profile?.role || "partner",
         status: row.status,
         created_at: row.created_at,
-        user_id: userId,
+        user_id: matchedUserId,
         has_profile: !!profile,
       };
     });
