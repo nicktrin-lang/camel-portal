@@ -121,14 +121,20 @@ function bookingStatusPillClasses(status?: string | null) {
 
 function requestStatusPillClasses(status?: string | null) {
   switch (status) {
+    case "bid_submitted":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "bid_successful":
+      return "border-green-200 bg-green-50 text-green-700";
+    case "bid_unsuccessful":
+      return "border-red-200 bg-red-50 text-red-700";
     case "open":
       return "border-blue-200 bg-blue-50 text-blue-700";
-    case "confirmed":
-      return "border-green-200 bg-green-50 text-green-700";
     case "expired":
       return "border-slate-200 bg-slate-50 text-slate-600";
     case "cancelled":
       return "border-red-200 bg-red-50 text-red-700";
+    case "confirmed":
+      return "border-green-200 bg-green-50 text-green-700";
     default:
       return "border-black/10 bg-white text-slate-700";
   }
@@ -136,7 +142,6 @@ function requestStatusPillClasses(status?: string | null) {
 
 export default function PartnerBookingsPage() {
   const [rows, setRows] = useState<BookingRow[]>([]);
-  const [role, setRole] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -160,12 +165,10 @@ export default function PartnerBookingsPage() {
       }
 
       setRows(json?.data || []);
-      setRole(json?.role || null);
       setAdminMode(!!json?.adminMode);
     } catch (e: any) {
       setError(e?.message || "Failed to load bookings.");
       setRows([]);
-      setRole(null);
       setAdminMode(false);
     } finally {
       setLoading(false);
@@ -197,9 +200,6 @@ export default function PartnerBookingsPage() {
               {adminMode
                 ? "All bookings across the network."
                 : "Bookings assigned to your partner account."}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Signed in role: {role || "—"}
             </p>
           </div>
 
@@ -256,8 +256,21 @@ export default function PartnerBookingsPage() {
 
               <tbody>
                 {filteredRows.map((row) => {
-                  const effectiveRequestStatus =
-                    row.request_status ?? (row.booking_status === "confirmed" ? "confirmed" : null);
+                  const effectiveRequestStatus = "bid_successful";
+                  const driverPrimary =
+                    row.driver_name ||
+                    row.driver_vehicle ||
+                    row.driver_phone ||
+                    row.driver_notes ||
+                    "—";
+                  const driverSecondary =
+                    row.driver_name
+                      ? row.driver_vehicle || row.driver_phone || "—"
+                      : row.driver_vehicle && row.driver_phone
+                      ? row.driver_phone
+                      : row.driver_name
+                      ? row.driver_phone || "—"
+                      : "—";
 
                   return (
                     <tr key={row.id} className="border-t border-black/5 align-top">
@@ -316,10 +329,10 @@ export default function PartnerBookingsPage() {
 
                       <td className="px-4 py-4">
                         <div className="font-medium text-slate-900">
-                          {row.driver_name || "—"}
+                          {driverPrimary}
                         </div>
                         <div className="text-slate-500">
-                          {row.driver_vehicle || row.driver_phone || "—"}
+                          {driverSecondary}
                         </div>
                       </td>
 

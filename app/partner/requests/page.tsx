@@ -72,6 +72,21 @@ function bookingStatusPillClasses(status?: string | null) {
   switch (status) {
     case "open":
       return "border-blue-200 bg-blue-50 text-blue-700";
+    case "confirmed":
+      return "border-green-200 bg-green-50 text-green-700";
+    case "expired":
+      return "border-slate-200 bg-slate-50 text-slate-600";
+    case "cancelled":
+      return "border-red-200 bg-red-50 text-red-700";
+    default:
+      return "border-black/10 bg-white text-slate-700";
+  }
+}
+
+function requestStatusPillClasses(status?: string | null) {
+  switch (status) {
+    case "open":
+      return "border-blue-200 bg-blue-50 text-blue-700";
     case "bid_submitted":
       return "border-amber-200 bg-amber-50 text-amber-700";
     case "bid_successful":
@@ -87,24 +102,8 @@ function bookingStatusPillClasses(status?: string | null) {
   }
 }
 
-function requestStatusPillClasses(status?: string | null) {
-  switch (status) {
-    case "open":
-      return "border-blue-200 bg-blue-50 text-blue-700";
-    case "confirmed":
-      return "border-green-200 bg-green-50 text-green-700";
-    case "expired":
-      return "border-slate-200 bg-slate-50 text-slate-600";
-    case "cancelled":
-      return "border-red-200 bg-red-50 text-red-700";
-    default:
-      return "border-black/10 bg-white text-slate-700";
-  }
-}
-
 export default function PartnerRequestsPage() {
   const [rows, setRows] = useState<RequestRow[]>([]);
-  const [role, setRole] = useState<string | null>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -128,12 +127,10 @@ export default function PartnerRequestsPage() {
       }
 
       setRows(json?.data || []);
-      setRole(json?.role || null);
       setAdminMode(!!json?.adminMode);
     } catch (e: any) {
       setError(e?.message || "Failed to load requests.");
       setRows([]);
-      setRole(null);
       setAdminMode(false);
     } finally {
       setLoading(false);
@@ -165,9 +162,6 @@ export default function PartnerRequestsPage() {
               {adminMode
                 ? "All request history across the network."
                 : "Request history matched to your partner account."}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Signed in role: {role || "—"}
             </p>
           </div>
 
@@ -220,56 +214,61 @@ export default function PartnerRequestsPage() {
               </thead>
 
               <tbody>
-                {filteredRows.map((row) => (
-                  <tr key={row.id} className="border-t border-black/5 align-top">
-                    <td className="px-4 py-4">
-                      <Link
-                        href={`/partner/requests/${row.id}`}
-                        className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-                      >
-                        View
-                      </Link>
-                    </td>
+                {filteredRows.map((row) => {
+                  const effectiveBookingStatus = row.request_status;
+                  const effectiveRequestStatus = row.status;
 
-                    <td className="px-4 py-4 font-semibold text-[#003768]">
-                      {row.job_number ?? "—"}
-                    </td>
+                  return (
+                    <tr key={row.id} className="border-t border-black/5 align-top">
+                      <td className="px-4 py-4">
+                        <Link
+                          href={`/partner/requests/${row.id}`}
+                          className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+                        >
+                          View
+                        </Link>
+                      </td>
 
-                    <td className="px-4 py-4">
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${bookingStatusPillClasses(
-                          row.status
-                        )}`}
-                      >
-                        {formatStatusLabel(row.status)}
-                      </span>
-                    </td>
+                      <td className="px-4 py-4 font-semibold text-[#003768]">
+                        {row.job_number ?? "—"}
+                      </td>
 
-                    <td className="px-4 py-4">
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${requestStatusPillClasses(
-                          row.request_status
-                        )}`}
-                      >
-                        {formatStatusLabel(row.request_status)}
-                      </span>
-                    </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${bookingStatusPillClasses(
+                            effectiveBookingStatus
+                          )}`}
+                        >
+                          {formatStatusLabel(effectiveBookingStatus)}
+                        </span>
+                      </td>
 
-                    <td className="px-4 py-4">{row.pickup_address || "—"}</td>
-                    <td className="px-4 py-4">{row.dropoff_address || "—"}</td>
-                    <td className="px-4 py-4">{formatDateTime(row.pickup_at)}</td>
-                    <td className="px-4 py-4">{formatDateTime(row.dropoff_at)}</td>
-                    <td className="px-4 py-4">
-                      {formatDuration(row.journey_duration_minutes)}
-                    </td>
-                    <td className="px-4 py-4">{row.passengers}</td>
-                    <td className="px-4 py-4">
-                      {row.suitcases} suitcases / {row.hand_luggage} hand luggage
-                    </td>
-                    <td className="px-4 py-4">{row.vehicle_category_name || "—"}</td>
-                    <td className="px-4 py-4">{formatDateTime(row.created_at)}</td>
-                  </tr>
-                ))}
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${requestStatusPillClasses(
+                            effectiveRequestStatus
+                          )}`}
+                        >
+                          {formatStatusLabel(effectiveRequestStatus)}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-4">{row.pickup_address || "—"}</td>
+                      <td className="px-4 py-4">{row.dropoff_address || "—"}</td>
+                      <td className="px-4 py-4">{formatDateTime(row.pickup_at)}</td>
+                      <td className="px-4 py-4">{formatDateTime(row.dropoff_at)}</td>
+                      <td className="px-4 py-4">
+                        {formatDuration(row.journey_duration_minutes)}
+                      </td>
+                      <td className="px-4 py-4">{row.passengers}</td>
+                      <td className="px-4 py-4">
+                        {row.suitcases} suitcases / {row.hand_luggage} hand luggage
+                      </td>
+                      <td className="px-4 py-4">{row.vehicle_category_name || "—"}</td>
+                      <td className="px-4 py-4">{formatDateTime(row.created_at)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
