@@ -220,6 +220,7 @@ export default function PartnerBookingsPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-[#003768]">
                 <tr>
+                  <th className="px-4 py-3 font-semibold">View</th>
                   <th className="px-4 py-3 font-semibold">Job No.</th>
                   {adminMode ? (
                     <th className="px-4 py-3 font-semibold">Partner</th>
@@ -235,13 +236,21 @@ export default function PartnerBookingsPage() {
                   <th className="px-4 py-3 font-semibold">Request Status</th>
                   <th className="px-4 py-3 font-semibold">Driver</th>
                   <th className="px-4 py-3 font-semibold">Created</th>
-                  <th className="px-4 py-3 font-semibold">Action</th>
                 </tr>
               </thead>
 
               <tbody>
                 {filteredRows.map((row) => (
                   <tr key={row.id} className="border-t border-black/5 align-top">
+                    <td className="px-4 py-4">
+                      <Link
+                        href={`/partner/bookings/${row.id}`}
+                        className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+                      >
+                        View
+                      </Link>
+                    </td>
+
                     <td className="px-4 py-4 font-semibold text-[#003768]">
                       {row.job_number ?? "—"}
                     </td>
@@ -301,15 +310,6 @@ export default function PartnerBookingsPage() {
                     </td>
 
                     <td className="px-4 py-4">{formatDateTime(row.created_at)}</td>
-
-                    <td className="px-4 py-4">
-                      <Link
-                        href={`/partner/bookings/${row.id}`}
-                        className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-                      >
-                        View
-                      </Link>
-                    </td>
                   </tr>
                 ))}
               </tbody>
