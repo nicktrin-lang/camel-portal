@@ -68,7 +68,7 @@ function formatStatusLabel(value?: string | null) {
   return String(value || "—").replaceAll("_", " ");
 }
 
-function partnerStatusPillClasses(status?: string | null) {
+function bookingStatusPillClasses(status?: string | null) {
   switch (status) {
     case "open":
       return "border-blue-200 bg-blue-50 text-blue-700";
@@ -205,7 +205,7 @@ export default function PartnerRequestsPage() {
                 <tr>
                   <th className="px-4 py-3 font-semibold">View</th>
                   <th className="px-4 py-3 font-semibold">Job No.</th>
-                  <th className="px-4 py-3 font-semibold">Partner Status</th>
+                  <th className="px-4 py-3 font-semibold">Booking Status</th>
                   <th className="px-4 py-3 font-semibold">Request Status</th>
                   <th className="px-4 py-3 font-semibold">Pickup</th>
                   <th className="px-4 py-3 font-semibold">Dropoff</th>
@@ -237,7 +237,7 @@ export default function PartnerRequestsPage() {
 
                     <td className="px-4 py-4">
                       <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${partnerStatusPillClasses(
+                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${bookingStatusPillClasses(
                           row.status
                         )}`}
                       >
