@@ -216,6 +216,13 @@ export default function AdminReportsPage() {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
 
+  const partnerBreakdown = Array.from(partnerMap.values())
+    .map((partner) => ({
+      ...partner,
+      avgBookingValue: partner.bookings > 0 ? partner.revenue / partner.bookings : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+
   const recentBookings = [...bookings]
     .sort((a, b) => {
       const aTime = new Date(a.created_at || 0).getTime();
@@ -338,6 +345,57 @@ export default function AdminReportsPage() {
               <div className="text-sm font-medium text-slate-500">System Booking Conversion</div>
               <div className="mt-2 text-2xl font-semibold text-[#003768]">{conversionRate}%</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-[#003768]">Partner Breakdown</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Revenue and booking performance by partner.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-[#f3f8ff] text-[#003768]">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Partner</th>
+                  <th className="px-4 py-3 text-left font-semibold">Bookings</th>
+                  <th className="px-4 py-3 text-left font-semibold">Completed</th>
+                  <th className="px-4 py-3 text-left font-semibold">Revenue</th>
+                  <th className="px-4 py-3 text-left font-semibold">Avg Booking Value</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-black/5">
+                {partnerBreakdown.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-4 text-slate-600" colSpan={5}>
+                      No partner booking data available yet.
+                    </td>
+                  </tr>
+                ) : (
+                  partnerBreakdown.map((partner, index) => (
+                    <tr key={`${partner.name}-${index}`} className="hover:bg-black/[0.02]">
+                      <td className="px-4 py-4 font-medium text-slate-900">{partner.name}</td>
+                      <td className="px-4 py-4 text-slate-700">{partner.bookings}</td>
+                      <td className="px-4 py-4 text-slate-700">{partner.completed}</td>
+                      <td className="px-4 py-4 text-slate-700">
+                        {formatCurrency(partner.revenue)}
+                      </td>
+                      <td className="px-4 py-4 text-slate-700">
+                        {formatCurrency(partner.avgBookingValue)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
