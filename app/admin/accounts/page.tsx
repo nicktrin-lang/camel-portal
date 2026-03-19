@@ -7,23 +7,38 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type AccountRow = {
   id: string;
-  email: string;
-  company_name: string;
-  contact_name: string;
-  phone: string;
-  address: string;
-  website: string;
-  role: string;
-  status: string;
+  user_id?: string | null;
+  email: string | null;
+  company_name: string | null;
+  contact_name: string | null;
+  phone: string | null;
+  application_status: string | null;
+  live_profile: boolean;
   created_at: string | null;
-  user_id: string | null;
-  has_profile: boolean;
-  service_radius_km: number | null;
-  base_address: string;
-  fleet_count: number;
-  is_live_profile: boolean;
-  live_profile_reason: string;
 };
+
+type SortKey =
+  | "created_desc"
+  | "created_asc"
+  | "company_asc"
+  | "company_desc"
+  | "contact_asc"
+  | "contact_desc"
+  | "status_asc"
+  | "status_desc"
+  | "live_desc"
+  | "live_asc";
+
+async function safeJson(res: Response): Promise<any> {
+  const text = await res.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { _raw: text };
+  }
+}
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -34,12 +49,12 @@ function formatDateTime(value?: string | null) {
   }
 }
 
-function formatLabel(value?: string | null) {
-  return String(value || "—").replaceAll("_", " ");
+function normalizeText(value: unknown) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function statusPillClasses(status?: string | null) {
-  switch (String(status || "").toLowerCase()) {
+  switch (normalizeText(status)) {
     case "approved":
       return "border-green-200 bg-green-50 text-green-700";
     case "pending":
@@ -51,24 +66,19 @@ function statusPillClasses(status?: string | null) {
   }
 }
 
-async function safeJson(res: Response): Promise<any> {
-  const text = await res.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { _raw: text };
-  }
+function statusLabel(value?: string | null) {
+  return String(value || "—").replaceAll("_", " ");
 }
 
 export default function AdminAccountsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
 
-  const [rows, setRows] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rows, setRows] = useState<AccountRow[]>([]);
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<SortKey>("created_desc");
 
   async function load() {
     setLoading(true);
@@ -104,12 +114,12 @@ export default function AdminAccountsPage() {
       const json = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(json?.error || json?._raw || "Failed to load partner accounts.");
+        throw new Error(json?.error || json?._raw || "Failed to load accounts.");
       }
 
       setRows(Array.isArray(json?.data) ? json.data : []);
     } catch (e: any) {
-      setError(e?.message || "Failed to load partner accounts.");
+      setError(e?.message || "Failed to load accounts.");
       setRows([]);
     } finally {
       setLoading(false);
@@ -120,30 +130,58 @@ export default function AdminAccountsPage() {
     load();
   }, []);
 
-  const filteredRows = rows.filter((row) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
+  const searchValue = normalizeText(search);
 
-    return [
+  const filteredRows = rows.filter((row) => {
+    if (!searchValue) return true;
+
+    const haystack = [
       row.company_name,
       row.contact_name,
       row.email,
       row.phone,
-      row.address,
-      row.website,
-      row.status,
-      row.base_address,
-      row.live_profile_reason,
+      row.application_status,
+      row.live_profile ? "yes live true" : "no not live false",
     ]
-      .join(" ")
-      .toLowerCase()
-      .includes(q);
+      .map(normalizeText)
+      .join(" ");
+
+    return haystack.includes(searchValue);
   });
 
-  const totalPartners = rows.length;
-  const approvedPartners = rows.filter((row) => String(row.status).toLowerCase() === "approved").length;
-  const pendingPartners = rows.filter((row) => String(row.status).toLowerCase() === "pending").length;
-  const liveProfiles = rows.filter((row) => row.is_live_profile).length;
+  const sortedRows = [...filteredRows].sort((a, b) => {
+    const aCreated = new Date(a.created_at || 0).getTime();
+    const bCreated = new Date(b.created_at || 0).getTime();
+
+    switch (sortBy) {
+      case "created_asc":
+        return aCreated - bCreated;
+      case "created_desc":
+        return bCreated - aCreated;
+      case "company_asc":
+        return normalizeText(a.company_name).localeCompare(normalizeText(b.company_name));
+      case "company_desc":
+        return normalizeText(b.company_name).localeCompare(normalizeText(a.company_name));
+      case "contact_asc":
+        return normalizeText(a.contact_name).localeCompare(normalizeText(b.contact_name));
+      case "contact_desc":
+        return normalizeText(b.contact_name).localeCompare(normalizeText(a.contact_name));
+      case "status_asc":
+        return normalizeText(a.application_status).localeCompare(
+          normalizeText(b.application_status)
+        );
+      case "status_desc":
+        return normalizeText(b.application_status).localeCompare(
+          normalizeText(a.application_status)
+        );
+      case "live_asc":
+        return Number(a.live_profile) - Number(b.live_profile);
+      case "live_desc":
+        return Number(b.live_profile) - Number(a.live_profile);
+      default:
+        return bCreated - aCreated;
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -153,140 +191,151 @@ export default function AdminAccountsPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="rounded-3xl bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <p className="text-sm text-slate-500">Total Partners</p>
-          <p className="mt-1 text-2xl font-semibold text-[#003768]">{totalPartners}</p>
-        </div>
-
-        <div className="rounded-3xl bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <p className="text-sm text-slate-500">Approved</p>
-          <p className="mt-1 text-2xl font-semibold text-green-700">{approvedPartners}</p>
-        </div>
-
-        <div className="rounded-3xl bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <p className="text-sm text-slate-500">Pending</p>
-          <p className="mt-1 text-2xl font-semibold text-amber-600">{pendingPartners}</p>
-        </div>
-
-        <div className="rounded-3xl bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <p className="text-sm text-slate-500">Live Profiles</p>
-          <p className="mt-1 text-2xl font-semibold text-green-700">{liveProfiles}</p>
-        </div>
-      </div>
-
-      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] md:p-8">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-[#003768]">Account Management</h2>
+            <h1 className="text-2xl font-semibold text-[#003768]">Account Management</h1>
             <p className="mt-2 text-slate-600">
-              View partner account details, application status, live profile readiness,
-              and key account information.
+              View partner account details, live profile status, and key account information.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search company, contact, email..."
-              className="w-full rounded-xl border border-black/10 p-3 text-black sm:w-80"
-            />
+          <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-3 xl:max-w-[760px]">
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium text-[#003768]">Search</label>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search company, contact, email, phone..."
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
+              />
+            </div>
 
-            <button
-              type="button"
-              onClick={load}
-              disabled={loading}
-              className="rounded-full bg-[#ff7a00] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
-            >
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
+            <div>
+              <label className="text-sm font-medium text-[#003768]">Sort by</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortKey)}
+                className="mt-1 w-full rounded-xl border border-black/10 bg-white p-3 text-black"
+              >
+                <option value="created_desc">Newest created</option>
+                <option value="created_asc">Oldest created</option>
+                <option value="company_asc">Company A–Z</option>
+                <option value="company_desc">Company Z–A</option>
+                <option value="contact_asc">Contact A–Z</option>
+                <option value="contact_desc">Contact Z–A</option>
+                <option value="status_asc">Status A–Z</option>
+                <option value="status_desc">Status Z–A</option>
+                <option value="live_desc">Live profile first</option>
+                <option value="live_asc">Non-live first</option>
+              </select>
+            </div>
           </div>
         </div>
 
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setSortBy("created_desc");
+            }}
+            className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-[#003768] hover:bg-black/5"
+          >
+            Clear Filters
+          </button>
+
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="rounded-full bg-[#ff7a00] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+
+        {searchValue ? (
+          <div className="mt-4 rounded-2xl border border-[#cfe2f7] bg-[#f3f8ff] px-4 py-3 text-sm text-[#003768]">
+            Showing filtered account results for:{" "}
+            <span className="font-semibold">{search}</span>
+          </div>
+        ) : null}
+
         <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full text-left text-sm">
               <thead className="bg-[#f3f8ff] text-[#003768]">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Created</th>
-                  <th className="px-4 py-3 text-left font-semibold">Company</th>
-                  <th className="px-4 py-3 text-left font-semibold">Contact</th>
-                  <th className="px-4 py-3 text-left font-semibold">Email</th>
-                  <th className="px-4 py-3 text-left font-semibold">Phone</th>
-                  <th className="px-4 py-3 text-left font-semibold">Status</th>
-                  <th className="px-4 py-3 text-left font-semibold">Live Profile</th>
-                  <th className="px-4 py-3 text-left font-semibold">Action</th>
+                  <th className="px-4 py-3 font-semibold">Created</th>
+                  <th className="px-4 py-3 font-semibold">Company</th>
+                  <th className="px-4 py-3 font-semibold">Contact</th>
+                  <th className="px-4 py-3 font-semibold">Email</th>
+                  <th className="px-4 py-3 font-semibold">Phone</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Live Profile</th>
+                  <th className="px-4 py-3 font-semibold">Action</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-black/5">
                 {loading ? (
                   <tr>
-                    <td className="px-4 py-4 text-left text-slate-600" colSpan={8}>
+                    <td className="px-4 py-4 text-slate-600" colSpan={8}>
                       Loading...
                     </td>
                   </tr>
-                ) : filteredRows.length === 0 ? (
+                ) : sortedRows.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-4 text-left text-slate-600" colSpan={8}>
-                      No partner accounts found.
+                    <td className="px-4 py-4 text-slate-600" colSpan={8}>
+                      {searchValue
+                        ? "No partner accounts match this search."
+                        : "No partner accounts found."}
                     </td>
                   </tr>
                 ) : (
-                  filteredRows.map((row) => (
-                    <tr key={row.id} className="hover:bg-black/[0.02] align-top">
-                      <td className="px-4 py-4 text-left text-slate-700">
+                  sortedRows.map((row) => (
+                    <tr key={row.id} className="hover:bg-black/[0.02]">
+                      <td className="px-4 py-4 text-slate-700">
                         {formatDateTime(row.created_at)}
                       </td>
 
-                      <td className="px-4 py-4 text-left font-medium text-slate-900">
+                      <td className="px-4 py-4 font-medium text-slate-900">
                         {row.company_name || "—"}
                       </td>
 
-                      <td className="px-4 py-4 text-left text-slate-700">
+                      <td className="px-4 py-4 text-slate-700">
                         {row.contact_name || "—"}
                       </td>
 
-                      <td className="px-4 py-4 text-left text-slate-700">
-                        {row.email || "—"}
-                      </td>
+                      <td className="px-4 py-4 text-slate-700">{row.email || "—"}</td>
 
-                      <td className="px-4 py-4 text-left text-slate-700">
-                        {row.phone || "—"}
-                      </td>
+                      <td className="px-4 py-4 text-slate-700">{row.phone || "—"}</td>
 
-                      <td className="px-4 py-4 text-left">
+                      <td className="px-4 py-4">
                         <span
                           className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(
-                            row.status
+                            row.application_status
                           )}`}
                         >
-                          {formatLabel(row.status)}
+                          {statusLabel(row.application_status)}
                         </span>
                       </td>
 
-                      <td className="px-4 py-4 text-left">
-                        <div className="space-y-2">
-                          {row.is_live_profile ? (
-                            <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-                              Yes
-                            </span>
-                          ) : (
-                            <>
-                              <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                                No
-                              </span>
-                              <div className="text-xs text-slate-500">
-                                {row.live_profile_reason || "Requirements not met"}
-                              </div>
-                            </>
-                          )}
-                        </div>
+                      <td className="px-4 py-4">
+                        {row.live_profile ? (
+                          <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                            Yes
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                            No
+                          </span>
+                        )}
                       </td>
 
-                      <td className="px-4 py-4 text-left">
+                      <td className="px-4 py-4">
                         <Link
                           href={`/admin/accounts/${row.id}`}
                           className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
