@@ -43,7 +43,9 @@ function haversineKm(
   return R * c;
 }
 
-async function getBidWindowHours(db: ReturnType<typeof createServiceRoleSupabaseClient>) {
+async function getBidWindowHours(
+  db: ReturnType<typeof createServiceRoleSupabaseClient>
+) {
   const { data, error } = await db
     .from("portal_settings")
     .select("value_number")
@@ -247,7 +249,17 @@ export async function POST(req: Request) {
         expires_at,
       })
       .select(
-        "id, job_number, passengers, suitcases, hand_luggage, vehicle_category_slug, pickup_lat, pickup_lng, expires_at"
+        `
+        id,
+        job_number,
+        passengers,
+        suitcases,
+        hand_luggage,
+        vehicle_category_slug,
+        pickup_lat,
+        pickup_lng,
+        expires_at
+      `
       )
       .single();
 
@@ -258,7 +270,15 @@ export async function POST(req: Request) {
     const { data: fleetRows, error: fleetErr } = await partnerDb
       .from("partner_fleet")
       .select(
-        "id, user_id, category_slug, max_passengers, max_suitcases, max_hand_luggage, is_active"
+        `
+        id,
+        user_id,
+        category_slug,
+        max_passengers,
+        max_suitcases,
+        max_hand_luggage,
+        is_active
+      `
       )
       .eq("is_active", true);
 
@@ -279,7 +299,14 @@ export async function POST(req: Request) {
     if (partnerUserIds.length > 0) {
       const { data: profileRows, error: profileErr } = await partnerDb
         .from("partner_profiles")
-        .select("user_id, base_lat, base_lng, service_radius_km")
+        .select(`
+          user_id,
+          company_name,
+          role,
+          base_lat,
+          base_lng,
+          service_radius_km
+        `)
         .in("user_id", partnerUserIds);
 
       if (profileErr) {
@@ -320,6 +347,13 @@ export async function POST(req: Request) {
 
       const profile = partnerProfileMap.get(partnerUserId);
       if (!profile) continue;
+
+      const role = String(profile.role || "partner").trim();
+
+      // Admin and super admin can see everything, but should not receive live matches
+      if (role === "admin" || role === "super_admin") {
+        continue;
+      }
 
       const baseLat =
         profile.base_lat === null || profile.base_lat === undefined

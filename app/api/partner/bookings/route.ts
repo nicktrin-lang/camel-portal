@@ -16,7 +16,6 @@ export async function GET() {
 
     const userId = user.id;
     const adminMode = isAdminRole(role);
-
     const db = createServiceRoleSupabaseClient();
 
     let bookingsQuery = db
@@ -30,7 +29,12 @@ export async function GET() {
         amount,
         notes,
         created_at,
-        job_number
+        job_number,
+        driver_name,
+        driver_phone,
+        driver_vehicle,
+        driver_notes,
+        driver_assigned_at
       `)
       .order("created_at", { ascending: false });
 
@@ -46,7 +50,11 @@ export async function GET() {
 
     const rows = bookingRows || [];
     const requestIds = Array.from(
-      new Set(rows.map((row: any) => String(row.request_id || "")).filter(Boolean))
+      new Set(
+        rows
+          .map((row: any) => String(row.request_id || ""))
+          .filter(Boolean)
+      )
     );
 
     let requestMap = new Map<string, any>();
@@ -56,6 +64,7 @@ export async function GET() {
         .from("customer_requests")
         .select(`
           id,
+          job_number,
           pickup_address,
           dropoff_address,
           pickup_at,
@@ -68,7 +77,10 @@ export async function GET() {
           customer_name,
           customer_email,
           customer_phone,
-          notes
+          notes,
+          status,
+          created_at,
+          expires_at
         `)
         .in("id", requestIds);
 
@@ -81,8 +93,39 @@ export async function GET() {
       );
     }
 
+    const partnerUserIds = Array.from(
+      new Set(
+        rows
+          .map((row: any) => String(row.partner_user_id || ""))
+          .filter(Boolean)
+      )
+    );
+
+    let profileMap = new Map<string, any>();
+
+    if (partnerUserIds.length > 0) {
+      const { data: profileRows, error: profileErr } = await db
+        .from("partner_profiles")
+        .select(`
+          user_id,
+          company_name,
+          phone
+        `)
+        .in("user_id", partnerUserIds);
+
+      if (profileErr) {
+        return NextResponse.json({ error: profileErr.message }, { status: 400 });
+      }
+
+      profileMap = new Map(
+        (profileRows || []).map((row: any) => [String(row.user_id), row])
+      );
+    }
+
     const data = rows.map((booking: any) => {
       const request = requestMap.get(String(booking.request_id)) || null;
+      const partnerProfile =
+        profileMap.get(String(booking.partner_user_id)) || null;
 
       return {
         id: booking.id,
@@ -93,7 +136,17 @@ export async function GET() {
         amount: booking.amount,
         notes: booking.notes,
         created_at: booking.created_at,
-        job_number: booking.job_number,
+        job_number: booking.job_number ?? request?.job_number ?? null,
+
+        driver_name: booking.driver_name || null,
+        driver_phone: booking.driver_phone || null,
+        driver_vehicle: booking.driver_vehicle || null,
+        driver_notes: booking.driver_notes || null,
+        driver_assigned_at: booking.driver_assigned_at || null,
+
+        partner_company_name: partnerProfile?.company_name || null,
+        partner_company_phone: partnerProfile?.phone || null,
+
         pickup_address: request?.pickup_address || null,
         dropoff_address: request?.dropoff_address || null,
         pickup_at: request?.pickup_at || null,
@@ -107,11 +160,16 @@ export async function GET() {
         customer_email: request?.customer_email || null,
         customer_phone: request?.customer_phone || null,
         request_notes: request?.notes || null,
+        request_status: request?.status || null,
+        request_created_at: request?.created_at || null,
+        request_expires_at: request?.expires_at || null,
+
         role,
+        adminMode,
       };
     });
 
-    return NextResponse.json({ data }, { status: 200 });
+    return NextResponse.json({ data, role, adminMode }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "Server error" },

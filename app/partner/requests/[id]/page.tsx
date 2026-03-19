@@ -138,6 +138,40 @@ function formatGBP(value?: number | null) {
   }).format(value);
 }
 
+function formatStatusLabel(value?: string | null) {
+  return String(value || "—").replaceAll("_", " ");
+}
+
+function getPartnerHistoryStatus(params: {
+  requestStatus?: string | null;
+  expiresAt?: string | null;
+  bidStatus?: string | null;
+  hasBooking?: boolean;
+}) {
+  const requestStatus = String(params.requestStatus || "").trim();
+  const bidStatus = String(params.bidStatus || "").trim();
+  const expired =
+    !!params.expiresAt && new Date(params.expiresAt).getTime() <= Date.now();
+
+  if (params.hasBooking || bidStatus === "accepted") {
+    return "bid_successful";
+  }
+
+  if (bidStatus === "unsuccessful" || bidStatus === "rejected") {
+    return "bid_unsuccessful";
+  }
+
+  if (expired || requestStatus === "expired") {
+    return "expired";
+  }
+
+  if (bidStatus === "submitted") {
+    return "bid_submitted";
+  }
+
+  return "open";
+}
+
 export default function PartnerRequestDetailPage({
   params,
 }: {
@@ -333,13 +367,25 @@ export default function PartnerRequestDetailPage({
   const request = data.request;
   const existingBid = data.existingBid;
   const existingBooking = data.existingBooking;
+  const adminMode = !!data.adminMode;
+
+  const partnerHistoryStatus = adminMode
+    ? request.status
+    : getPartnerHistoryStatus({
+        requestStatus: request.status,
+        expiresAt: request.expires_at,
+        bidStatus: existingBid?.status || null,
+        hasBooking: !!existingBooking,
+      });
 
   const formDisabled =
     expired ||
     !!existingBooking ||
     request.status === "confirmed" ||
     request.status === "expired" ||
-    existingBid?.status === "accepted";
+    existingBid?.status === "accepted" ||
+    existingBid?.status === "unsuccessful" ||
+    existingBid?.status === "rejected";
 
   return (
     <div className="space-y-6 px-4 py-8 md:px-8">
@@ -359,7 +405,7 @@ export default function PartnerRequestDetailPage({
         <div>
           <h1 className="text-3xl font-semibold text-[#003768]">Request Detail</h1>
           <p className="mt-2 text-slate-600">
-            Review the request and submit your bid.
+            Review this request and its bidding outcome.
           </p>
         </div>
 
@@ -371,14 +417,20 @@ export default function PartnerRequestDetailPage({
         </Link>
       </div>
 
-      <div
-        className={`rounded-2xl border p-4 text-sm ${
-          expired
-            ? "border-red-200 bg-red-50 text-red-700"
-            : "border-blue-200 bg-blue-50 text-blue-700"
-        }`}
-      >
-        <span className="font-semibold">Time remaining:</span> {timeLabel}
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+          <span className="font-semibold">Time remaining:</span> {timeLabel}
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          <span className="font-semibold">Partner status:</span>{" "}
+          <span className="capitalize">{formatStatusLabel(partnerHistoryStatus)}</span>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          <span className="font-semibold">Request status:</span>{" "}
+          <span className="capitalize">{formatStatusLabel(request.status)}</span>
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
@@ -402,34 +454,61 @@ export default function PartnerRequestDetailPage({
             <p><span className="font-semibold text-slate-900">Hand luggage:</span> {request.hand_luggage}</p>
             <p><span className="font-semibold text-slate-900">Requested vehicle:</span> {request.vehicle_category_name || "—"}</p>
             <p><span className="font-semibold text-slate-900">Notes:</span> {request.notes || "—"}</p>
-            <p><span className="font-semibold text-slate-900">Request status:</span> <span className="capitalize">{request.status}</span></p>
+            <p><span className="font-semibold text-slate-900">Created:</span> {fmtDateTime(request.created_at)}</p>
             <p><span className="font-semibold text-slate-900">Expires at:</span> {fmtDateTime(request.expires_at)}</p>
             <p><span className="font-semibold text-slate-900">Matched status:</span> <span className="capitalize">{request.matched_status || "—"}</span></p>
           </div>
         </div>
 
         <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <h2 className="text-2xl font-semibold text-[#003768]">Submit Bid</h2>
+          <h2 className="text-2xl font-semibold text-[#003768]">Bid Outcome</h2>
 
           {expired || request.status === "expired" ? (
-            <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
-              This request has expired and can no longer receive bids.
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-slate-700">
+              This request has expired.
             </div>
           ) : existingBooking ? (
             <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-5 text-green-700">
-              This request has been accepted and is now a booking.
+              Your bid was successful and this request is now also in Bookings.
             </div>
           ) : existingBid?.status === "accepted" ? (
             <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-5 text-green-700">
-              Your bid has been accepted.
+              Your bid was accepted.
+            </div>
+          ) : existingBid?.status === "unsuccessful" || existingBid?.status === "rejected" ? (
+            <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
+              Your bid was unsuccessful.
             </div>
           ) : existingBid ? (
             <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-blue-700">
-              You have already submitted a bid. You can update and resubmit it below.
+              Your bid has been submitted and is awaiting customer decision.
             </div>
           ) : null}
 
-          {data.fleetOptions.length === 0 ? (
+          {existingBid ? (
+            <div className="mt-6 space-y-4 text-slate-700">
+              <p><span className="font-semibold text-slate-900">Bid status:</span> <span className="capitalize">{formatStatusLabel(existingBid.status)}</span></p>
+              <p><span className="font-semibold text-slate-900">Vehicle:</span> {existingBid.vehicle_category_name || "—"}</p>
+              <p><span className="font-semibold text-slate-900">Car hire price:</span> {formatGBP(existingBid.car_hire_price)}</p>
+              <p><span className="font-semibold text-slate-900">Fuel price:</span> {formatGBP(existingBid.fuel_price)}</p>
+              <p><span className="font-semibold text-slate-900">Total price:</span> {formatGBP(existingBid.total_price)}</p>
+              <p><span className="font-semibold text-slate-900">Full insurance included:</span> {existingBid.full_insurance_included ? "Yes" : "No"}</p>
+              <p><span className="font-semibold text-slate-900">Full tank included:</span> {existingBid.full_tank_included ? "Yes" : "No"}</p>
+              <p><span className="font-semibold text-slate-900">Notes:</span> {existingBid.notes || "—"}</p>
+              <p><span className="font-semibold text-slate-900">Submitted:</span> {fmtDateTime(existingBid.created_at)}</p>
+
+              {existingBooking ? (
+                <div className="pt-2">
+                  <Link
+                    href="/partner/bookings"
+                    className="inline-flex rounded-full bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+                  >
+                    Go to Booking
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          ) : data.fleetOptions.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-700">
               No compatible active vehicles were found in your fleet for this request.
             </div>
@@ -530,7 +609,7 @@ export default function PartnerRequestDetailPage({
                 disabled={saving || formDisabled}
                 className="rounded-full bg-[#ff7a00] px-6 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
               >
-                {saving ? "Saving..." : existingBid ? "Update Bid" : "Submit Bid"}
+                {saving ? "Saving..." : "Submit Bid"}
               </button>
             </form>
           )}

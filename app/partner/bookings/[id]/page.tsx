@@ -203,6 +203,8 @@ export default function PartnerBookingDetailPage() {
 
   const booking = data.booking;
   const request = data.request;
+  const role = data.role || "partner";
+  const adminMode = role === "admin" || role === "super_admin";
 
   return (
     <div className="space-y-6 px-4 py-8 md:px-8">
@@ -222,8 +224,11 @@ export default function PartnerBookingDetailPage() {
         <div>
           <h1 className="text-3xl font-semibold text-[#003768]">Booking Detail</h1>
           <p className="mt-2 text-slate-600">
-            View and manage accepted booking information.
+            {adminMode
+              ? "Inspect and manage any booking across the network."
+              : "View and manage accepted booking information."}
           </p>
+          <p className="mt-1 text-sm text-slate-500">Signed in role: {role}</p>
         </div>
 
         <Link
@@ -241,12 +246,32 @@ export default function PartnerBookingDetailPage() {
           </h2>
 
           <div className="mt-6 space-y-4 text-slate-700">
-            <p><span className="font-semibold text-slate-900">Job No.:</span> {booking.job_number ?? "—"}</p>
-            <p><span className="font-semibold text-slate-900">Booking created:</span> {formatDateTime(booking.created_at)}</p>
-            <p><span className="font-semibold text-slate-900">Booking status:</span> <span className="capitalize">{String(booking.booking_status || "—").replaceAll("_", " ")}</span></p>
-            <p><span className="font-semibold text-slate-900">Amount:</span> {formatGBP(booking.amount)}</p>
-            <p><span className="font-semibold text-slate-900">Booking notes:</span> {booking.notes || "—"}</p>
-            <p><span className="font-semibold text-slate-900">Driver assigned at:</span> {formatDateTime(booking.driver_assigned_at)}</p>
+            <p>
+              <span className="font-semibold text-slate-900">Job No.:</span>{" "}
+              {booking.job_number ?? request?.job_number ?? "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Booking created:</span>{" "}
+              {formatDateTime(booking.created_at)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Booking status:</span>{" "}
+              <span className="capitalize">
+                {String(booking.booking_status || "—").replaceAll("_", " ")}
+              </span>
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Amount:</span>{" "}
+              {formatGBP(booking.amount)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Booking notes:</span>{" "}
+              {booking.notes || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Driver assigned at:</span>{" "}
+              {formatDateTime(booking.driver_assigned_at)}
+            </p>
           </div>
         </div>
 
@@ -256,19 +281,64 @@ export default function PartnerBookingDetailPage() {
           </h2>
 
           <div className="mt-6 space-y-4 text-slate-700">
-            <p><span className="font-semibold text-slate-900">Customer:</span> {request?.customer_name || "—"}</p>
-            <p><span className="font-semibold text-slate-900">Email:</span> {request?.customer_email || "—"}</p>
-            <p><span className="font-semibold text-slate-900">Phone:</span> {request?.customer_phone || "—"}</p>
-            <p><span className="font-semibold text-slate-900">Pickup:</span> {request?.pickup_address || "—"}</p>
-            <p><span className="font-semibold text-slate-900">Dropoff:</span> {request?.dropoff_address || "—"}</p>
-            <p><span className="font-semibold text-slate-900">Pickup time:</span> {formatDateTime(request?.pickup_at)}</p>
-            <p><span className="font-semibold text-slate-900">Dropoff time:</span> {formatDateTime(request?.dropoff_at)}</p>
-            <p><span className="font-semibold text-slate-900">Duration:</span> {formatDuration(request?.journey_duration_minutes)}</p>
-            <p><span className="font-semibold text-slate-900">Passengers:</span> {request?.passengers ?? "—"}</p>
-            <p><span className="font-semibold text-slate-900">Suitcases:</span> {request?.suitcases ?? "—"}</p>
-            <p><span className="font-semibold text-slate-900">Hand luggage:</span> {request?.hand_luggage ?? "—"}</p>
-            <p><span className="font-semibold text-slate-900">Vehicle:</span> {request?.vehicle_category_name || "—"}</p>
-            <p><span className="font-semibold text-slate-900">Request notes:</span> {request?.notes || "—"}</p>
+            <p>
+              <span className="font-semibold text-slate-900">Customer:</span>{" "}
+              {request?.customer_name || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Email:</span>{" "}
+              {request?.customer_email || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Phone:</span>{" "}
+              {request?.customer_phone || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Pickup:</span>{" "}
+              {request?.pickup_address || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Dropoff:</span>{" "}
+              {request?.dropoff_address || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Pickup time:</span>{" "}
+              {formatDateTime(request?.pickup_at)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Dropoff time:</span>{" "}
+              {formatDateTime(request?.dropoff_at)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Duration:</span>{" "}
+              {formatDuration(request?.journey_duration_minutes)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Passengers:</span>{" "}
+              {request?.passengers ?? "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Suitcases:</span>{" "}
+              {request?.suitcases ?? "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Hand luggage:</span>{" "}
+              {request?.hand_luggage ?? "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Vehicle:</span>{" "}
+              {request?.vehicle_category_name || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Request status:</span>{" "}
+              <span className="capitalize">
+                {String(request?.status || "—").replaceAll("_", " ")}
+              </span>
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Request notes:</span>{" "}
+              {request?.notes || "—"}
+            </p>
           </div>
         </div>
       </div>
@@ -280,7 +350,9 @@ export default function PartnerBookingDetailPage() {
 
         <form onSubmit={saveBookingOps} className="mt-6 space-y-5">
           <div>
-            <label className="text-sm font-medium text-[#003768]">Booking status</label>
+            <label className="text-sm font-medium text-[#003768]">
+              Booking status
+            </label>
             <select
               value={bookingStatus}
               onChange={(e) => setBookingStatus(e.target.value)}
@@ -288,7 +360,7 @@ export default function PartnerBookingDetailPage() {
             >
               <option value="confirmed">confirmed</option>
               <option value="driver_assigned">driver_assigned</option>
-              <option value="en_route">en_route</option>
+              <option value="en_route">en route</option>
               <option value="arrived">arrived</option>
               <option value="completed">completed</option>
               <option value="cancelled">cancelled</option>
@@ -297,7 +369,9 @@ export default function PartnerBookingDetailPage() {
 
           <div className="grid gap-5 md:grid-cols-2">
             <div>
-              <label className="text-sm font-medium text-[#003768]">Driver name</label>
+              <label className="text-sm font-medium text-[#003768]">
+                Driver name
+              </label>
               <input
                 value={driverName}
                 onChange={(e) => setDriverName(e.target.value)}
@@ -307,7 +381,9 @@ export default function PartnerBookingDetailPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-[#003768]">Driver phone</label>
+              <label className="text-sm font-medium text-[#003768]">
+                Driver phone
+              </label>
               <input
                 value={driverPhone}
                 onChange={(e) => setDriverPhone(e.target.value)}
@@ -318,7 +394,9 @@ export default function PartnerBookingDetailPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-[#003768]">Driver vehicle</label>
+            <label className="text-sm font-medium text-[#003768]">
+              Driver vehicle
+            </label>
             <input
               value={driverVehicle}
               onChange={(e) => setDriverVehicle(e.target.value)}
@@ -328,7 +406,9 @@ export default function PartnerBookingDetailPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-[#003768]">Driver notes</label>
+            <label className="text-sm font-medium text-[#003768]">
+              Driver notes
+            </label>
             <textarea
               rows={4}
               value={driverNotes}
