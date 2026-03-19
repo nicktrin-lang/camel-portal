@@ -32,8 +32,9 @@ export default function FleetLayout({
 
   const isPublicPartnerPage =
     pathname === "/partner/login" ||
+    pathname === "/partner/application-submitted" ||
     pathname === "/partner/signup" ||
-    pathname === "/partner/application-submitted";
+    pathname.startsWith("/partner/signup/");
 
   useEffect(() => {
     let mounted = true;
@@ -47,8 +48,7 @@ export default function FleetLayout({
       setLoading(true);
 
       try {
-        const { data: userData, error: userErr } =
-          await supabase.auth.getUser();
+        const { data: userData, error: userErr } = await supabase.auth.getUser();
 
         if (userErr || !userData?.user) {
           router.replace("/partner/login?reason=not_signed_in");
