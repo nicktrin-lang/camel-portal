@@ -14,66 +14,73 @@ type Props = {
 type NavItem = {
   href: string;
   label: string;
-  roles: PortalRole[];
 };
-
-const navItems: NavItem[] = [
-  {
-    href: "/admin/approvals",
-    label: "Partner Approvals",
-    roles: ["admin", "super_admin"],
-  },
-  {
-    href: "/admin/accounts",
-    label: "Account Management",
-    roles: ["admin", "super_admin"],
-  },
-  {
-    href: "/admin/users",
-    label: "Admin Users",
-    roles: ["super_admin"], // 🔥 FIXED
-  },
-  {
-    href: "/partner/requests",
-    label: "Requests",
-    roles: ["partner", "admin", "super_admin"],
-  },
-  {
-    href: "/partner/bookings",
-    label: "Bookings",
-    roles: ["partner", "admin", "super_admin"],
-  },
-  {
-    href: "/partner/fleet",
-    label: "Car Fleet",
-    roles: ["partner", "admin", "super_admin"],
-  },
-  {
-    href: "/partner/account",
-    label: "Account Management",
-    roles: ["partner"], // 🔥 IMPORTANT (partner only)
-  },
-  {
-    href: "/partner/reports",
-    label: "Report Management",
-    roles: ["partner", "admin", "super_admin"],
-  },
-];
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function getHomeHref(role: PortalRole) {
+  return role === "partner" ? "/partner/dashboard" : "/admin/approvals";
+}
+
+function getPortalTitle(role: PortalRole) {
+  return role === "partner" ? "Partner Portal" : "Admin Portal";
+}
+
+function getPortalSubtitle(role: PortalRole) {
+  return role === "partner" ? "Operations dashboard" : "System administration";
+}
+
+function getFooterHref(role: PortalRole) {
+  return role === "partner" ? "/partner/profile" : "/admin/accounts";
+}
+
+function getFooterLabel(role: PortalRole) {
+  return role === "partner" ? "Edit Profile" : "Manage Accounts";
+}
+
+function getNavItems(role: PortalRole): NavItem[] {
+  if (role === "partner") {
+    return [
+      { href: "/partner/account", label: "Account Management" },
+      { href: "/partner/bookings", label: "Bookings" },
+      { href: "/partner/fleet", label: "Car Fleet" },
+      { href: "/partner/reports", label: "Report Management" },
+      { href: "/partner/requests", label: "Requests" },
+    ];
+  }
+
+  if (role === "admin") {
+    return [
+      { href: "/admin/accounts", label: "Account Management" },
+      { href: "/admin/approvals", label: "Partner Approvals" },
+      { href: "/partner/reports", label: "Report Management" },
+      { href: "/partner/requests", label: "Requests" },
+      { href: "/partner/bookings", label: "Bookings" },
+    ].sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  return [
+    { href: "/admin/accounts", label: "Account Management" },
+    { href: "/admin/users", label: "Admin Users" },
+    { href: "/partner/bookings", label: "Bookings" },
+    { href: "/admin/approvals", label: "Partner Approvals" },
+    { href: "/partner/reports", label: "Report Management" },
+    { href: "/partner/requests", label: "Requests" },
+  ].sort((a, b) => a.label.localeCompare(b.label));
+}
+
 export default function PortalSidebar({ role, open, onClose }: Props) {
   const pathname = usePathname();
-
-  const visibleItems = navItems.filter((item) => item.roles.includes(role));
+  const visibleItems = getNavItems(role);
 
   return (
     <>
       {open ? (
         <button
           type="button"
+          aria-label="Close sidebar overlay"
           onClick={onClose}
           className="fixed inset-0 z-30 bg-black/40 lg:hidden"
         />
@@ -91,27 +98,19 @@ export default function PortalSidebar({ role, open, onClose }: Props) {
       >
         <div className="flex h-full flex-col overflow-y-auto">
           <div className="border-b border-white/10 px-6 pt-8 pb-6">
-            <Link href="/partner/dashboard" onClick={onClose}>
-              <div className="text-xs uppercase text-white/70">
+            <Link href={getHomeHref(role)} onClick={onClose} className="block">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
                 Camel Global
               </div>
 
-              <div className="mt-2 text-2xl font-semibold">
-                {role === "partner"
-                  ? "Partner Portal"
-                  : "Admin Portal"}
-              </div>
+              <div className="mt-2 text-2xl font-semibold">{getPortalTitle(role)}</div>
 
-              <div className="mt-2 text-sm text-white/70">
-                {role === "partner"
-                  ? "Operations dashboard"
-                  : "System administration"}
-              </div>
+              <div className="mt-3 text-sm text-white/75">{getPortalSubtitle(role)}</div>
             </Link>
           </div>
 
           <nav className="flex-1 px-4 py-5">
-            <div className="mb-3 px-3 text-xs uppercase text-white/50">
+            <div className="mb-3 px-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/55">
               Navigation
             </div>
 
@@ -121,14 +120,14 @@ export default function PortalSidebar({ role, open, onClose }: Props) {
 
                 return (
                   <Link
-                    key={item.href}
+                    key={`${item.href}-${item.label}`}
                     href={item.href}
                     onClick={onClose}
                     className={[
                       "block rounded-2xl px-4 py-3 text-sm font-semibold transition",
                       active
-                        ? "bg-white text-[#003768]"
-                        : "text-white/90 hover:bg-white/10",
+                        ? "bg-white text-[#003768] shadow-[0_12px_24px_rgba(0,0,0,0.18)]"
+                        : "text-white/90 hover:bg-white/10 hover:text-white",
                     ].join(" ")}
                   >
                     {item.label}
@@ -138,17 +137,15 @@ export default function PortalSidebar({ role, open, onClose }: Props) {
             </div>
           </nav>
 
-          {role === "partner" && (
-            <div className="border-t border-white/10 px-5 py-5">
-              <Link
-                href="/partner/profile"
-                onClick={onClose}
-                className="block rounded-2xl bg-[#ff7a00] px-4 py-3 text-center text-sm font-semibold text-white"
-              >
-                Edit Profile
-              </Link>
-            </div>
-          )}
+          <div className="border-t border-white/10 px-5 py-5">
+            <Link
+              href={getFooterHref(role)}
+              onClick={onClose}
+              className="block rounded-2xl bg-[#ff7a00] px-4 py-3 text-center text-sm font-semibold text-white shadow-[0_12px_24px_rgba(0,0,0,0.18)] hover:opacity-95"
+            >
+              {getFooterLabel(role)}
+            </Link>
+          </div>
         </div>
       </aside>
     </>
