@@ -132,9 +132,9 @@ export async function GET() {
 
       const hasFleetAddress = !!String(profile?.base_address || "").trim();
       const hasFleet = fleetCount > 0;
-      const isLiveProfile = hasFleetAddress && hasFleet;
+      const liveProfile = hasFleetAddress && hasFleet;
 
-      const liveProfileReason = isLiveProfile
+      const liveProfileReason = liveProfile
         ? ""
         : !hasFleetAddress && !hasFleet
         ? "Missing fleet address and no fleet added"
@@ -144,6 +144,7 @@ export async function GET() {
 
       return {
         id: row.id,
+        user_id: resolvedUserId,
         email: row.email || "",
         company_name: profile?.company_name || row.company_name || "",
         contact_name: profile?.contact_name || row.full_name || "",
@@ -157,15 +158,14 @@ export async function GET() {
           "",
         website: profile?.website || row.website || "",
         role: profile?.role || "partner",
-        status: row.status || "pending",
+        application_status: row.status || "pending",
+        live_profile: liveProfile,
+        live_profile_reason: liveProfileReason,
         created_at: row.created_at || null,
-        user_id: resolvedUserId,
         has_profile: !!profile,
         service_radius_km: profile?.service_radius_km ?? null,
         base_address: profile?.base_address || "",
         fleet_count: fleetCount,
-        is_live_profile: isLiveProfile,
-        live_profile_reason: liveProfileReason,
       };
     });
 

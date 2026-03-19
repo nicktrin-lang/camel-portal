@@ -79,7 +79,6 @@ export default function AdminAccountsPage() {
   const [rows, setRows] = useState<AccountRow[]>([]);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("created_desc");
-  const [appliedSortBy, setAppliedSortBy] = useState<SortKey>("created_desc");
 
   async function load() {
     setLoading(true);
@@ -153,11 +152,13 @@ export default function AdminAccountsPage() {
   }, [rows, searchValue]);
 
   const sortedRows = useMemo(() => {
-    return [...filteredRows].sort((a, b) => {
+    const data = [...filteredRows];
+
+    data.sort((a, b) => {
       const aCreated = new Date(a.created_at || 0).getTime();
       const bCreated = new Date(b.created_at || 0).getTime();
 
-      switch (appliedSortBy) {
+      switch (sortBy) {
         case "created_asc":
           return aCreated - bCreated;
         case "created_desc":
@@ -186,7 +187,9 @@ export default function AdminAccountsPage() {
           return bCreated - aCreated;
       }
     });
-  }, [filteredRows, appliedSortBy]);
+
+    return data;
+  }, [filteredRows, sortBy]);
 
   return (
     <div className="space-y-6">
@@ -245,19 +248,10 @@ export default function AdminAccountsPage() {
             onClick={() => {
               setSearch("");
               setSortBy("created_desc");
-              setAppliedSortBy("created_desc");
             }}
             className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-[#003768] hover:bg-black/5"
           >
             Clear Filters
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setAppliedSortBy(sortBy)}
-            className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-[#003768] hover:bg-black/5"
-          >
-            Apply Sort
           </button>
 
           <button
