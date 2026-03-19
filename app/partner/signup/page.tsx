@@ -374,11 +374,11 @@ export default function PartnerSignupPage() {
       <div className="mx-auto max-w-7xl px-4 pb-10 pt-28">
         <div className="mx-auto w-full max-w-5xl rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.10)] md:p-10">
           <div>
-            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-[#0f4f8a]/70">
+            <div className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 text-sm font-semibold uppercase tracking-[0.12em] text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)]">
               Step 1 of 2
             </div>
 
-            <h1 className="mt-3 text-2xl font-semibold text-[#003768] md:text-4xl">
+            <h1 className="mt-4 text-2xl font-semibold text-[#003768] md:text-4xl">
               Partner Sign Up
             </h1>
 
