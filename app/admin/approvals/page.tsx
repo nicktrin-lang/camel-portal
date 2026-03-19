@@ -133,7 +133,7 @@ export default function AdminApprovalsPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-[#003768]">
-              Admin Approvals
+              Partner Approvals
             </h2>
             <p className="mt-2 text-slate-600">
               Review partner applications and current live profile details.
