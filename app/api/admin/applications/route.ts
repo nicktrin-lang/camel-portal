@@ -37,7 +37,7 @@ export async function GET() {
 
     const { data: applications, error: applicationsErr } = await db
       .from("partner_applications")
-      .select("id,email,company_name,full_name,status,created_at")
+      .select("id,email,company_name,full_name,phone,address,status,created_at,user_id")
       .order("created_at", { ascending: false });
 
     if (applicationsErr) {
@@ -63,16 +63,23 @@ export async function GET() {
     }
 
     const emailToUserId = new Map<string, string>();
+
     for (const user of authUsers?.users || []) {
       const userEmail = String(user.email || "").toLowerCase().trim();
       const authUserId = String(user.id || "").trim();
+
       if (userEmail && authUserId && applicationEmails.includes(userEmail)) {
         emailToUserId.set(userEmail, authUserId);
       }
     }
 
     const profileUserIds = Array.from(
-      new Set(Array.from(emailToUserId.values()).filter(Boolean))
+      new Set(
+        applicationRows
+          .map((row: any) => String(row.user_id || "").trim())
+          .filter(Boolean)
+          .concat(Array.from(emailToUserId.values()))
+      )
     );
 
     let profileMap = new Map<string, any>();
@@ -86,7 +93,8 @@ export async function GET() {
           contact_name,
           phone,
           address,
-          role
+          role,
+          base_address
         `)
         .in("user_id", profileUserIds);
 
@@ -99,23 +107,49 @@ export async function GET() {
       );
     }
 
+    let fleetCountMap = new Map<string, number>();
+
+    if (profileUserIds.length > 0) {
+      const { data: fleetRows, error: fleetErr } = await db
+        .from("partner_fleet")
+        .select("user_id")
+        .in("user_id", profileUserIds);
+
+      if (fleetErr) {
+        return NextResponse.json({ error: fleetErr.message }, { status: 400 });
+      }
+
+      for (const row of fleetRows || []) {
+        const fleetUserId = String((row as any)?.user_id || "").trim();
+        if (!fleetUserId) continue;
+        fleetCountMap.set(fleetUserId, (fleetCountMap.get(fleetUserId) || 0) + 1);
+      }
+    }
+
     const data = applicationRows.map((row: any) => {
       const applicationEmail = String(row.email || "").toLowerCase().trim();
-      const matchedUserId = emailToUserId.get(applicationEmail) || null;
+      const matchedUserId =
+        String(row.user_id || "").trim() || emailToUserId.get(applicationEmail) || null;
+
       const profile = matchedUserId ? profileMap.get(matchedUserId) || null : null;
+      const fleetCount = matchedUserId ? fleetCountMap.get(matchedUserId) || 0 : 0;
+
+      const hasFleetAddress = !!String(profile?.base_address || "").trim();
+      const hasFleet = fleetCount > 0;
+      const isLiveProfile = hasFleetAddress && hasFleet;
 
       return {
         id: row.id,
         email: row.email || "",
         company_name: profile?.company_name || row.company_name || "",
         full_name: profile?.contact_name || row.full_name || "",
-        phone: profile?.phone || "",
-        address: profile?.address || "",
+        phone: profile?.phone || row.phone || "",
+        address: profile?.address || row.address || "",
         role: profile?.role || "partner",
-        status: row.status,
+        status: row.status || "pending",
         created_at: row.created_at,
         user_id: matchedUserId,
-        has_profile: !!profile,
+        has_profile: isLiveProfile,
       };
     });
 
