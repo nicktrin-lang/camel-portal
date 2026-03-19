@@ -286,6 +286,18 @@ export default function AdminReportsPage() {
     .filter((row) => getMonthKey(row.created_at) === previousMonthKey)
     .reduce((sum, row) => sum + (Number(row.amount || 0) || 0), 0);
 
+  const requestStatusBreakdown = Array.from(
+    filteredRequests.reduce((map, row) => {
+      const key = String(row.status || row.request_status || "unknown").toLowerCase();
+      const current = map.get(key) || { status: key, count: 0 };
+      current.count += 1;
+      map.set(key, current);
+      return map;
+    }, new Map<string, { status: string; count: number }>())
+  )
+    .map(([, value]) => value)
+    .sort((a, b) => b.count - a.count);
+
   const partnerMap = new Map<
     string,
     { name: string; bookings: number; revenue: number; completed: number }
@@ -558,6 +570,55 @@ export default function AdminReportsPage() {
         <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
+              <h2 className="text-xl font-semibold text-[#003768]">Request Status Breakdown</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Request volume grouped by request status.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-[#f3f8ff] text-[#003768]">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Status</th>
+                    <th className="px-4 py-3 text-left font-semibold">Requests</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-black/5">
+                  {requestStatusBreakdown.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-4 text-slate-600" colSpan={2}>
+                        No request data available for this period.
+                      </td>
+                    </tr>
+                  ) : (
+                    requestStatusBreakdown.map((row) => (
+                      <tr key={row.status} className="hover:bg-black/[0.02]">
+                        <td className="px-4 py-4">
+                          <span
+                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(
+                              row.status
+                            )}`}
+                          >
+                            {formatStatusLabel(row.status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">{row.count}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
               <h2 className="text-xl font-semibold text-[#003768]">Booking Status Revenue Breakdown</h2>
               <p className="mt-1 text-sm text-slate-600">
                 Booking volume and revenue grouped by booking status.
@@ -605,7 +666,9 @@ export default function AdminReportsPage() {
             </div>
           </div>
         </div>
+      </div>
 
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
@@ -648,9 +711,7 @@ export default function AdminReportsPage() {
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <h2 className="text-xl font-semibold text-[#003768]">Top Partners</h2>
 
@@ -679,27 +740,6 @@ export default function AdminReportsPage() {
               ))}
             </div>
           )}
-        </div>
-
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <h2 className="text-xl font-semibold text-[#003768]">Request Status Overview</h2>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-black/5 bg-[#f9fbff] p-5">
-              <div className="text-sm font-medium text-slate-500">Open</div>
-              <div className="mt-2 text-2xl font-semibold text-[#003768]">{openRequests}</div>
-            </div>
-
-            <div className="rounded-2xl border border-black/5 bg-[#f9fbff] p-5">
-              <div className="text-sm font-medium text-slate-500">Expired</div>
-              <div className="mt-2 text-2xl font-semibold text-[#003768]">{expiredRequests}</div>
-            </div>
-
-            <div className="rounded-2xl border border-black/5 bg-[#f9fbff] p-5 md:col-span-2">
-              <div className="text-sm font-medium text-slate-500">System Booking Conversion</div>
-              <div className="mt-2 text-2xl font-semibold text-[#003768]">{conversionRate}%</div>
-            </div>
-          </div>
         </div>
       </div>
 
