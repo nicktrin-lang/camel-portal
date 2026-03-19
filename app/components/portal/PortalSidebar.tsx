@@ -54,10 +54,10 @@ function getNavItems(role: PortalRole): NavItem[] {
   if (role === "admin") {
     return [
       { href: "/admin/accounts", label: "Account Management" },
-      { href: "/admin/approvals", label: "Partner Approvals" },
-      { href: "/partner/reports", label: "Report Management" },
-      { href: "/partner/requests", label: "Requests" },
       { href: "/partner/bookings", label: "Bookings" },
+      { href: "/admin/approvals", label: "Partner Approvals" },
+      { href: "/admin/reports", label: "Report Management" },
+      { href: "/partner/requests", label: "Requests" },
     ].sort((a, b) => a.label.localeCompare(b.label));
   }
 
@@ -66,7 +66,7 @@ function getNavItems(role: PortalRole): NavItem[] {
     { href: "/admin/users", label: "Admin Users" },
     { href: "/partner/bookings", label: "Bookings" },
     { href: "/admin/approvals", label: "Partner Approvals" },
-    { href: "/partner/reports", label: "Report Management" },
+    { href: "/admin/reports", label: "Report Management" },
     { href: "/partner/requests", label: "Requests" },
   ].sort((a, b) => a.label.localeCompare(b.label));
 }
