@@ -79,6 +79,7 @@ export default function AdminAccountsPage() {
   const [rows, setRows] = useState<AccountRow[]>([]);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("created_desc");
+  const [appliedSortBy, setAppliedSortBy] = useState<SortKey>("created_desc");
 
   async function load() {
     setLoading(true);
@@ -132,56 +133,60 @@ export default function AdminAccountsPage() {
 
   const searchValue = normalizeText(search);
 
-  const filteredRows = rows.filter((row) => {
-    if (!searchValue) return true;
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      if (!searchValue) return true;
 
-    const haystack = [
-      row.company_name,
-      row.contact_name,
-      row.email,
-      row.phone,
-      row.application_status,
-      row.live_profile ? "yes live true" : "no not live false",
-    ]
-      .map(normalizeText)
-      .join(" ");
+      const haystack = [
+        row.company_name,
+        row.contact_name,
+        row.email,
+        row.phone,
+        row.application_status,
+        row.live_profile ? "yes live true" : "no not live false",
+      ]
+        .map(normalizeText)
+        .join(" ");
 
-    return haystack.includes(searchValue);
-  });
+      return haystack.includes(searchValue);
+    });
+  }, [rows, searchValue]);
 
-  const sortedRows = [...filteredRows].sort((a, b) => {
-    const aCreated = new Date(a.created_at || 0).getTime();
-    const bCreated = new Date(b.created_at || 0).getTime();
+  const sortedRows = useMemo(() => {
+    return [...filteredRows].sort((a, b) => {
+      const aCreated = new Date(a.created_at || 0).getTime();
+      const bCreated = new Date(b.created_at || 0).getTime();
 
-    switch (sortBy) {
-      case "created_asc":
-        return aCreated - bCreated;
-      case "created_desc":
-        return bCreated - aCreated;
-      case "company_asc":
-        return normalizeText(a.company_name).localeCompare(normalizeText(b.company_name));
-      case "company_desc":
-        return normalizeText(b.company_name).localeCompare(normalizeText(a.company_name));
-      case "contact_asc":
-        return normalizeText(a.contact_name).localeCompare(normalizeText(b.contact_name));
-      case "contact_desc":
-        return normalizeText(b.contact_name).localeCompare(normalizeText(a.contact_name));
-      case "status_asc":
-        return normalizeText(a.application_status).localeCompare(
-          normalizeText(b.application_status)
-        );
-      case "status_desc":
-        return normalizeText(b.application_status).localeCompare(
-          normalizeText(a.application_status)
-        );
-      case "live_asc":
-        return Number(a.live_profile) - Number(b.live_profile);
-      case "live_desc":
-        return Number(b.live_profile) - Number(a.live_profile);
-      default:
-        return bCreated - aCreated;
-    }
-  });
+      switch (appliedSortBy) {
+        case "created_asc":
+          return aCreated - bCreated;
+        case "created_desc":
+          return bCreated - aCreated;
+        case "company_asc":
+          return normalizeText(a.company_name).localeCompare(normalizeText(b.company_name));
+        case "company_desc":
+          return normalizeText(b.company_name).localeCompare(normalizeText(a.company_name));
+        case "contact_asc":
+          return normalizeText(a.contact_name).localeCompare(normalizeText(b.contact_name));
+        case "contact_desc":
+          return normalizeText(b.contact_name).localeCompare(normalizeText(a.contact_name));
+        case "status_asc":
+          return normalizeText(a.application_status).localeCompare(
+            normalizeText(b.application_status)
+          );
+        case "status_desc":
+          return normalizeText(b.application_status).localeCompare(
+            normalizeText(a.application_status)
+          );
+        case "live_asc":
+          return Number(a.live_profile) - Number(b.live_profile);
+        case "live_desc":
+          return Number(b.live_profile) - Number(a.live_profile);
+        default:
+          return bCreated - aCreated;
+      }
+    });
+  }, [filteredRows, appliedSortBy]);
 
   return (
     <div className="space-y-6">
@@ -240,10 +245,19 @@ export default function AdminAccountsPage() {
             onClick={() => {
               setSearch("");
               setSortBy("created_desc");
+              setAppliedSortBy("created_desc");
             }}
             className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-[#003768] hover:bg-black/5"
           >
             Clear Filters
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAppliedSortBy(sortBy)}
+            className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-[#003768] hover:bg-black/5"
+          >
+            Apply Sort
           </button>
 
           <button

@@ -140,10 +140,15 @@ function requestStatusPillClasses(status?: string | null) {
   }
 }
 
+function normalizeSearchValue(value: unknown) {
+  return String(value || "").toLowerCase().trim();
+}
+
 export default function PartnerBookingsPage() {
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [adminMode, setAdminMode] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -179,10 +184,43 @@ export default function PartnerBookingsPage() {
     load();
   }, []);
 
+  const searchValue = normalizeSearchValue(search);
+
   const filteredRows = useMemo(() => {
-    if (selectedFilter === "all") return rows;
-    return rows.filter((row) => row.booking_status === selectedFilter);
-  }, [rows, selectedFilter]);
+    let nextRows = rows;
+
+    if (selectedFilter !== "all") {
+      nextRows = nextRows.filter((row) => row.booking_status === selectedFilter);
+    }
+
+    if (!searchValue) return nextRows;
+
+    return nextRows.filter((row) => {
+      const effectiveRequestStatus = "bid_successful";
+
+      const haystack = [
+        row.job_number,
+        row.partner_company_name,
+        row.partner_company_phone,
+        row.customer_name,
+        row.customer_email,
+        row.customer_phone,
+        row.driver_name,
+        row.driver_phone,
+        row.driver_vehicle,
+        row.pickup_address,
+        row.dropoff_address,
+        row.vehicle_category_name,
+        row.booking_status,
+        effectiveRequestStatus,
+        row.pickup_at,
+      ]
+        .map(normalizeSearchValue)
+        .join(" ");
+
+      return haystack.includes(searchValue);
+    });
+  }, [rows, selectedFilter, searchValue]);
 
   return (
     <div className="space-y-6 px-4 py-8 md:px-8">
@@ -203,33 +241,67 @@ export default function PartnerBookingsPage() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <select
-              value={selectedFilter}
-              onChange={(e) => setSelectedFilter(e.target.value)}
-              className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-[#0f4f8a]"
-            >
-              {BOOKING_FILTERS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+          <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[560px]">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search job no, company, customer, driver..."
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-[#0f4f8a]"
+              />
 
-            <button
-              type="button"
-              onClick={load}
-              className="rounded-full bg-[#ff7a00] px-5 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-            >
-              Refresh
-            </button>
+              <select
+                value={selectedFilter}
+                onChange={(e) => setSelectedFilter(e.target.value)}
+                className="rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-[#0f4f8a]"
+              >
+                {BOOKING_FILTERS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setSelectedFilter("all");
+                }}
+                className="rounded-full border border-black/10 bg-white px-5 py-3 font-semibold text-[#003768] hover:bg-black/5"
+              >
+                Clear Filters
+              </button>
+
+              <button
+                type="button"
+                onClick={load}
+                className="rounded-full bg-[#ff7a00] px-5 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
+
+        {searchValue ? (
+          <div className="mt-4 rounded-2xl border border-[#cfe2f7] bg-[#f3f8ff] px-4 py-3 text-sm text-[#003768]">
+            Showing filtered booking results for:{" "}
+            <span className="font-semibold">{search}</span>
+          </div>
+        ) : null}
 
         {loading ? (
           <p className="mt-6 text-slate-600">Loading bookings…</p>
         ) : filteredRows.length === 0 ? (
-          <p className="mt-6 text-slate-600">No bookings found for this filter.</p>
+          <p className="mt-6 text-slate-600">
+            {searchValue || selectedFilter !== "all"
+              ? "No bookings found for this filter."
+              : "No bookings found."}
+          </p>
         ) : (
           <div className="mt-6 overflow-x-auto rounded-3xl border border-black/10">
             <table className="min-w-full text-sm">
@@ -328,12 +400,8 @@ export default function PartnerBookingsPage() {
                       </td>
 
                       <td className="px-4 py-4">
-                        <div className="font-medium text-slate-900">
-                          {driverPrimary}
-                        </div>
-                        <div className="text-slate-500">
-                          {driverSecondary}
-                        </div>
+                        <div className="font-medium text-slate-900">{driverPrimary}</div>
+                        <div className="text-slate-500">{driverSecondary}</div>
                       </td>
 
                       <td className="px-4 py-4">{row.pickup_address || "—"}</td>
