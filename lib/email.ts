@@ -1,3 +1,7 @@
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -10,7 +14,15 @@ export async function sendEmail({
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
 
-  console.log("📧 Attempting to send email to:", to, "subject:", subject);
+  const cleanTo = String(to || "").trim().toLowerCase();
+
+  console.log("📧 Raw email input:", to);
+  console.log("📧 Clean email:", cleanTo);
+
+  if (!cleanTo || !isValidEmail(cleanTo)) {
+    console.error("❌ Invalid email detected:", cleanTo);
+    throw new Error(`Invalid email address: ${cleanTo}`);
+  }
 
   if (!apiKey) {
     console.error("❌ Missing RESEND_API_KEY");
@@ -22,6 +34,8 @@ export async function sendEmail({
     throw new Error("Missing EMAIL_FROM");
   }
 
+  console.log("📧 Sending email to:", cleanTo);
+
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -30,7 +44,7 @@ export async function sendEmail({
     },
     body: JSON.stringify({
       from,
-      to,
+      to: cleanTo,
       subject,
       html,
     }),
@@ -55,7 +69,7 @@ export async function sendApplicationReceivedEmail(to: string) {
     to,
     subject: "Your Camel Global partner application has been received",
     html: `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
+      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
         <h2>Application received</h2>
         <p>Thanks for applying to become a Camel Global partner.</p>
         <p>We have received your application and our team will review it shortly.</p>
@@ -63,7 +77,7 @@ export async function sendApplicationReceivedEmail(to: string) {
         <p>
           <a href="${baseUrl}/partner/login">Partner login</a>
         </p>
-        <p style="color:#666;font-size:13px;margin-top:24px;">Camel Global</p>
+        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
       </div>
     `,
   });
@@ -76,7 +90,7 @@ export async function sendApprovalEmail(to: string) {
     to,
     subject: "Your Camel Global account has been approved ✅",
     html: `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
+      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
         <h2>You're approved ✅</h2>
         <p>Your partner account has been approved.</p>
         <p><strong>You are not live yet.</strong></p>
@@ -89,7 +103,7 @@ export async function sendApprovalEmail(to: string) {
         <p>
           <a href="${baseUrl}/partner/login">Log in here</a>
         </p>
-        <p style="color:#666;font-size:13px;margin-top:24px;">Camel Global</p>
+        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
       </div>
     `,
   });
@@ -102,7 +116,7 @@ export async function sendAccountLiveEmail(to: string) {
     to,
     subject: "Your Camel Global account is now live 🚀",
     html: `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
+      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
         <h2>Your account is now live 🚀</h2>
         <p>Your partner account is now live and ready to receive bookings.</p>
         <p>Please make sure:</p>
@@ -114,7 +128,7 @@ export async function sendAccountLiveEmail(to: string) {
         <p>
           <a href="${baseUrl}/partner/dashboard">Go to dashboard</a>
         </p>
-        <p style="color:#666;font-size:13px;margin-top:24px;">Camel Global</p>
+        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
       </div>
     `,
   });
