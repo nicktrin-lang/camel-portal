@@ -10,6 +10,8 @@ export async function sendEmail({
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
 
+  console.log("📧 Attempting to send email to:", to, "subject:", subject);
+
   if (!apiKey) {
     console.error("❌ Missing RESEND_API_KEY");
     throw new Error("Missing RESEND_API_KEY");
@@ -41,68 +43,58 @@ export async function sendEmail({
   }
 
   const json = await res.json();
-  console.log("✅ Email sent:", json?.id || json);
+  console.log("✅ Email sent successfully:", json?.id || json);
 
   return json;
 }
 
-/* =========================================
-   1. APPLICATION RECEIVED
-========================================= */
 export async function sendApplicationReceivedEmail(to: string) {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
 
   return sendEmail({
     to,
-    subject: "Your Camel Global application has been received",
+    subject: "Your Camel Global partner application has been received",
     html: `
-      <div style="font-family: system-ui;">
+      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
         <h2>Application received</h2>
         <p>Thanks for applying to become a Camel Global partner.</p>
-        <p>Our team will review your application shortly.</p>
+        <p>We have received your application and our team will review it shortly.</p>
         <p>No action is required at this stage.</p>
-        <p style="margin-top:20px;">
-          <a href="${baseUrl}/partner/login">Login to portal</a>
+        <p>
+          <a href="${baseUrl}/partner/login">Partner login</a>
         </p>
+        <p style="color:#666;font-size:13px;margin-top:24px;">Camel Global</p>
       </div>
     `,
   });
 }
 
-/* =========================================
-   2. APPROVED (NOT LIVE)
-========================================= */
 export async function sendApprovalEmail(to: string) {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
 
   return sendEmail({
     to,
-    subject: "Your Camel Global account has been approved",
+    subject: "Your Camel Global account has been approved ✅",
     html: `
-      <div style="font-family: system-ui;">
+      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
         <h2>You're approved ✅</h2>
-        <p>Your account has been approved.</p>
-        
-        <p><strong>Important:</strong> You are not live yet.</p>
-
-        <p>Please complete the following:</p>
+        <p>Your partner account has been approved.</p>
+        <p><strong>You are not live yet.</strong></p>
+        <p>Please log in and complete the following before going live:</p>
         <ul>
-          <li>Add your car fleet</li>
+          <li>Add your fleet</li>
           <li>Confirm your fleet base address</li>
           <li>Check your service radius</li>
         </ul>
-
         <p>
-          <a href="${baseUrl}/partner/login">Login to complete setup</a>
+          <a href="${baseUrl}/partner/login">Log in here</a>
         </p>
+        <p style="color:#666;font-size:13px;margin-top:24px;">Camel Global</p>
       </div>
     `,
   });
 }
 
-/* =========================================
-   3. ACCOUNT LIVE
-========================================= */
 export async function sendAccountLiveEmail(to: string) {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
 
@@ -110,21 +102,19 @@ export async function sendAccountLiveEmail(to: string) {
     to,
     subject: "Your Camel Global account is now live 🚀",
     html: `
-      <div style="font-family: system-ui;">
+      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
         <h2>Your account is now live 🚀</h2>
-
-        <p>You can now start receiving bookings.</p>
-
-        <p>Make sure:</p>
+        <p>Your partner account is now live and ready to receive bookings.</p>
+        <p>Please make sure:</p>
         <ul>
           <li>Your fleet is up to date</li>
-          <li>Your availability is correct</li>
-          <li>Your service radius is accurate</li>
+          <li>Your service radius is correct</li>
+          <li>Your contact details are current</li>
         </ul>
-
         <p>
           <a href="${baseUrl}/partner/dashboard">Go to dashboard</a>
         </p>
+        <p style="color:#666;font-size:13px;margin-top:24px;">Camel Global</p>
       </div>
     `,
   });

@@ -397,6 +397,22 @@ export default function PartnerSignupFleetPage() {
 
       if (profileErr) throw profileErr;
 
+      const emailRes = await fetch("/api/partner/application-received", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: mail }),
+      });
+
+      const emailJson = await emailRes.json().catch(() => null);
+
+      if (!emailRes.ok) {
+        console.error("❌ Application received email failed:", emailJson);
+      } else {
+        console.log("✅ Application received email response:", emailJson);
+      }
+
       sessionStorage.removeItem(STORAGE_KEY);
       await supabase.auth.signOut();
       router.replace("/partner/application-submitted");
