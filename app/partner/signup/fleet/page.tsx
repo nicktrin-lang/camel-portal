@@ -266,8 +266,7 @@ export default function PartnerSignupFleetPage() {
     );
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCreateAccount() {
     setError(null);
 
     if (!step1Data) {
@@ -316,6 +315,7 @@ export default function PartnerSignupFleetPage() {
         headers: {
           "Content-Type": "application/json",
         },
+        cache: "no-store",
         body: JSON.stringify(payload),
       });
 
@@ -334,6 +334,11 @@ export default function PartnerSignupFleetPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await handleCreateAccount();
   }
 
   const lat = parseCoordinate(baseLat, "lat");
@@ -534,7 +539,8 @@ export default function PartnerSignupFleetPage() {
               </button>
 
               <button
-                type="submit"
+                type="button"
+                onClick={handleCreateAccount}
                 disabled={loading}
                 className="rounded-full bg-[#ff7a00] px-6 py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
               >
