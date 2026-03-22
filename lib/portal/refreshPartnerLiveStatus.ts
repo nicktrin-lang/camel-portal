@@ -30,10 +30,6 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
     .from("partner_profiles")
     .select(`
       user_id,
-      company_name,
-      contact_name,
-      phone,
-      address,
       service_radius_km,
       base_address,
       base_lat,
@@ -62,7 +58,7 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
 
   const { data: application, error: applicationErr } = await db
     .from("partner_applications")
-    .select("id, email, status, user_id")
+    .select("id, email, status, user_id, live_email_sent_at")
     .eq("user_id", cleanUserId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -75,31 +71,31 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
   let resolvedApplication = application || null;
 
   if (!resolvedApplication) {
-    const possibleEmails: string[] = [];
-
     const { data: authUser, error: authErr } = await db.auth.admin.getUserById(cleanUserId);
 
-    if (!authErr) {
-      const authEmail = String(authUser?.user?.email || "").trim().toLowerCase();
-      if (authEmail) possibleEmails.push(authEmail);
+    if (authErr) {
+      throw new Error(authErr.message);
     }
 
-    // Fallback: try matching most recent application by profile/company/phone if needed
-    if (possibleEmails.length > 0) {
-      const { data: fallbackApplication, error: fallbackErr } = await db
-        .from("partner_applications")
-        .select("id, email, status, user_id")
-        .in("email", possibleEmails)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    const authEmail = String(authUser?.user?.email || "").trim().toLowerCase();
 
-      if (fallbackErr) {
-        throw new Error(fallbackErr.message);
-      }
-
-      resolvedApplication = fallbackApplication || null;
+    if (!authEmail) {
+      throw new Error("Partner application not found.");
     }
+
+    const { data: fallbackApplication, error: fallbackErr } = await db
+      .from("partner_applications")
+      .select("id, email, status, user_id, live_email_sent_at")
+      .eq("email", authEmail)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (fallbackErr) {
+      throw new Error(fallbackErr.message);
+    }
+
+    resolvedApplication = fallbackApplication || null;
   }
 
   if (!resolvedApplication) {
@@ -109,13 +105,13 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
   const missing: string[] = [];
 
   const hasRadius =
-    profile?.service_radius_km !== null &&
-    profile?.service_radius_km !== undefined &&
+    profile.service_radius_km !== null &&
+    profile.service_radius_km !== undefined &&
     Number(profile.service_radius_km) > 0;
 
-  const hasBaseAddress = hasText(profile?.base_address);
-  const hasBaseLat = hasValidNumber(profile?.base_lat);
-  const hasBaseLng = hasValidNumber(profile?.base_lng);
+  const hasBaseAddress = hasText(profile.base_address);
+  const hasBaseLat = hasValidNumber(profile.base_lat);
+  const hasBaseLng = hasValidNumber(profile.base_lng);
   const hasFleet = Array.isArray(fleetRows) && fleetRows.length > 0;
 
   if (!hasRadius) missing.push("service_radius_km");
@@ -125,20 +121,19 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
   if (!hasFleet) missing.push("fleet");
 
   const isLiveNow = missing.length === 0;
-  const currentStatus = String(resolvedApplication.status || "").trim().toLowerCase();
-  const alreadyLive = currentStatus === "live";
+  const liveEmailAlreadySent = !!resolvedApplication.live_email_sent_at;
 
   if (!isLiveNow) {
     return {
       ok: true,
       userId: cleanUserId,
       becameLive: false,
-      alreadyLive,
+      alreadyLive: liveEmailAlreadySent,
       missing,
     };
   }
 
-  if (alreadyLive) {
+  if (liveEmailAlreadySent) {
     return {
       ok: true,
       userId: cleanUserId,
@@ -148,22 +143,24 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
     };
   }
 
+  const partnerEmail = String(resolvedApplication.email || "").trim().toLowerCase();
+
+  if (!partnerEmail) {
+    throw new Error("Partner email not found.");
+  }
+
+  await sendAccountLiveEmail(partnerEmail);
+
   const { error: updateErr } = await db
     .from("partner_applications")
     .update({
-      status: "live",
       user_id: cleanUserId,
+      live_email_sent_at: new Date().toISOString(),
     })
     .eq("id", resolvedApplication.id);
 
   if (updateErr) {
     throw new Error(updateErr.message);
-  }
-
-  const partnerEmail = String(resolvedApplication.email || "").trim().toLowerCase();
-
-  if (partnerEmail) {
-    await sendAccountLiveEmail(partnerEmail);
   }
 
   return {
