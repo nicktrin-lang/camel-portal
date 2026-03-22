@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
-
 type BookingRow = {
   id: string;
   request_id: string;
@@ -21,14 +19,26 @@ type BookingRow = {
   driver_vehicle: string | null;
   driver_notes: string | null;
   driver_assigned_at: string | null;
-  collection_fuel_level: FuelLevel | null;
-  return_fuel_level: FuelLevel | null;
-  collection_confirmed_by_partner: boolean | null;
-  return_confirmed_by_partner: boolean | null;
-  collected_at: string | null;
-  returned_at: string | null;
-  collection_notes: string | null;
-  return_notes: string | null;
+
+  collection_confirmed_by_partner?: boolean | null;
+  collection_confirmed_by_partner_at?: string | null;
+  collection_fuel_level_partner?: string | null;
+  collection_partner_notes?: string | null;
+
+  return_confirmed_by_partner?: boolean | null;
+  return_confirmed_by_partner_at?: string | null;
+  return_fuel_level_partner?: string | null;
+  return_partner_notes?: string | null;
+
+  collection_confirmed_by_customer?: boolean | null;
+  collection_confirmed_by_customer_at?: string | null;
+  collection_fuel_level_customer?: string | null;
+  collection_customer_notes?: string | null;
+
+  return_confirmed_by_customer?: boolean | null;
+  return_confirmed_by_customer_at?: string | null;
+  return_fuel_level_customer?: string | null;
+  return_customer_notes?: string | null;
 };
 
 type RequestRow = {
@@ -56,6 +66,8 @@ type ApiResponse = {
   request: RequestRow | null;
   role: string | null;
 };
+
+type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -94,7 +106,20 @@ function formatGBP(value?: number | null) {
 }
 
 function fuelLabel(value?: string | null) {
-  return value || "—";
+  switch (String(value || "").toLowerCase()) {
+    case "full":
+      return "Full";
+    case "3/4":
+      return "3/4";
+    case "half":
+      return "Half";
+    case "quarter":
+      return "Quarter";
+    case "empty":
+      return "Empty";
+    default:
+      return "—";
+  }
 }
 
 export default function PartnerBookingDetailPage() {
@@ -114,11 +139,12 @@ export default function PartnerBookingDetailPage() {
   const [driverNotes, setDriverNotes] = useState("");
 
   const [collectionFuelLevel, setCollectionFuelLevel] = useState<FuelLevel>("full");
-  const [returnFuelLevel, setReturnFuelLevel] = useState<FuelLevel>("full");
   const [collectionConfirmedByPartner, setCollectionConfirmedByPartner] = useState(false);
+  const [collectionPartnerNotes, setCollectionPartnerNotes] = useState("");
+
+  const [returnFuelLevel, setReturnFuelLevel] = useState<FuelLevel>("full");
   const [returnConfirmedByPartner, setReturnConfirmedByPartner] = useState(false);
-  const [collectionNotes, setCollectionNotes] = useState("");
-  const [returnNotes, setReturnNotes] = useState("");
+  const [returnPartnerNotes, setReturnPartnerNotes] = useState("");
 
   async function load() {
     if (!bookingId) {
@@ -151,12 +177,18 @@ export default function PartnerBookingDetailPage() {
       setDriverPhone(nextData.booking.driver_phone || "");
       setDriverVehicle(nextData.booking.driver_vehicle || "");
       setDriverNotes(nextData.booking.driver_notes || "");
-      setCollectionFuelLevel(nextData.booking.collection_fuel_level || "full");
-      setReturnFuelLevel(nextData.booking.return_fuel_level || "full");
+
+      setCollectionFuelLevel(
+        (nextData.booking.collection_fuel_level_partner as FuelLevel) || "full"
+      );
       setCollectionConfirmedByPartner(!!nextData.booking.collection_confirmed_by_partner);
+      setCollectionPartnerNotes(nextData.booking.collection_partner_notes || "");
+
+      setReturnFuelLevel(
+        (nextData.booking.return_fuel_level_partner as FuelLevel) || "full"
+      );
       setReturnConfirmedByPartner(!!nextData.booking.return_confirmed_by_partner);
-      setCollectionNotes(nextData.booking.collection_notes || "");
-      setReturnNotes(nextData.booking.return_notes || "");
+      setReturnPartnerNotes(nextData.booking.return_partner_notes || "");
     } catch (e: any) {
       setError(e?.message || "Failed to load booking.");
       setData(null);
@@ -190,12 +222,14 @@ export default function PartnerBookingDetailPage() {
           driver_phone: driverPhone,
           driver_vehicle: driverVehicle,
           driver_notes: driverNotes,
-          collection_fuel_level: collectionFuelLevel,
-          return_fuel_level: returnFuelLevel,
+
+          collection_fuel_level_partner: collectionFuelLevel,
           collection_confirmed_by_partner: collectionConfirmedByPartner,
+          collection_partner_notes: collectionPartnerNotes,
+
+          return_fuel_level_partner: returnFuelLevel,
           return_confirmed_by_partner: returnConfirmedByPartner,
-          collection_notes: collectionNotes,
-          return_notes: returnNotes,
+          return_partner_notes: returnPartnerNotes,
         }),
       });
 
@@ -238,6 +272,12 @@ export default function PartnerBookingDetailPage() {
   const request = data.request;
   const role = data.role || "partner";
   const adminMode = role === "admin" || role === "super_admin";
+
+  const collectionLocked =
+    !!booking.collection_confirmed_by_partner && !!booking.collection_confirmed_by_customer;
+
+  const returnLocked =
+    !!booking.return_confirmed_by_partner && !!booking.return_confirmed_by_customer;
 
   return (
     <div className="space-y-6 px-4 py-8 md:px-8">
@@ -303,14 +343,6 @@ export default function PartnerBookingDetailPage() {
             <p>
               <span className="font-semibold text-slate-900">Driver assigned at:</span>{" "}
               {formatDateTime(booking.driver_assigned_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Collected at:</span>{" "}
-              {formatDateTime(booking.collected_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Returned at:</span>{" "}
-              {formatDateTime(booking.returned_at)}
             </p>
           </div>
         </div>
@@ -385,7 +417,7 @@ export default function PartnerBookingDetailPage() {
 
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">
-          Driver Assignment & Handover
+          Driver Assignment & Booking Progress
         </h2>
 
         <form onSubmit={saveBookingOps} className="mt-6 space-y-8">
@@ -400,7 +432,7 @@ export default function PartnerBookingDetailPage() {
             >
               <option value="confirmed">confirmed</option>
               <option value="driver_assigned">driver_assigned</option>
-              <option value="en_route">en_route</option>
+              <option value="en_route">en route</option>
               <option value="arrived">arrived</option>
               <option value="collected">collected</option>
               <option value="returned">returned</option>
@@ -460,19 +492,47 @@ export default function PartnerBookingDetailPage() {
             />
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <div className="rounded-2xl border border-black/10 p-5">
-              <h3 className="text-xl font-semibold text-[#003768]">Collection</h3>
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <div className="rounded-3xl border border-black/10 p-5">
+              <h3 className="text-2xl font-semibold text-[#003768]">Collection</h3>
 
-              <div className="mt-5 space-y-4">
+              <div className="mt-6 space-y-4">
+                <div className="rounded-2xl border border-black/10 bg-slate-50 p-4 text-sm text-slate-700">
+                  <p>
+                    <span className="font-semibold text-slate-900">Customer confirmed:</span>{" "}
+                    {booking.collection_confirmed_by_customer ? "Yes" : "No"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-slate-900">Customer fuel:</span>{" "}
+                    {fuelLabel(booking.collection_fuel_level_customer)}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-slate-900">Customer notes:</span>{" "}
+                    {booking.collection_customer_notes || "—"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-slate-900">Customer confirmed at:</span>{" "}
+                    {formatDateTime(booking.collection_confirmed_by_customer_at)}
+                  </p>
+                </div>
+
+                {collectionLocked ? (
+                  <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                    Collection is locked because both partner and customer have confirmed it.
+                  </div>
+                ) : null}
+
                 <div>
                   <label className="text-sm font-medium text-[#003768]">
                     Fuel level at collection
                   </label>
                   <select
                     value={collectionFuelLevel}
-                    onChange={(e) => setCollectionFuelLevel(e.target.value as FuelLevel)}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                    disabled={collectionLocked}
+                    onChange={(e) =>
+                      setCollectionFuelLevel(e.target.value as FuelLevel)
+                    }
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-4 outline-none focus:border-[#0f4f8a] disabled:opacity-60"
                   >
                     <option value="full">full</option>
                     <option value="3/4">3/4</option>
@@ -486,7 +546,10 @@ export default function PartnerBookingDetailPage() {
                   <input
                     type="checkbox"
                     checked={collectionConfirmedByPartner}
-                    onChange={(e) => setCollectionConfirmedByPartner(e.target.checked)}
+                    disabled={collectionLocked}
+                    onChange={(e) =>
+                      setCollectionConfirmedByPartner(e.target.checked)
+                    }
                     className="h-4 w-4"
                   />
                   Partner confirms collection completed
@@ -498,31 +561,59 @@ export default function PartnerBookingDetailPage() {
                   </label>
                   <textarea
                     rows={4}
-                    value={collectionNotes}
-                    onChange={(e) => setCollectionNotes(e.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                    value={collectionPartnerNotes}
+                    disabled={collectionLocked}
+                    onChange={(e) => setCollectionPartnerNotes(e.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a] disabled:opacity-60"
                     placeholder="Collection notes, issues, condition notes, etc."
                   />
                 </div>
 
-                <p className="text-sm text-slate-600">
-                  Saved fuel level: <strong>{fuelLabel(booking.collection_fuel_level)}</strong>
+                <p className="text-sm text-slate-500">
+                  Saved fuel level:{" "}
+                  <strong>{fuelLabel(booking.collection_fuel_level_partner)}</strong>
                 </p>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-black/10 p-5">
-              <h3 className="text-xl font-semibold text-[#003768]">Return</h3>
+            <div className="rounded-3xl border border-black/10 p-5">
+              <h3 className="text-2xl font-semibold text-[#003768]">Return</h3>
 
-              <div className="mt-5 space-y-4">
+              <div className="mt-6 space-y-4">
+                <div className="rounded-2xl border border-black/10 bg-slate-50 p-4 text-sm text-slate-700">
+                  <p>
+                    <span className="font-semibold text-slate-900">Customer confirmed:</span>{" "}
+                    {booking.return_confirmed_by_customer ? "Yes" : "No"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-slate-900">Customer fuel:</span>{" "}
+                    {fuelLabel(booking.return_fuel_level_customer)}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-slate-900">Customer notes:</span>{" "}
+                    {booking.return_customer_notes || "—"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-slate-900">Customer confirmed at:</span>{" "}
+                    {formatDateTime(booking.return_confirmed_by_customer_at)}
+                  </p>
+                </div>
+
+                {returnLocked ? (
+                  <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                    Return is locked because both partner and customer have confirmed it.
+                  </div>
+                ) : null}
+
                 <div>
                   <label className="text-sm font-medium text-[#003768]">
                     Fuel level at return
                   </label>
                   <select
                     value={returnFuelLevel}
+                    disabled={returnLocked}
                     onChange={(e) => setReturnFuelLevel(e.target.value as FuelLevel)}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-4 outline-none focus:border-[#0f4f8a] disabled:opacity-60"
                   >
                     <option value="full">full</option>
                     <option value="3/4">3/4</option>
@@ -536,7 +627,10 @@ export default function PartnerBookingDetailPage() {
                   <input
                     type="checkbox"
                     checked={returnConfirmedByPartner}
-                    onChange={(e) => setReturnConfirmedByPartner(e.target.checked)}
+                    disabled={returnLocked}
+                    onChange={(e) =>
+                      setReturnConfirmedByPartner(e.target.checked)
+                    }
                     className="h-4 w-4"
                   />
                   Partner confirms return completed
@@ -548,15 +642,17 @@ export default function PartnerBookingDetailPage() {
                   </label>
                   <textarea
                     rows={4}
-                    value={returnNotes}
-                    onChange={(e) => setReturnNotes(e.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                    value={returnPartnerNotes}
+                    disabled={returnLocked}
+                    onChange={(e) => setReturnPartnerNotes(e.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a] disabled:opacity-60"
                     placeholder="Return notes, damage notes, fuel comments, etc."
                   />
                 </div>
 
-                <p className="text-sm text-slate-600">
-                  Saved fuel level: <strong>{fuelLabel(booking.return_fuel_level)}</strong>
+                <p className="text-sm text-slate-500">
+                  Saved fuel level:{" "}
+                  <strong>{fuelLabel(booking.return_fuel_level_partner)}</strong>
                 </p>
               </div>
             </div>
