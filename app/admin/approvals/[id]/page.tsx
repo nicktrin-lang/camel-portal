@@ -9,7 +9,7 @@ const PartnerLocationMap = dynamic(() => import("./PartnerLocationMap"), {
   ssr: false,
 });
 
-type AppStatus = "pending" | "approved" | "rejected";
+type AppStatus = "pending" | "approved" | "rejected" | "live";
 
 type PartnerApplication = {
   id: string;
@@ -30,7 +30,7 @@ type PartnerApplication = {
 };
 
 type PartnerProfile = {
-  id: string;
+  id?: string;
   user_id: string | null;
   company_name: string | null;
   contact_name: string | null;
@@ -48,6 +48,19 @@ type PartnerProfile = {
   base_lng: number | null;
 };
 
+type FleetRow = {
+  id: string;
+  category_slug: string | null;
+  category_name: string | null;
+  max_passengers: number | null;
+  max_suitcases: number | null;
+  max_hand_luggage: number | null;
+  service_level: string | null;
+  notes: string | null;
+  is_active: boolean | null;
+  created_at: string | null;
+};
+
 function fmtDateTime(iso?: string | null) {
   if (!iso) return "—";
   try {
@@ -55,6 +68,12 @@ function fmtDateTime(iso?: string | null) {
   } catch {
     return iso ?? "—";
   }
+}
+
+function labelServiceLevel(value?: string | null) {
+  const v = String(value || "").trim();
+  if (!v) return "Standard";
+  return v.charAt(0).toUpperCase() + v.slice(1);
 }
 
 async function safeJson(res: Response): Promise<any> {
@@ -78,6 +97,7 @@ export default function AdminApprovalDetailPage() {
 
   const [application, setApplication] = useState<PartnerApplication | null>(null);
   const [profile, setProfile] = useState<PartnerProfile | null>(null);
+  const [fleet, setFleet] = useState<FleetRow[]>([]);
 
   async function load() {
     setLoading(true);
@@ -119,12 +139,38 @@ export default function AdminApprovalDetailPage() {
         throw new Error(json?.error || json?._raw || "Failed to load partner detail.");
       }
 
-      setApplication((json?.application || null) as PartnerApplication | null);
-      setProfile((json?.profile || null) as PartnerProfile | null);
+      const nextApplication = (json?.application || null) as PartnerApplication | null;
+      const nextProfile = (json?.profile || null) as PartnerProfile | null;
+
+      setApplication(nextApplication);
+      setProfile(nextProfile);
+
+      const profileUserId =
+        String(nextProfile?.user_id || "").trim() ||
+        String(nextApplication?.user_id || "").trim();
+
+      if (profileUserId) {
+        const { data: fleetRows, error: fleetErr } = await supabase
+          .from("partner_fleet")
+          .select(
+            "id, category_slug, category_name, max_passengers, max_suitcases, max_hand_luggage, service_level, notes, is_active, created_at"
+          )
+          .eq("user_id", profileUserId)
+          .order("created_at", { ascending: false });
+
+        if (fleetErr) {
+          throw new Error(fleetErr.message || "Failed to load partner fleet.");
+        }
+
+        setFleet((fleetRows || []) as FleetRow[]);
+      } else {
+        setFleet([]);
+      }
     } catch (e: any) {
       setError(e?.message || "Failed to load partner detail.");
       setApplication(null);
       setProfile(null);
+      setFleet([]);
     } finally {
       setLoading(false);
     }
@@ -188,7 +234,7 @@ export default function AdminApprovalDetailPage() {
   const status = (application?.status || "pending") as AppStatus;
 
   const badgeClass =
-    status === "approved"
+    status === "approved" || status === "live"
       ? "border-green-200 bg-green-50 text-green-700"
       : status === "rejected"
       ? "border-red-200 bg-red-50 text-red-700"
@@ -217,15 +263,15 @@ export default function AdminApprovalDetailPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-semibold text-[#003768]">
-                    {application.full_name || "—"}
+                    {application.full_name || profile?.contact_name || "—"}
                   </h2>
                   <p className="mt-2 text-lg text-slate-600">
-                    {application.company_name || "—"}
+                    {application.company_name || profile?.company_name || "—"}
                   </p>
                 </div>
 
                 <span
-                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badgeClass}`}
+                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${badgeClass}`}
                 >
                   {status}
                 </span>
@@ -352,6 +398,60 @@ export default function AdminApprovalDetailPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+            <h2 className="text-2xl font-semibold text-[#003768]">Fleet</h2>
+
+            {fleet.length === 0 ? (
+              <p className="mt-4 text-slate-600">No fleet items added yet.</p>
+            ) : (
+              <div className="mt-6 space-y-4">
+                {fleet.map((row) => (
+                  <div
+                    key={row.id}
+                    className="rounded-2xl border border-black/10 p-5"
+                  >
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-semibold text-[#003768]">
+                        {row.category_name || "—"}
+                      </h3>
+
+                      <p className="text-slate-700">
+                        Passengers: {row.max_passengers ?? "—"} · Suitcases:{" "}
+                        {row.max_suitcases ?? "—"} · Hand luggage:{" "}
+                        {row.max_hand_luggage ?? "—"}
+                      </p>
+
+                      <p className="text-slate-700">
+                        Service level: {labelServiceLevel(row.service_level)}
+                      </p>
+
+                      <p className="text-slate-700">
+                        Status:{" "}
+                        <span
+                          className={
+                            row.is_active
+                              ? "font-semibold text-green-700"
+                              : "font-semibold text-slate-500"
+                          }
+                        >
+                          {row.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </p>
+
+                      {row.notes ? (
+                        <p className="text-slate-600">{row.notes}</p>
+                      ) : null}
+
+                      <p className="text-xs text-slate-500">
+                        Added: {fmtDateTime(row.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="rounded-3xl border border-black/5 bg-white p-4 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
