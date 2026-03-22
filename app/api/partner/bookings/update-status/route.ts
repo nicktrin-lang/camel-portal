@@ -30,6 +30,10 @@ export async function POST(req: Request) {
     const allowedStatuses = [
       "confirmed",
       "driver_assigned",
+      "en_route",
+      "arrived",
+      "collected",
+      "returned",
       "completed",
       "cancelled",
     ];
@@ -45,7 +49,7 @@ export async function POST(req: Request) {
 
     const { data: booking, error: findErr } = await db
       .from("partner_bookings")
-      .select("id")
+      .select("id,collected_at,returned_at")
       .eq("id", bookingId)
       .eq("partner_user_id", userId)
       .maybeSingle();
@@ -61,11 +65,23 @@ export async function POST(req: Request) {
       );
     }
 
+    const updatePayload: Record<string, any> = {
+      booking_status: status,
+    };
+
+    if (status === "collected" && !booking.collected_at) {
+      updatePayload.collected_at = new Date().toISOString();
+      updatePayload.collection_confirmed_by_partner = true;
+    }
+
+    if ((status === "returned" || status === "completed") && !booking.returned_at) {
+      updatePayload.returned_at = new Date().toISOString();
+      updatePayload.return_confirmed_by_partner = true;
+    }
+
     const { error: updateErr } = await db
       .from("partner_bookings")
-      .update({
-        booking_status: status,
-      })
+      .update(updatePayload)
       .eq("id", bookingId)
       .eq("partner_user_id", userId);
 
@@ -74,7 +90,6 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true });
-
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "Server error" },

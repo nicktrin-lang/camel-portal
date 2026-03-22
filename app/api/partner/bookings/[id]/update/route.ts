@@ -8,11 +8,16 @@ const ALLOWED_BOOKING_STATUSES = [
   "driver_assigned",
   "en_route",
   "arrived",
+  "collected",
+  "returned",
   "completed",
   "cancelled",
 ] as const;
 
+const ALLOWED_FUEL_LEVELS = ["full", "3/4", "half", "quarter", "empty"] as const;
+
 type AllowedBookingStatus = (typeof ALLOWED_BOOKING_STATUSES)[number];
+type AllowedFuelLevel = (typeof ALLOWED_FUEL_LEVELS)[number];
 
 function normalizeBookingStatus(value: unknown): AllowedBookingStatus {
   const clean = String(value || "").trim();
@@ -20,12 +25,28 @@ function normalizeBookingStatus(value: unknown): AllowedBookingStatus {
     clean === "driver_assigned" ||
     clean === "en_route" ||
     clean === "arrived" ||
+    clean === "collected" ||
+    clean === "returned" ||
     clean === "completed" ||
     clean === "cancelled"
   ) {
     return clean;
   }
   return "confirmed";
+}
+
+function normalizeFuelLevel(value: unknown): AllowedFuelLevel | null {
+  const clean = String(value || "").trim().toLowerCase();
+  if (
+    clean === "full" ||
+    clean === "3/4" ||
+    clean === "half" ||
+    clean === "quarter" ||
+    clean === "empty"
+  ) {
+    return clean as AllowedFuelLevel;
+  }
+  return null;
 }
 
 export async function POST(
@@ -55,11 +76,26 @@ export async function POST(
     const driver_vehicle = String(body?.driver_vehicle || "").trim() || null;
     const driver_notes = String(body?.driver_notes || "").trim() || null;
 
+    const collection_fuel_level = normalizeFuelLevel(body?.collection_fuel_level);
+    const return_fuel_level = normalizeFuelLevel(body?.return_fuel_level);
+    const collection_notes = String(body?.collection_notes || "").trim() || null;
+    const return_notes = String(body?.return_notes || "").trim() || null;
+    const collection_confirmed_by_partner = !!body?.collection_confirmed_by_partner;
+    const return_confirmed_by_partner = !!body?.return_confirmed_by_partner;
+
     const db = createServiceRoleSupabaseClient();
 
     let bookingQuery = db
       .from("partner_bookings")
-      .select("id, partner_user_id")
+      .select(`
+        id,
+        partner_user_id,
+        driver_assigned_at,
+        collected_at,
+        returned_at,
+        collection_confirmed_by_partner,
+        return_confirmed_by_partner
+      `)
       .eq("id", id);
 
     if (!adminMode) {
@@ -79,16 +115,42 @@ export async function POST(
     const driverAssigned =
       !!driver_name || !!driver_phone || !!driver_vehicle || booking_status === "driver_assigned";
 
+    const updatePayload: Record<string, any> = {
+      booking_status,
+      driver_name,
+      driver_phone,
+      driver_vehicle,
+      driver_notes,
+      driver_assigned_at: driverAssigned
+        ? bookingRow.driver_assigned_at || new Date().toISOString()
+        : null,
+      collection_fuel_level,
+      return_fuel_level,
+      collection_notes,
+      return_notes,
+      collection_confirmed_by_partner,
+      return_confirmed_by_partner,
+      collected_at:
+        booking_status === "collected"
+          ? bookingRow.collected_at || new Date().toISOString()
+          : bookingRow.collected_at,
+      returned_at:
+        booking_status === "returned" || booking_status === "completed"
+          ? bookingRow.returned_at || new Date().toISOString()
+          : bookingRow.returned_at,
+    };
+
+    if (!collection_confirmed_by_partner && booking_status !== "collected") {
+      updatePayload.collected_at = bookingRow.collected_at;
+    }
+
+    if (!return_confirmed_by_partner && booking_status !== "returned" && booking_status !== "completed") {
+      updatePayload.returned_at = bookingRow.returned_at;
+    }
+
     const { error: updateErr } = await db
       .from("partner_bookings")
-      .update({
-        booking_status,
-        driver_name,
-        driver_phone,
-        driver_vehicle,
-        driver_notes,
-        driver_assigned_at: driverAssigned ? new Date().toISOString() : null,
-      })
+      .update(updatePayload)
       .eq("id", id);
 
     if (updateErr) {

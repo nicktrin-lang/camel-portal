@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
+type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
+
 type BookingRow = {
   id: string;
   request_id: string;
@@ -19,6 +21,14 @@ type BookingRow = {
   driver_vehicle: string | null;
   driver_notes: string | null;
   driver_assigned_at: string | null;
+  collection_fuel_level: FuelLevel | null;
+  return_fuel_level: FuelLevel | null;
+  collection_confirmed_by_partner: boolean | null;
+  return_confirmed_by_partner: boolean | null;
+  collected_at: string | null;
+  returned_at: string | null;
+  collection_notes: string | null;
+  return_notes: string | null;
 };
 
 type RequestRow = {
@@ -83,6 +93,10 @@ function formatGBP(value?: number | null) {
   }).format(value);
 }
 
+function fuelLabel(value?: string | null) {
+  return value || "—";
+}
+
 export default function PartnerBookingDetailPage() {
   const params = useParams<{ id: string }>();
   const bookingId = String(params?.id || "");
@@ -98,6 +112,13 @@ export default function PartnerBookingDetailPage() {
   const [driverPhone, setDriverPhone] = useState("");
   const [driverVehicle, setDriverVehicle] = useState("");
   const [driverNotes, setDriverNotes] = useState("");
+
+  const [collectionFuelLevel, setCollectionFuelLevel] = useState<FuelLevel>("full");
+  const [returnFuelLevel, setReturnFuelLevel] = useState<FuelLevel>("full");
+  const [collectionConfirmedByPartner, setCollectionConfirmedByPartner] = useState(false);
+  const [returnConfirmedByPartner, setReturnConfirmedByPartner] = useState(false);
+  const [collectionNotes, setCollectionNotes] = useState("");
+  const [returnNotes, setReturnNotes] = useState("");
 
   async function load() {
     if (!bookingId) {
@@ -130,6 +151,12 @@ export default function PartnerBookingDetailPage() {
       setDriverPhone(nextData.booking.driver_phone || "");
       setDriverVehicle(nextData.booking.driver_vehicle || "");
       setDriverNotes(nextData.booking.driver_notes || "");
+      setCollectionFuelLevel(nextData.booking.collection_fuel_level || "full");
+      setReturnFuelLevel(nextData.booking.return_fuel_level || "full");
+      setCollectionConfirmedByPartner(!!nextData.booking.collection_confirmed_by_partner);
+      setReturnConfirmedByPartner(!!nextData.booking.return_confirmed_by_partner);
+      setCollectionNotes(nextData.booking.collection_notes || "");
+      setReturnNotes(nextData.booking.return_notes || "");
     } catch (e: any) {
       setError(e?.message || "Failed to load booking.");
       setData(null);
@@ -163,6 +190,12 @@ export default function PartnerBookingDetailPage() {
           driver_phone: driverPhone,
           driver_vehicle: driverVehicle,
           driver_notes: driverNotes,
+          collection_fuel_level: collectionFuelLevel,
+          return_fuel_level: returnFuelLevel,
+          collection_confirmed_by_partner: collectionConfirmedByPartner,
+          return_confirmed_by_partner: returnConfirmedByPartner,
+          collection_notes: collectionNotes,
+          return_notes: returnNotes,
         }),
       });
 
@@ -228,7 +261,6 @@ export default function PartnerBookingDetailPage() {
               ? "Inspect and manage any booking across the network."
               : "View and manage accepted booking information."}
           </p>
-          <p className="mt-1 text-sm text-slate-500">Signed in role: {role}</p>
         </div>
 
         <Link
@@ -271,6 +303,14 @@ export default function PartnerBookingDetailPage() {
             <p>
               <span className="font-semibold text-slate-900">Driver assigned at:</span>{" "}
               {formatDateTime(booking.driver_assigned_at)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Collected at:</span>{" "}
+              {formatDateTime(booking.collected_at)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Returned at:</span>{" "}
+              {formatDateTime(booking.returned_at)}
             </p>
           </div>
         </div>
@@ -345,10 +385,10 @@ export default function PartnerBookingDetailPage() {
 
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">
-          Driver Assignment & Booking Progress
+          Driver Assignment & Handover
         </h2>
 
-        <form onSubmit={saveBookingOps} className="mt-6 space-y-5">
+        <form onSubmit={saveBookingOps} className="mt-6 space-y-8">
           <div>
             <label className="text-sm font-medium text-[#003768]">
               Booking status
@@ -360,8 +400,10 @@ export default function PartnerBookingDetailPage() {
             >
               <option value="confirmed">confirmed</option>
               <option value="driver_assigned">driver_assigned</option>
-              <option value="en_route">en route</option>
+              <option value="en_route">en_route</option>
               <option value="arrived">arrived</option>
+              <option value="collected">collected</option>
+              <option value="returned">returned</option>
               <option value="completed">completed</option>
               <option value="cancelled">cancelled</option>
             </select>
@@ -416,6 +458,108 @@ export default function PartnerBookingDetailPage() {
               className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
               placeholder="Optional notes about the assigned driver or collection"
             />
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <div className="rounded-2xl border border-black/10 p-5">
+              <h3 className="text-xl font-semibold text-[#003768]">Collection</h3>
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-[#003768]">
+                    Fuel level at collection
+                  </label>
+                  <select
+                    value={collectionFuelLevel}
+                    onChange={(e) => setCollectionFuelLevel(e.target.value as FuelLevel)}
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                  >
+                    <option value="full">full</option>
+                    <option value="3/4">3/4</option>
+                    <option value="half">half</option>
+                    <option value="quarter">quarter</option>
+                    <option value="empty">empty</option>
+                  </select>
+                </div>
+
+                <label className="inline-flex items-center gap-3 text-sm font-medium text-[#003768]">
+                  <input
+                    type="checkbox"
+                    checked={collectionConfirmedByPartner}
+                    onChange={(e) => setCollectionConfirmedByPartner(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Partner confirms collection completed
+                </label>
+
+                <div>
+                  <label className="text-sm font-medium text-[#003768]">
+                    Collection notes
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={collectionNotes}
+                    onChange={(e) => setCollectionNotes(e.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                    placeholder="Collection notes, issues, condition notes, etc."
+                  />
+                </div>
+
+                <p className="text-sm text-slate-600">
+                  Saved fuel level: <strong>{fuelLabel(booking.collection_fuel_level)}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-black/10 p-5">
+              <h3 className="text-xl font-semibold text-[#003768]">Return</h3>
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-[#003768]">
+                    Fuel level at return
+                  </label>
+                  <select
+                    value={returnFuelLevel}
+                    onChange={(e) => setReturnFuelLevel(e.target.value as FuelLevel)}
+                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                  >
+                    <option value="full">full</option>
+                    <option value="3/4">3/4</option>
+                    <option value="half">half</option>
+                    <option value="quarter">quarter</option>
+                    <option value="empty">empty</option>
+                  </select>
+                </div>
+
+                <label className="inline-flex items-center gap-3 text-sm font-medium text-[#003768]">
+                  <input
+                    type="checkbox"
+                    checked={returnConfirmedByPartner}
+                    onChange={(e) => setReturnConfirmedByPartner(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Partner confirms return completed
+                </label>
+
+                <div>
+                  <label className="text-sm font-medium text-[#003768]">
+                    Return notes
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={returnNotes}
+                    onChange={(e) => setReturnNotes(e.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
+                    placeholder="Return notes, damage notes, fuel comments, etc."
+                  />
+                </div>
+
+                <p className="text-sm text-slate-600">
+                  Saved fuel level: <strong>{fuelLabel(booking.return_fuel_level)}</strong>
+                </p>
+              </div>
+            </div>
           </div>
 
           <button
