@@ -72,10 +72,7 @@ function parseCoordinate(
   return sign * num;
 }
 
-async function safeDeleteApplication(
-  db: ReturnType<typeof createServiceRoleSupabaseClient>,
-  userId: string
-) {
+async function safeDeleteApplication(db: any, userId: string) {
   try {
     await db.from("partner_applications").delete().eq("user_id", userId);
   } catch (e) {
@@ -83,10 +80,7 @@ async function safeDeleteApplication(
   }
 }
 
-async function safeDeleteAuthUser(
-  db: ReturnType<typeof createServiceRoleSupabaseClient>,
-  userId: string
-) {
+async function safeDeleteAuthUser(db: any, userId: string) {
   try {
     await db.auth.admin.deleteUser(userId);
   } catch (e) {
@@ -269,20 +263,8 @@ export async function POST(req: Request) {
     console.log("✅ Partner profile upserted");
     console.log("📧 Sending application received email to:", email);
 
-    try {
-      const emailResult = await sendApplicationReceivedEmail(email);
-      console.log("✅ Application received email sent:", emailResult);
-    } catch (emailErr: any) {
-      console.error("❌ Application received email failed:", emailErr?.message || emailErr);
-      return NextResponse.json(
-        {
-          error:
-            emailErr?.message ||
-            "Partner account was created but the application email failed to send.",
-        },
-        { status: 500 }
-      );
-    }
+    const emailResult = await sendApplicationReceivedEmail(email);
+    console.log("✅ Application received email sent:", emailResult);
 
     return NextResponse.json(
       {
