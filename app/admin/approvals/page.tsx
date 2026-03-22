@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import MakeLiveButton from "@/app/components/admin/MakeLiveButton";
 
 type ApprovalRow = {
   id: string;
@@ -53,8 +52,6 @@ function statusPillClasses(status?: string | null) {
       return "border-amber-200 bg-amber-50 text-amber-700";
     case "rejected":
       return "border-red-200 bg-red-50 text-red-700";
-    case "live":
-      return "border-blue-200 bg-blue-50 text-blue-700";
     default:
       return "border-black/10 bg-white text-slate-700";
   }
@@ -68,7 +65,7 @@ function liveValue(row: ApprovalRow) {
   return !!(row.is_live_profile ?? row.live_profile ?? false);
 }
 
-export default function AdminPartnerApprovalsPage() {
+export default function AdminApprovalsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
 
@@ -205,7 +202,6 @@ export default function AdminPartnerApprovalsPage() {
                 <option value="all">All statuses</option>
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
-                <option value="live">Live</option>
                 <option value="rejected">Rejected</option>
               </select>
             </div>
@@ -327,18 +323,12 @@ export default function AdminPartnerApprovalsPage() {
                       </td>
 
                       <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          {normalizeText(row.status) === "approved" ? (
-                            <MakeLiveButton applicationId={row.id} onDone={load} />
-                          ) : null}
-
-                          <Link
-                            href={`/admin/partner-approvals/${row.id}`}
-                            className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-                          >
-                            View
-                          </Link>
-                        </div>
+                        <Link
+                          href={`/admin/approvals/${row.id}`}
+                          className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+                        >
+                          View
+                        </Link>
                       </td>
                     </tr>
                   ))
