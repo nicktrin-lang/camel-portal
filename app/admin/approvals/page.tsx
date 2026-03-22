@@ -2,20 +2,35 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import MakeLiveButton from "@/app/components/admin/MakeLiveButton";
 
 type ApprovalRow = {
   id: string;
-  email: string;
-  company_name: string;
-  full_name: string;
-  phone: string;
-  address: string;
-  role: string;
-  status: string;
-  created_at: string;
-  user_id: string | null;
-  has_profile: boolean;
+  user_id?: string | null;
+  email: string | null;
+  company_name: string | null;
+  contact_name: string | null;
+  phone: string | null;
+  address: string | null;
+  role: string | null;
+  status: string | null;
+  is_live_profile?: boolean | null;
+  live_profile?: boolean | null;
+  created_at: string | null;
 };
+
+async function safeJson(res: Response): Promise<any> {
+  const text = await res.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { _raw: text };
+  }
+}
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -26,56 +41,84 @@ function formatDateTime(value?: string | null) {
   }
 }
 
-function formatLabel(value?: string | null) {
-  return String(value || "—").replaceAll("_", " ");
-}
-
-function normalizeSearchValue(value: unknown) {
-  return String(value || "").toLowerCase().trim();
+function normalizeText(value: unknown) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function statusPillClasses(status?: string | null) {
-  switch (status) {
+  switch (normalizeText(status)) {
     case "approved":
       return "border-green-200 bg-green-50 text-green-700";
     case "pending":
       return "border-amber-200 bg-amber-50 text-amber-700";
     case "rejected":
       return "border-red-200 bg-red-50 text-red-700";
+    case "live":
+      return "border-blue-200 bg-blue-50 text-blue-700";
     default:
       return "border-black/10 bg-white text-slate-700";
   }
 }
 
-export default function AdminApprovalsPage() {
-  const [rows, setRows] = useState<ApprovalRow[]>([]);
+function statusLabel(value?: string | null) {
+  return String(value || "—").replaceAll("_", " ");
+}
+
+function liveValue(row: ApprovalRow) {
+  return !!(row.is_live_profile ?? row.live_profile ?? false);
+}
+
+export default function AdminPartnerApprovalsPage() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const [rows, setRows] = useState<ApprovalRow[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [liveProfileFilter, setLiveProfileFilter] = useState("all");
+  const [liveFilter, setLiveFilter] = useState("all");
 
   async function load() {
     setLoading(true);
     setError(null);
 
     try {
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+
+      if (userErr || !userData?.user) {
+        router.replace("/partner/login?reason=not_authorized");
+        return;
+      }
+
+      const adminRes = await fetch("/api/admin/is-admin", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "include",
+      });
+
+      const adminJson = await safeJson(adminRes);
+
+      if (!adminJson?.isAdmin) {
+        router.replace("/partner/login?reason=not_authorized");
+        return;
+      }
+
       const res = await fetch("/api/admin/applications", {
         method: "GET",
         cache: "no-store",
         credentials: "include",
       });
 
-      const json = await res.json().catch(() => null);
+      const json = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(json?.error || "Failed to load applications.");
+        throw new Error(json?.error || json?._raw || "Failed to load partner approvals.");
       }
 
-      setRows(json?.data || []);
+      setRows(Array.isArray(json?.data) ? json.data : []);
     } catch (e: any) {
-      setError(e?.message || "Failed to load applications.");
+      setError(e?.message || "Failed to load partner approvals.");
       setRows([]);
     } finally {
       setLoading(false);
@@ -86,141 +129,129 @@ export default function AdminApprovalsPage() {
     load();
   }, []);
 
-  const searchValue = normalizeSearchValue(search);
+  const searchValue = normalizeText(search);
 
-  const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      if (statusFilter !== "all" && String(row.status || "").toLowerCase() !== statusFilter) {
-        return false;
-      }
-
-      if (liveProfileFilter === "yes" && !row.has_profile) {
-        return false;
-      }
-
-      if (liveProfileFilter === "no" && row.has_profile) {
-        return false;
-      }
-
-      if (!searchValue) return true;
-
+  const filteredRows = rows.filter((row) => {
+    if (searchValue) {
       const haystack = [
         row.company_name,
-        row.full_name,
+        row.contact_name,
         row.email,
         row.phone,
         row.address,
         row.role,
         row.status,
-        row.has_profile ? "yes live profile true" : "no live profile false",
+        liveValue(row) ? "yes live true" : "no not live false",
       ]
-        .map(normalizeSearchValue)
+        .map(normalizeText)
         .join(" ");
 
-      return haystack.includes(searchValue);
-    });
-  }, [rows, searchValue, statusFilter, liveProfileFilter]);
+      if (!haystack.includes(searchValue)) {
+        return false;
+      }
+    }
+
+    if (statusFilter !== "all" && normalizeText(row.status) !== normalizeText(statusFilter)) {
+      return false;
+    }
+
+    if (liveFilter === "yes" && !liveValue(row)) {
+      return false;
+    }
+
+    if (liveFilter === "no" && liveValue(row)) {
+      return false;
+    }
+
+    return true;
+  });
 
   return (
-    <div className="space-y-6 px-4 py-8 md:px-8">
+    <div className="space-y-6">
       {error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       ) : null}
 
-      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] md:p-8">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-[#003768]">
-              Partner Approvals
-            </h2>
+            <h1 className="text-2xl font-semibold text-[#003768]">Partner Approvals</h1>
             <p className="mt-2 text-slate-600">
               Review partner applications and current live profile details.
             </p>
           </div>
 
-          <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[760px]">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <div className="md:col-span-1">
-                <label className="text-sm font-medium text-[#003768]">Search</label>
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search company, contact, email..."
-                  className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black outline-none focus:border-[#0f4f8a]"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[#003768]">Status</label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-[#0f4f8a]"
-                >
-                  <option value="all">All statuses</option>
-                  <option value="approved">Approved</option>
-                  <option value="pending">Pending</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[#003768]">Live Profile</label>
-                <select
-                  value={liveProfileFilter}
-                  onChange={(e) => setLiveProfileFilter(e.target.value)}
-                  className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none focus:border-[#0f4f8a]"
-                >
-                  <option value="all">All</option>
-                  <option value="yes">Live only</option>
-                  <option value="no">Not live only</option>
-                </select>
-              </div>
+          <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-3 xl:max-w-[900px]">
+            <div>
+              <label className="text-sm font-medium text-[#003768]">Search</label>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search company, contact, email, phone..."
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
+              />
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch("");
-                  setStatusFilter("all");
-                  setLiveProfileFilter("all");
-                }}
-                className="rounded-full border border-black/10 bg-white px-5 py-3 font-semibold text-[#003768] hover:bg-black/5"
+            <div>
+              <label className="text-sm font-medium text-[#003768]">Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-black/10 bg-white p-3 text-black"
               >
-                Clear Filters
-              </button>
+                <option value="all">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="live">Live</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
 
-              <button
-                type="button"
-                onClick={load}
-                className="rounded-full bg-[#ff7a00] px-5 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+            <div>
+              <label className="text-sm font-medium text-[#003768]">Live Profile</label>
+              <select
+                value={liveFilter}
+                onChange={(e) => setLiveFilter(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-black/10 bg-white p-3 text-black"
               >
-                Refresh
-              </button>
+                <option value="all">All</option>
+                <option value="yes">Live only</option>
+                <option value="no">Not live</option>
+              </select>
             </div>
           </div>
         </div>
 
-        {searchValue || statusFilter !== "all" || liveProfileFilter !== "all" ? (
-          <div className="mt-4 rounded-2xl border border-[#cfe2f7] bg-[#f3f8ff] px-4 py-3 text-sm text-[#003768]">
-            Showing filtered approval results.
-          </div>
-        ) : null}
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("all");
+              setLiveFilter("all");
+            }}
+            className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-[#003768] hover:bg-black/5"
+          >
+            Clear Filters
+          </button>
 
-        {loading ? (
-          <p className="mt-6 text-slate-600">Loading applications…</p>
-        ) : filteredRows.length === 0 ? (
-          <p className="mt-6 text-slate-600">
-            No applications found for the selected filters.
-          </p>
-        ) : (
-          <div className="mt-6 overflow-x-auto rounded-3xl border border-black/10">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-[#003768]">
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="rounded-full bg-[#ff7a00] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+
+        <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-[#f3f8ff] text-[#003768]">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Created</th>
                   <th className="px-4 py-3 font-semibold">Company Name</th>
@@ -235,54 +266,87 @@ export default function AdminApprovalsPage() {
                 </tr>
               </thead>
 
-              <tbody>
-                {filteredRows.map((row) => (
-                  <tr key={row.id} className="border-t border-black/5 align-top">
-                    <td className="px-4 py-4">{formatDateTime(row.created_at)}</td>
-                    <td className="px-4 py-4 font-medium text-slate-900">
-                      {row.company_name || "—"}
-                    </td>
-                    <td className="px-4 py-4">{row.full_name || "—"}</td>
-                    <td className="px-4 py-4">{row.email || "—"}</td>
-                    <td className="px-4 py-4">{row.phone || "—"}</td>
-                    <td className="px-4 py-4">{row.address || "—"}</td>
-                    <td className="px-4 py-4">
-                      <span className="capitalize">{formatLabel(row.role)}</span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(
-                          row.status
-                        )}`}
-                      >
-                        {formatLabel(row.status)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      {row.has_profile ? (
-                        <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-                          Yes
-                        </span>
-                      ) : (
-                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                          No
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4">
-                      <Link
-                        href={`/admin/approvals/${row.id}`}
-                        className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-                      >
-                        View
-                      </Link>
+              <tbody className="divide-y divide-black/5">
+                {loading ? (
+                  <tr>
+                    <td className="px-4 py-4 text-slate-600" colSpan={10}>
+                      Loading...
                     </td>
                   </tr>
-                ))}
+                ) : filteredRows.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-4 text-slate-600" colSpan={10}>
+                      No partner applications found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRows.map((row) => (
+                    <tr key={row.id} className="align-top hover:bg-black/[0.02]">
+                      <td className="px-4 py-4 text-slate-700">
+                        {formatDateTime(row.created_at)}
+                      </td>
+
+                      <td className="px-4 py-4 font-medium text-slate-900">
+                        {row.company_name || "—"}
+                      </td>
+
+                      <td className="px-4 py-4 text-slate-700">
+                        {row.contact_name || "—"}
+                      </td>
+
+                      <td className="px-4 py-4 text-slate-700">{row.email || "—"}</td>
+
+                      <td className="px-4 py-4 text-slate-700">{row.phone || "—"}</td>
+
+                      <td className="px-4 py-4 text-slate-700">{row.address || "—"}</td>
+
+                      <td className="px-4 py-4 text-slate-700">
+                        {row.role || "Partner"}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(
+                            row.status
+                          )}`}
+                        >
+                          {statusLabel(row.status)}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        {liveValue(row) ? (
+                          <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                            Yes
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                            No
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {normalizeText(row.status) === "approved" ? (
+                            <MakeLiveButton applicationId={row.id} onDone={load} />
+                          ) : null}
+
+                          <Link
+                            href={`/admin/partner-approvals/${row.id}`}
+                            className="inline-flex rounded-full bg-[#ff7a00] px-4 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
+                          >
+                            View
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
