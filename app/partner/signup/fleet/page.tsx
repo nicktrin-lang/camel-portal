@@ -208,7 +208,6 @@ export default function PartnerSignupFleetPage() {
 
   async function handleMapPick(lat: number, lng: number) {
     setError(null);
-
     setBaseLat(String(lat));
     setBaseLng(String(lng));
 
@@ -277,14 +276,16 @@ export default function PartnerSignupFleetPage() {
     }
 
     if (!baseAddress.trim()) {
-      return setError("Car fleet address is required.");
+      setError("Car fleet address is required.");
+      return;
     }
 
     const lat = parseCoordinate(baseLat, "lat");
     const lng = parseCoordinate(baseLng, "lng");
 
     if (lat === null || lng === null) {
-      return setError("Car fleet latitude and longitude must be valid numbers.");
+      setError("Car fleet latitude and longitude must be valid numbers.");
+      return;
     }
 
     setLoading(true);
@@ -293,22 +294,22 @@ export default function PartnerSignupFleetPage() {
       const payload = {
         companyName: step1Data.companyName.trim(),
         contactName: step1Data.contactName.trim(),
-        email: step1Data.email.trim().toLowerCase(),
+        email: step1Data.email.trim().toLowerCase().replace(/\s+/g, ""),
         phone: step1Data.phone.trim(),
         website: step1Data.website.trim(),
         password: step1Data.password,
-
         address1: step1Data.address1.trim(),
         address2: step1Data.address2.trim(),
         province: step1Data.province.trim(),
         postcode: step1Data.postcode.trim(),
         country:
           COUNTRIES.find((c) => c.code === step1Data.country)?.name || step1Data.country,
-
         baseAddress: baseAddress.trim(),
         baseLat: lat,
         baseLng: lng,
       };
+
+      console.log("🚀 Submitting complete signup payload:", payload.email);
 
       const res = await fetch("/api/partner/complete-signup", {
         method: "POST",
@@ -319,18 +320,16 @@ export default function PartnerSignupFleetPage() {
       });
 
       const json = await safeJson(res);
+      console.log("📦 complete-signup response:", res.status, json);
 
       if (!res.ok) {
         throw new Error(json?.error || json?._raw || "Sign up failed.");
       }
 
-      if (json?.warning) {
-        console.warn("⚠️ Signup completed with warning:", json.warning);
-      }
-
       sessionStorage.removeItem(STORAGE_KEY);
       router.replace("/partner/application-submitted");
     } catch (e: any) {
+      console.error("❌ Fleet signup submit failed:", e?.message || e);
       setError(e?.message || "Sign up failed.");
     } finally {
       setLoading(false);
@@ -353,9 +352,7 @@ export default function PartnerSignupFleetPage() {
     );
   }
 
-  if (!step1Data) {
-    return null;
-  }
+  if (!step1Data) return null;
 
   return (
     <div className="min-h-screen bg-[#f7f9fc]">
@@ -409,6 +406,7 @@ export default function PartnerSignupFleetPage() {
               <h2 className="text-xl font-semibold text-[#003768] md:text-2xl">
                 Car Fleet Address required
               </h2>
+
               <p className="mt-2 text-slate-600">
                 Search for the address, use your current location, type it manually, or click on
                 the map to set your fleet base.
@@ -433,7 +431,9 @@ export default function PartnerSignupFleetPage() {
               </div>
 
               <div className="mt-5">
-                <label className="text-sm font-medium text-[#003768]">Search car fleet address</label>
+                <label className="text-sm font-medium text-[#003768]">
+                  Search car fleet address
+                </label>
                 <input
                   type="text"
                   className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 text-black outline-none transition focus:border-[#0f4f8a]"
