@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
 import { isAdminRole } from "@/lib/portal/roles";
+import { syncBookingStatuses } from "@/lib/portal/syncBookingStatuses";
 
 const ALLOWED_BOOKING_STATUSES = [
   "confirmed",
@@ -14,7 +15,14 @@ const ALLOWED_BOOKING_STATUSES = [
   "cancelled",
 ] as const;
 
-const ALLOWED_FUEL_LEVELS = ["full", "3/4", "half", "quarter", "empty"] as const;
+const ALLOWED_FUEL_LEVELS = [
+  "full",
+  "3/4",
+  "half",
+  "quarter",
+  "empty",
+  "three_quarter",
+] as const;
 
 type AllowedBookingStatus = (typeof ALLOWED_BOOKING_STATUSES)[number];
 type AllowedFuelLevel = (typeof ALLOWED_FUEL_LEVELS)[number];
@@ -37,15 +45,18 @@ function normalizeBookingStatus(value: unknown): AllowedBookingStatus {
 
 function normalizeFuelLevel(value: unknown): AllowedFuelLevel | null {
   const clean = String(value || "").trim().toLowerCase();
+
   if (
     clean === "full" ||
     clean === "3/4" ||
     clean === "half" ||
     clean === "quarter" ||
-    clean === "empty"
+    clean === "empty" ||
+    clean === "three_quarter"
   ) {
     return clean as AllowedFuelLevel;
   }
+
   return null;
 }
 
@@ -76,10 +87,18 @@ export async function POST(
     const driver_vehicle = String(body?.driver_vehicle || "").trim() || null;
     const driver_notes = String(body?.driver_notes || "").trim() || null;
 
-    const collection_fuel_level = normalizeFuelLevel(body?.collection_fuel_level);
-    const return_fuel_level = normalizeFuelLevel(body?.return_fuel_level);
-    const collection_notes = String(body?.collection_notes || "").trim() || null;
-    const return_notes = String(body?.return_notes || "").trim() || null;
+    const collection_fuel_level_partner = normalizeFuelLevel(
+      body?.collection_fuel_level_partner ?? body?.collection_fuel_level
+    );
+    const return_fuel_level_partner = normalizeFuelLevel(
+      body?.return_fuel_level_partner ?? body?.return_fuel_level
+    );
+
+    const collection_partner_notes =
+      String(body?.collection_partner_notes ?? body?.collection_notes || "").trim() || null;
+    const return_partner_notes =
+      String(body?.return_partner_notes ?? body?.return_notes || "").trim() || null;
+
     const collection_confirmed_by_partner = !!body?.collection_confirmed_by_partner;
     const return_confirmed_by_partner = !!body?.return_confirmed_by_partner;
 
@@ -94,7 +113,9 @@ export async function POST(
         collected_at,
         returned_at,
         collection_confirmed_by_partner,
-        return_confirmed_by_partner
+        return_confirmed_by_partner,
+        collection_confirmed_by_partner_at,
+        return_confirmed_by_partner_at
       `)
       .eq("id", id);
 
@@ -112,8 +133,13 @@ export async function POST(
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
 
+    const nowIso = new Date().toISOString();
+
     const driverAssigned =
-      !!driver_name || !!driver_phone || !!driver_vehicle || booking_status === "driver_assigned";
+      !!driver_name ||
+      !!driver_phone ||
+      !!driver_vehicle ||
+      booking_status === "driver_assigned";
 
     const updatePayload: Record<string, any> = {
       booking_status,
@@ -121,32 +147,37 @@ export async function POST(
       driver_phone,
       driver_vehicle,
       driver_notes,
+
       driver_assigned_at: driverAssigned
-        ? bookingRow.driver_assigned_at || new Date().toISOString()
+        ? bookingRow.driver_assigned_at || nowIso
         : null,
-      collection_fuel_level,
-      return_fuel_level,
-      collection_notes,
-      return_notes,
+
+      collection_fuel_level_partner,
+      return_fuel_level_partner,
+      collection_partner_notes,
+      return_partner_notes,
+
       collection_confirmed_by_partner,
       return_confirmed_by_partner,
+
+      collection_confirmed_by_partner_at: collection_confirmed_by_partner
+        ? bookingRow.collection_confirmed_by_partner_at || nowIso
+        : null,
+
+      return_confirmed_by_partner_at: return_confirmed_by_partner
+        ? bookingRow.return_confirmed_by_partner_at || nowIso
+        : null,
+
       collected_at:
         booking_status === "collected"
-          ? bookingRow.collected_at || new Date().toISOString()
+          ? bookingRow.collected_at || nowIso
           : bookingRow.collected_at,
+
       returned_at:
         booking_status === "returned" || booking_status === "completed"
-          ? bookingRow.returned_at || new Date().toISOString()
+          ? bookingRow.returned_at || nowIso
           : bookingRow.returned_at,
     };
-
-    if (!collection_confirmed_by_partner && booking_status !== "collected") {
-      updatePayload.collected_at = bookingRow.collected_at;
-    }
-
-    if (!return_confirmed_by_partner && booking_status !== "returned" && booking_status !== "completed") {
-      updatePayload.returned_at = bookingRow.returned_at;
-    }
 
     const { error: updateErr } = await db
       .from("partner_bookings")
@@ -157,7 +188,15 @@ export async function POST(
       return NextResponse.json({ error: updateErr.message }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true }, { status: 200 });
+    const syncResult = await syncBookingStatuses(id);
+
+    return NextResponse.json(
+      {
+        ok: true,
+        sync: syncResult,
+      },
+      { status: 200 }
+    );
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "Server error" },

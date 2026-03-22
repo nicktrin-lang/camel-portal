@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { createCustomerServiceRoleSupabaseClient } from "@/lib/supabase-customer/server";
+import { syncBookingStatuses } from "@/lib/portal/syncBookingStatuses";
+
+const ALLOWED_FUEL_LEVELS = [
+  "full",
+  "3/4",
+  "half",
+  "quarter",
+  "empty",
+  "three_quarter",
+] as const;
+
+type FuelLevel = (typeof ALLOWED_FUEL_LEVELS)[number];
 
 function getBearerToken(req: Request) {
   const auth = req.headers.get("authorization") || "";
@@ -18,27 +30,20 @@ async function getCustomerUserFromAccessToken(accessToken?: string | null) {
   return data.user;
 }
 
-const ALLOWED_FUEL_LEVELS = [
-  "empty",
-  "quarter",
-  "half",
-  "three_quarter",
-  "full",
-] as const;
-
-type AllowedFuelLevel = (typeof ALLOWED_FUEL_LEVELS)[number];
-
-function normalizeFuelLevel(value: unknown): AllowedFuelLevel | null {
+function normalizeFuelLevel(value: unknown): FuelLevel | null {
   const clean = String(value || "").trim().toLowerCase();
+
   if (
-    clean === "empty" ||
-    clean === "quarter" ||
+    clean === "full" ||
+    clean === "3/4" ||
     clean === "half" ||
-    clean === "three_quarter" ||
-    clean === "full"
+    clean === "quarter" ||
+    clean === "empty" ||
+    clean === "three_quarter"
   ) {
-    return clean;
+    return clean as FuelLevel;
   }
+
   return null;
 }
 
@@ -70,13 +75,6 @@ export async function POST(
     const fuelLevel = normalizeFuelLevel(body?.fuel_level);
     const notes = String(body?.notes || "").trim() || null;
 
-    if (!fuelLevel) {
-      return NextResponse.json(
-        { error: "Valid fuel level is required" },
-        { status: 400 }
-      );
-    }
-
     const db = createServiceRoleSupabaseClient();
 
     const { data: bookingRow, error: bookingErr } = await db
@@ -90,7 +88,6 @@ export async function POST(
         )
       `)
       .eq("id", id)
-      .eq("customer_requests.customer_user_id", customerUser.id)
       .maybeSingle();
 
     if (bookingErr) {
@@ -99,6 +96,14 @@ export async function POST(
 
     if (!bookingRow) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+    }
+
+    const ownerId = String(
+      (bookingRow as any)?.customer_requests?.customer_user_id || ""
+    ).trim();
+
+    if (!ownerId || ownerId !== customerUser.id) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
     const nowIso = new Date().toISOString();
@@ -127,7 +132,9 @@ export async function POST(
       return NextResponse.json({ error: updateErr.message }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true }, { status: 200 });
+    const sync = await syncBookingStatuses(id);
+
+    return NextResponse.json({ ok: true, sync }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "Server error" },

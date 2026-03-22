@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { createCustomerServiceRoleSupabaseClient } from "@/lib/supabase-customer/server";
+import { syncBookingStatuses } from "@/lib/portal/syncBookingStatuses";
 
 function getBearerToken(req: Request) {
   const auth = req.headers.get("authorization") || "";
@@ -178,25 +179,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: existingBookingErr.message }, { status: 400 });
     }
 
-    if (!existingBooking?.id) {
-      const { error: bookingErr } = await partnerDb
-  .from("partner_bookings")
-  .insert({
-    request_id: requestId,
-    winning_bid_id: bidId,
-    partner_user_id: partnerUserId,
-    booking_status: "confirmed",
-    amount: totalPrice,
-    notes: bidNotes,
-    job_number: jobNumber,
-  });
+    let bookingId = String(existingBooking?.id || "").trim();
+
+    if (!bookingId) {
+      const { data: insertedBooking, error: bookingErr } = await partnerDb
+        .from("partner_bookings")
+        .insert({
+          request_id: requestId,
+          winning_bid_id: bidId,
+          partner_user_id: partnerUserId,
+          booking_status: "confirmed",
+          amount: totalPrice,
+          notes: bidNotes,
+          job_number: jobNumber,
+        })
+        .select("id")
+        .single();
 
       if (bookingErr) {
         return NextResponse.json({ error: bookingErr.message }, { status: 400 });
       }
+
+      bookingId = String(insertedBooking?.id || "").trim();
     }
 
-    return NextResponse.json({ ok: true }, { status: 200 });
+    if (bookingId) {
+      await syncBookingStatuses(bookingId);
+    }
+
+    return NextResponse.json({ ok: true, booking_id: bookingId }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "Server error" },

@@ -167,11 +167,19 @@ function fuelLabel(value?: string | null) {
       return "Half";
     case "three_quarter":
       return "Three quarter";
+    case "3/4":
+      return "Three quarter";
     case "full":
       return "Full";
     default:
       return "—";
   }
+}
+
+function prettyStatus(value?: string | null) {
+  const clean = String(value || "").replaceAll("_", " ").trim();
+  if (!clean) return "—";
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
 }
 
 export default function TestBookingRequestDetailPage({
@@ -472,7 +480,7 @@ export default function TestBookingRequestDetailPage({
           <p><span className="font-semibold text-slate-900">Bags:</span> {data.request.suitcases} suitcases / {data.request.hand_luggage} hand luggage</p>
           <p><span className="font-semibold text-slate-900">Vehicle:</span> {data.request.vehicle_category_name || "—"}</p>
           <p><span className="font-semibold text-slate-900">Notes:</span> {data.request.notes || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Status:</span> <span className="capitalize">{data.request.status}</span></p>
+          <p><span className="font-semibold text-slate-900">Status:</span> {prettyStatus(data.request.status)}</p>
           <p><span className="font-semibold text-slate-900">Expires at:</span> {fmtDateTime(data.request.expires_at)}</p>
         </div>
       </div>
@@ -485,7 +493,7 @@ export default function TestBookingRequestDetailPage({
             </h2>
 
             <div className="mt-6 space-y-4 text-slate-700">
-              <p><span className="font-semibold text-slate-900">Booking status:</span> <span className="capitalize">{String(acceptedBooking.booking_status || "—").replaceAll("_", " ")}</span></p>
+              <p><span className="font-semibold text-slate-900">Booking status:</span> {prettyStatus(acceptedBooking.booking_status)}</p>
               <p><span className="font-semibold text-slate-900">Car hire company:</span> {acceptedBooking.company_name || "—"}</p>
               <p><span className="font-semibold text-slate-900">Company phone:</span> {acceptedBooking.company_phone || "—"}</p>
               <p><span className="font-semibold text-slate-900">Accepted price:</span> {formatGBP(acceptedBooking.amount)}</p>
@@ -662,7 +670,7 @@ export default function TestBookingRequestDetailPage({
                     <p><span className="font-semibold text-slate-900">Insurance included:</span> {bid.full_insurance_included ? "Yes" : "No"}</p>
                     <p><span className="font-semibold text-slate-900">Full tank included:</span> {bid.full_tank_included ? "Yes" : "No"}</p>
                     <p><span className="font-semibold text-slate-900">Notes:</span> {bid.notes || "—"}</p>
-                    <p><span className="font-semibold text-slate-900">Status:</span> <span className="capitalize">{bid.status}</span></p>
+                    <p><span className="font-semibold text-slate-900">Status:</span> {prettyStatus(bid.status)}</p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -670,7 +678,14 @@ export default function TestBookingRequestDetailPage({
                       <span className="rounded-full border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700">
                         Accepted
                       </span>
-                    ) : data.request.status === "confirmed" ? (
+                    ) : data.request.status === "confirmed" ||
+                      data.request.status === "driver_assigned" ||
+                      data.request.status === "en_route" ||
+                      data.request.status === "arrived" ||
+                      data.request.status === "collected" ||
+                      data.request.status === "in_progress" ||
+                      data.request.status === "returned" ||
+                      data.request.status === "completed" ? (
                       <span className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-slate-500">
                         Closed
                       </span>
