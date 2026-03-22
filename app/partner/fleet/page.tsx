@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { FLEET_CATEGORIES } from "@/app/components/portal/fleetCategories";
+import { triggerPartnerLiveRefresh } from "@/lib/portal/triggerPartnerLiveRefresh";
 
 type ServiceLevel = "standard" | "executive" | "luxury" | "minibus";
 
@@ -129,6 +130,14 @@ export default function PartnerFleetPage() {
 
       if (error) throw error;
 
+      const liveRefresh = await triggerPartnerLiveRefresh();
+
+      if (liveRefresh.error) {
+        console.error("Failed to refresh live status:", liveRefresh.error);
+      } else if (liveRefresh.becameLive) {
+        console.log("Partner has just become live and live email was sent.");
+      }
+
       setNotes("");
       setIsActive(true);
       setOk("Fleet category added.");
@@ -152,6 +161,14 @@ export default function PartnerFleetPage() {
 
       if (error) throw error;
 
+      const liveRefresh = await triggerPartnerLiveRefresh();
+
+      if (liveRefresh.error) {
+        console.error("Failed to refresh live status:", liveRefresh.error);
+      } else if (liveRefresh.becameLive) {
+        console.log("Partner has just become live and live email was sent.");
+      }
+
       setRows((prev) =>
         prev.map((row) =>
           row.id === id ? { ...row, is_active: nextValue } : row
@@ -170,6 +187,14 @@ export default function PartnerFleetPage() {
       const { error } = await supabase.from("partner_fleet").delete().eq("id", id);
 
       if (error) throw error;
+
+      const liveRefresh = await triggerPartnerLiveRefresh();
+
+      if (liveRefresh.error) {
+        console.error("Failed to refresh live status:", liveRefresh.error);
+      } else if (liveRefresh.becameLive) {
+        console.log("Partner has just become live and live email was sent.");
+      }
 
       setRows((prev) => prev.filter((row) => row.id !== id));
     } catch (e: any) {

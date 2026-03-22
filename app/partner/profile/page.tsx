@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { triggerPartnerLiveRefresh } from "@/lib/portal/triggerPartnerLiveRefresh";
 
 const MapPicker = dynamic(() => import("./MapPicker"), {
   ssr: false,
@@ -144,7 +145,7 @@ export default function PartnerProfilePage() {
           .maybeSingle();
 
         const status = String((application as any)?.status || "").toLowerCase();
-        if (application && status && status !== "approved") {
+        if (application && status && status !== "approved" && status !== "live") {
           throw new Error("Your account is not approved yet, so profile cannot be created.");
         }
 
@@ -384,6 +385,14 @@ export default function PartnerProfilePage() {
         .upsert(payload, { onConflict: "user_id" });
 
       if (upsertErr) throw upsertErr;
+
+      const liveRefresh = await triggerPartnerLiveRefresh();
+
+      if (liveRefresh.error) {
+        console.error("Failed to refresh live status:", liveRefresh.error);
+      } else if (liveRefresh.becameLive) {
+        console.log("Partner has just become live and live email was sent.");
+      }
 
       setSaved(true);
     } catch (e: any) {
