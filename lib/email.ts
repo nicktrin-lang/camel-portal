@@ -119,8 +119,6 @@ export async function sendApprovalEmail(to: string) {
 }
 
 export async function sendRejectionEmail(to: string) {
-  const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
-
   console.log("📨 sendRejectionEmail ->", to);
 
   return sendEmail({
@@ -132,9 +130,6 @@ export async function sendRejectionEmail(to: string) {
         <p>Thank you for your interest in becoming a Camel Global partner.</p>
         <p>After review, we are unable to approve your application at this time.</p>
         <p>If you believe this was a mistake or would like to discuss your application, please contact our team.</p>
-        <p>
-          <a href="${baseUrl}/partner/login">Partner login</a>
-        </p>
         <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
       </div>
     `,
