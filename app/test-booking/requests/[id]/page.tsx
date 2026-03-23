@@ -169,6 +169,8 @@ function fuelLabel(value?: string | null) {
       return "Three quarter";
     case "full":
       return "Full";
+    case "3/4":
+      return "3/4";
     default:
       return "—";
   }
@@ -181,9 +183,10 @@ function normalizeFuel(value?: string | null) {
     clean === "quarter" ||
     clean === "half" ||
     clean === "three_quarter" ||
-    clean === "full"
+    clean === "full" ||
+    clean === "3/4"
   ) {
-    return clean;
+    return clean === "3/4" ? "three_quarter" : clean;
   }
   return "";
 }
@@ -285,13 +288,15 @@ export default function TestBookingRequestDetailPage({
 
       if (nextData.booking) {
         setCollectionFuel(
-          (nextData.booking.collection_fuel_level_customer as FuelLevel) || "full"
+          (normalizeFuel(nextData.booking.collection_fuel_level_customer) as FuelLevel) ||
+            "full"
         );
         setCollectionConfirmed(!!nextData.booking.collection_confirmed_by_customer);
         setCollectionNotes(nextData.booking.collection_customer_notes || "");
 
         setReturnFuel(
-          (nextData.booking.return_fuel_level_customer as FuelLevel) || "full"
+          (normalizeFuel(nextData.booking.return_fuel_level_customer) as FuelLevel) ||
+            "full"
         );
         setReturnConfirmed(!!nextData.booking.return_confirmed_by_customer);
         setReturnNotes(nextData.booking.return_customer_notes || "");
@@ -476,6 +481,18 @@ export default function TestBookingRequestDetailPage({
       })
     : false;
 
+  const collectionMismatch = acceptedBooking
+    ? !!acceptedBooking.collection_confirmed_by_partner &&
+      !!acceptedBooking.collection_confirmed_by_customer &&
+      !collectionLocked
+    : false;
+
+  const returnMismatch = acceptedBooking
+    ? !!acceptedBooking.return_confirmed_by_partner &&
+      !!acceptedBooking.return_confirmed_by_customer &&
+      !returnLocked
+    : false;
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-10">
       {error ? (
@@ -570,7 +587,13 @@ export default function TestBookingRequestDetailPage({
 
                 {collectionLocked ? (
                   <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-                    Collection is locked because both customer and partner entries match.
+                    Collection is locked because both customer and partner values match.
+                  </div>
+                ) : null}
+
+                {collectionMismatch ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+                    Collection is not locked because the customer and partner values do not yet match.
                   </div>
                 ) : null}
 
@@ -620,6 +643,12 @@ export default function TestBookingRequestDetailPage({
                 <p className="text-sm text-slate-500">
                   Saved fuel level: <strong>{fuelLabel(acceptedBooking.collection_fuel_level_customer)}</strong>
                 </p>
+                <p className="text-sm text-slate-500">
+                  Saved notes: <strong>{acceptedBooking.collection_customer_notes || "—"}</strong>
+                </p>
+                <p className="text-sm text-slate-500">
+                  Saved confirmed at: <strong>{fmtDateTime(acceptedBooking.collection_confirmed_by_customer_at)}</strong>
+                </p>
 
                 <button
                   type="button"
@@ -645,7 +674,13 @@ export default function TestBookingRequestDetailPage({
 
                 {returnLocked ? (
                   <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-                    Return is locked because both customer and partner entries match.
+                    Return is locked because both customer and partner values match.
+                  </div>
+                ) : null}
+
+                {returnMismatch ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+                    Return is not locked because the customer and partner values do not yet match.
                   </div>
                 ) : null}
 
@@ -694,6 +729,12 @@ export default function TestBookingRequestDetailPage({
 
                 <p className="text-sm text-slate-500">
                   Saved fuel level: <strong>{fuelLabel(acceptedBooking.return_fuel_level_customer)}</strong>
+                </p>
+                <p className="text-sm text-slate-500">
+                  Saved notes: <strong>{acceptedBooking.return_customer_notes || "—"}</strong>
+                </p>
+                <p className="text-sm text-slate-500">
+                  Saved confirmed at: <strong>{fmtDateTime(acceptedBooking.return_confirmed_by_customer_at)}</strong>
                 </p>
 
                 <button

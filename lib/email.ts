@@ -1,7 +1,3 @@
-function cleanEmail(email: string) {
-  return String(email || "").trim().toLowerCase().replace(/\s+/g, "");
-}
-
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -18,11 +14,10 @@ export async function sendEmail({
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
 
-  const cleanTo = cleanEmail(to);
+  const cleanTo = String(to || "").trim().toLowerCase();
 
   console.log("📧 Raw email input:", to);
   console.log("📧 Clean email:", cleanTo);
-  console.log("📧 Subject:", subject);
 
   if (!cleanTo || !isValidEmail(cleanTo)) {
     console.error("❌ Invalid email detected:", cleanTo);
@@ -70,8 +65,6 @@ export async function sendEmail({
 export async function sendApplicationReceivedEmail(to: string) {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
 
-  console.log("📨 sendApplicationReceivedEmail ->", to);
-
   return sendEmail({
     to,
     subject: "Your Camel Global partner application has been received",
@@ -92,8 +85,6 @@ export async function sendApplicationReceivedEmail(to: string) {
 
 export async function sendApprovalEmail(to: string) {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
-
-  console.log("📨 sendApprovalEmail ->", to);
 
   return sendEmail({
     to,
@@ -118,28 +109,8 @@ export async function sendApprovalEmail(to: string) {
   });
 }
 
-export async function sendRejectionEmail(to: string) {
-  console.log("📨 sendRejectionEmail ->", to);
-
-  return sendEmail({
-    to,
-    subject: "Your Camel Global partner application was not approved",
-    html: `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
-        <h2>Application update</h2>
-        <p>Thank you for your interest in becoming a Camel Global partner.</p>
-        <p>After review, we are unable to approve your application at this time.</p>
-        <p>If you believe this was a mistake or would like to discuss your application, please contact our team.</p>
-        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
-      </div>
-    `,
-  });
-}
-
 export async function sendAccountLiveEmail(to: string) {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
-
-  console.log("📨 sendAccountLiveEmail ->", to);
 
   return sendEmail({
     to,
@@ -155,7 +126,65 @@ export async function sendAccountLiveEmail(to: string) {
           <li>Your contact details are current</li>
         </ul>
         <p>
-          <a href="${baseUrl}/partner/account">Go to partner account</a>
+          <a href="${baseUrl}/partner/dashboard">Go to dashboard</a>
+        </p>
+        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendCustomerBidReceivedEmail(
+  to: string,
+  jobNumber?: number | null
+) {
+  const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
+
+  return sendEmail({
+    to,
+    subject: jobNumber
+      ? `New partner bid received for booking #${jobNumber}`
+      : "New partner bid received for your booking",
+    html: `
+      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
+        <h2>New partner bid received</h2>
+        <p>
+          A partner has submitted a bid for your booking request${
+            jobNumber ? ` <strong>#${jobNumber}</strong>` : ""
+          }.
+        </p>
+        <p>Please log in to review the bid and accept it if suitable.</p>
+        <p>
+          <a href="${baseUrl}/test-booking/requests">View your requests</a>
+        </p>
+        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendCustomerBookingCompletedEmail(
+  to: string,
+  jobNumber?: number | null
+) {
+  const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
+
+  return sendEmail({
+    to,
+    subject: jobNumber
+      ? `Your Camel Global booking #${jobNumber} is now completed`
+      : "Your Camel Global booking is now completed",
+    html: `
+      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
+        <h2>Booking completed</h2>
+        <p>
+          Your booking${
+            jobNumber ? ` <strong>#${jobNumber}</strong>` : ""
+          } has now been marked as completed.
+        </p>
+        <p>The vehicle return has been confirmed and the booking has now closed.</p>
+        <p>
+          <a href="${baseUrl}/test-booking/requests">View booking</a>
         </p>
         <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
       </div>
