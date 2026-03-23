@@ -137,9 +137,9 @@ function bookingStatusLabel(status?: string | null) {
     case "arrived":
       return "Awaiting delivery";
     case "collected":
-      return "Out on hire";
+      return "On Hire";
     case "returned":
-      return "Out on hire";
+      return "On Hire";
     case "completed":
       return "Completed";
     case "cancelled":
@@ -466,8 +466,8 @@ export default function PartnerBookingDetailPage() {
               <option value="driver_assigned">Awaiting delivery</option>
               <option value="en_route">Awaiting delivery</option>
               <option value="arrived">Awaiting delivery</option>
-              <option value="collected">Out on hire</option>
-              <option value="returned">Out on hire</option>
+              <option value="collected">On Hire</option>
+              <option value="returned">On Hire</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
