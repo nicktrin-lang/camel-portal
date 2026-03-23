@@ -4,6 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
+type DriverRow = {
+  id: string;
+  partner_user_id: string;
+  auth_user_id: string | null;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+};
+
 type BookingRow = {
   id: string;
   request_id: string;
@@ -61,10 +73,14 @@ type RequestRow = {
   created_at: string | null;
 };
 
-type ApiResponse = {
+type BookingApiResponse = {
   booking: BookingRow;
   request: RequestRow | null;
   role: string | null;
+};
+
+type DriversApiResponse = {
+  data: DriverRow[];
 };
 
 type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
@@ -155,9 +171,12 @@ export default function PartnerBookingDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
-  const [data, setData] = useState<ApiResponse | null>(null);
+  const [data, setData] = useState<BookingApiResponse | null>(null);
+  const [drivers, setDrivers] = useState<DriverRow[]>([]);
+  const [selectedSavedDriverId, setSelectedSavedDriverId] = useState("");
 
   const [bookingStatus, setBookingStatus] = useState("confirmed");
   const [driverName, setDriverName] = useState("");
@@ -173,7 +192,7 @@ export default function PartnerBookingDetailPage() {
   const [returnConfirmedByPartner, setReturnConfirmedByPartner] = useState(false);
   const [returnPartnerNotes, setReturnPartnerNotes] = useState("");
 
-  async function load() {
+  async function loadBooking() {
     if (!bookingId) {
       setLoading(false);
       setError("Missing booking ID.");
@@ -196,7 +215,7 @@ export default function PartnerBookingDetailPage() {
         throw new Error(json?.error || "Failed to load booking.");
       }
 
-      const nextData = json as ApiResponse;
+      const nextData = json as BookingApiResponse;
       setData(nextData);
 
       setBookingStatus(nextData.booking.booking_status || "confirmed");
@@ -216,6 +235,8 @@ export default function PartnerBookingDetailPage() {
       );
       setReturnConfirmedByPartner(!!nextData.booking.return_confirmed_by_partner);
       setReturnPartnerNotes(nextData.booking.return_partner_notes || "");
+
+      setSelectedSavedDriverId("");
     } catch (e: any) {
       setError(e?.message || "Failed to load booking.");
       setData(null);
@@ -224,9 +245,50 @@ export default function PartnerBookingDetailPage() {
     }
   }
 
+  async function loadDrivers() {
+    setLoadingDrivers(true);
+
+    try {
+      const res = await fetch("/api/partner/drivers", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "include",
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to load drivers.");
+      }
+
+      const next = json as DriversApiResponse;
+      setDrivers((next.data || []).filter((driver) => driver.is_active));
+    } catch {
+      setDrivers([]);
+    } finally {
+      setLoadingDrivers(false);
+    }
+  }
+
   useEffect(() => {
-    load();
+    loadBooking();
   }, [bookingId]);
+
+  useEffect(() => {
+    loadDrivers();
+  }, []);
+
+  function handleSavedDriverChange(driverId: string) {
+    setSelectedSavedDriverId(driverId);
+
+    if (!driverId) return;
+
+    const selectedDriver = drivers.find((driver) => driver.id === driverId);
+    if (!selectedDriver) return;
+
+    setDriverName(selectedDriver.full_name || "");
+    setDriverPhone(selectedDriver.phone || "");
+  }
 
   async function saveBookingOps(e: React.FormEvent) {
     e.preventDefault();
@@ -267,7 +329,7 @@ export default function PartnerBookingDetailPage() {
       }
 
       setOk("Booking details updated.");
-      await load();
+      await loadBooking();
     } catch (e: any) {
       setError(e?.message || "Failed to update booking.");
     } finally {
@@ -471,6 +533,27 @@ export default function PartnerBookingDetailPage() {
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-[#003768]">
+              Assign saved driver
+            </label>
+            <select
+              value={selectedSavedDriverId}
+              onChange={(e) => handleSavedDriverChange(e.target.value)}
+              className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-4 outline-none focus:border-[#0f4f8a]"
+            >
+              <option value="">No saved driver selected</option>
+              {drivers.map((driver) => (
+                <option key={driver.id} value={driver.id}>
+                  {driver.full_name} {driver.phone ? `(${driver.phone})` : ""}
+                </option>
+              ))}
+            </select>
+            {loadingDrivers ? (
+              <p className="mt-2 text-sm text-slate-500">Loading drivers…</p>
+            ) : null}
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
