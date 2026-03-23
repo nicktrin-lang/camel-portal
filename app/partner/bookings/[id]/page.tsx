@@ -26,6 +26,7 @@ type BookingRow = {
   notes: string | null;
   created_at: string;
   job_number: number | null;
+  assigned_driver_id?: string | null;
   driver_name: string | null;
   driver_phone: string | null;
   driver_vehicle: string | null;
@@ -236,7 +237,7 @@ export default function PartnerBookingDetailPage() {
       setReturnConfirmedByPartner(!!nextData.booking.return_confirmed_by_partner);
       setReturnPartnerNotes(nextData.booking.return_partner_notes || "");
 
-      setSelectedSavedDriverId("");
+      setSelectedSavedDriverId(nextData.booking.assigned_driver_id || "");
     } catch (e: any) {
       setError(e?.message || "Failed to load booking.");
       setData(null);
@@ -307,6 +308,7 @@ export default function PartnerBookingDetailPage() {
         },
         body: JSON.stringify({
           booking_status: bookingStatus,
+          assigned_driver_id: selectedSavedDriverId || null,
           driver_name: driverName,
           driver_phone: driverPhone,
           driver_vehicle: driverVehicle,
@@ -433,6 +435,12 @@ export default function PartnerBookingDetailPage() {
             <p>
               <span className="font-semibold text-slate-900">Booking notes:</span>{" "}
               {booking.notes || "—"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Assigned saved driver:</span>{" "}
+              {drivers.find((d) => d.id === booking.assigned_driver_id)?.full_name ||
+                booking.driver_name ||
+                "—"}
             </p>
             <p>
               <span className="font-semibold text-slate-900">Driver assigned at:</span>{" "}

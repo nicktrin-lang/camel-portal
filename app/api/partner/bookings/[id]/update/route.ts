@@ -75,6 +75,9 @@ export async function POST(
     const body = await req.json().catch(() => null);
 
     const booking_status = normalizeBookingStatus(body?.booking_status);
+    const assigned_driver_id =
+      String(body?.assigned_driver_id || "").trim() || null;
+
     const driver_name = String(body?.driver_name || "").trim() || null;
     const driver_phone = String(body?.driver_phone || "").trim() || null;
     const driver_vehicle = String(body?.driver_vehicle || "").trim() || null;
@@ -138,6 +141,35 @@ export async function POST(
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
 
+    if (assigned_driver_id) {
+      let driverQuery = db
+        .from("partner_drivers")
+        .select(`
+          id,
+          partner_user_id,
+          is_active
+        `)
+        .eq("id", assigned_driver_id)
+        .eq("is_active", true);
+
+      if (!adminMode) {
+        driverQuery = driverQuery.eq("partner_user_id", userId);
+      }
+
+      const { data: driverRow, error: driverErr } = await driverQuery.maybeSingle();
+
+      if (driverErr) {
+        return NextResponse.json({ error: driverErr.message }, { status: 400 });
+      }
+
+      if (!driverRow) {
+        return NextResponse.json(
+          { error: "Selected saved driver is invalid or inactive." },
+          { status: 400 }
+        );
+      }
+    }
+
     const driverAssigned =
       !!driver_name ||
       !!driver_phone ||
@@ -156,6 +188,7 @@ export async function POST(
 
     const updatePayload: Record<string, any> = {
       booking_status,
+      assigned_driver_id,
       driver_name,
       driver_phone,
       driver_vehicle,

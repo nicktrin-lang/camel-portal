@@ -36,6 +36,7 @@ export async function GET(
         notes,
         created_at,
         job_number,
+        assigned_driver_id,
         driver_name,
         driver_phone,
         driver_vehicle,
