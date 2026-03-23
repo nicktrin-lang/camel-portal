@@ -12,9 +12,11 @@ const navItems = [
   { href: "/partner/requests", label: "Requests" },
   { href: "/partner/bookings", label: "Bookings" },
 
-  // NEW PAGE
-  { href: "/partner/fleet", label: "Car Fleet" },
+  // NEW DRIVER PAGE
+  { href: "/partner/drivers", label: "Drivers" },
 
+  // EXISTING
+  { href: "/partner/fleet", label: "Car Fleet" },
   { href: "/partner/account", label: "Account Management" },
   { href: "/partner/reports", label: "Report Management" },
 ];
