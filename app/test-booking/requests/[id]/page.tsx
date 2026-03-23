@@ -50,6 +50,7 @@ type BookingData = {
   notes: string | null;
   created_at: string;
   job_number: number | null;
+  assigned_driver_id?: string | null;
   company_name: string | null;
   company_phone: string | null;
   driver_name: string | null;
@@ -57,6 +58,14 @@ type BookingData = {
   driver_vehicle: string | null;
   driver_notes: string | null;
   driver_assigned_at: string | null;
+
+  collection_confirmed_by_driver: boolean;
+  collection_confirmed_by_driver_at: string | null;
+  collection_fuel_level_driver: string | null;
+
+  return_confirmed_by_driver: boolean;
+  return_confirmed_by_driver_at: string | null;
+  return_fuel_level_driver: string | null;
 
   collection_confirmed_by_partner: boolean;
   collection_confirmed_by_partner_at: string | null;
@@ -167,6 +176,8 @@ function fuelLabel(value?: string | null) {
       return "Half";
     case "three_quarter":
       return "Three quarter";
+    case "3/4":
+      return "3/4";
     case "full":
       return "Full";
     default:
@@ -181,9 +192,10 @@ function normalizeFuel(value?: string | null) {
     clean === "quarter" ||
     clean === "half" ||
     clean === "three_quarter" ||
+    clean === "3/4" ||
     clean === "full"
   ) {
-    return clean;
+    return clean === "three_quarter" ? "3/4" : clean;
   }
   return "";
 }
@@ -199,6 +211,25 @@ function isMatchedAndLocked(opts: {
   }
 
   return normalizeFuel(opts.partnerFuel) === normalizeFuel(opts.customerFuel);
+}
+
+function bookingStatusLabel(status?: string | null) {
+  switch (String(status || "").toLowerCase()) {
+    case "confirmed":
+    case "driver_assigned":
+    case "en_route":
+    case "arrived":
+      return "Awaiting delivery";
+    case "collected":
+    case "returned":
+      return "On Hire";
+    case "completed":
+      return "Completed";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return String(status || "—").replaceAll("_", " ");
+  }
 }
 
 export default function TestBookingRequestDetailPage({
@@ -241,10 +272,10 @@ export default function TestBookingRequestDetailPage({
     };
   }, [params]);
 
-  async function load() {
+  async function load(showSpinner = false) {
     if (!requestId) return;
 
-    setLoading(true);
+    if (showSpinner) setLoading(true);
     setError(null);
 
     try {
@@ -291,12 +322,20 @@ export default function TestBookingRequestDetailPage({
       setError(e?.message || "Failed to load request.");
       setData(null);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    load(true);
+  }, [requestId]);
+
+  useEffect(() => {
+    if (!requestId) return;
+    const interval = setInterval(() => {
+      load(false);
+    }, 10000);
+    return () => clearInterval(interval);
   }, [requestId]);
 
   useEffect(() => {
@@ -351,7 +390,7 @@ export default function TestBookingRequestDetailPage({
       }
 
       setOk("Bid accepted. Booking confirmed.");
-      await load();
+      await load(false);
     } catch (e: any) {
       setError(e?.message || "Failed to accept bid.");
     } finally {
@@ -415,7 +454,7 @@ export default function TestBookingRequestDetailPage({
           : "Return confirmation saved."
       );
 
-      await load();
+      await load(false);
     } catch (e: any) {
       setError(e?.message || "Failed to save confirmation.");
     } finally {
@@ -530,7 +569,7 @@ export default function TestBookingRequestDetailPage({
             </h2>
 
             <div className="mt-6 space-y-4 text-slate-700">
-              <p><span className="font-semibold text-slate-900">Booking status:</span> <span className="capitalize">{String(acceptedBooking.booking_status || "—").replaceAll("_", " ")}</span></p>
+              <p><span className="font-semibold text-slate-900">Booking status:</span> {bookingStatusLabel(acceptedBooking.booking_status)}</p>
               <p><span className="font-semibold text-slate-900">Car hire company:</span> {acceptedBooking.company_name || "—"}</p>
               <p><span className="font-semibold text-slate-900">Company phone:</span> {acceptedBooking.company_phone || "—"}</p>
               <p><span className="font-semibold text-slate-900">Accepted price:</span> {formatGBP(acceptedBooking.amount)}</p>
@@ -541,6 +580,34 @@ export default function TestBookingRequestDetailPage({
               <p><span className="font-semibold text-slate-900">Driver notes:</span> {acceptedBooking.driver_notes || "—"}</p>
               <p><span className="font-semibold text-slate-900">Driver assigned at:</span> {fmtDateTime(acceptedBooking.driver_assigned_at)}</p>
             </div>
+          </div>
+
+          <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+            <h2 className="text-2xl font-semibold text-[#003768]">Driver Live Updates</h2>
+
+            <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <div className="rounded-3xl border border-black/10 p-5">
+                <h3 className="text-2xl font-semibold text-[#003768]">Driver Collection</h3>
+                <div className="mt-6 space-y-4 text-slate-700">
+                  <p><span className="font-semibold text-slate-900">Driver confirmed:</span> {acceptedBooking.collection_confirmed_by_driver ? "Yes" : "No"}</p>
+                  <p><span className="font-semibold text-slate-900">Driver fuel:</span> {fuelLabel(acceptedBooking.collection_fuel_level_driver)}</p>
+                  <p><span className="font-semibold text-slate-900">Driver confirmed at:</span> {fmtDateTime(acceptedBooking.collection_confirmed_by_driver_at)}</p>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-black/10 p-5">
+                <h3 className="text-2xl font-semibold text-[#003768]">Driver Return</h3>
+                <div className="mt-6 space-y-4 text-slate-700">
+                  <p><span className="font-semibold text-slate-900">Driver confirmed:</span> {acceptedBooking.return_confirmed_by_driver ? "Yes" : "No"}</p>
+                  <p><span className="font-semibold text-slate-900">Driver fuel:</span> {fuelLabel(acceptedBooking.return_fuel_level_driver)}</p>
+                  <p><span className="font-semibold text-slate-900">Driver confirmed at:</span> {fmtDateTime(acceptedBooking.return_confirmed_by_driver_at)}</p>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-6 text-sm text-slate-500">
+              This page refreshes automatically every 10 seconds while open.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -557,12 +624,11 @@ export default function TestBookingRequestDetailPage({
 
                 {collectionLocked ? (
                   <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-                    Collection is locked because both customer and partner agreed and confirmed the same fuel level.
+                    Collection is locked because both customer and partner entries match.
                   </div>
-                ) : acceptedBooking.collection_confirmed_by_partner &&
-                  acceptedBooking.collection_confirmed_by_customer ? (
+                ) : acceptedBooking.collection_confirmed_by_partner && acceptedBooking.collection_confirmed_by_customer ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-                    Collection is not locked because the customer and partner fuel values do not yet match.
+                    Collection is not locked because the customer and partner values do not yet match.
                   </div>
                 ) : null}
 
@@ -609,15 +675,9 @@ export default function TestBookingRequestDetailPage({
                   />
                 </div>
 
-                <p className="text-sm text-slate-500">
-                  Saved fuel level: <strong>{fuelLabel(acceptedBooking.collection_fuel_level_customer)}</strong>
-                </p>
-                <p className="text-sm text-slate-500">
-                  Saved notes: <strong>{acceptedBooking.collection_customer_notes || "—"}</strong>
-                </p>
-                <p className="text-sm text-slate-500">
-                  Saved confirmed at: <strong>{fmtDateTime(acceptedBooking.collection_confirmed_by_customer_at)}</strong>
-                </p>
+                <p className="text-sm text-slate-500">Saved fuel level: <strong>{fuelLabel(acceptedBooking.collection_fuel_level_customer)}</strong></p>
+                <p className="text-sm text-slate-500">Saved notes: <strong>{acceptedBooking.collection_customer_notes || "—"}</strong></p>
+                <p className="text-sm text-slate-500">Saved confirmed at: <strong>{fmtDateTime(acceptedBooking.collection_confirmed_by_customer_at)}</strong></p>
 
                 <button
                   type="button"
@@ -643,12 +703,11 @@ export default function TestBookingRequestDetailPage({
 
                 {returnLocked ? (
                   <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-                    Return is locked because both customer and partner agreed and confirmed the same fuel level.
+                    Return is locked because both customer and partner entries match.
                   </div>
-                ) : acceptedBooking.return_confirmed_by_partner &&
-                  acceptedBooking.return_confirmed_by_customer ? (
+                ) : acceptedBooking.return_confirmed_by_partner && acceptedBooking.return_confirmed_by_customer ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-                    Return is not locked because the customer and partner fuel values do not yet match.
+                    Return is not locked because the customer and partner values do not yet match.
                   </div>
                 ) : null}
 
@@ -695,15 +754,9 @@ export default function TestBookingRequestDetailPage({
                   />
                 </div>
 
-                <p className="text-sm text-slate-500">
-                  Saved fuel level: <strong>{fuelLabel(acceptedBooking.return_fuel_level_customer)}</strong>
-                </p>
-                <p className="text-sm text-slate-500">
-                  Saved notes: <strong>{acceptedBooking.return_customer_notes || "—"}</strong>
-                </p>
-                <p className="text-sm text-slate-500">
-                  Saved confirmed at: <strong>{fmtDateTime(acceptedBooking.return_confirmed_by_customer_at)}</strong>
-                </p>
+                <p className="text-sm text-slate-500">Saved fuel level: <strong>{fuelLabel(acceptedBooking.return_fuel_level_customer)}</strong></p>
+                <p className="text-sm text-slate-500">Saved notes: <strong>{acceptedBooking.return_customer_notes || "—"}</strong></p>
+                <p className="text-sm text-slate-500">Saved confirmed at: <strong>{fmtDateTime(acceptedBooking.return_confirmed_by_customer_at)}</strong></p>
 
                 <button
                   type="button"

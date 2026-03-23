@@ -32,6 +32,14 @@ type DriverJob = {
   customer_name: string | null;
   customer_phone: string | null;
   vehicle_category_name: string | null;
+
+  collection_confirmed_by_driver?: boolean | null;
+  collection_confirmed_by_driver_at?: string | null;
+  collection_fuel_level_driver?: string | null;
+
+  return_confirmed_by_driver?: boolean | null;
+  return_confirmed_by_driver_at?: string | null;
+  return_fuel_level_driver?: string | null;
 };
 
 type ApiResponse = {
@@ -50,12 +58,21 @@ function formatDateTime(value?: string | null) {
   }
 }
 
-function formatGBP(value?: number | null) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-  }).format(value);
+function fuelLabel(value?: string | null) {
+  switch (String(value || "").toLowerCase()) {
+    case "full":
+      return "Full";
+    case "3/4":
+      return "3/4";
+    case "half":
+      return "Half";
+    case "quarter":
+      return "Quarter";
+    case "empty":
+      return "Empty";
+    default:
+      return "—";
+  }
 }
 
 function bucketLabel(status?: string | null) {
@@ -183,19 +200,39 @@ export default function DriverJobsPage() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <p><span className="font-semibold text-slate-900">Job No.:</span> {job.job_number ?? "—"}</p>
           <p><span className="font-semibold text-slate-900">Status:</span> {job.booking_status_label}</p>
-          <p><span className="font-semibold text-slate-900">Amount:</span> {formatGBP(job.amount)}</p>
+          <p><span className="font-semibold text-slate-900">Vehicle:</span> {job.vehicle_category_name || "—"}</p>
 
           <p><span className="font-semibold text-slate-900">Customer:</span> {job.customer_name || "—"}</p>
           <p><span className="font-semibold text-slate-900">Customer phone:</span> {job.customer_phone || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Vehicle:</span> {job.vehicle_category_name || "—"}</p>
+          <p><span className="font-semibold text-slate-900">Driver vehicle:</span> {job.driver_vehicle || "—"}</p>
 
           <p><span className="font-semibold text-slate-900">Pickup:</span> {job.pickup_address || "—"}</p>
           <p><span className="font-semibold text-slate-900">Dropoff:</span> {job.dropoff_address || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Pickup time:</span> {formatDateTime(job.pickup_at)}</p>
-
-          <p><span className="font-semibold text-slate-900">Dropoff time:</span> {formatDateTime(job.dropoff_at)}</p>
-          <p><span className="font-semibold text-slate-900">Driver vehicle:</span> {job.driver_vehicle || "—"}</p>
           <p><span className="font-semibold text-slate-900">Assigned at:</span> {formatDateTime(job.driver_assigned_at)}</p>
+
+          <p><span className="font-semibold text-slate-900">Pickup time:</span> {formatDateTime(job.pickup_at)}</p>
+          <p><span className="font-semibold text-slate-900">Dropoff time:</span> {formatDateTime(job.dropoff_at)}</p>
+          <p><span className="font-semibold text-slate-900">Created:</span> {formatDateTime(job.created_at)}</p>
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+          <div className="rounded-2xl border border-black/10 bg-slate-50 p-4">
+            <h4 className="text-lg font-semibold text-[#003768]">Driver Collection</h4>
+            <div className="mt-4 space-y-2 text-slate-700">
+              <p><span className="font-semibold text-slate-900">Confirmed:</span> {job.collection_confirmed_by_driver ? "Yes" : "No"}</p>
+              <p><span className="font-semibold text-slate-900">Fuel:</span> {fuelLabel(job.collection_fuel_level_driver)}</p>
+              <p><span className="font-semibold text-slate-900">Confirmed at:</span> {formatDateTime(job.collection_confirmed_by_driver_at)}</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-black/10 bg-slate-50 p-4">
+            <h4 className="text-lg font-semibold text-[#003768]">Driver Return</h4>
+            <div className="mt-4 space-y-2 text-slate-700">
+              <p><span className="font-semibold text-slate-900">Confirmed:</span> {job.return_confirmed_by_driver ? "Yes" : "No"}</p>
+              <p><span className="font-semibold text-slate-900">Fuel:</span> {fuelLabel(job.return_fuel_level_driver)}</p>
+              <p><span className="font-semibold text-slate-900">Confirmed at:</span> {formatDateTime(job.return_confirmed_by_driver_at)}</p>
+            </div>
+          </div>
         </div>
 
         {mode !== "readonly" ? (

@@ -43,6 +43,14 @@ export async function GET(
         driver_notes,
         driver_assigned_at,
 
+        collection_confirmed_by_driver,
+        collection_confirmed_by_driver_at,
+        collection_fuel_level_driver,
+
+        return_confirmed_by_driver,
+        return_confirmed_by_driver_at,
+        return_fuel_level_driver,
+
         collection_confirmed_by_partner,
         collection_confirmed_by_partner_at,
         collection_fuel_level_partner,

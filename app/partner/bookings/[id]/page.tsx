@@ -33,6 +33,14 @@ type BookingRow = {
   driver_notes: string | null;
   driver_assigned_at: string | null;
 
+  collection_confirmed_by_driver?: boolean | null;
+  collection_confirmed_by_driver_at?: string | null;
+  collection_fuel_level_driver?: string | null;
+
+  return_confirmed_by_driver?: boolean | null;
+  return_confirmed_by_driver_at?: string | null;
+  return_fuel_level_driver?: string | null;
+
   collection_confirmed_by_partner?: boolean | null;
   collection_confirmed_by_partner_at?: string | null;
   collection_fuel_level_partner?: string | null;
@@ -193,15 +201,14 @@ export default function PartnerBookingDetailPage() {
   const [returnConfirmedByPartner, setReturnConfirmedByPartner] = useState(false);
   const [returnPartnerNotes, setReturnPartnerNotes] = useState("");
 
-  async function loadBooking() {
+  async function loadBooking(showSpinner = false) {
     if (!bookingId) {
       setLoading(false);
       setError("Missing booking ID.");
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    if (showSpinner) setLoading(true);
 
     try {
       const res = await fetch(`/api/partner/bookings/${bookingId}`, {
@@ -242,7 +249,7 @@ export default function PartnerBookingDetailPage() {
       setError(e?.message || "Failed to load booking.");
       setData(null);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   }
 
@@ -272,12 +279,20 @@ export default function PartnerBookingDetailPage() {
   }
 
   useEffect(() => {
-    loadBooking();
+    loadBooking(true);
   }, [bookingId]);
 
   useEffect(() => {
     loadDrivers();
   }, []);
+
+  useEffect(() => {
+    if (!bookingId) return;
+    const interval = setInterval(() => {
+      loadBooking(false);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [bookingId]);
 
   function handleSavedDriverChange(driverId: string) {
     setSelectedSavedDriverId(driverId);
@@ -331,7 +346,7 @@ export default function PartnerBookingDetailPage() {
       }
 
       setOk("Booking details updated.");
-      await loadBooking();
+      await loadBooking(false);
     } catch (e: any) {
       setError(e?.message || "Failed to update booking.");
     } finally {
@@ -416,36 +431,18 @@ export default function PartnerBookingDetailPage() {
           </h2>
 
           <div className="mt-6 space-y-4 text-slate-700">
-            <p>
-              <span className="font-semibold text-slate-900">Job No.:</span>{" "}
-              {booking.job_number ?? request?.job_number ?? "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Booking created:</span>{" "}
-              {formatDateTime(booking.created_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Booking status:</span>{" "}
-              {bookingStatusLabel(booking.booking_status)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Amount:</span>{" "}
-              {formatGBP(booking.amount)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Booking notes:</span>{" "}
-              {booking.notes || "—"}
-            </p>
+            <p><span className="font-semibold text-slate-900">Job No.:</span> {booking.job_number ?? request?.job_number ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Booking created:</span> {formatDateTime(booking.created_at)}</p>
+            <p><span className="font-semibold text-slate-900">Booking status:</span> {bookingStatusLabel(booking.booking_status)}</p>
+            <p><span className="font-semibold text-slate-900">Amount:</span> {formatGBP(booking.amount)}</p>
+            <p><span className="font-semibold text-slate-900">Booking notes:</span> {booking.notes || "—"}</p>
             <p>
               <span className="font-semibold text-slate-900">Assigned saved driver:</span>{" "}
               {drivers.find((d) => d.id === booking.assigned_driver_id)?.full_name ||
                 booking.driver_name ||
                 "—"}
             </p>
-            <p>
-              <span className="font-semibold text-slate-900">Driver assigned at:</span>{" "}
-              {formatDateTime(booking.driver_assigned_at)}
-            </p>
+            <p><span className="font-semibold text-slate-900">Driver assigned at:</span> {formatDateTime(booking.driver_assigned_at)}</p>
           </div>
         </div>
 
@@ -455,66 +452,57 @@ export default function PartnerBookingDetailPage() {
           </h2>
 
           <div className="mt-6 space-y-4 text-slate-700">
-            <p>
-              <span className="font-semibold text-slate-900">Customer:</span>{" "}
-              {request?.customer_name || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Email:</span>{" "}
-              {request?.customer_email || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Phone:</span>{" "}
-              {request?.customer_phone || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Pickup:</span>{" "}
-              {request?.pickup_address || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Dropoff:</span>{" "}
-              {request?.dropoff_address || "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Pickup time:</span>{" "}
-              {formatDateTime(request?.pickup_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Dropoff time:</span>{" "}
-              {formatDateTime(request?.dropoff_at)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Duration:</span>{" "}
-              {formatDuration(request?.journey_duration_minutes)}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Passengers:</span>{" "}
-              {request?.passengers ?? "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Suitcases:</span>{" "}
-              {request?.suitcases ?? "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Hand luggage:</span>{" "}
-              {request?.hand_luggage ?? "—"}
-            </p>
-            <p>
-              <span className="font-semibold text-slate-900">Vehicle:</span>{" "}
-              {request?.vehicle_category_name || "—"}
-            </p>
+            <p><span className="font-semibold text-slate-900">Customer:</span> {request?.customer_name || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Email:</span> {request?.customer_email || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Phone:</span> {request?.customer_phone || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Pickup:</span> {request?.pickup_address || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Dropoff:</span> {request?.dropoff_address || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Pickup time:</span> {formatDateTime(request?.pickup_at)}</p>
+            <p><span className="font-semibold text-slate-900">Dropoff time:</span> {formatDateTime(request?.dropoff_at)}</p>
+            <p><span className="font-semibold text-slate-900">Duration:</span> {formatDuration(request?.journey_duration_minutes)}</p>
+            <p><span className="font-semibold text-slate-900">Passengers:</span> {request?.passengers ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Suitcases:</span> {request?.suitcases ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Hand luggage:</span> {request?.hand_luggage ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Vehicle:</span> {request?.vehicle_category_name || "—"}</p>
             <p>
               <span className="font-semibold text-slate-900">Request status:</span>{" "}
               <span className="capitalize">
                 {String(request?.status || "—").replaceAll("_", " ")}
               </span>
             </p>
-            <p>
-              <span className="font-semibold text-slate-900">Request notes:</span>{" "}
-              {request?.notes || "—"}
-            </p>
+            <p><span className="font-semibold text-slate-900">Request notes:</span> {request?.notes || "—"}</p>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <h2 className="text-2xl font-semibold text-[#003768]">Driver Live Updates</h2>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+          <div className="rounded-3xl border border-black/10 p-5">
+            <h3 className="text-2xl font-semibold text-[#003768]">Driver Collection</h3>
+
+            <div className="mt-6 space-y-4 text-slate-700">
+              <p><span className="font-semibold text-slate-900">Driver confirmed:</span> {booking.collection_confirmed_by_driver ? "Yes" : "No"}</p>
+              <p><span className="font-semibold text-slate-900">Driver fuel:</span> {fuelLabel(booking.collection_fuel_level_driver)}</p>
+              <p><span className="font-semibold text-slate-900">Driver confirmed at:</span> {formatDateTime(booking.collection_confirmed_by_driver_at)}</p>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-black/10 p-5">
+            <h3 className="text-2xl font-semibold text-[#003768]">Driver Return</h3>
+
+            <div className="mt-6 space-y-4 text-slate-700">
+              <p><span className="font-semibold text-slate-900">Driver confirmed:</span> {booking.return_confirmed_by_driver ? "Yes" : "No"}</p>
+              <p><span className="font-semibold text-slate-900">Driver fuel:</span> {fuelLabel(booking.return_fuel_level_driver)}</p>
+              <p><span className="font-semibold text-slate-900">Driver confirmed at:</span> {formatDateTime(booking.return_confirmed_by_driver_at)}</p>
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-6 text-sm text-slate-500">
+          This page refreshes automatically every 10 seconds while open.
+        </p>
       </div>
 
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
@@ -680,15 +668,9 @@ export default function PartnerBookingDetailPage() {
                   />
                 </div>
 
-                <p className="text-sm text-slate-500">
-                  Saved fuel level: <strong>{fuelLabel(booking.collection_fuel_level_partner)}</strong>
-                </p>
-                <p className="text-sm text-slate-500">
-                  Saved notes: <strong>{booking.collection_partner_notes || "—"}</strong>
-                </p>
-                <p className="text-sm text-slate-500">
-                  Saved confirmed at: <strong>{formatDateTime(booking.collection_confirmed_by_partner_at)}</strong>
-                </p>
+                <p className="text-sm text-slate-500">Saved fuel level: <strong>{fuelLabel(booking.collection_fuel_level_partner)}</strong></p>
+                <p className="text-sm text-slate-500">Saved notes: <strong>{booking.collection_partner_notes || "—"}</strong></p>
+                <p className="text-sm text-slate-500">Saved confirmed at: <strong>{formatDateTime(booking.collection_confirmed_by_partner_at)}</strong></p>
               </div>
             </div>
 
@@ -756,15 +738,9 @@ export default function PartnerBookingDetailPage() {
                   />
                 </div>
 
-                <p className="text-sm text-slate-500">
-                  Saved fuel level: <strong>{fuelLabel(booking.return_fuel_level_partner)}</strong>
-                </p>
-                <p className="text-sm text-slate-500">
-                  Saved notes: <strong>{booking.return_partner_notes || "—"}</strong>
-                </p>
-                <p className="text-sm text-slate-500">
-                  Saved confirmed at: <strong>{formatDateTime(booking.return_confirmed_by_partner_at)}</strong>
-                </p>
+                <p className="text-sm text-slate-500">Saved fuel level: <strong>{fuelLabel(booking.return_fuel_level_partner)}</strong></p>
+                <p className="text-sm text-slate-500">Saved notes: <strong>{booking.return_partner_notes || "—"}</strong></p>
+                <p className="text-sm text-slate-500">Saved confirmed at: <strong>{formatDateTime(booking.return_confirmed_by_partner_at)}</strong></p>
               </div>
             </div>
           </div>

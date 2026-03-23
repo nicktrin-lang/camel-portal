@@ -155,23 +155,36 @@ export async function GET(
           notes,
           created_at,
           job_number,
+          assigned_driver_id,
           driver_name,
           driver_phone,
           driver_vehicle,
           driver_notes,
           driver_assigned_at,
+
+          collection_confirmed_by_driver,
+          collection_confirmed_by_driver_at,
+          collection_fuel_level_driver,
+
+          return_confirmed_by_driver,
+          return_confirmed_by_driver_at,
+          return_fuel_level_driver,
+
           collection_confirmed_by_partner,
           collection_confirmed_by_partner_at,
           collection_fuel_level_partner,
           collection_partner_notes,
+
           return_confirmed_by_partner,
           return_confirmed_by_partner_at,
           return_fuel_level_partner,
           return_partner_notes,
+
           collection_confirmed_by_customer,
           collection_confirmed_by_customer_at,
           collection_fuel_level_customer,
           collection_customer_notes,
+
           return_confirmed_by_customer,
           return_confirmed_by_customer_at,
           return_fuel_level_customer,
@@ -201,6 +214,7 @@ export async function GET(
           notes: bookingRow.notes,
           created_at: bookingRow.created_at,
           job_number: bookingRow.job_number,
+          assigned_driver_id: bookingRow.assigned_driver_id || null,
           company_name:
             winnerProfile?.company_name ||
             acceptedBid.partner_company_name ||
@@ -212,6 +226,17 @@ export async function GET(
           driver_vehicle: bookingRow.driver_vehicle || null,
           driver_notes: bookingRow.driver_notes || null,
           driver_assigned_at: bookingRow.driver_assigned_at || null,
+
+          collection_confirmed_by_driver: !!bookingRow.collection_confirmed_by_driver,
+          collection_confirmed_by_driver_at:
+            bookingRow.collection_confirmed_by_driver_at || null,
+          collection_fuel_level_driver:
+            bookingRow.collection_fuel_level_driver || null,
+
+          return_confirmed_by_driver: !!bookingRow.return_confirmed_by_driver,
+          return_confirmed_by_driver_at:
+            bookingRow.return_confirmed_by_driver_at || null,
+          return_fuel_level_driver: bookingRow.return_fuel_level_driver || null,
 
           collection_confirmed_by_partner: !!bookingRow.collection_confirmed_by_partner,
           collection_confirmed_by_partner_at:
