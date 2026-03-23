@@ -38,13 +38,6 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(redirectUrl, 308);
   }
 
-  if (host === PORTAL_HOST && pathname === "/") {
-    return NextResponse.redirect(
-      new URL("https://portal.camel-global.com/partner/dashboard"),
-      308
-    );
-  }
-
   return NextResponse.next();
 }
 
