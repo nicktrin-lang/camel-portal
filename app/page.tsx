@@ -615,7 +615,11 @@ export default function HomePage() {
 
             <div className="hero-cta">
               {/* ✅ CTA now goes to /partner/signup */}
-              <a className="btn btn-primary" href="#join" onClick={closeMobileNavIfOpen}>
+              <a
+  className="btn btn-primary"
+  href="https://portal.camel-global.com/partner/login"
+  onClick={closeMobileNavIfOpen}
+>
   Join the System
 </a>
             </div>
@@ -1037,14 +1041,14 @@ export default function HomePage() {
 
             <div style={{ margin: "1.5rem 0" }}>
               <a
-                className="btn btn-primary"
-                href="https://www.camel-global.com"
-                target="_blank"
-                rel="noreferrer"
-                data-i18n="join_button"
-              >
-                Visit www.camel-global.com
-              </a>
+  className="btn btn-primary"
+  href="https://portal.camel-global.com/partner/login"
+  target="_blank"
+  rel="noreferrer"
+  data-i18n="join_button"
+>
+  Join the System
+</a>
             </div>
 
             <p style={{ fontSize: "0.9rem", opacity: 0.9 }} data-i18n="join_footer">
@@ -1062,9 +1066,9 @@ export default function HomePage() {
           </div>
           <div>
             <span data-i18n="footer_website_label">Website:</span>{" "}
-            <a href="https://www.camel-global.com" target="_blank" rel="noreferrer">
-              www.camel-global.com
-            </a>
+            <a href="https://portal.camel-global.com" target="_blank" rel="noreferrer">
+  portal.camel-global.com
+</a>
           </div>
         </div>
       </footer>
