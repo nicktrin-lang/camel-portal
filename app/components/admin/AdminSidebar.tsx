@@ -9,16 +9,24 @@ type Props = {
 };
 
 const navItems = [
+  { href: "/admin", label: "Dashboard" },
+  { href: "/admin/accounts", label: "Account Management" },
   { href: "/admin/approvals", label: "Partner Approvals" },
+  { href: "/admin/requests", label: "Requests" },
+  { href: "/admin/reports", label: "Report Management" },
   { href: "/admin/users", label: "Admin Users" },
 ];
 
 function isActive(pathname: string, href: string) {
+  if (href === "/admin") {
+    return pathname === "/admin";
+  }
+
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export default function AdminSidebar({ open, onClose }: Props) {
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
 
   return (
     <>
@@ -36,18 +44,22 @@ export default function AdminSidebar({ open, onClose }: Props) {
           "fixed left-0 z-40 w-[290px] border-r border-white/10",
           "bg-gradient-to-b from-[#003768] to-[#005b9f] text-white shadow-2xl",
           "transform transition-transform duration-300 ease-in-out",
-          "top-[105px] h-[calc(100vh-105px)] md:top-[115px] md:h-[calc(100vh-115px)]",
+          "top-[80px] h-[calc(100vh-80px)]",
           open ? "translate-x-0" : "-translate-x-full",
           "lg:translate-x-0",
         ].join(" ")}
       >
         <div className="flex h-full flex-col overflow-y-auto">
           <div className="border-b border-white/10 px-6 pt-8 pb-6">
-            <Link href="/admin/approvals" onClick={onClose} className="block">
+            <Link href="/admin" onClick={onClose} className="block">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
                 Camel Global
               </div>
-              <div className="mt-2 text-2xl font-semibold">Admin Portal</div>
+
+              <div className="mt-2 text-2xl font-semibold">
+                Admin Portal
+              </div>
+
               <div className="mt-3 text-sm text-white/75">
                 System administration
               </div>
@@ -61,7 +73,7 @@ export default function AdminSidebar({ open, onClose }: Props) {
 
             <div className="space-y-2">
               {navItems.map((item) => {
-                const active = isActive(pathname || "", item.href);
+                const active = isActive(pathname, item.href);
 
                 return (
                   <Link
