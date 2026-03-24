@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type PortalTopbarProps = {
@@ -11,7 +12,15 @@ type PortalTopbarProps = {
 
 export default function PortalTopbar({ onMenuClick }: PortalTopbarProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const pathname = usePathname();
+
   const [displayName, setDisplayName] = useState("");
+
+  // ✅ Detect role based on route
+  const isAdmin = pathname?.startsWith("/admin");
+
+  // ✅ Correct home link depending on role
+  const homeHref = isAdmin ? "/admin" : "/partner/dashboard";
 
   useEffect(() => {
     let mounted = true;
@@ -63,6 +72,7 @@ export default function PortalTopbar({ onMenuClick }: PortalTopbarProps) {
   return (
     <header className="fixed inset-x-0 top-0 z-40 h-20 border-b border-black/10 bg-[#0f4f8a] text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
       <div className="flex h-full items-center justify-between px-4 md:px-8">
+        {/* LEFT SIDE */}
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -84,7 +94,8 @@ export default function PortalTopbar({ onMenuClick }: PortalTopbarProps) {
             </svg>
           </button>
 
-          <Link href="/partner/dashboard" className="flex items-center">
+          {/* ✅ FIXED: dynamic home link */}
+          <Link href={homeHref} className="flex items-center">
             <Image
               src="/camel-logo.png"
               alt="Camel Global logo"
@@ -96,6 +107,7 @@ export default function PortalTopbar({ onMenuClick }: PortalTopbarProps) {
           </Link>
         </div>
 
+        {/* RIGHT SIDE */}
         <div className="flex items-center gap-3">
           {displayName ? (
             <div className="hidden text-sm font-semibold text-white/95 md:block">
