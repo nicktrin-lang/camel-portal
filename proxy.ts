@@ -11,7 +11,6 @@ function isStaticAsset(pathname: string) {
     pathname.startsWith("/sitemap.xml") ||
     pathname.startsWith("/vercel.svg") ||
     pathname.startsWith("/camel-logo.png") ||
-    pathname.startsWith("/file.svg") ||
     pathname.startsWith("/globe.svg") ||
     pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|map|txt)$/i) !== null
   );
@@ -36,13 +35,6 @@ export function proxy(req: NextRequest) {
     redirectUrl.pathname = pathname;
     redirectUrl.search = url.search;
     return NextResponse.redirect(redirectUrl, 308);
-  }
-
-  if (host === PORTAL_HOST && pathname === "/") {
-    return NextResponse.redirect(
-      new URL("https://portal.camel-global.com/partner/dashboard"),
-      308
-    );
   }
 
   return NextResponse.next();
