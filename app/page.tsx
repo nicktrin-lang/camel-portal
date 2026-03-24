@@ -514,7 +514,7 @@ export default function HomePage() {
 
       <div id="top"></div>
 
-      {/* HEADER */}
+            {/* HEADER */}
       <header>
         <div className="nav-wrapper">
           <div className="nav">
@@ -558,7 +558,6 @@ export default function HomePage() {
               </button>
             </div>
 
-            {/* NAV LINKS */}
             <nav className="nav-links">
               <a href="#intro" data-i18n="nav_about" onClick={closeMobileNavIfOpen}>
                 About
@@ -578,12 +577,6 @@ export default function HomePage() {
               <a href="#apps" data-i18n="nav_apps" onClick={closeMobileNavIfOpen}>
                 Apps & Screens
               </a>
-              <a href="#join" data-i18n="nav_join" onClick={closeMobileNavIfOpen}>
-                Join the System
-              </a>
-
-              {/* ✅ MOVED to END (requested change) */}
-              
             </nav>
           </div>
         </div>
