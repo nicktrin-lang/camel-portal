@@ -3,15 +3,17 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import PortalSidebar, { PortalRole } from "@/app/components/portal/PortalSidebar";
+import AdminSidebar from "@/app/components/admin/AdminSidebar";
 import PortalTopbar from "@/app/components/portal/PortalTopbar";
+
+type AdminRole = "admin" | "super_admin";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const pathname = usePathname();
 
   const [checking, setChecking] = useState(true);
-  const [role, setRole] = useState<PortalRole>("admin");
+  const [, setRole] = useState<AdminRole>("admin");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
         const meJson = await meRes.json().catch(() => null);
 
-        const nextRole =
+        const nextRole: AdminRole | null =
           meJson?.role === "super_admin"
             ? "super_admin"
             : meJson?.role === "admin"
@@ -89,8 +91,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-[#e3f4ff]">
       <PortalTopbar onMenuClick={() => setSidebarOpen(true)} />
 
-      <PortalSidebar
-        role={role}
+      <AdminSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
