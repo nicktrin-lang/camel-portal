@@ -21,25 +21,32 @@ const partnerNavItems = [
   { href: "/partner/fleet", label: "Car Fleet" },
 ];
 
-const adminNavItems = [
-  { href: "/admin/accounts", label: "Account Management" },
-  { href: "/admin/approvals", label: "Partner Approvals" },
-  { href: "/admin/requests", label: "Requests" },
-  { href: "/admin/bookings", label: "Bookings" },
-  { href: "/admin/reports", label: "Report Management" },
-  { href: "/admin/users", label: "Admin Users" },
-];
+function getAdminNavItems(role: PortalRole) {
+  const baseItems = [
+    { href: "/admin/accounts", label: "Account Management" },
+    { href: "/admin/approvals", label: "Partner Approvals" },
+    { href: "/admin/requests", label: "Requests" },
+    { href: "/admin/bookings", label: "Bookings" },
+    { href: "/admin/reports", label: "Report Management" },
+  ];
+
+  if (role === "super_admin") {
+    baseItems.push({ href: "/admin/users", label: "Admin Users" });
+  }
+
+  return baseItems;
+}
 
 function isActive(pathname: string, href: string) {
-  if (href === "/admin") return pathname === "/admin";
   if (href === "/partner/dashboard") return pathname === "/partner/dashboard";
+  if (href === "/admin") return pathname === "/admin";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export default function PortalSidebar({ role, open, onClose }: Props) {
   const pathname = usePathname() || "";
   const isPartner = role === "partner";
-  const navItems = isPartner ? partnerNavItems : adminNavItems;
+  const navItems = isPartner ? partnerNavItems : getAdminNavItems(role);
 
   return (
     <>
@@ -65,7 +72,7 @@ export default function PortalSidebar({ role, open, onClose }: Props) {
         <div className="flex h-full flex-col overflow-y-auto">
           <div className="border-b border-white/10 px-6 pt-8 pb-6">
             <Link
-              href={isPartner ? "/partner/dashboard" : "/admin"}
+              href={isPartner ? "/partner/dashboard" : "/admin/approvals"}
               onClick={onClose}
               className="block"
             >
