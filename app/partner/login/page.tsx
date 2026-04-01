@@ -19,6 +19,17 @@ function reasonMessage(reason: string | null) {
   }
 }
 
+async function safeJson(res: Response): Promise<any> {
+  const text = await res.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { _raw: text };
+  }
+}
+
 function PartnerLoginInner() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
@@ -45,8 +56,29 @@ function PartnerLoginInner() {
 
       if (signInError) throw signInError;
 
-      // ✅ Always go to partner area (NO admin logic)
-      router.replace("/partner/requests");
+      let nextRole = "partner";
+
+      try {
+        const meRes = await fetch("/api/admin/me", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        });
+
+        if (meRes.ok) {
+          const meJson = await safeJson(meRes);
+          nextRole = meJson?.role || "partner";
+        }
+      } catch {
+        nextRole = "partner";
+      }
+
+      if (nextRole === "admin" || nextRole === "super_admin") {
+        router.replace("/admin/approvals");
+      } else {
+        router.replace("/partner/requests");
+      }
+
       router.refresh();
     } catch (e: any) {
       setError(e?.message || "Login failed.");
