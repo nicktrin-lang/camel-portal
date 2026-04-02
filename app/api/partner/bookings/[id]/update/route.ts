@@ -30,8 +30,19 @@ function normalizeFuelLevel(value: unknown): AllowedFuelLevel | null {
   return null;
 }
 
+function normalizeFuel(v: unknown): string | null {
+  if (!v) return null;
+  const s = String(v).toLowerCase().trim();
+  if (s === "empty") return "empty";
+  if (s === "quarter") return "quarter";
+  if (s === "half") return "half";
+  if (s === "three_quarter" || s === "3/4") return "3/4";
+  if (s === "full") return "full";
+  return null;
+}
+
 function sameFuel(a: unknown, b: unknown) {
-  return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+  return normalizeFuel(a) === normalizeFuel(b) && normalizeFuel(a) !== null;
 }
 
 export async function POST(
