@@ -4,233 +4,237 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createCustomerBrowserClient } from "@/lib/supabase-customer/browser";
 
+// ── Types ────────────────────────────────────────────────────────────────────
+
 type RequestData = {
-  id: string;
-  job_number: number | null;
-  pickup_address: string;
-  dropoff_address: string | null;
-  pickup_at: string;
-  dropoff_at: string | null;
-  journey_duration_minutes: number | null;
-  passengers: number;
-  suitcases: number;
-  hand_luggage: number;
-  vehicle_category_name: string | null;
-  notes: string | null;
-  status: string;
-  created_at: string;
-  expires_at: string | null;
+  id: string; job_number: number | null; pickup_address: string;
+  dropoff_address: string | null; pickup_at: string; dropoff_at: string | null;
+  journey_duration_minutes: number | null; passengers: number; suitcases: number;
+  hand_luggage: number; vehicle_category_name: string | null; notes: string | null;
+  status: string; created_at: string; expires_at: string | null;
 };
 
 type BidRow = {
-  id: string;
-  partner_user_id: string;
-  partner_company_name: string | null;
-  partner_contact_name: string | null;
-  partner_phone: string | null;
-  partner_address: string | null;
-  vehicle_category_name: string;
-  car_hire_price: number;
-  fuel_price: number;
-  total_price: number;
-  full_insurance_included: boolean;
-  full_tank_included: boolean;
-  notes: string | null;
-  status: string;
-  created_at: string;
+  id: string; partner_user_id: string; partner_company_name: string | null;
+  partner_contact_name: string | null; partner_phone: string | null;
+  partner_address: string | null; vehicle_category_name: string;
+  car_hire_price: number; fuel_price: number; total_price: number;
+  full_insurance_included: boolean; full_tank_included: boolean;
+  notes: string | null; status: string; created_at: string;
 };
 
 type BookingData = {
-  id: string;
-  request_id: string;
-  partner_user_id: string;
-  winning_bid_id: string;
-  booking_status: string;
-  amount: number | null;
-  notes: string | null;
-  created_at: string;
-  job_number: number | null;
-  assigned_driver_id?: string | null;
-  company_name: string | null;
-  company_phone: string | null;
-  driver_name: string | null;
-  driver_phone: string | null;
-  driver_vehicle: string | null;
-  driver_notes: string | null;
-  driver_assigned_at: string | null;
-
-  collection_confirmed_by_driver: boolean;
-  collection_confirmed_by_driver_at: string | null;
+  id: string; request_id: string; partner_user_id: string; winning_bid_id: string;
+  booking_status: string; amount: number | null; notes: string | null;
+  created_at: string; job_number: number | null; assigned_driver_id?: string | null;
+  company_name: string | null; company_phone: string | null;
+  driver_name: string | null; driver_phone: string | null;
+  driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
+  collection_confirmed_by_driver: boolean; collection_confirmed_by_driver_at: string | null;
   collection_fuel_level_driver: string | null;
-
-  return_confirmed_by_driver: boolean;
-  return_confirmed_by_driver_at: string | null;
+  return_confirmed_by_driver: boolean; return_confirmed_by_driver_at: string | null;
   return_fuel_level_driver: string | null;
-
-  collection_confirmed_by_partner: boolean;
-  collection_confirmed_by_partner_at: string | null;
-  collection_fuel_level_partner: string | null;
-  collection_partner_notes: string | null;
-
-  return_confirmed_by_partner: boolean;
-  return_confirmed_by_partner_at: string | null;
-  return_fuel_level_partner: string | null;
-  return_partner_notes: string | null;
-
-  collection_confirmed_by_customer: boolean;
-  collection_confirmed_by_customer_at: string | null;
-  collection_fuel_level_customer: string | null;
-  collection_customer_notes: string | null;
-
-  return_confirmed_by_customer: boolean;
-  return_confirmed_by_customer_at: string | null;
-  return_fuel_level_customer: string | null;
-  return_customer_notes: string | null;
+  collection_confirmed_by_partner: boolean; collection_confirmed_by_partner_at: string | null;
+  collection_fuel_level_partner: string | null; collection_partner_notes: string | null;
+  return_confirmed_by_partner: boolean; return_confirmed_by_partner_at: string | null;
+  return_fuel_level_partner: string | null; return_partner_notes: string | null;
+  collection_confirmed_by_customer: boolean; collection_confirmed_by_customer_at: string | null;
+  collection_fuel_level_customer: string | null; collection_customer_notes: string | null;
+  return_confirmed_by_customer: boolean; return_confirmed_by_customer_at: string | null;
+  return_fuel_level_customer: string | null; return_customer_notes: string | null;
 };
 
-type ResponseShape = {
-  request: RequestData;
-  bids: BidRow[];
-  booking: BookingData | null;
-};
-
+type ResponseShape = { request: RequestData; bids: BidRow[]; booking: BookingData | null };
 type ConfirmSection = "collection" | "return";
-type FuelLevel = "empty" | "quarter" | "half" | "three_quarter" | "full";
 
-function fmtDateTime(value?: string | null) {
-  if (!value) return "—";
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return value;
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function normalizeFuel(v: unknown): string | null {
+  if (!v) return null;
+  const s = String(v).toLowerCase().trim();
+  if (s === "empty") return "empty";
+  if (s === "quarter") return "quarter";
+  if (s === "half") return "half";
+  if (s === "three_quarter" || s === "3/4") return "3/4";
+  if (s === "full") return "full";
+  return null;
+}
+
+function fuelLabel(v: unknown): string {
+  switch (normalizeFuel(v)) {
+    case "empty": return "Empty";
+    case "quarter": return "¼ Tank";
+    case "half": return "½ Tank";
+    case "3/4": return "¾ Tank";
+    case "full": return "Full Tank";
+    default: return "—";
   }
 }
 
-function formatDuration(minutes?: number | null) {
-  if (minutes === null || minutes === undefined || Number.isNaN(minutes)) {
-    return "—";
-  }
+const FUEL_BARS: Record<string, number> = {
+  empty: 0, quarter: 1, half: 2, "3/4": 3, full: 4,
+};
 
-  const minutesPerDay = 24 * 60;
-
-  if (minutes >= minutesPerDay) {
-    const days = Math.ceil(minutes / minutesPerDay);
-    return `${days} day${days === 1 ? "" : "s"}`;
-  }
-
-  if (minutes < 60) return `${minutes} min`;
-
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return mins ? `${hours}h ${mins}m` : `${hours}h`;
+function FuelBar({ level }: { level: string | null }) {
+  const n = normalizeFuel(level);
+  const filled = n ? (FUEL_BARS[n] ?? 0) : 0;
+  return (
+    <div className="flex gap-1 mt-1">
+      {[0,1,2,3].map(i => (
+        <div key={i} className={[
+          "h-3 flex-1 rounded-full",
+          i < filled
+            ? filled >= 3 ? "bg-green-500" : filled === 2 ? "bg-yellow-400" : "bg-red-400"
+            : "bg-slate-200"
+        ].join(" ")} />
+      ))}
+    </div>
+  );
 }
 
-function formatGBP(value?: number | null) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-  }).format(value);
+function fmt(v?: string | null) {
+  if (!v) return "—";
+  try { return new Date(v).toLocaleString(); } catch { return v; }
+}
+
+function formatDuration(m?: number | null) {
+  if (!m) return "—";
+  if (m >= 1440) return `${Math.ceil(m/1440)} day${Math.ceil(m/1440)===1?"":"s"}`;
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m/60), mins = m%60;
+  return mins ? `${h}h ${mins}m` : `${h}h`;
+}
+
+function formatGBP(v?: number | null) {
+  if (v == null || isNaN(v)) return "—";
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(v);
 }
 
 function getTimeRemaining(expiresAt?: string | null) {
   if (!expiresAt) return null;
-
-  const diffMs = new Date(expiresAt).getTime() - Date.now();
-
-  if (diffMs <= 0) {
-    return {
-      expired: true,
-      label: "Expired",
-    };
-  }
-
-  const totalSeconds = Math.floor(diffMs / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  let label = "";
-  if (days > 0) {
-    label = `${days}d ${hours}h ${minutes}m`;
-  } else if (hours > 0) {
-    label = `${hours}h ${minutes}m ${seconds}s`;
-  } else {
-    label = `${minutes}m ${seconds}s`;
-  }
-
-  return {
-    expired: false,
-    label,
-  };
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return { expired: true, label: "Expired" };
+  const s = Math.floor(diff/1000);
+  const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  const label = d>0 ? `${d}d ${h}h ${m}m` : h>0 ? `${h}h ${m}m ${sec}s` : `${m}m ${sec}s`;
+  return { expired: false, label };
 }
 
-function fuelLabel(value?: string | null) {
-  switch (String(value || "")) {
-    case "empty":
-      return "Empty";
-    case "quarter":
-      return "Quarter";
-    case "half":
-      return "Half";
-    case "three_quarter":
-      return "Three quarter";
-    case "3/4":
-      return "3/4";
-    case "full":
-      return "Full";
-    default:
-      return "—";
+function bookingStatusLabel(s?: string | null) {
+  switch (String(s||"").toLowerCase()) {
+    case "confirmed": case "driver_assigned": case "en_route": case "arrived": return "Awaiting delivery";
+    case "collected": case "returned": return "On Hire";
+    case "completed": return "Completed";
+    case "cancelled": return "Cancelled";
+    default: return String(s||"—").replaceAll("_"," ");
   }
 }
 
-function normalizeFuel(value?: string | null) {
-  const clean = String(value || "").trim().toLowerCase();
-  if (
-    clean === "empty" ||
-    clean === "quarter" ||
-    clean === "half" ||
-    clean === "three_quarter" ||
-    clean === "3/4" ||
-    clean === "full"
-  ) {
-    return clean === "three_quarter" ? "3/4" : clean;
-  }
-  return "";
-}
+// ── Fuel Confirmation Card ────────────────────────────────────────────────────
 
-function isMatchedAndLocked(opts: {
-  partnerConfirmed: boolean;
+function FuelConfirmCard({
+  title,
+  driverConfirmed,
+  driverFuel,
+  driverConfirmedAt,
+  customerConfirmed,
+  customerConfirmedAt,
+  locked,
+  notes,
+  onNotesChange,
+  onConfirm,
+  onUnconfirm,
+  saving,
+}: {
+  title: string;
+  driverConfirmed: boolean;
+  driverFuel: string | null;
+  driverConfirmedAt: string | null;
   customerConfirmed: boolean;
-  partnerFuel?: string | null;
-  customerFuel?: string | null;
+  customerConfirmedAt: string | null;
+  locked: boolean;
+  notes: string;
+  onNotesChange: (v: string) => void;
+  onConfirm: () => void;
+  onUnconfirm: () => void;
+  saving: boolean;
 }) {
-  if (!opts.partnerConfirmed || !opts.customerConfirmed) {
-    return false;
-  }
+  return (
+    <div className={`rounded-3xl border p-6 ${locked ? "border-green-200 bg-green-50" : "border-black/5 bg-white"} shadow-[0_18px_45px_rgba(0,0,0,0.08)]`}>
+      <h2 className="text-2xl font-semibold text-[#003768]">{title}</h2>
 
-  return normalizeFuel(opts.partnerFuel) === normalizeFuel(opts.customerFuel);
+      {/* Driver reading */}
+      <div className="mt-4 rounded-2xl border border-black/10 bg-slate-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver recorded</p>
+        {driverConfirmed && driverFuel ? (
+          <>
+            <p className="mt-1 text-2xl font-bold text-[#003768]">{fuelLabel(driverFuel)}</p>
+            <FuelBar level={driverFuel} />
+            <p className="mt-1 text-xs text-slate-400">{fmt(driverConfirmedAt)}</p>
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-slate-500 italic">Waiting for driver to record fuel level…</p>
+        )}
+      </div>
+
+      {locked ? (
+        <div className="mt-4 rounded-2xl border border-green-200 bg-green-100 p-4 text-sm text-green-800 font-semibold">
+          ✓ Confirmed and locked — you and the driver agree on {fuelLabel(driverFuel)}
+        </div>
+      ) : (
+        <>
+          {customerConfirmed && (
+            <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+              You confirmed this at {fmt(customerConfirmedAt)}
+            </div>
+          )}
+
+          <div className="mt-4">
+            <label className="text-sm font-medium text-[#003768]">Notes (optional)</label>
+            <textarea
+              rows={3}
+              value={notes}
+              onChange={e => onNotesChange(e.target.value)}
+              disabled={locked}
+              className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 text-sm outline-none focus:border-[#0f4f8a] disabled:opacity-60"
+              placeholder="Any notes about the fuel level or condition…"
+            />
+          </div>
+
+          <div className="mt-4 flex gap-3">
+            {!customerConfirmed ? (
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={saving || !driverConfirmed}
+                className="flex-1 rounded-full bg-[#ff7a00] py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-50 active:scale-95 transition-transform"
+              >
+                {saving ? "Saving…" : !driverConfirmed ? "Waiting for driver…" : "✓ I agree with this fuel level"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onUnconfirm}
+                disabled={saving}
+                className="flex-1 rounded-full border border-black/10 bg-white py-3 font-semibold text-slate-700 hover:bg-black/5 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Dispute / Change"}
+              </button>
+            )}
+          </div>
+
+          {!driverConfirmed && (
+            <p className="mt-2 text-xs text-slate-400">
+              The confirm button will activate once the driver has recorded the fuel level.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
-function bookingStatusLabel(status?: string | null) {
-  switch (String(status || "").toLowerCase()) {
-    case "confirmed":
-    case "driver_assigned":
-    case "en_route":
-    case "arrived":
-      return "Awaiting delivery";
-    case "collected":
-    case "returned":
-      return "On Hire";
-    case "completed":
-      return "Completed";
-    case "cancelled":
-      return "Cancelled";
-    default:
-      return String(status || "—").replaceAll("_", " ");
-  }
-}
+// ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function TestBookingRequestDetailPage({
   params,
@@ -245,573 +249,255 @@ export default function TestBookingRequestDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [data, setData] = useState<ResponseShape | null>(null);
-  const [timeLabel, setTimeLabel] = useState<string>("—");
+  const [timeLabel, setTimeLabel] = useState("—");
   const [expired, setExpired] = useState(false);
 
-  const [collectionFuel, setCollectionFuel] = useState<FuelLevel>("full");
-  const [collectionConfirmed, setCollectionConfirmed] = useState(false);
   const [collectionNotes, setCollectionNotes] = useState("");
-
-  const [returnFuel, setReturnFuel] = useState<FuelLevel>("full");
-  const [returnConfirmed, setReturnConfirmed] = useState(false);
   const [returnNotes, setReturnNotes] = useState("");
 
   useEffect(() => {
-    let mounted = true;
-
-    async function init() {
-      const resolved = await params;
-      if (!mounted) return;
-      setRequestId(resolved.id);
-    }
-
-    init();
-
-    return () => {
-      mounted = false;
-    };
+    params.then(r => setRequestId(r.id));
   }, [params]);
 
   async function load(showSpinner = false) {
     if (!requestId) return;
-
     if (showSpinner) setLoading(true);
     setError(null);
-
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        throw new Error("Not signed in");
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not signed in");
 
       const res = await fetch(`/api/test-booking/requests/${requestId}`, {
-        method: "GET",
         cache: "no-store",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
-
       const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Failed to load request.");
 
-      if (!res.ok) {
-        throw new Error(json?.error || "Failed to load request.");
-      }
-
-      const nextData = json as ResponseShape;
-      setData(nextData);
-
-      if (nextData.booking) {
-        setCollectionFuel(
-          (nextData.booking.collection_fuel_level_customer as FuelLevel) || "full"
-        );
-        setCollectionConfirmed(!!nextData.booking.collection_confirmed_by_customer);
-        setCollectionNotes(nextData.booking.collection_customer_notes || "");
-
-        setReturnFuel(
-          (nextData.booking.return_fuel_level_customer as FuelLevel) || "full"
-        );
-        setReturnConfirmed(!!nextData.booking.return_confirmed_by_customer);
-        setReturnNotes(nextData.booking.return_customer_notes || "");
+      setData(json);
+      if (json.booking) {
+        setCollectionNotes(json.booking.collection_customer_notes || "");
+        setReturnNotes(json.booking.return_customer_notes || "");
       }
     } catch (e: any) {
       setError(e?.message || "Failed to load request.");
-      setData(null);
     } finally {
       if (showSpinner) setLoading(false);
     }
   }
 
-  useEffect(() => {
-    load(true);
-  }, [requestId]);
-
+  useEffect(() => { load(true); }, [requestId]);
   useEffect(() => {
     if (!requestId) return;
-    const interval = setInterval(() => {
-      load(false);
-    }, 10000);
-    return () => clearInterval(interval);
+    const t = setInterval(() => load(false), 10000);
+    return () => clearInterval(t);
   }, [requestId]);
 
   useEffect(() => {
-    const expiresAt = data?.request?.expires_at || null;
-
-    if (!expiresAt) {
-      setTimeLabel("—");
-      setExpired(false);
-      return;
-    }
-
-    function refreshTimer() {
-      const next = getTimeRemaining(expiresAt);
-      setTimeLabel(next?.label || "—");
-      setExpired(!!next?.expired);
-    }
-
-    refreshTimer();
-    const interval = setInterval(refreshTimer, 1000);
-
-    return () => clearInterval(interval);
+    const exp = data?.request?.expires_at;
+    if (!exp) { setTimeLabel("—"); setExpired(false); return; }
+    const tick = () => {
+      const r = getTimeRemaining(exp);
+      setTimeLabel(r?.label || "—");
+      setExpired(!!r?.expired);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
   }, [data?.request?.expires_at]);
 
   async function acceptBid(bidId: string) {
-    setAcceptingId(bidId);
-    setError(null);
-    setOk(null);
-
+    setAcceptingId(bidId); setError(null); setOk(null);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        throw new Error("Not signed in");
-      }
-
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not signed in");
       const res = await fetch("/api/test-booking/bids/accept", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ bid_id: bidId }),
       });
-
       const json = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Failed to accept bid.");
-      }
-
+      if (!res.ok) throw new Error(json?.error || "Failed to accept bid.");
       setOk("Bid accepted. Booking confirmed.");
       await load(false);
-    } catch (e: any) {
-      setError(e?.message || "Failed to accept bid.");
-    } finally {
-      setAcceptingId(null);
-    }
+    } catch (e: any) { setError(e?.message || "Failed to accept bid."); }
+    finally { setAcceptingId(null); }
   }
 
-  async function saveCustomerConfirmation(section: ConfirmSection) {
+  async function saveConfirmation(section: ConfirmSection, confirmed: boolean) {
     if (!data?.booking?.id) return;
-
-    setSavingConfirm(section);
-    setError(null);
-    setOk(null);
-
+    setSavingConfirm(section); setError(null); setOk(null);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        throw new Error("Not signed in");
-      }
-
-      const payload =
-        section === "collection"
-          ? {
-              section: "collection",
-              confirmed: collectionConfirmed,
-              fuel_level: collectionFuel,
-              notes: collectionNotes,
-            }
-          : {
-              section: "return",
-              confirmed: returnConfirmed,
-              fuel_level: returnFuel,
-              notes: returnNotes,
-            };
-
-      const res = await fetch(
-        `/api/test-booking/bookings/${data.booking.id}/update`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not signed in");
+      const res = await fetch(`/api/test-booking/bookings/${data.booking.id}/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          section,
+          confirmed,
+          notes: section === "collection" ? collectionNotes : returnNotes,
+        }),
+      });
       const json = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Failed to save confirmation.");
-      }
-
-      setOk(
-        section === "collection"
-          ? "Collection confirmation saved."
-          : "Return confirmation saved."
-      );
-
+      if (!res.ok) throw new Error(json?.error || "Failed to save.");
+      setOk(section === "collection" ? "Collection confirmed." : "Return confirmed.");
       await load(false);
-    } catch (e: any) {
-      setError(e?.message || "Failed to save confirmation.");
-    } finally {
-      setSavingConfirm(null);
-    }
+    } catch (e: any) { setError(e?.message || "Failed to save."); }
+    finally { setSavingConfirm(null); }
   }
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <p className="text-slate-600">Loading request…</p>
-        </div>
+  if (loading) return (
+    <div className="mx-auto max-w-6xl px-4 py-10">
+      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <p className="text-slate-600">Loading request…</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (!data?.request) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">
-          {error || "Request not found"}
-        </div>
+  if (!data?.request) return (
+    <div className="mx-auto max-w-6xl px-4 py-10">
+      <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">
+        {error || "Request not found"}
       </div>
-    );
-  }
+    </div>
+  );
 
-  const acceptedBooking = data.booking;
+  const bk = data.booking;
 
-  const collectionLocked = acceptedBooking
-    ? isMatchedAndLocked({
-        partnerConfirmed: !!acceptedBooking.collection_confirmed_by_partner,
-        customerConfirmed: !!acceptedBooking.collection_confirmed_by_customer,
-        partnerFuel: acceptedBooking.collection_fuel_level_partner,
-        customerFuel: acceptedBooking.collection_fuel_level_customer,
-      })
-    : false;
+  const collectionLocked = !!bk?.collection_confirmed_by_driver &&
+    !!bk?.collection_confirmed_by_customer &&
+    normalizeFuel(bk.collection_fuel_level_driver) === normalizeFuel(bk.collection_fuel_level_customer);
 
-  const returnLocked = acceptedBooking
-    ? isMatchedAndLocked({
-        partnerConfirmed: !!acceptedBooking.return_confirmed_by_partner,
-        customerConfirmed: !!acceptedBooking.return_confirmed_by_customer,
-        partnerFuel: acceptedBooking.return_fuel_level_partner,
-        customerFuel: acceptedBooking.return_fuel_level_customer,
-      })
-    : false;
+  const returnLocked = !!bk?.return_confirmed_by_driver &&
+    !!bk?.return_confirmed_by_customer &&
+    normalizeFuel(bk.return_fuel_level_driver) === normalizeFuel(bk.return_fuel_level_customer);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-10">
-      {error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      {ok ? (
-        <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-          {ok}
-        </div>
-      ) : null}
+      {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+      {ok && <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">{ok}</div>}
 
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-[#003768]">Request Detail</h1>
-          <p className="mt-2 text-slate-600">
-            Review your request and any partner bids received.
-          </p>
+          <p className="mt-2 text-slate-600">Review your request and any partner bids received.</p>
         </div>
-
-        <Link
-          href="/test-booking/requests"
-          className="rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[#003768] hover:bg-black/5"
-        >
+        <Link href="/test-booking/requests" className="rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[#003768] hover:bg-black/5">
           Back to Requests
         </Link>
       </div>
 
-      <div
-        className={`rounded-2xl border p-4 text-sm ${
-          expired
-            ? "border-red-200 bg-red-50 text-red-700"
-            : "border-amber-200 bg-amber-50 text-amber-700"
-        }`}
-      >
+      <div className={`rounded-2xl border p-4 text-sm ${expired ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
         <span className="font-semibold">Bid window:</span> {timeLabel}
       </div>
 
+      {/* Request info */}
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">Request Information</h2>
-
-        <div className="mt-6 space-y-4 text-slate-700">
-          <p><span className="font-semibold text-slate-900">Job No.:</span> {data.request.job_number ?? "—"}</p>
-          <p><span className="font-semibold text-slate-900">Pickup:</span> {data.request.pickup_address}</p>
-          <p><span className="font-semibold text-slate-900">Dropoff:</span> {data.request.dropoff_address || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Pickup time:</span> {fmtDateTime(data.request.pickup_at)}</p>
-          <p><span className="font-semibold text-slate-900">Dropoff time:</span> {fmtDateTime(data.request.dropoff_at)}</p>
-          <p><span className="font-semibold text-slate-900">Duration:</span> {formatDuration(data.request.journey_duration_minutes)}</p>
-          <p><span className="font-semibold text-slate-900">Passengers:</span> {data.request.passengers}</p>
-          <p><span className="font-semibold text-slate-900">Bags:</span> {data.request.suitcases} suitcases / {data.request.hand_luggage} hand luggage</p>
-          <p><span className="font-semibold text-slate-900">Vehicle:</span> {data.request.vehicle_category_name || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Notes:</span> {data.request.notes || "—"}</p>
-          <p><span className="font-semibold text-slate-900">Status:</span> <span className="capitalize">{data.request.status}</span></p>
-          <p><span className="font-semibold text-slate-900">Expires at:</span> {fmtDateTime(data.request.expires_at)}</p>
+        <div className="mt-6 grid gap-3 text-slate-700 sm:grid-cols-2">
+          {[
+            ["Job No.", data.request.job_number ?? "—"],
+            ["Pickup", data.request.pickup_address],
+            ["Dropoff", data.request.dropoff_address || "—"],
+            ["Pickup time", fmt(data.request.pickup_at)],
+            ["Dropoff time", fmt(data.request.dropoff_at)],
+            ["Duration", formatDuration(data.request.journey_duration_minutes)],
+            ["Passengers", data.request.passengers],
+            ["Bags", `${data.request.suitcases} suitcases / ${data.request.hand_luggage} hand luggage`],
+            ["Vehicle", data.request.vehicle_category_name || "—"],
+            ["Status", data.request.status],
+          ].map(([label, value]) => (
+            <p key={String(label)}><span className="font-semibold text-slate-900">{label}:</span> {String(value)}</p>
+          ))}
         </div>
       </div>
 
-      {acceptedBooking ? (
+      {/* Accepted booking */}
+      {bk && (
         <>
           <div className="rounded-3xl border border-green-200 bg-green-50 p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-            <h2 className="text-2xl font-semibold text-[#003768]">
-              Accepted Booking
-            </h2>
-
-            <div className="mt-6 space-y-4 text-slate-700">
-              <p><span className="font-semibold text-slate-900">Booking status:</span> {bookingStatusLabel(acceptedBooking.booking_status)}</p>
-              <p><span className="font-semibold text-slate-900">Car hire company:</span> {acceptedBooking.company_name || "—"}</p>
-              <p><span className="font-semibold text-slate-900">Company phone:</span> {acceptedBooking.company_phone || "—"}</p>
-              <p><span className="font-semibold text-slate-900">Accepted price:</span> {formatGBP(acceptedBooking.amount)}</p>
-              <p><span className="font-semibold text-slate-900">Booking notes:</span> {acceptedBooking.notes || "—"}</p>
-              <p><span className="font-semibold text-slate-900">Driver name:</span> {acceptedBooking.driver_name || "—"}</p>
-              <p><span className="font-semibold text-slate-900">Driver phone:</span> {acceptedBooking.driver_phone || "—"}</p>
-              <p><span className="font-semibold text-slate-900">Driver vehicle:</span> {acceptedBooking.driver_vehicle || "—"}</p>
-              <p><span className="font-semibold text-slate-900">Driver notes:</span> {acceptedBooking.driver_notes || "—"}</p>
-              <p><span className="font-semibold text-slate-900">Driver assigned at:</span> {fmtDateTime(acceptedBooking.driver_assigned_at)}</p>
+            <h2 className="text-2xl font-semibold text-[#003768]">Your Booking</h2>
+            <div className="mt-6 grid gap-3 text-slate-700 sm:grid-cols-2">
+              {[
+                ["Status", bookingStatusLabel(bk.booking_status)],
+                ["Car hire company", bk.company_name || "—"],
+                ["Company phone", bk.company_phone || "—"],
+                ["Price", formatGBP(bk.amount)],
+                ["Driver", bk.driver_name || "—"],
+                ["Driver phone", bk.driver_phone || "—"],
+                ["Driver vehicle", bk.driver_vehicle || "—"],
+                ["Driver assigned at", fmt(bk.driver_assigned_at)],
+              ].map(([label, value]) => (
+                <p key={String(label)}><span className="font-semibold text-slate-900">{label}:</span> {String(value)}</p>
+              ))}
             </div>
           </div>
 
-          <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-            <h2 className="text-2xl font-semibold text-[#003768]">Driver Live Updates</h2>
-
-            <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <div className="rounded-3xl border border-black/10 p-5">
-                <h3 className="text-2xl font-semibold text-[#003768]">Driver Collection</h3>
-                <div className="mt-6 space-y-4 text-slate-700">
-                  <p><span className="font-semibold text-slate-900">Driver confirmed:</span> {acceptedBooking.collection_confirmed_by_driver ? "Yes" : "No"}</p>
-                  <p><span className="font-semibold text-slate-900">Driver fuel:</span> {fuelLabel(acceptedBooking.collection_fuel_level_driver)}</p>
-                  <p><span className="font-semibold text-slate-900">Driver confirmed at:</span> {fmtDateTime(acceptedBooking.collection_confirmed_by_driver_at)}</p>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-black/10 p-5">
-                <h3 className="text-2xl font-semibold text-[#003768]">Driver Return</h3>
-                <div className="mt-6 space-y-4 text-slate-700">
-                  <p><span className="font-semibold text-slate-900">Driver confirmed:</span> {acceptedBooking.return_confirmed_by_driver ? "Yes" : "No"}</p>
-                  <p><span className="font-semibold text-slate-900">Driver fuel:</span> {fuelLabel(acceptedBooking.return_fuel_level_driver)}</p>
-                  <p><span className="font-semibold text-slate-900">Driver confirmed at:</span> {fmtDateTime(acceptedBooking.return_confirmed_by_driver_at)}</p>
-                </div>
-              </div>
+          {/* Fuel confirmation — only show once booking is active */}
+          {!["open","expired","cancelled"].includes(data.request.status) && (
+            <div className="grid gap-6 xl:grid-cols-2">
+              <FuelConfirmCard
+                title="Collection Fuel"
+                driverConfirmed={bk.collection_confirmed_by_driver}
+                driverFuel={bk.collection_fuel_level_driver}
+                driverConfirmedAt={bk.collection_confirmed_by_driver_at}
+                customerConfirmed={bk.collection_confirmed_by_customer}
+                customerConfirmedAt={bk.collection_confirmed_by_customer_at}
+                locked={collectionLocked}
+                notes={collectionNotes}
+                onNotesChange={setCollectionNotes}
+                onConfirm={() => saveConfirmation("collection", true)}
+                onUnconfirm={() => saveConfirmation("collection", false)}
+                saving={savingConfirm === "collection"}
+              />
+              <FuelConfirmCard
+                title="Return Fuel"
+                driverConfirmed={bk.return_confirmed_by_driver}
+                driverFuel={bk.return_fuel_level_driver}
+                driverConfirmedAt={bk.return_confirmed_by_driver_at}
+                customerConfirmed={bk.return_confirmed_by_customer}
+                customerConfirmedAt={bk.return_confirmed_by_customer_at}
+                locked={returnLocked}
+                notes={returnNotes}
+                onNotesChange={setReturnNotes}
+                onConfirm={() => saveConfirmation("return", true)}
+                onUnconfirm={() => saveConfirmation("return", false)}
+                saving={savingConfirm === "return"}
+              />
             </div>
-
-            <p className="mt-6 text-sm text-slate-500">
-              This page refreshes automatically every 10 seconds while open.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-              <h2 className="text-2xl font-semibold text-[#003768]">Collection</h2>
-
-              <div className="mt-6 space-y-4">
-                <div className="rounded-2xl border border-black/10 bg-slate-50 p-4 text-sm text-slate-700">
-                  <p><span className="font-semibold text-slate-900">Partner confirmed:</span> {acceptedBooking.collection_confirmed_by_partner ? "Yes" : "No"}</p>
-                  <p><span className="font-semibold text-slate-900">Partner fuel:</span> {fuelLabel(acceptedBooking.collection_fuel_level_partner)}</p>
-                  <p><span className="font-semibold text-slate-900">Partner notes:</span> {acceptedBooking.collection_partner_notes || "—"}</p>
-                  <p><span className="font-semibold text-slate-900">Confirmed at:</span> {fmtDateTime(acceptedBooking.collection_confirmed_by_partner_at)}</p>
-                </div>
-
-                {collectionLocked ? (
-                  <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-                    Collection is locked because both customer and partner entries match.
-                  </div>
-                ) : acceptedBooking.collection_confirmed_by_partner && acceptedBooking.collection_confirmed_by_customer ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-                    Collection is not locked because the customer and partner values do not yet match.
-                  </div>
-                ) : null}
-
-                <div>
-                  <label className="text-sm font-medium text-[#003768]">
-                    Fuel level at collection
-                  </label>
-                  <select
-                    value={collectionFuel}
-                    onChange={(e) => setCollectionFuel(e.target.value as FuelLevel)}
-                    disabled={collectionLocked}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-4 disabled:opacity-60"
-                  >
-                    <option value="empty">empty</option>
-                    <option value="quarter">quarter</option>
-                    <option value="half">half</option>
-                    <option value="three_quarter">three_quarter</option>
-                    <option value="full">full</option>
-                  </select>
-                </div>
-
-                <label className="inline-flex items-center gap-3 text-sm font-medium text-[#003768]">
-                  <input
-                    type="checkbox"
-                    checked={collectionConfirmed}
-                    onChange={(e) => setCollectionConfirmed(e.target.checked)}
-                    disabled={collectionLocked}
-                    className="h-4 w-4"
-                  />
-                  Customer confirms collection completed
-                </label>
-
-                <div>
-                  <label className="text-sm font-medium text-[#003768]">
-                    Collection notes
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={collectionNotes}
-                    onChange={(e) => setCollectionNotes(e.target.value)}
-                    disabled={collectionLocked}
-                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 disabled:opacity-60"
-                    placeholder="Collection notes, issues, condition notes, etc."
-                  />
-                </div>
-
-                <p className="text-sm text-slate-500">Saved fuel level: <strong>{fuelLabel(acceptedBooking.collection_fuel_level_customer)}</strong></p>
-                <p className="text-sm text-slate-500">Saved notes: <strong>{acceptedBooking.collection_customer_notes || "—"}</strong></p>
-                <p className="text-sm text-slate-500">Saved confirmed at: <strong>{fmtDateTime(acceptedBooking.collection_confirmed_by_customer_at)}</strong></p>
-
-                <button
-                  type="button"
-                  onClick={() => saveCustomerConfirmation("collection")}
-                  disabled={savingConfirm === "collection" || collectionLocked}
-                  className="rounded-full bg-[#ff7a00] px-6 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
-                >
-                  {savingConfirm === "collection" ? "Saving..." : "Save Collection Update"}
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-              <h2 className="text-2xl font-semibold text-[#003768]">Return</h2>
-
-              <div className="mt-6 space-y-4">
-                <div className="rounded-2xl border border-black/10 bg-slate-50 p-4 text-sm text-slate-700">
-                  <p><span className="font-semibold text-slate-900">Partner confirmed:</span> {acceptedBooking.return_confirmed_by_partner ? "Yes" : "No"}</p>
-                  <p><span className="font-semibold text-slate-900">Partner fuel:</span> {fuelLabel(acceptedBooking.return_fuel_level_partner)}</p>
-                  <p><span className="font-semibold text-slate-900">Partner notes:</span> {acceptedBooking.return_partner_notes || "—"}</p>
-                  <p><span className="font-semibold text-slate-900">Confirmed at:</span> {fmtDateTime(acceptedBooking.return_confirmed_by_partner_at)}</p>
-                </div>
-
-                {returnLocked ? (
-                  <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-                    Return is locked because both customer and partner entries match.
-                  </div>
-                ) : acceptedBooking.return_confirmed_by_partner && acceptedBooking.return_confirmed_by_customer ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-                    Return is not locked because the customer and partner values do not yet match.
-                  </div>
-                ) : null}
-
-                <div>
-                  <label className="text-sm font-medium text-[#003768]">
-                    Fuel level at return
-                  </label>
-                  <select
-                    value={returnFuel}
-                    onChange={(e) => setReturnFuel(e.target.value as FuelLevel)}
-                    disabled={returnLocked}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-4 disabled:opacity-60"
-                  >
-                    <option value="empty">empty</option>
-                    <option value="quarter">quarter</option>
-                    <option value="half">half</option>
-                    <option value="three_quarter">three_quarter</option>
-                    <option value="full">full</option>
-                  </select>
-                </div>
-
-                <label className="inline-flex items-center gap-3 text-sm font-medium text-[#003768]">
-                  <input
-                    type="checkbox"
-                    checked={returnConfirmed}
-                    onChange={(e) => setReturnConfirmed(e.target.checked)}
-                    disabled={returnLocked}
-                    className="h-4 w-4"
-                  />
-                  Customer confirms return completed
-                </label>
-
-                <div>
-                  <label className="text-sm font-medium text-[#003768]">
-                    Return notes
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={returnNotes}
-                    onChange={(e) => setReturnNotes(e.target.value)}
-                    disabled={returnLocked}
-                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 disabled:opacity-60"
-                    placeholder="Return notes, damage notes, fuel comments, etc."
-                  />
-                </div>
-
-                <p className="text-sm text-slate-500">Saved fuel level: <strong>{fuelLabel(acceptedBooking.return_fuel_level_customer)}</strong></p>
-                <p className="text-sm text-slate-500">Saved notes: <strong>{acceptedBooking.return_customer_notes || "—"}</strong></p>
-                <p className="text-sm text-slate-500">Saved confirmed at: <strong>{fmtDateTime(acceptedBooking.return_confirmed_by_customer_at)}</strong></p>
-
-                <button
-                  type="button"
-                  onClick={() => saveCustomerConfirmation("return")}
-                  disabled={savingConfirm === "return" || returnLocked}
-                  className="rounded-full bg-[#ff7a00] px-6 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
-                >
-                  {savingConfirm === "return" ? "Saving..." : "Save Return Update"}
-                </button>
-              </div>
-            </div>
-          </div>
+          )}
         </>
-      ) : null}
+      )}
 
+      {/* Bids */}
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">Partner Bids</h2>
-
         {expired || data.request.status === "expired" ? (
-          <p className="mt-4 text-red-700">
-            This request has expired and can no longer be accepted.
-          </p>
+          <p className="mt-4 text-red-700">This request has expired and can no longer be accepted.</p>
         ) : data.bids.length === 0 ? (
           <p className="mt-4 text-slate-600">No bids submitted yet.</p>
         ) : (
           <div className="mt-6 space-y-4">
-            {data.bids.map((bid) => (
+            {data.bids.map(bid => (
               <div key={bid.id} className="rounded-2xl border border-black/10 p-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="space-y-2 text-slate-700">
-                    <h3 className="text-xl font-semibold text-[#003768]">
-                      {bid.partner_company_name || "Car Hire Company"}
-                    </h3>
-
-                    <p><span className="font-semibold text-slate-900">Company:</span> {bid.partner_company_name || "—"}</p>
+                    <h3 className="text-xl font-semibold text-[#003768]">{bid.partner_company_name || "Car Hire Company"}</h3>
                     <p><span className="font-semibold text-slate-900">Phone:</span> {bid.partner_phone || "—"}</p>
                     <p><span className="font-semibold text-slate-900">Vehicle:</span> {bid.vehicle_category_name}</p>
                     <p><span className="font-semibold text-slate-900">Car hire:</span> {formatGBP(bid.car_hire_price)}</p>
-                    <p><span className="font-semibold text-slate-900">Fuel:</span> {formatGBP(bid.fuel_price)}</p>
+                    <p><span className="font-semibold text-slate-900">Fuel deposit:</span> {formatGBP(bid.fuel_price)}</p>
                     <p><span className="font-semibold text-slate-900">Total:</span> {formatGBP(bid.total_price)}</p>
                     <p><span className="font-semibold text-slate-900">Insurance included:</span> {bid.full_insurance_included ? "Yes" : "No"}</p>
                     <p><span className="font-semibold text-slate-900">Full tank included:</span> {bid.full_tank_included ? "Yes" : "No"}</p>
-                    <p><span className="font-semibold text-slate-900">Notes:</span> {bid.notes || "—"}</p>
-                    <p><span className="font-semibold text-slate-900">Status:</span> <span className="capitalize">{bid.status}</span></p>
+                    {bid.notes && <p><span className="font-semibold text-slate-900">Notes:</span> {bid.notes}</p>}
                   </div>
-
-                  <div className="flex flex-wrap gap-2">
+                  <div>
                     {bid.status === "accepted" ? (
-                      <span className="rounded-full border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700">
-                        Accepted
-                      </span>
+                      <span className="rounded-full border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700">Accepted</span>
                     ) : data.request.status === "confirmed" ? (
-                      <span className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-slate-500">
-                        Closed
-                      </span>
+                      <span className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-slate-500">Closed</span>
                     ) : (
                       <button
                         type="button"
