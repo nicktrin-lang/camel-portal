@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
 const MAIN_HOSTS = new Set(["camel-global.com", "www.camel-global.com"]);
 const PORTAL_HOST = "portal.camel-global.com";
 const TEST_HOST = "test.camel-global.com";
+
+const PUBLIC_DRIVER_PATHS = ["/driver/login", "/driver/signup"];
 
 function isStaticAsset(pathname: string) {
   return (
@@ -17,7 +20,7 @@ function isStaticAsset(pathname: string) {
   );
 }
 
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const host = (req.headers.get("host") || "").split(":")[0];
   const url = req.nextUrl.clone();
   const pathname = url.pathname;
@@ -26,8 +29,8 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // MAIN DOMAIN:
-  // partner/admin paths should live on the portal subdomain
+  // ── Domain routing ──────────────────────────────────────────────────────────
+
   const isPartnerOrAdminPath =
     pathname.startsWith("/partner") || pathname.startsWith("/admin");
 
@@ -40,21 +43,49 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(redirectUrl, 308);
   }
 
-  // TEST DOMAIN:
-  // DO NOT redirect "/" anymore.
-  // We want test.camel-global.com to show the new customer homepage from app/page.tsx
-
-  // Optional safety:
-  // if someone tries partner/admin routes on the test domain,
-  // send them into the customer staging area instead
-  if (
-    host === TEST_HOST &&
-    (pathname.startsWith("/partner") || pathname.startsWith("/admin"))
-  ) {
+  if (host === TEST_HOST && isPartnerOrAdminPath) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/test-booking";
     redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl, 307);
+  }
+
+  // ── Driver route protection ─────────────────────────────────────────────────
+
+  if (pathname.startsWith("/driver")) {
+    const isPublic = PUBLIC_DRIVER_PATHS.some(
+      (p) => pathname === p || pathname.startsWith(p + "/")
+    );
+
+    if (!isPublic) {
+      const res = NextResponse.next();
+
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll: () => req.cookies.getAll(),
+            setAll: (cookiesToSet) => {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                res.cookies.set(name, value, options)
+              );
+            },
+          },
+        }
+      );
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        const loginUrl = req.nextUrl.clone();
+        loginUrl.pathname = "/driver/login";
+        loginUrl.searchParams.set("reason", "not_signed_in");
+        return NextResponse.redirect(loginUrl);
+      }
+
+      return res;
+    }
   }
 
   return NextResponse.next();
