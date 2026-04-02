@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     const db = createServiceRoleSupabaseClient();
 
     const { data: adminRow, error: adminErr } = await db
-      .from("admins")
+      .from("admin_users")
       .select("role")
       .eq("email", email)
       .maybeSingle();

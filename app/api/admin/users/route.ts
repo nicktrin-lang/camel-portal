@@ -29,7 +29,7 @@ async function requireSuperAdmin() {
   const db = createServiceRoleSupabaseClient();
 
   const { data: adminRow, error: adminErr } = await db
-    .from("admins")
+    .from("admin_users")
     .select("role")
     .eq("email", email)
     .maybeSingle();
@@ -59,7 +59,7 @@ export async function GET() {
     const { db } = gate;
 
     const { data, error } = await db
-      .from("admins")
+      .from("admin_users")
       .select("id,email,role,created_at")
       .order("created_at", { ascending: false });
 
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     const { db } = gate;
 
     const { data, error } = await db
-      .from("admins")
+      .from("admin_users")
       .upsert({ email, role }, { onConflict: "email" })
       .select("id,email,role,created_at")
       .single();
@@ -153,7 +153,7 @@ export async function PATCH(req: Request) {
     }
 
     const { data, error } = await db
-      .from("admins")
+      .from("admin_users")
       .update({ role })
       .eq("email", email)
       .select("id,email,role,created_at")
@@ -199,7 +199,7 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const { error } = await db.from("admins").delete().eq("email", email);
+    const { error } = await db.from("admin_users").delete().eq("email", email);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
