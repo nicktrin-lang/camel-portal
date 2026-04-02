@@ -504,13 +504,13 @@ export default function TestBookingRequestDetailPage({
             </div>
           </div>
 
-          {/* Fuel summary — shown when booking is complete */}
-          {bk.booking_status === "completed" && bk.fuel_charge !== null && (
+          {/* Fuel summary — only show when both locked AND fuel charge calculated */}
+          {collectionLocked && returnLocked && bk.fuel_charge !== null && (
             <CustomerFuelSummary booking={bk} />
           )}
 
-          {/* Fuel confirmation — only show once booking is active */}
-          {!["open","expired","cancelled","completed"].includes(data.request.status) && bk.booking_status !== "completed" && (
+          {/* Fuel confirmation — show until both stages are locked */}
+          {(!collectionLocked || !returnLocked) && (
             <div className="grid gap-6 xl:grid-cols-2">
               <FuelConfirmCard
                 title="Collection Fuel"
