@@ -34,7 +34,7 @@ export default function ClientRootLayout({ children }: { children: React.ReactNo
       const supabase = createBrowserSupabaseClient();
       const { data } = await supabase.auth.getUser();
       if (mounted) setIsPartnerLoggedIn(!!data?.user);
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (mounted) setIsPartnerLoggedIn(!!session?.user);
       });
       unsub = () => subscription.unsubscribe();
@@ -57,7 +57,7 @@ export default function ClientRootLayout({ children }: { children: React.ReactNo
         String(data?.user?.user_metadata?.full_name || "").trim() ||
         String(data?.user?.email || "").split("@")[0] || ""
       );
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (mounted) {
           setIsCustomerLoggedIn(!!session?.user);
           setCustomerName(
