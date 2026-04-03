@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 
 const MAIN_HOSTS = new Set(["camel-global.com", "www.camel-global.com"]);
 const PORTAL_HOST = "portal.camel-global.com";
@@ -25,11 +24,7 @@ export async function proxy(req: NextRequest) {
   const url = req.nextUrl.clone();
   const pathname = url.pathname;
 
-  if (isStaticAsset(pathname)) {
-    return NextResponse.next();
-  }
-
-  // ── Domain routing ──────────────────────────────────────────────────────────
+  if (isStaticAsset(pathname)) return NextResponse.next();
 
   const isPartnerOrAdminPath =
     pathname.startsWith("/partner") || pathname.startsWith("/admin");
@@ -50,41 +45,22 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(redirectUrl, 307);
   }
 
-  // ── Driver route protection ─────────────────────────────────────────────────
-
   if (pathname.startsWith("/driver")) {
     const isPublic = PUBLIC_DRIVER_PATHS.some(
       (p) => pathname === p || pathname.startsWith(p + "/")
     );
 
     if (!isPublic) {
-      const res = NextResponse.next();
-
-      const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: {
-            getAll: () => req.cookies.getAll(),
-            setAll: (cookiesToSet) => {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                res.cookies.set(name, value, options)
-              );
-            },
-          },
-        }
+      const hasSession = req.cookies.getAll().some(
+        (c) => c.name.includes("sb-") && c.name.includes("-auth-token")
       );
 
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
+      if (!hasSession) {
         const loginUrl = req.nextUrl.clone();
         loginUrl.pathname = "/driver/login";
         loginUrl.searchParams.set("reason", "not_signed_in");
         return NextResponse.redirect(loginUrl);
       }
-
-      return res;
     }
   }
 
