@@ -8,26 +8,31 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 function reasonMessage(reason: string | null) {
   switch (reason) {
-    case "signed_out":
-      return "You have been signed out.";
-    case "not_signed_in":
-      return "Please sign in to continue.";
-    case "not_authorized":
-      return "You are not authorized to access that page.";
-    default:
-      return "";
+    case "signed_out": return "You have been signed out.";
+    case "not_signed_in": return "Please sign in to continue.";
+    case "not_authorized": return "You are not authorized to access that page.";
+    default: return "";
   }
 }
 
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
   if (!text) return null;
+  try { return JSON.parse(text); } catch { return { _raw: text }; }
+}
 
+// Clear any stale Supabase lock/session keys from localStorage
+function clearStaleSupabaseLocks() {
   try {
-    return JSON.parse(text);
-  } catch {
-    return { _raw: text };
-  }
+    Object.keys(localStorage)
+      .filter(k => k.includes("sb-") || k.includes("supabase"))
+      .forEach(k => {
+        // Only clear lock keys, not session tokens
+        if (k.includes("lock") || k.includes("Lock")) {
+          localStorage.removeItem(k);
+        }
+      });
+  } catch {}
 }
 
 function PartnerLoginInner() {
@@ -48,11 +53,21 @@ function PartnerLoginInner() {
     setLoading(true);
     setError("");
 
+    // Clear stale locks before attempting login
+    clearStaleSupabaseLocks();
+
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      // Add a 15 second timeout to prevent infinite hang
+      const signInPromise = supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Login timed out. Please try again.")), 15000)
+      );
+
+      const { error: signInError } = await Promise.race([signInPromise, timeoutPromise]);
 
       if (signInError) throw signInError;
 
@@ -81,8 +96,7 @@ function PartnerLoginInner() {
 
       router.refresh();
     } catch (e: any) {
-      setError(e?.message || "Login failed.");
-    } finally {
+      setError(e?.message || "Login failed. Please try again.");
       setLoading(false);
     }
   }
@@ -92,14 +106,7 @@ function PartnerLoginInner() {
       <header className="fixed inset-x-0 top-0 z-40 h-20 border-b border-black/10 bg-[#0f4f8a] text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
         <div className="flex h-full items-center px-4 md:px-8">
           <Link href="/partner/login" className="flex items-center">
-            <Image
-              src="/camel-logo.png"
-              alt="Camel Global logo"
-              width={180}
-              height={60}
-              priority
-              className="h-[52px] w-auto"
-            />
+            <Image src="/camel-logo.png" alt="Camel Global logo" width={180} height={60} priority className="h-[52px] w-auto" />
           </Link>
         </div>
       </header>
@@ -107,21 +114,35 @@ function PartnerLoginInner() {
       <div className="mx-auto flex min-h-screen max-w-7xl justify-center px-4 pt-24 pb-10">
         <div className="mt-8 w-full max-w-2xl rounded-3xl border border-black/5 bg-white p-10 shadow-[0_18px_45px_rgba(0,0,0,0.10)]">
           <h1 className="text-4xl font-semibold text-[#003768]">Partner Login</h1>
-          <p className="mt-3 text-lg text-slate-600">
-            Log in to manage your profile and requests.
-          </p>
+          <p className="mt-3 text-lg text-slate-600">Log in to manage your profile and requests.</p>
 
-          {infoMessage ? (
+          {infoMessage && (
             <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
               {infoMessage}
             </div>
-          ) : null}
+          )}
 
-          {error ? (
+          {error && (
             <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
+              {error.includes("timed out") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      Object.keys(localStorage)
+                        .filter(k => k.includes("sb-") || k.includes("supabase"))
+                        .forEach(k => localStorage.removeItem(k));
+                    } catch {}
+                    window.location.reload();
+                  }}
+                  className="ml-2 underline font-semibold"
+                >
+                  Clear session & retry
+                </button>
+              )}
             </div>
-          ) : null}
+          )}
 
           <form onSubmit={handleLogin} className="mt-8 space-y-6">
             <div>
@@ -131,7 +152,8 @@ function PartnerLoginInner() {
                 autoComplete="email"
                 className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 text-black outline-none transition focus:border-[#0f4f8a]"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
+                required
               />
             </div>
 
@@ -142,7 +164,8 @@ function PartnerLoginInner() {
                 autoComplete="current-password"
                 className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 text-black outline-none transition focus:border-[#0f4f8a]"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
+                required
               />
             </div>
 
