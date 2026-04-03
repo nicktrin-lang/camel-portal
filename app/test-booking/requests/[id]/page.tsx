@@ -503,8 +503,7 @@ export default function TestBookingRequestDetailPage({
               <p><span className="font-semibold text-slate-900">Status:</span> {bookingStatusLabel(bk.booking_status)}</p>
               <p><span className="font-semibold text-slate-900">Car hire company:</span> {bk.company_name || "—"}</p>
               <p><span className="font-semibold text-slate-900">Company phone:</span> {bk.company_phone || "—"}</p>
-              <p>
-                <span className="font-semibold text-slate-900">Price:</span>{" "}
+              <p><span className="font-semibold text-slate-900">Price:</span>{" "}
                 <DualFromGbp amountGbp={bk.amount} rate={liveRate} />
               </p>
               <p><span className="font-semibold text-slate-900">Driver:</span> {bk.driver_name || "—"}</p>
@@ -512,12 +511,11 @@ export default function TestBookingRequestDetailPage({
               <p><span className="font-semibold text-slate-900">Driver vehicle:</span> {bk.driver_vehicle || "—"}</p>
               <p><span className="font-semibold text-slate-900">Driver assigned at:</span> {fmt(bk.driver_assigned_at)}</p>
             </div>
-            <p className="mt-4 text-xs text-slate-400">1€ = {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(liveRate)}</p>
           </div>
 
           {/* Fuel summary */}
           {collectionLocked && returnLocked && bk.fuel_charge !== null && (
-            <CustomerFuelSummary booking={bk} rate={liveRate} rateIsLive={rateIsLive} />
+            <CustomerPaymentSummary booking={bk} rate={liveRate} rateIsLive={rateIsLive} />
           )}
 
           {/* Fuel confirmation */}
@@ -557,10 +555,6 @@ export default function TestBookingRequestDetailPage({
       {/* Bids */}
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">Partner Bids</h2>
-        <div className={`mt-2 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-base font-bold ${rateIsLive ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-700"}`}>
-          <span className={`h-2.5 w-2.5 rounded-full ${rateIsLive ? "bg-green-500" : "bg-slate-400"}`} />
-          1€ = {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(liveRate)}{rateIsLive ? " · Live rate (frankfurter.app)" : ""}
-        </div>
 
         {expired || data.request.status === "expired" ? (
           <p className="mt-4 text-red-700">This request has expired and can no longer be accepted.</p>
