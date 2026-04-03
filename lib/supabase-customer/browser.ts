@@ -5,7 +5,6 @@ export function createCustomerBrowserClient() {
     process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_ANON_KEY!,
     {
-      cookieOptions: { name: "sb-customer" },
       isSingleton: true,
     }
   );
