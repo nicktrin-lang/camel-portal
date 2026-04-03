@@ -161,12 +161,12 @@ export async function GET(
           driver_notes: bk.driver_notes || null,
           driver_assigned_at: bk.driver_assigned_at || null,
 
-          // ── Fuel pricing ──────────────────────────────────────────
+          // ── Fuel pricing (EUR) ────────────────────────────────────
           fuel_price: bk.fuel_price ?? 0,
           car_hire_price: bk.car_hire_price ?? 0,
           fuel_used_quarters: bk.fuel_used_quarters ?? null,
-          fuel_charge: bk.fuel_charge ?? null,
-          fuel_refund: bk.fuel_refund ?? null,
+          fuel_charge: bk.fuel_charge ?? null,   // GBP
+          fuel_refund: bk.fuel_refund ?? null,   // GBP
 
           // ── Driver confirmations ──────────────────────────────────
           collection_confirmed_by_driver: !!bk.collection_confirmed_by_driver,

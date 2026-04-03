@@ -167,12 +167,21 @@ function DualFromGbp({ amountGbp, rate, className }: {
 function CustomerPaymentSummary({ booking, rate, rateIsLive }: {
   booking: BookingData; rate: number; rateIsLive: boolean;
 }) {
-  const fullTankEur = Number(booking.fuel_price || 0);
-  const pricePerQuarterEur = fullTankEur / 4;
+  // EUR-stored fields
+  const carHireEur   = Number(booking.car_hire_price || 0); // EUR
+  const fullTankEur  = Number(booking.fuel_price || 0);     // EUR
+  const perQtrEur    = fullTankEur / 4;                     // EUR
+
+  // GBP-stored fields
+  const totalPaidGbp  = booking.amount ?? null;             // GBP
+  const fuelChargeGbp = booking.fuel_charge ?? null;        // GBP
+  const fuelRefundGbp = booking.fuel_refund ?? null;        // GBP
+
   const usedQuarters = booking.fuel_used_quarters ?? null;
-  const fuelCharge = booking.fuel_charge ?? null;   // GBP
-  const fuelRefund = booking.fuel_refund ?? null;   // GBP
-  const totalPaid = booking.amount ?? null;          // GBP
+
+  // Derived GBP equivalents for the breakdown line (EUR → GBP)
+  const carHireGbp  = Math.round(carHireEur  * rate * 100) / 100;
+  const fullTankGbp = Math.round(fullTankEur * rate * 100) / 100;
 
   const collFuel = normalizeFuel(booking.collection_fuel_level_driver) ||
     normalizeFuel(booking.collection_fuel_level_partner);
@@ -188,15 +197,26 @@ function CustomerPaymentSummary({ booking, rate, rateIsLive }: {
         <span className="rounded-full bg-green-400 px-3 py-1 text-xs font-bold text-green-900">Finalised</span>
       </div>
 
-      {/* Total paid */}
+      {/* Total paid at booking */}
       <div className="mt-6 rounded-2xl bg-white/10 p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Total you paid at booking</p>
-        <p className="mt-1 text-4xl font-black"><DualFromGbp amountGbp={totalPaid} rate={rate} /></p>
-        <p className="mt-2 text-sm text-white/60">
-          Car hire: <DualFromEur amountEur={booking.car_hire_price} rate={rate} />
-          &nbsp;·&nbsp;
-          Fuel deposit: <DualFromEur amountEur={fullTankEur} rate={rate} />
+        {/* amount is stored GBP — show GBP primary, EUR secondary */}
+        <p className="mt-1 text-4xl font-black">
+          <DualFromGbp amountGbp={totalPaidGbp} rate={rate} />
         </p>
+        {/* Breakdown: each item EUR→GBP, with EUR in brackets */}
+        <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-white/70">
+          <div className="rounded-xl bg-white/10 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Car hire</p>
+            <p className="mt-0.5 font-bold text-white">{gbpFmt(carHireGbp)}</p>
+            <p className="text-xs text-white/50">({formatEUR(carHireEur)})</p>
+          </div>
+          <div className="rounded-xl bg-white/10 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Full tank deposit</p>
+            <p className="mt-0.5 font-bold text-white">{gbpFmt(fullTankGbp)}</p>
+            <p className="text-xs text-white/50">({formatEUR(fullTankEur)})</p>
+          </div>
+        </div>
       </div>
 
       {/* Fuel levels */}
@@ -217,28 +237,34 @@ function CustomerPaymentSummary({ booking, rate, rateIsLive }: {
             {usedQuarters !== null ? QUARTER_LABELS[usedQuarters] ?? `${usedQuarters}/4` : "—"}
           </p>
           <p className="mt-1 text-xs text-white/60">
-            <DualFromEur amountEur={pricePerQuarterEur} rate={rate} /> per quarter
+            {/* per quarter is EUR-derived */}
+            {gbpFmt(Math.round(perQtrEur * rate * 100) / 100)}{" "}
+            <span className="text-white/40">({formatEUR(perQtrEur)})</span> per quarter
           </p>
         </div>
       </div>
 
-      {/* Fuel charge + refund */}
+      {/* Fuel charge + refund — both stored GBP */}
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl bg-[#ff7a00]/20 border border-[#ff7a00]/40 p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/70">You pay for fuel</p>
-          <p className="mt-2 text-4xl font-black"><DualFromGbp amountGbp={fuelCharge} rate={rate} /></p>
+          <p className="mt-2 text-4xl font-black">
+            <DualFromGbp amountGbp={fuelChargeGbp} rate={rate} />
+          </p>
           <p className="mt-1 text-sm text-white/60">
             {usedQuarters ?? "—"} quarter{usedQuarters !== 1 ? "s" : ""} used
           </p>
         </div>
         <div className="rounded-2xl bg-green-500/20 border border-green-400/40 p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Your refund</p>
-          <p className="mt-2 text-4xl font-black"><DualFromGbp amountGbp={fuelRefund} rate={rate} /></p>
+          <p className="mt-2 text-4xl font-black">
+            <DualFromGbp amountGbp={fuelRefundGbp} rate={rate} />
+          </p>
           <p className="mt-1 text-sm text-white/60">Unused fuel returned to you</p>
         </div>
       </div>
 
-      {/* Exchange rate — shown once, prominently */}
+      {/* Exchange rate — shown once */}
       <div className={`mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-base font-bold ${
         rateIsLive ? "bg-green-400/20 text-green-200" : "bg-white/10 text-white/70"
       }`}>
