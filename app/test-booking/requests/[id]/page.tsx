@@ -131,71 +131,76 @@ const QUARTER_LABELS: Record<number, string> = {
   0: "Empty", 1: "¼ Tank", 2: "½ Tank", 3: "¾ Tank", 4: "Full Tank",
 };
 
-// ── Dual currency helpers (customer view: GBP primary, EUR secondary) ─────────
-// Bids store prices in EUR. booking.amount / fuel_charge / fuel_refund are in GBP.
+const gbpFmt = (v: number) =>
+  new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(v);
 
-/** EUR amount stored → display as "£X.XX (Y,YY €)" */
-function DualFromEur({
-  amountEur, rate, className,
-}: { amountEur: number | null | undefined; rate: number; className?: string }) {
+// ── Dual currency components (GBP primary, EUR secondary) ────────────────────
+
+function DualFromEur({ amountEur, rate, className }: {
+  amountEur: number | null | undefined; rate: number; className?: string;
+}) {
   if (amountEur == null || isNaN(amountEur)) return <span className={className}>—</span>;
   const gbp = Math.round(amountEur * rate * 100) / 100;
-  const gbpStr = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(gbp);
-  const eurStr = formatEUR(amountEur);
   return (
     <span className={className}>
-      {gbpStr}{" "}
-      <span className="opacity-60 text-[0.85em] font-normal">({eurStr})</span>
+      {gbpFmt(gbp)}{" "}
+      <span className="opacity-60 text-[0.85em] font-normal">({formatEUR(amountEur)})</span>
     </span>
   );
 }
 
-/** GBP amount stored → display as "£X.XX (Y,YY €)" */
-function DualFromGbp({
-  amountGbp, rate, className,
-}: { amountGbp: number | null | undefined; rate: number; className?: string }) {
+function DualFromGbp({ amountGbp, rate, className }: {
+  amountGbp: number | null | undefined; rate: number; className?: string;
+}) {
   if (amountGbp == null || isNaN(amountGbp)) return <span className={className}>—</span>;
   const eur = Math.round((amountGbp / rate) * 100) / 100;
-  const gbpStr = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(amountGbp);
-  const eurStr = formatEUR(eur);
   return (
     <span className={className}>
-      {gbpStr}{" "}
-      <span className="opacity-60 text-[0.85em] font-normal">({eurStr})</span>
+      {gbpFmt(amountGbp)}{" "}
+      <span className="opacity-60 text-[0.85em] font-normal">({formatEUR(eur)})</span>
     </span>
   );
 }
 
-// ── Customer Fuel Summary ─────────────────────────────────────────────────────
+// ── Payment Summary Card ──────────────────────────────────────────────────────
 
-function CustomerFuelSummary({ booking, rate, rateIsLive }: { booking: BookingData; rate: number; rateIsLive: boolean }) {  const fullTankEur = Number(booking.fuel_price || 0);
+function CustomerPaymentSummary({ booking, rate, rateIsLive }: {
+  booking: BookingData; rate: number; rateIsLive: boolean;
+}) {
+  const fullTankEur = Number(booking.fuel_price || 0);
   const pricePerQuarterEur = fullTankEur / 4;
   const usedQuarters = booking.fuel_used_quarters ?? null;
-  const fuelCharge = booking.fuel_charge ?? null;  // stored in GBP
-  const fuelRefund = booking.fuel_refund ?? null;  // stored in GBP
+  const fuelCharge = booking.fuel_charge ?? null;   // GBP
+  const fuelRefund = booking.fuel_refund ?? null;   // GBP
+  const totalPaid = booking.amount ?? null;          // GBP
 
   const collFuel = normalizeFuel(booking.collection_fuel_level_driver) ||
     normalizeFuel(booking.collection_fuel_level_partner);
   const retFuel = normalizeFuel(booking.return_fuel_level_driver) ||
     normalizeFuel(booking.return_fuel_level_partner);
 
-  const fullTankGbp = Math.round(fullTankEur * rate * 100) / 100;
-  const fullTankGbpStr = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(fullTankGbp);
-
   return (
     <div className="rounded-3xl border border-[#003768]/20 bg-[#003768] p-8 text-white shadow-[0_18px_45px_rgba(0,0,0,0.18)]">
+
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Your Fuel Cost</h2>
+        <h2 className="text-2xl font-bold">Your Payment Summary</h2>
         <span className="rounded-full bg-green-400 px-3 py-1 text-xs font-bold text-green-900">Finalised</span>
       </div>
-      <p className="mt-2 text-sm text-white/70">
-        You were charged a full tank deposit of{" "}
-        <strong>{fullTankGbpStr}</strong>{" "}
-        <span className="opacity-60">({formatEUR(fullTankEur)})</span>{" "}
-        at booking. Based on fuel used, here is your final breakdown.
-      </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      {/* Total paid */}
+      <div className="mt-6 rounded-2xl bg-white/10 p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Total you paid at booking</p>
+        <p className="mt-1 text-4xl font-black"><DualFromGbp amountGbp={totalPaid} rate={rate} /></p>
+        <p className="mt-2 text-sm text-white/60">
+          Car hire: <DualFromEur amountEur={booking.car_hire_price} rate={rate} />
+          &nbsp;·&nbsp;
+          Fuel deposit: <DualFromEur amountEur={fullTankEur} rate={rate} />
+        </p>
+      </div>
+
+      {/* Fuel levels */}
+      <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl bg-white/10 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Collected at</p>
           <p className="mt-1 text-lg font-bold">{fuelLabel(collFuel)}</p>
@@ -217,26 +222,28 @@ function CustomerFuelSummary({ booking, rate, rateIsLive }: { booking: BookingDa
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+      {/* Fuel charge + refund */}
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl bg-[#ff7a00]/20 border border-[#ff7a00]/40 p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/70">You pay for fuel</p>
-          <p className="mt-2 text-4xl font-black">
-            <DualFromGbp amountGbp={fuelCharge} rate={rate} />
+          <p className="mt-2 text-4xl font-black"><DualFromGbp amountGbp={fuelCharge} rate={rate} /></p>
+          <p className="mt-1 text-sm text-white/60">
+            {usedQuarters ?? "—"} quarter{usedQuarters !== 1 ? "s" : ""} used
           </p>
-          <p className="mt-1 text-sm text-white/60">{usedQuarters ?? "—"} quarter{usedQuarters !== 1 ? "s" : ""} used</p>
         </div>
         <div className="rounded-2xl bg-green-500/20 border border-green-400/40 p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Your refund</p>
-          <p className="mt-2 text-4xl font-black">
-            <DualFromGbp amountGbp={fuelRefund} rate={rate} />
-          </p>
+          <p className="mt-2 text-4xl font-black"><DualFromGbp amountGbp={fuelRefund} rate={rate} /></p>
           <p className="mt-1 text-sm text-white/60">Unused fuel returned to you</p>
         </div>
       </div>
 
-      <div className={`mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-base font-bold ${rateIsLive ? "bg-green-400/20 text-green-200" : "bg-white/10 text-white/70"}`}>
+      {/* Exchange rate — shown once, prominently */}
+      <div className={`mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-base font-bold ${
+        rateIsLive ? "bg-green-400/20 text-green-200" : "bg-white/10 text-white/70"
+      }`}>
         <span className={`h-2.5 w-2.5 rounded-full ${rateIsLive ? "bg-green-400" : "bg-white/40"}`} />
-        1€ = {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(rate)}{rateIsLive ? " · Live rate (frankfurter.app)" : ""}
+        1€ = {gbpFmt(rate)}{rateIsLive ? " · Live rate (frankfurter.app)" : ""}
       </div>
     </div>
   );
@@ -258,7 +265,6 @@ function FuelConfirmCard({
   return (
     <div className={`rounded-3xl border p-6 ${locked ? "border-green-200 bg-green-50" : "border-black/5 bg-white"} shadow-[0_18px_45px_rgba(0,0,0,0.08)]`}>
       <h2 className="text-2xl font-semibold text-[#003768]">{title}</h2>
-
       <div className="mt-4 rounded-2xl border border-black/10 bg-slate-50 p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver recorded</p>
         {driverConfirmed && driverFuel ? (
@@ -271,7 +277,6 @@ function FuelConfirmCard({
           <p className="mt-1 text-sm text-slate-500 italic">Waiting for driver to record fuel level…</p>
         )}
       </div>
-
       {locked ? (
         <div className="mt-4 rounded-2xl border border-green-200 bg-green-100 p-4 text-sm text-green-800 font-semibold">
           ✓ Confirmed and locked — you and the driver agree on {fuelLabel(driverFuel)}
@@ -323,8 +328,8 @@ export default function TestBookingRequestDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const supabase = useMemo(() => createCustomerBrowserClient(), []);
-  const { currency, rate } = useCurrency();
-  const [liveRate, setLiveRate] = useState<number>(rate ?? 0.85);
+  const { rate: hookRate } = useCurrency();
+  const [liveRate, setLiveRate] = useState<number>(hookRate ?? 0.85);
   const [rateIsLive, setRateIsLive] = useState(false);
 
   useEffect(() => {
@@ -489,7 +494,9 @@ export default function TestBookingRequestDetailPage({
             ["Vehicle", data.request.vehicle_category_name || "—"],
             ["Status", data.request.status],
           ].map(([label, value]) => (
-            <p key={String(label)}><span className="font-semibold text-slate-900">{label}:</span> {String(value)}</p>
+            <p key={String(label)}>
+              <span className="font-semibold text-slate-900">{label}:</span> {String(value)}
+            </p>
           ))}
         </div>
       </div>
@@ -503,7 +510,8 @@ export default function TestBookingRequestDetailPage({
               <p><span className="font-semibold text-slate-900">Status:</span> {bookingStatusLabel(bk.booking_status)}</p>
               <p><span className="font-semibold text-slate-900">Car hire company:</span> {bk.company_name || "—"}</p>
               <p><span className="font-semibold text-slate-900">Company phone:</span> {bk.company_phone || "—"}</p>
-              <p><span className="font-semibold text-slate-900">Price:</span>{" "}
+              <p>
+                <span className="font-semibold text-slate-900">Price:</span>{" "}
                 <DualFromGbp amountGbp={bk.amount} rate={liveRate} />
               </p>
               <p><span className="font-semibold text-slate-900">Driver:</span> {bk.driver_name || "—"}</p>
@@ -513,12 +521,12 @@ export default function TestBookingRequestDetailPage({
             </div>
           </div>
 
-          {/* Fuel summary */}
+          {/* Payment summary — shown when both stages locked */}
           {collectionLocked && returnLocked && bk.fuel_charge !== null && (
             <CustomerPaymentSummary booking={bk} rate={liveRate} rateIsLive={rateIsLive} />
           )}
 
-          {/* Fuel confirmation */}
+          {/* Fuel confirmation — shown until both stages locked */}
           {(!collectionLocked || !returnLocked) && (
             <div className="grid gap-6 xl:grid-cols-2">
               <FuelConfirmCard
@@ -552,10 +560,9 @@ export default function TestBookingRequestDetailPage({
         </>
       )}
 
-      {/* Bids */}
+      {/* Partner Bids */}
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">Partner Bids</h2>
-
         {expired || data.request.status === "expired" ? (
           <p className="mt-4 text-red-700">This request has expired and can no longer be accepted.</p>
         ) : data.bids.length === 0 ? (
@@ -569,18 +576,12 @@ export default function TestBookingRequestDetailPage({
                     <h3 className="text-xl font-semibold text-[#003768]">{bid.partner_company_name || "Car Hire Company"}</h3>
                     <p><span className="font-semibold text-slate-900">Phone:</span> {bid.partner_phone || "—"}</p>
                     <p><span className="font-semibold text-slate-900">Vehicle:</span> {bid.vehicle_category_name}</p>
-                    <p>
-                      <span className="font-semibold text-slate-900">Car hire:</span>{" "}
-                      <DualFromEur amountEur={bid.car_hire_price} rate={liveRate} />
-                    </p>
-                    <p>
-                      <span className="font-semibold text-slate-900">Fuel deposit:</span>{" "}
-                      <DualFromEur amountEur={bid.fuel_price} rate={liveRate} />
-                    </p>
-                    <p>
-                      <span className="font-semibold text-slate-900">Total:</span>{" "}
-                      <DualFromEur amountEur={bid.total_price} rate={liveRate} />
-                    </p>
+                    <p><span className="font-semibold text-slate-900">Car hire:</span>{" "}
+                      <DualFromEur amountEur={bid.car_hire_price} rate={liveRate} /></p>
+                    <p><span className="font-semibold text-slate-900">Fuel deposit:</span>{" "}
+                      <DualFromEur amountEur={bid.fuel_price} rate={liveRate} /></p>
+                    <p><span className="font-semibold text-slate-900">Total:</span>{" "}
+                      <DualFromEur amountEur={bid.total_price} rate={liveRate} /></p>
                     <p><span className="font-semibold text-slate-900">Insurance included:</span> {bid.full_insurance_included ? "Yes" : "No"}</p>
                     <p><span className="font-semibold text-slate-900">Full tank included:</span> {bid.full_tank_included ? "Yes" : "No"}</p>
                     {bid.notes && <p><span className="font-semibold text-slate-900">Notes:</span> {bid.notes}</p>}
