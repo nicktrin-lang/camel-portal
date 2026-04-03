@@ -220,7 +220,7 @@ export default function AdminBookingsPage() {
                   sorted.map((row) => (
                     <tr
                       key={row.id}
-                      onClick={() => router.push(`/partner/bookings/${row.id}`)}
+                      onClick={() => router.push(`/admin/bookings/${row.id}`)}
                       className="cursor-pointer hover:bg-[#f3f8ff] transition-colors"
                     >
                       <td className="px-4 py-4 text-slate-700">{fmtDateTime(row.created_at)}</td>
