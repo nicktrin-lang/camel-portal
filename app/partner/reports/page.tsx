@@ -368,7 +368,7 @@ export default function PartnerReportsPage() {
           </button>
           <button type="button" onClick={exportExcel}
             className="rounded-full bg-[#003768] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
-            ⬇ Export Excel (3 sheets)
+            ⬇ Export Excel
           </button>
         </div>
       </div>
