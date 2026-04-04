@@ -251,13 +251,14 @@ export default function PartnerReportsPage() {
       "Return Fuel (Driver)", "Return Fuel (Partner Override)",
       "Quarters Used", "Fuel Used Label",
       "Fuel Charge to Customer", "Fuel Refund to Customer",
-      "Total Booking Amount", "Net Revenue to Partner (Car Hire + Net Fuel)",
+      "Total Booking Amount", "Net Revenue to Partner (Car Hire + Fuel Charge)",
       "Customer Collection Confirmed", "Customer Return Confirmed",
       "Booking Status", "Created At",
     ];
 
     const fuelRows = filteredBookings.map(b => {
       const usedQ = b.fuel_used_quarters;
+      // Net revenue = car hire + fuel charge (fuel charge is what partner keeps from fuel)
       const netRevenue = Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0);
       return [
         b.job_number || "",
@@ -294,8 +295,8 @@ export default function PartnerReportsPage() {
     const summaryHeaders = [
       "Currency", "Total Bookings", "Completed",
       "Total Revenue", "Car Hire Revenue", "Fuel Deposits Collected",
-      "Fuel Charges Billed", "Fuel Refunds Issued", "Net Fuel Revenue",
-      "Net Revenue to Partner",
+      "Fuel Charges Billed", "Fuel Refunds Issued",
+      "Net Revenue to Partner (Car Hire + Fuel Charge)",
     ];
     const summaryRows = (["EUR", "GBP", "USD"] as Currency[]).map(curr => {
       const t = revenuesByCurrency[curr];
@@ -303,7 +304,6 @@ export default function PartnerReportsPage() {
         `${curr} ${CURRENCY_META[curr].symbol}`,
         t.count, t.completed, t.total, t.carHire,
         t.fuelDeposit, t.fuelCharge, t.fuelRefund,
-        t.fuelCharge - t.fuelRefund,
         t.carHire + t.fuelCharge,
       ];
     });
@@ -420,7 +420,6 @@ export default function PartnerReportsPage() {
         const t = revenuesByCurrency[curr];
         if (t.count === 0) return null;
         const { symbol } = CURRENCY_META[curr];
-        const netRevenue = t.carHire + t.fuelCharge;
         const currBookings = filteredBookings.filter(b => (b.currency ?? "EUR") === curr);
         return (
           <div key={curr} className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
@@ -468,7 +467,8 @@ export default function PartnerReportsPage() {
                 <tbody className="divide-y divide-black/5">
                   {currBookings.map(b => {
                     const usedQ = b.fuel_used_quarters;
-                    const bNetRevenue = Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0) - Number(b.fuel_refund ?? 0);
+                    // Net revenue to partner = car hire + fuel charge (refund goes back to customer)
+                    const bNetRevenue = Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0);
                     return (
                       <tr key={b.id} className="hover:bg-[#f3f8ff]">
                         <td className="px-4 py-3 font-semibold text-[#003768]">{b.job_number || "—"}</td>
