@@ -7,7 +7,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { role, userId } = await getPortalUserRole(req);
+    const { role, user } = await getPortalUserRole(req);
+    const userId = user?.id;
     if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
     const { id } = await params;

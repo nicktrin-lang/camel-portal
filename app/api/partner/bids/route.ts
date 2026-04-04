@@ -4,7 +4,8 @@ import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await getPortalUserRole(req);
+    const { user, role } = await getPortalUserRole(req);
+    const userId = user?.id;
     if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
     const body = await req.json().catch(() => null);
