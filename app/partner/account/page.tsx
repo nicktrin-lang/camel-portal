@@ -19,10 +19,17 @@ type AccountProfile = {
   base_address: string | null;
   base_lat: number | null;
   base_lng: number | null;
-  currency?: string | null;
   fleet_size?: number | null;
   description?: string | null;
 };
+
+// Infer currency from country since there's no currency column yet
+function inferCurrency(country?: string | null): string {
+  const c = String(country || "").toLowerCase();
+  if (c.includes("united kingdom") || c.includes("uk") || c === "gb") return "GBP";
+  if (c.includes("united states") || c.includes("usa") || c === "us") return "USD";
+  return "EUR"; // default for Spain and most of Europe
+}
 
 type ApplicationRow = {
   status: string | null;
@@ -281,7 +288,7 @@ export default function PartnerAccountPage() {
         const [{ data: profileRow, error: profileErr }, { data: applicationRow, error: appErr }] =
           await Promise.all([
             supabase.from("partner_profiles")
-              .select("company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_lat,base_lng,currency,fleet_size,description")
+              .select("company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_lat,base_lng,fleet_size,description")
               .eq("user_id", user.id).maybeSingle(),
             supabase.from("partner_applications")
               .select("status,created_at").eq("email", normalizedEmail)
@@ -342,7 +349,7 @@ export default function PartnerAccountPage() {
         </div>
         <div className="rounded-3xl bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <p className="text-sm text-slate-500">Billing Currency</p>
-          <p className="mt-1 text-lg font-semibold text-[#003768]">{currencyLabel(profile?.currency)}</p>
+          <p className="mt-1 text-lg font-semibold text-[#003768]">{currencyLabel(inferCurrency(profile?.country))}</p>
         </div>
       </div>
 
@@ -357,7 +364,7 @@ export default function PartnerAccountPage() {
               <div><span className="text-slate-500">Email</span><p className="font-medium text-slate-800">{fmtValue(email)}</p></div>
               <div><span className="text-slate-500">Phone</span><p className="font-medium text-slate-800">{fmtValue(profile?.phone)}</p></div>
               <div><span className="text-slate-500">Website</span><p className="font-medium text-slate-800">{fmtValue(profile?.website)}</p></div>
-              <div><span className="text-slate-500">Billing Currency</span><p className="font-medium text-slate-800">{currencyLabel(profile?.currency)}</p></div>
+              <div><span className="text-slate-500">Billing Currency</span><p className="font-medium text-slate-800">{currencyLabel(inferCurrency(profile?.country))}</p></div>
               <div><span className="text-slate-500">Service Radius</span><p className="font-medium text-slate-800">{profile?.service_radius_km ? `${profile.service_radius_km} km` : "—"}</p></div>
               {profile?.fleet_size && (
                 <div><span className="text-slate-500">Fleet Size</span><p className="font-medium text-slate-800">{profile.fleet_size} vehicles</p></div>
