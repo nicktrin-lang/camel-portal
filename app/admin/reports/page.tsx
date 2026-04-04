@@ -4,19 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
 
-type RequestRow = {
-  id: string;
-  job_number: string | null;
-  pickup_address: string | null;
-  dropoff_address: string | null;
-  pickup_at: string | null;
-  dropoff_at: string | null;
-  vehicle_category_name: string | null;
-  request_status: string | null;
-  status: string | null;
-  created_at: string | null;
-  expires_at: string | null;
+type Currency = "EUR" | "GBP" | "USD";
+
+const CURRENCY_META: Record<Currency, { symbol: string; locale: string; label: string }> = {
+  EUR: { symbol: "€", locale: "es-ES", label: "EUR" },
+  GBP: { symbol: "£", locale: "en-GB", label: "GBP" },
+  USD: { symbol: "$", locale: "en-US", label: "USD" },
 };
+
+function fmtCurr(amount: number, currency: Currency): string {
+  const { locale } = CURRENCY_META[currency] ?? CURRENCY_META.EUR;
+  return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
+}
+
+function fmtAmt(amount: number | string | null, currency: Currency | null): string {
+  const amt = Number(amount ?? 0);
+  if (!isFinite(amt)) return "—";
+  return fmtCurr(amt, currency ?? "EUR");
+}
 
 type BookingRow = {
   id: string;
@@ -25,129 +30,217 @@ type BookingRow = {
   partner_company_name: string | null;
   booking_status: string | null;
   amount: number | string | null;
+  currency: Currency | null;
+  car_hire_price: number | null;
+  fuel_price: number | null;
+  fuel_used_quarters: number | null;
+  fuel_charge: number | null;
+  fuel_refund: number | null;
   created_at: string | null;
   job_number: string | null;
   pickup_address: string | null;
   dropoff_address: string | null;
   pickup_at: string | null;
+  dropoff_at: string | null;
   vehicle_category_name: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  driver_name: string | null;
+  driver_vehicle: string | null;
+  collection_fuel_level_driver: string | null;
+  collection_fuel_level_partner: string | null;
+  return_fuel_level_driver: string | null;
+  return_fuel_level_partner: string | null;
+  collection_confirmed_by_customer: boolean;
+  return_confirmed_by_customer: boolean;
+};
+
+type RequestRow = {
+  id: string;
+  job_number: string | null;
+  pickup_address: string | null;
+  dropoff_address: string | null;
+  pickup_at: string | null;
+  dropoff_at: string | null;
+  vehicle_category_name: string | null;
+  status: string | null;
+  created_at: string | null;
+  expires_at: string | null;
+};
+
+const QUARTER_LABELS: Record<number, string> = {
+  0: "Empty", 1: "¼ Tank", 2: "½ Tank", 3: "¾ Tank", 4: "Full Tank",
 };
 
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
   if (!text) return null;
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { _raw: text };
-  }
+  try { return JSON.parse(text); } catch { return { _raw: text }; }
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) return "—";
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return value;
-  }
+function fmtDate(value?: string | null) {
+  if (!value) return "";
+  try { return new Date(value).toLocaleDateString(); } catch { return value; }
 }
 
 function statusPillClasses(status?: string | null) {
   switch (String(status || "").toLowerCase()) {
-    case "approved":
-    case "confirmed":
-    case "completed":
-    case "bid_successful":
-      return "border-green-200 bg-green-50 text-green-700";
-    case "pending":
-    case "open":
-    case "bid_submitted":
-      return "border-blue-200 bg-blue-50 text-blue-700";
-    case "expired":
-      return "border-slate-200 bg-slate-50 text-slate-600";
-    case "rejected":
-    case "cancelled":
-    case "bid_unsuccessful":
-      return "border-red-200 bg-red-50 text-red-700";
-    default:
-      return "border-black/10 bg-white text-slate-700";
+    case "completed": case "confirmed": case "bid_successful": return "border-green-200 bg-green-50 text-green-700";
+    case "open": case "bid_submitted": return "border-blue-200 bg-blue-50 text-blue-700";
+    case "expired": return "border-slate-200 bg-slate-50 text-slate-600";
+    case "cancelled": case "bid_unsuccessful": case "rejected": return "border-red-200 bg-red-50 text-red-700";
+    default: return "border-black/10 bg-white text-slate-700";
   }
-}
-
-function formatStatusLabel(value?: string | null) {
-  return String(value || "—").replaceAll("_", " ");
 }
 
 function matchesDateRange(value: string | null | undefined, from: string, to: string) {
   if (!value) return false;
-
-  const itemDate = new Date(value);
-  if (Number.isNaN(itemDate.getTime())) return false;
-
-  if (from) {
-    const fromDate = new Date(`${from}T00:00:00`);
-    if (itemDate < fromDate) return false;
-  }
-
-  if (to) {
-    const toDate = new Date(`${to}T23:59:59.999`);
-    if (itemDate > toDate) return false;
-  }
-
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return false;
+  if (from && d < new Date(`${from}T00:00:00`)) return false;
+  if (to && d > new Date(`${to}T23:59:59.999`)) return false;
   return true;
-}
-
-function csvEscape(value: unknown) {
-  const str = String(value ?? "");
-  const escaped = str.replace(/"/g, '""');
-  return `"${escaped}"`;
-}
-
-function downloadCsv(filename: string, headers: string[], rows: Array<Array<unknown>>) {
-  const csv = [
-    headers.map(csvEscape).join(","),
-    ...rows.map((row) => row.map(csvEscape).join(",")),
-  ].join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.setAttribute("download", filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 function getMonthKey(value: string | null | undefined) {
   if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function getCurrentMonthKey() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function getPreviousMonthKey() {
-  const now = new Date();
-  now.setMonth(now.getMonth() - 1);
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const n = new Date(); n.setMonth(n.getMonth() - 1);
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
 }
+
+function escapeXml(v: unknown): string {
+  return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function buildXls(sheets: { name: string; headers: string[]; rows: Array<Array<unknown>> }[]): Blob {
+  const xmlSheets = sheets.map(sheet => {
+    const rowsXml = [
+      `<Row ss:Index="1">${sheet.headers.map(h => `<Cell ss:StyleID="header"><Data ss:Type="String">${escapeXml(h)}</Data></Cell>`).join("")}</Row>`,
+      ...sheet.rows.map((row, ri) =>
+        `<Row ss:Index="${ri + 2}">${row.map(cell => {
+          const v = cell ?? "";
+          const isNum = typeof v === "number" || (typeof v === "string" && v !== "" && !isNaN(Number(v)) && v.trim() !== "");
+          return isNum ? `<Cell><Data ss:Type="Number">${escapeXml(v)}</Data></Cell>` : `<Cell><Data ss:Type="String">${escapeXml(v)}</Data></Cell>`;
+        }).join("")}</Row>`
+      ),
+    ].join("");
+    return `<Worksheet ss:Name="${escapeXml(sheet.name)}"><Table>${rowsXml}</Table></Worksheet>`;
+  });
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles><Style ss:ID="header"><Font ss:Bold="1" ss:Color="#003768"/><Interior ss:Color="#f3f8ff" ss:Pattern="Solid"/></Style></Styles>
+  ${xmlSheets.join("\n")}
+</Workbook>`;
+  return new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8;" });
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ── Currency Section ──────────────────────────────────────────────────────────
+
+type CurrencyTotals = { total: number; carHire: number; fuelDeposit: number; fuelCharge: number; fuelRefund: number; count: number; completed: number };
+
+function AdminCurrencySection({ curr, t, bookings }: {
+  curr: Currency; t: CurrencyTotals; bookings: BookingRow[];
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const { symbol } = CURRENCY_META[curr];
+  const visible = showAll ? bookings : bookings.slice(0, 10);
+
+  return (
+    <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+      <div className="flex items-center gap-3">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#003768]/10 px-3 py-1 text-sm font-bold text-[#003768]">{symbol}</span>
+        <h2 className="text-xl font-semibold text-[#003768]">Revenue &amp; Fuel Reconciliation</h2>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        {[
+          { label: "Total Bookings", value: t.count, isMoney: false },
+          { label: "Completed", value: t.completed, isMoney: false },
+          { label: "Total Revenue", value: t.total, isMoney: true },
+          { label: "Car Hire Revenue", value: t.carHire, isMoney: true },
+          { label: "Fuel Charged", value: t.fuelCharge, isMoney: true },
+          { label: "Net Revenue to Partners", value: t.carHire + t.fuelCharge, isMoney: true },
+        ].map(({ label: lbl, value, isMoney }) => (
+          <div key={lbl} className="rounded-2xl border border-black/5 bg-slate-50 p-4">
+            <p className="text-xs font-medium text-slate-500">{lbl}</p>
+            <p className="mt-1 text-lg font-semibold text-[#003768]">{isMoney ? fmtCurr(value as number, curr) : value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 overflow-x-auto rounded-2xl border border-black/10">
+        <table className="min-w-full text-sm">
+          <thead className="bg-[#f3f8ff] text-left text-[#003768]">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Job</th>
+              <th className="px-4 py-3 font-semibold">Partner</th>
+              <th className="px-4 py-3 font-semibold">Customer</th>
+              <th className="px-4 py-3 font-semibold">Status</th>
+              <th className="px-4 py-3 font-semibold">Car Hire</th>
+              <th className="px-4 py-3 font-semibold">Fuel Deposit</th>
+              <th className="px-4 py-3 font-semibold">Fuel Used</th>
+              <th className="px-4 py-3 font-semibold">Fuel Charge</th>
+              <th className="px-4 py-3 font-semibold">Fuel Refund</th>
+              <th className="px-4 py-3 font-semibold">Total</th>
+              <th className="px-4 py-3 font-semibold">Net Revenue</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-black/5">
+            {visible.map(b => {
+              const usedQ = b.fuel_used_quarters;
+              const netRev = Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0);
+              return (
+                <tr key={b.id} className="hover:bg-[#f3f8ff]">
+                  <td className="px-4 py-3 font-semibold text-[#003768]">{b.job_number || "—"}</td>
+                  <td className="px-4 py-3 text-slate-700">{b.partner_company_name || "—"}</td>
+                  <td className="px-4 py-3 text-slate-700">{b.customer_name || "—"}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusPillClasses(b.booking_status)}`}>
+                      {String(b.booking_status || "—").replaceAll("_", " ")}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">{fmtAmt(b.car_hire_price, curr)}</td>
+                  <td className="px-4 py-3 text-slate-700">{fmtAmt(b.fuel_price, curr)}</td>
+                  <td className="px-4 py-3 text-slate-700">{usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—"}</td>
+                  <td className="px-4 py-3 font-semibold text-orange-700">{b.fuel_charge !== null ? fmtAmt(b.fuel_charge, curr) : "—"}</td>
+                  <td className="px-4 py-3 font-semibold text-green-700">{b.fuel_refund !== null ? fmtAmt(b.fuel_refund, curr) : "—"}</td>
+                  <td className="px-4 py-3 font-bold text-[#003768]">{fmtAmt(b.amount, curr)}</td>
+                  <td className="px-4 py-3 font-bold text-green-700">{fmtCurr(netRev, curr)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {bookings.length > 10 && (
+        <button type="button" onClick={() => setShowAll(s => !s)}
+          className="mt-3 w-full rounded-2xl border border-black/10 bg-slate-50 py-2.5 text-sm font-semibold text-[#003768] hover:bg-slate-100">
+          {showAll ? "▲ Show less" : `▼ Show all ${bookings.length} bookings`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function AdminReportsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -161,733 +254,298 @@ export default function AdminReportsPage() {
   const [dateTo, setDateTo] = useState("");
 
   async function load() {
-    setLoading(true);
-    setError(null);
-
+    setLoading(true); setError(null);
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
-
-      if (userErr || !userData?.user) {
-        router.replace("/partner/login?reason=not_authorized");
-        return;
-      }
-
-      const adminRes = await fetch("/api/admin/is-admin", {
-        method: "GET",
-        cache: "no-store",
-        credentials: "include",
-      });
-
+      if (userErr || !userData?.user) { router.replace("/partner/login?reason=not_authorized"); return; }
+      const adminRes = await fetch("/api/admin/is-admin", { cache: "no-store", credentials: "include" });
       const adminJson = await safeJson(adminRes);
-
-      if (!adminJson?.isAdmin) {
-        router.replace("/partner/login?reason=not_authorized");
-        return;
-      }
-
-      const [requestsRes, bookingsRes] = await Promise.all([
-        fetch("/api/partner/requests", {
-          method: "GET",
-          cache: "no-store",
-          credentials: "include",
-        }),
-        fetch("/api/partner/bookings", {
-          method: "GET",
-          cache: "no-store",
-          credentials: "include",
-        }),
+      if (!adminJson?.isAdmin) { router.replace("/partner/login?reason=not_authorized"); return; }
+      const [reqRes, bkRes] = await Promise.all([
+        fetch("/api/partner/requests", { cache: "no-store", credentials: "include" }),
+        fetch("/api/partner/bookings", { cache: "no-store", credentials: "include" }),
       ]);
-
-      const requestsJson = await safeJson(requestsRes);
-      const bookingsJson = await safeJson(bookingsRes);
-
-      if (!requestsRes.ok) {
-        throw new Error(
-          requestsJson?.error || requestsJson?._raw || "Failed to load request reporting data."
-        );
-      }
-
-      if (!bookingsRes.ok) {
-        throw new Error(
-          bookingsJson?.error || bookingsJson?._raw || "Failed to load booking reporting data."
-        );
-      }
-
-      setRequests(Array.isArray(requestsJson?.data) ? requestsJson.data : []);
-      setBookings(Array.isArray(bookingsJson?.data) ? bookingsJson.data : []);
+      const reqJson = await safeJson(reqRes);
+      const bkJson = await safeJson(bkRes);
+      if (!reqRes.ok) throw new Error(reqJson?.error || "Failed to load requests.");
+      if (!bkRes.ok) throw new Error(bkJson?.error || "Failed to load bookings.");
+      setRequests(Array.isArray(reqJson?.data) ? reqJson.data : []);
+      setBookings(Array.isArray(bkJson?.data) ? bkJson.data : []);
     } catch (e: any) {
       setError(e?.message || "Failed to load admin reporting data.");
-      setRequests([]);
-      setBookings([]);
-    } finally {
-      setLoading(false);
+      setRequests([]); setBookings([]);
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const filteredRequests = requests.filter(r => matchesDateRange(r.created_at, dateFrom, dateTo));
+  const filteredBookings = bookings.filter(r => matchesDateRange(r.created_at, dateFrom, dateTo));
+  const completedBookings = filteredBookings.filter(r => String(r.booking_status || "").toLowerCase() === "completed");
+
+  const revenuesByCurrency = useMemo(() => {
+    const t: Record<Currency, CurrencyTotals> = {
+      EUR: { total: 0, carHire: 0, fuelDeposit: 0, fuelCharge: 0, fuelRefund: 0, count: 0, completed: 0 },
+      GBP: { total: 0, carHire: 0, fuelDeposit: 0, fuelCharge: 0, fuelRefund: 0, count: 0, completed: 0 },
+      USD: { total: 0, carHire: 0, fuelDeposit: 0, fuelCharge: 0, fuelRefund: 0, count: 0, completed: 0 },
+    };
+    for (const b of filteredBookings) {
+      const c: Currency = (b.currency as Currency) ?? "EUR";
+      if (!t[c]) continue;
+      t[c].count++;
+      t[c].total += Number(b.amount ?? 0);
+      t[c].carHire += Number(b.car_hire_price ?? 0);
+      t[c].fuelDeposit += Number(b.fuel_price ?? 0);
+      t[c].fuelCharge += Number(b.fuel_charge ?? 0);
+      t[c].fuelRefund += Number(b.fuel_refund ?? 0);
+      if (String(b.booking_status || "").toLowerCase() === "completed") t[c].completed++;
     }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  function clearFilters() {
-    setDateFrom("");
-    setDateTo("");
-  }
-
-  const filteredRequests = requests.filter((row) =>
-    matchesDateRange(row.created_at, dateFrom, dateTo)
-  );
-
-  const filteredBookings = bookings.filter((row) =>
-    matchesDateRange(row.created_at, dateFrom, dateTo)
-  );
-
-  const totalRequests = filteredRequests.length;
-  const totalBookings = filteredBookings.length;
-  const completedBookings = filteredBookings.filter(
-    (row) => String(row.booking_status || "").toLowerCase() === "completed"
-  ).length;
-  const totalRevenue = filteredBookings.reduce((sum, row) => {
-    const amount = Number(row.amount || 0);
-    return Number.isFinite(amount) ? sum + amount : sum;
-  }, 0);
-
-  const openRequests = filteredRequests.filter(
-    (row) => String(row.status || "").toLowerCase() === "open"
-  ).length;
-  const expiredRequests = filteredRequests.filter(
-    (row) => String(row.status || "").toLowerCase() === "expired"
-  ).length;
-  const confirmedBookings = filteredBookings.filter(
-    (row) => String(row.booking_status || "").toLowerCase() === "confirmed"
-  ).length;
-
-  const conversionRate =
-    totalRequests > 0 ? Math.round((totalBookings / totalRequests) * 100) : 0;
+    return t;
+  }, [filteredBookings]);
 
   const currentMonthKey = getCurrentMonthKey();
   const previousMonthKey = getPreviousMonthKey();
 
-  const currentMonthRequests = filteredRequests.filter(
-    (row) => getMonthKey(row.created_at) === currentMonthKey
+  const bidsSubmitted = filteredRequests.filter(r =>
+    ["bid_submitted", "bid_successful", "bid_unsuccessful"].includes(String(r.status || "").toLowerCase())
   ).length;
 
-  const previousMonthRequests = filteredRequests.filter(
-    (row) => getMonthKey(row.created_at) === previousMonthKey
-  ).length;
-
-  const currentMonthBookings = filteredBookings.filter(
-    (row) => getMonthKey(row.created_at) === currentMonthKey
-  ).length;
-
-  const previousMonthBookings = filteredBookings.filter(
-    (row) => getMonthKey(row.created_at) === previousMonthKey
-  ).length;
-
-  const currentMonthRevenue = filteredBookings
-    .filter((row) => getMonthKey(row.created_at) === currentMonthKey)
-    .reduce((sum, row) => sum + (Number(row.amount || 0) || 0), 0);
-
-  const previousMonthRevenue = filteredBookings
-    .filter((row) => getMonthKey(row.created_at) === previousMonthKey)
-    .reduce((sum, row) => sum + (Number(row.amount || 0) || 0), 0);
-
-  const requestStatusBreakdown = Array.from(
-    filteredRequests.reduce((map, row) => {
-      const key = String(row.status || row.request_status || "unknown").toLowerCase();
-      const current = map.get(key) || { status: key, count: 0 };
-      current.count += 1;
-      map.set(key, current);
-      return map;
-    }, new Map<string, { status: string; count: number }>())
-  )
-    .map(([, value]) => value)
-    .sort((a, b) => b.count - a.count);
-
-  const partnerMap = new Map<
-    string,
-    { name: string; bookings: number; revenue: number; completed: number }
-  >();
-
-  for (const booking of filteredBookings) {
-    const partnerId = String(booking.partner_user_id || "unknown");
-    const partnerName = String(booking.partner_company_name || "Unknown Partner");
-    const amount = Number(booking.amount || 0);
-    const current = partnerMap.get(partnerId) || {
-      name: partnerName,
-      bookings: 0,
-      revenue: 0,
-      completed: 0,
-    };
-
-    current.bookings += 1;
-    current.revenue += Number.isFinite(amount) ? amount : 0;
-    if (String(booking.booking_status || "").toLowerCase() === "completed") {
-      current.completed += 1;
-    }
-
-    partnerMap.set(partnerId, current);
+  const partnerMap = new Map<string, { name: string; bookings: number; revenue: number; completed: number }>();
+  for (const b of filteredBookings) {
+    const pid = String(b.partner_user_id || "unknown");
+    const name = String(b.partner_company_name || "Unknown Partner");
+    const amt = Number(b.amount ?? 0);
+    const cur = partnerMap.get(pid) || { name, bookings: 0, revenue: 0, completed: 0 };
+    cur.bookings++;
+    cur.revenue += isFinite(amt) ? amt : 0;
+    if (String(b.booking_status || "").toLowerCase() === "completed") cur.completed++;
+    partnerMap.set(pid, cur);
   }
-
-  const topPartners = Array.from(partnerMap.values())
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
-
-  const partnerBreakdown = Array.from(partnerMap.values())
-    .map((partner) => ({
-      ...partner,
-      avgBookingValue: partner.bookings > 0 ? partner.revenue / partner.bookings : 0,
-    }))
-    .sort((a, b) => b.revenue - a.revenue);
-
-  const bookingStatusBreakdown = Array.from(
-    filteredBookings.reduce((map, row) => {
-      const key = String(row.booking_status || "unknown").toLowerCase();
-      const current = map.get(key) || { status: key, count: 0, revenue: 0 };
-      current.count += 1;
-      current.revenue += Number(row.amount || 0) || 0;
-      map.set(key, current);
-      return map;
-    }, new Map<string, { status: string; count: number; revenue: number }>())
-  )
-    .map(([, value]) => value)
-    .sort((a, b) => b.revenue - a.revenue);
+  const partnerBreakdown = Array.from(partnerMap.values()).sort((a, b) => b.revenue - a.revenue);
 
   const vehicleBreakdown = Array.from(
-    filteredBookings.reduce((map, row) => {
-      const key = String(row.vehicle_category_name || "Unknown").trim() || "Unknown";
-      const current = map.get(key) || { category: key, count: 0, revenue: 0 };
-      current.count += 1;
-      current.revenue += Number(row.amount || 0) || 0;
-      map.set(key, current);
+    filteredBookings.reduce((map, r) => {
+      const key = String(r.vehicle_category_name || "Unknown");
+      if (!map.has(key)) map.set(key, { category: key, count: 0 });
+      map.get(key)!.count++;
       return map;
-    }, new Map<string, { category: string; count: number; revenue: number }>())
-  )
-    .map(([, value]) => value)
-    .sort((a, b) => b.revenue - a.revenue);
+    }, new Map<string, { category: string; count: number }>())
+  ).map(([, v]) => v).sort((a, b) => b.count - a.count);
 
-  const recentBookings = [...filteredBookings]
-    .sort((a, b) => {
-      const aTime = new Date(a.created_at || 0).getTime();
-      const bTime = new Date(b.created_at || 0).getTime();
-      return bTime - aTime;
-    })
-    .slice(0, 5);
+  function exportExcel() {
+    const dateStr = new Date().toISOString().split("T")[0];
 
-  const recentRequests = [...filteredRequests]
-    .sort((a, b) => {
-      const aTime = new Date(a.created_at || 0).getTime();
-      const bTime = new Date(b.created_at || 0).getTime();
-      return bTime - aTime;
-    })
-    .slice(0, 5);
-
-  function exportRequestsCsv() {
-    const headers = [
-      "Job Number",
-      "Pickup Address",
-      "Dropoff Address",
-      "Pickup At",
-      "Dropoff At",
-      "Vehicle Category",
-      "Request Status",
-      "System Status",
-      "Created At",
-      "Expires At",
+    const fuelHeaders = [
+      "Job Number", "Partner", "Customer", "Customer Email", "Customer Phone",
+      "Pickup Address", "Dropoff Address", "Pickup At", "Dropoff At",
+      "Vehicle", "Driver", "Driver Vehicle", "Currency",
+      "Car Hire Price", "Full Fuel Deposit",
+      "Collection Fuel (Driver)", "Collection Fuel (Partner Override)",
+      "Return Fuel (Driver)", "Return Fuel (Partner Override)",
+      "Quarters Used", "Fuel Used Label",
+      "Fuel Charge to Customer", "Fuel Refund to Customer",
+      "Total Booking Amount", "Net Revenue to Partner (Car Hire + Fuel Charge)",
+      "Customer Collection Confirmed", "Customer Return Confirmed",
+      "Booking Status", "Created At",
     ];
 
-    const rows = filteredRequests.map((row) => [
-      row.job_number || "",
-      row.pickup_address || "",
-      row.dropoff_address || "",
-      row.pickup_at || "",
-      row.dropoff_at || "",
-      row.vehicle_category_name || "",
-      row.request_status || "",
-      row.status || "",
-      row.created_at || "",
-      row.expires_at || "",
+    const fuelRows = filteredBookings.map(b => {
+      const usedQ = b.fuel_used_quarters;
+      return [
+        b.job_number || "", b.partner_company_name || "",
+        b.customer_name || "", b.customer_email || "", b.customer_phone || "",
+        b.pickup_address || "", b.dropoff_address || "",
+        fmtDate(b.pickup_at), fmtDate(b.dropoff_at),
+        b.vehicle_category_name || "", b.driver_name || "", b.driver_vehicle || "",
+        b.currency || "EUR",
+        Number(b.car_hire_price ?? 0), Number(b.fuel_price ?? 0),
+        b.collection_fuel_level_driver || b.collection_fuel_level_partner || "—",
+        b.collection_fuel_level_partner || "—",
+        b.return_fuel_level_driver || b.return_fuel_level_partner || "—",
+        b.return_fuel_level_partner || "—",
+        usedQ !== null && usedQ !== undefined ? usedQ : "—",
+        usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—",
+        Number(b.fuel_charge ?? 0), Number(b.fuel_refund ?? 0),
+        Number(b.amount ?? 0),
+        Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0),
+        b.collection_confirmed_by_customer ? "Yes" : "No",
+        b.return_confirmed_by_customer ? "Yes" : "No",
+        b.booking_status || "", fmtDate(b.created_at),
+      ];
+    });
+
+    const summaryHeaders = ["Currency", "Total Bookings", "Completed", "Total Revenue", "Car Hire Revenue", "Fuel Deposits", "Fuel Charges Billed", "Fuel Refunds Issued", "Net Revenue to Partners"];
+    const summaryRows = (["EUR", "GBP", "USD"] as Currency[]).map(curr => {
+      const t = revenuesByCurrency[curr];
+      return [`${curr} ${CURRENCY_META[curr].symbol}`, t.count, t.completed, t.total, t.carHire, t.fuelDeposit, t.fuelCharge, t.fuelRefund, t.carHire + t.fuelCharge];
+    });
+
+    const partnerHeaders = ["Partner", "Total Bookings", "Completed", "Total Revenue"];
+    const partnerRows = partnerBreakdown.map(p => [p.name, p.bookings, p.completed, p.revenue]);
+
+    const allHeaders = ["Job Number", "Partner", "Customer", "Pickup", "Dropoff", "Pickup At", "Vehicle", "Driver", "Status", "Currency", "Amount", "Net Revenue to Partner", "Created At"];
+    const allRows = filteredBookings.map(b => [
+      b.job_number || "", b.partner_company_name || "", b.customer_name || "",
+      b.pickup_address || "", b.dropoff_address || "",
+      fmtDate(b.pickup_at), b.vehicle_category_name || "", b.driver_name || "",
+      b.booking_status || "", b.currency || "EUR", Number(b.amount ?? 0),
+      Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0),
+      fmtDate(b.created_at),
     ]);
 
-    downloadCsv("admin-requests-report.csv", headers, rows);
-  }
-
-  function exportBookingsCsv() {
-    const headers = [
-      "Job Number",
-      "Partner",
-      "Pickup Address",
-      "Dropoff Address",
-      "Pickup At",
-      "Vehicle Category",
-      "Booking Status",
-      "Amount",
-      "Created At",
-    ];
-
-    const rows = filteredBookings.map((row) => [
-      row.job_number || "",
-      row.partner_company_name || "",
-      row.pickup_address || "",
-      row.dropoff_address || "",
-      row.pickup_at || "",
-      row.vehicle_category_name || "",
-      row.booking_status || "",
-      row.amount || "",
-      row.created_at || "",
+    const blob = buildXls([
+      { name: "Fuel Reconciliation", headers: fuelHeaders, rows: fuelRows },
+      { name: "Currency Summary", headers: summaryHeaders, rows: summaryRows },
+      { name: "Partner Breakdown", headers: partnerHeaders, rows: partnerRows },
+      { name: "All Bookings", headers: allHeaders, rows: allRows },
     ]);
-
-    downloadCsv("admin-bookings-report.csv", headers, rows);
+    downloadBlob(blob, `camel-admin-report-${dateStr}.xls`);
   }
 
-  if (loading) {
-    return (
-      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <p className="text-slate-600">Loading reports...</p>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+      <p className="text-slate-600">Loading reports...</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
+      {/* Filters + Export */}
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-[#003768]">Report Filters</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Filter global reporting totals by created date.
-            </p>
+            <h2 className="text-2xl font-semibold text-[#003768]">Admin Reports</h2>
+            <p className="mt-1 text-sm text-slate-600">Full network-wide reconciliation including fuel charges, refunds and multi-currency revenue.</p>
           </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:min-w-[420px]">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium text-[#003768]">Date from</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-              />
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black" />
             </div>
-
             <div>
               <label className="text-sm font-medium text-[#003768]">Date to</label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-              />
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black" />
             </div>
           </div>
         </div>
-
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-[#003768] hover:bg-black/5"
-          >
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm font-semibold text-[#003768] hover:bg-black/5">
             Clear Filters
           </button>
-
-          <button
-            type="button"
-            onClick={exportRequestsCsv}
-            className="rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-[#003768] hover:bg-black/5"
-          >
-            Export Requests CSV
-          </button>
-
-          <button
-            type="button"
-            onClick={exportBookingsCsv}
-            className="rounded-full bg-[#ff7a00] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-          >
-            Export Bookings CSV
+          <button type="button" onClick={exportExcel}
+            className="rounded-full bg-[#003768] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
+            ⬇ Export Excel
           </button>
         </div>
       </div>
 
+      {/* Key stats */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {[
+          { label: "Total Bookings", value: filteredBookings.length, color: "text-[#003768]" },
+          { label: "Completed", value: completedBookings.length, color: "text-green-600" },
+          { label: "Total Requests", value: filteredRequests.length, color: "text-[#003768]" },
+          { label: "Bids Submitted", value: bidsSubmitted, color: "text-amber-600" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+            <p className="text-sm font-medium text-slate-500">{label}</p>
+            <p className={`mt-2 text-2xl font-semibold ${color}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Month comparison */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="text-sm font-medium text-slate-500">This Month Requests</div>
-          <div className="mt-2 text-2xl font-semibold text-[#003768]">{currentMonthRequests}</div>
-          <div className="mt-2 text-xs text-slate-500">Previous month: {previousMonthRequests}</div>
-        </div>
-
-        <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="text-sm font-medium text-slate-500">This Month Bookings</div>
-          <div className="mt-2 text-2xl font-semibold text-[#003768]">{currentMonthBookings}</div>
-          <div className="mt-2 text-xs text-slate-500">Previous month: {previousMonthBookings}</div>
-        </div>
-
-        <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="text-sm font-medium text-slate-500">This Month Revenue</div>
-          <div className="mt-2 text-2xl font-semibold text-[#003768]">
-            {formatCurrency(currentMonthRevenue)}
+        {[
+          {
+            label: "This Month Requests",
+            value: filteredRequests.filter(r => getMonthKey(r.created_at) === currentMonthKey).length,
+            prev: filteredRequests.filter(r => getMonthKey(r.created_at) === previousMonthKey).length,
+          },
+          {
+            label: "This Month Bookings",
+            value: filteredBookings.filter(r => getMonthKey(r.created_at) === currentMonthKey).length,
+            prev: filteredBookings.filter(r => getMonthKey(r.created_at) === previousMonthKey).length,
+          },
+          {
+            label: "Open Requests",
+            value: filteredRequests.filter(r => String(r.status || "").toLowerCase() === "open").length,
+            prev: null,
+          },
+        ].map(({ label, value, prev }) => (
+          <div key={label} className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+            <p className="text-sm font-medium text-slate-500">{label}</p>
+            <p className="mt-2 text-2xl font-semibold text-[#003768]">{value}</p>
+            {prev !== null && <p className="mt-1 text-xs text-slate-400">Previous month: {prev}</p>}
           </div>
-          <div className="mt-2 text-xs text-slate-500">
-            Previous month: {formatCurrency(previousMonthRevenue)}
-          </div>
-        </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="text-sm font-medium text-slate-500">Total Requests</div>
-          <div className="mt-3 text-3xl font-semibold text-[#003768]">{totalRequests}</div>
-        </div>
+      {/* Per-currency fuel reconciliation sections */}
+      {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
+        const t = revenuesByCurrency[curr];
+        if (t.count === 0) return null;
+        const currBookings = filteredBookings.filter(b => (b.currency ?? "EUR") === curr);
+        return <AdminCurrencySection key={curr} curr={curr} t={t} bookings={currBookings} />;
+      })}
 
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="text-sm font-medium text-slate-500">Total Bookings</div>
-          <div className="mt-3 text-3xl font-semibold text-[#003768]">{totalBookings}</div>
-        </div>
-
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="text-sm font-medium text-slate-500">Completed Bookings</div>
-          <div className="mt-3 text-3xl font-semibold text-[#003768]">{completedBookings}</div>
-        </div>
-
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="text-sm font-medium text-slate-500">Revenue</div>
-          <div className="mt-3 text-3xl font-semibold text-[#003768]">
-            {formatCurrency(totalRevenue)}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="text-sm font-medium text-slate-500">Conversion Rate</div>
-          <div className="mt-2 text-2xl font-semibold text-[#003768]">{conversionRate}%</div>
-        </div>
-
-        <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="text-sm font-medium text-slate-500">Open Requests</div>
-          <div className="mt-2 text-2xl font-semibold text-[#003768]">{openRequests}</div>
-        </div>
-
-        <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="text-sm font-medium text-slate-500">Confirmed Bookings</div>
-          <div className="mt-2 text-2xl font-semibold text-[#003768]">{confirmedBookings}</div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-[#003768]">Request Status Breakdown</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Request volume grouped by request status.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-[#f3f8ff] text-[#003768]">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold">Requests</th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-black/5">
-                  {requestStatusBreakdown.length === 0 ? (
-                    <tr>
-                      <td className="px-4 py-4 text-slate-600" colSpan={2}>
-                        No request data available for this period.
-                      </td>
-                    </tr>
-                  ) : (
-                    requestStatusBreakdown.map((row) => (
-                      <tr key={row.status} className="hover:bg-black/[0.02]">
-                        <td className="px-4 py-4">
-                          <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(
-                              row.status
-                            )}`}
-                          >
-                            {formatStatusLabel(row.status)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-slate-700">{row.count}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-[#003768]">Booking Status Revenue Breakdown</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Booking volume and revenue grouped by booking status.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-[#f3f8ff] text-[#003768]">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold">Bookings</th>
-                    <th className="px-4 py-3 text-left font-semibold">Revenue</th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-black/5">
-                  {bookingStatusBreakdown.length === 0 ? (
-                    <tr>
-                      <td className="px-4 py-4 text-slate-600" colSpan={3}>
-                        No booking data available for this period.
-                      </td>
-                    </tr>
-                  ) : (
-                    bookingStatusBreakdown.map((row) => (
-                      <tr key={row.status} className="hover:bg-black/[0.02]">
-                        <td className="px-4 py-4">
-                          <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(
-                              row.status
-                            )}`}
-                          >
-                            {formatStatusLabel(row.status)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-slate-700">{row.count}</td>
-                        <td className="px-4 py-4 text-slate-700">{formatCurrency(row.revenue)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-[#003768]">Vehicle Category Breakdown</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Booking volume and revenue grouped by vehicle category.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-[#f3f8ff] text-[#003768]">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Vehicle Category</th>
-                    <th className="px-4 py-3 text-left font-semibold">Bookings</th>
-                    <th className="px-4 py-3 text-left font-semibold">Revenue</th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-black/5">
-                  {vehicleBreakdown.length === 0 ? (
-                    <tr>
-                      <td className="px-4 py-4 text-slate-600" colSpan={3}>
-                        No vehicle data available for this period.
-                      </td>
-                    </tr>
-                  ) : (
-                    vehicleBreakdown.map((row) => (
-                      <tr key={row.category} className="hover:bg-black/[0.02]">
-                        <td className="px-4 py-4 font-medium text-slate-900">{row.category}</td>
-                        <td className="px-4 py-4 text-slate-700">{row.count}</td>
-                        <td className="px-4 py-4 text-slate-700">{formatCurrency(row.revenue)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <h2 className="text-xl font-semibold text-[#003768]">Top Partners</h2>
-
-          {topPartners.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-600">No partner booking data available yet.</p>
-          ) : (
-            <div className="mt-4 space-y-4">
-              {topPartners.map((partner, index) => (
-                <div
-                  key={`${partner.name}-${index}`}
-                  className="rounded-2xl border border-black/5 bg-[#f9fbff] p-4"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-sm font-semibold text-[#003768]">{partner.name}</div>
-                      <div className="mt-1 text-sm text-slate-700">
-                        Bookings: {partner.bookings} • Completed: {partner.completed}
-                      </div>
-                    </div>
-
-                    <div className="text-sm font-semibold text-[#003768]">
-                      {formatCurrency(partner.revenue)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
+      {/* Partner breakdown */}
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-[#003768]">Partner Breakdown</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Revenue and booking performance by partner.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-[#f3f8ff] text-[#003768]">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Partner</th>
-                  <th className="px-4 py-3 text-left font-semibold">Bookings</th>
-                  <th className="px-4 py-3 text-left font-semibold">Completed</th>
-                  <th className="px-4 py-3 text-left font-semibold">Revenue</th>
-                  <th className="px-4 py-3 text-left font-semibold">Avg Booking Value</th>
+        <h2 className="text-xl font-semibold text-[#003768]">Partner Breakdown</h2>
+        <p className="mt-1 text-sm text-slate-500">Revenue and booking performance by partner.</p>
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-black/10">
+          <table className="min-w-full text-sm">
+            <thead className="bg-[#f3f8ff] text-left text-[#003768]">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Partner</th>
+                <th className="px-4 py-3 font-semibold">Bookings</th>
+                <th className="px-4 py-3 font-semibold">Completed</th>
+                <th className="px-4 py-3 font-semibold">Total Revenue</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {partnerBreakdown.length === 0 ? (
+                <tr><td colSpan={4} className="px-4 py-4 text-slate-600">No partner data.</td></tr>
+              ) : partnerBreakdown.map((p, i) => (
+                <tr key={i} className="hover:bg-black/[0.02]">
+                  <td className="px-4 py-3 font-medium text-slate-900">{p.name}</td>
+                  <td className="px-4 py-3 text-slate-700">{p.bookings}</td>
+                  <td className="px-4 py-3 text-slate-700">{p.completed}</td>
+                  <td className="px-4 py-3 font-semibold text-[#003768]">{p.revenue.toFixed(2)}</td>
                 </tr>
-              </thead>
-
-              <tbody className="divide-y divide-black/5">
-                {partnerBreakdown.length === 0 ? (
-                  <tr>
-                    <td className="px-4 py-4 text-slate-600" colSpan={5}>
-                      No partner booking data available for this period.
-                    </td>
-                  </tr>
-                ) : (
-                  partnerBreakdown.map((partner, index) => (
-                    <tr key={`${partner.name}-${index}`} className="hover:bg-black/[0.02]">
-                      <td className="px-4 py-4 font-medium text-slate-900">{partner.name}</td>
-                      <td className="px-4 py-4 text-slate-700">{partner.bookings}</td>
-                      <td className="px-4 py-4 text-slate-700">{partner.completed}</td>
-                      <td className="px-4 py-4 text-slate-700">
-                        {formatCurrency(partner.revenue)}
-                      </td>
-                      <td className="px-4 py-4 text-slate-700">
-                        {formatCurrency(partner.avgBookingValue)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <h2 className="text-xl font-semibold text-[#003768]">Recent Requests</h2>
-
-          {recentRequests.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-600">No requests available for this period.</p>
-          ) : (
-            <div className="mt-4 space-y-4">
-              {recentRequests.map((row) => (
-                <div
-                  key={row.id}
-                  className="rounded-2xl border border-black/5 bg-[#f9fbff] p-4"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-[#003768]">
-                        {row.job_number || "No job number"}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-700">
-                        {row.pickup_address || "—"} → {row.dropoff_address || "—"}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {row.vehicle_category_name || "—"} • {formatDateTime(row.created_at)}
-                      </div>
-                    </div>
-
-                    <span
-                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(
-                        row.status || row.request_status
-                      )}`}
-                    >
-                      {formatStatusLabel(row.status || row.request_status)}
-                    </span>
-                  </div>
-                </div>
+      {/* Vehicle breakdown */}
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <h2 className="text-xl font-semibold text-[#003768]">Vehicle Category Breakdown</h2>
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-black/10">
+          <table className="min-w-full text-sm">
+            <thead className="bg-[#f3f8ff] text-left text-[#003768]">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Vehicle Category</th>
+                <th className="px-4 py-3 font-semibold">Bookings</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {vehicleBreakdown.length === 0 ? (
+                <tr><td colSpan={2} className="px-4 py-4 text-slate-600">No data.</td></tr>
+              ) : vehicleBreakdown.map(r => (
+                <tr key={r.category} className="hover:bg-black/[0.02]">
+                  <td className="px-4 py-3 font-medium text-slate-900">{r.category}</td>
+                  <td className="px-4 py-3 text-slate-700">{r.count}</td>
+                </tr>
               ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <h2 className="text-xl font-semibold text-[#003768]">Recent Bookings</h2>
-
-          {recentBookings.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-600">No bookings available for this period.</p>
-          ) : (
-            <div className="mt-4 space-y-4">
-              {recentBookings.map((row) => (
-                <div
-                  key={row.id}
-                  className="rounded-2xl border border-black/5 bg-[#f9fbff] p-4"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-[#003768]">
-                        {row.job_number || "No job number"}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-700">
-                        {row.pickup_address || "—"} → {row.dropoff_address || "—"}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {row.partner_company_name || "Unknown Partner"} •{" "}
-                        {formatDateTime(row.created_at)}
-                      </div>
-                      <div className="mt-2 text-sm font-semibold text-[#003768]">
-                        {formatCurrency(Number(row.amount || 0))}
-                      </div>
-                    </div>
-
-                    <span
-                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(
-                        row.booking_status
-                      )}`}
-                    >
-                      {formatStatusLabel(row.booking_status)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
