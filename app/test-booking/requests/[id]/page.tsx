@@ -345,7 +345,7 @@ export default function TestBookingRequestDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const supabase = useMemo(() => createCustomerBrowserClient(), []);
-  const { rate: hookRate } = useCurrency();
+  const { rate: hookRate, currency } = useCurrency();
   const [liveRate, setLiveRate] = useState<number>(hookRate ?? 0.85);
   const [rateIsLive, setRateIsLive] = useState(false);
 
@@ -420,7 +420,7 @@ export default function TestBookingRequestDetailPage({
       const res = await fetch("/api/test-booking/bids/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ bid_id: bidId }),
+        body: JSON.stringify({ bid_id: bidId, currency }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to accept bid.");
@@ -532,7 +532,10 @@ export default function TestBookingRequestDetailPage({
               <p><span className="font-semibold text-slate-900">Company phone:</span> {bk.company_phone || "—"}</p>
               <p>
                 <span className="font-semibold text-slate-900">Price:</span>{" "}
-                <DualFromGbp amountGbp={bk.amount != null ? Number(bk.amount) : null} rate={liveRate} />
+                {currency === "GBP"
+                  ? <DualFromGbp amountGbp={bk.amount != null ? Number(bk.amount) : null} rate={liveRate} />
+                  : <DualFromEur amountEur={bk.amount != null ? Number(bk.amount) : null} rate={liveRate} />
+                }
               </p>
               <p><span className="font-semibold text-slate-900">Driver:</span> {bk.driver_name || "—"}</p>
               <p><span className="font-semibold text-slate-900">Driver phone:</span> {bk.driver_phone || "—"}</p>
@@ -597,11 +600,20 @@ export default function TestBookingRequestDetailPage({
                     <p><span className="font-semibold text-slate-900">Phone:</span> {bid.partner_phone || "—"}</p>
                     <p><span className="font-semibold text-slate-900">Vehicle:</span> {bid.vehicle_category_name}</p>
                     <p><span className="font-semibold text-slate-900">Car hire:</span>{" "}
-                      <DualFromGbp amountGbp={bid.car_hire_price} rate={liveRate} /></p>
+                      {currency === "GBP"
+                        ? <DualFromGbp amountGbp={bid.car_hire_price} rate={liveRate} />
+                        : <DualFromEur amountEur={bid.car_hire_price} rate={liveRate} />}
+                    </p>
                     <p><span className="font-semibold text-slate-900">Fuel deposit:</span>{" "}
-                      <DualFromGbp amountGbp={bid.fuel_price} rate={liveRate} /></p>
+                      {currency === "GBP"
+                        ? <DualFromGbp amountGbp={bid.fuel_price} rate={liveRate} />
+                        : <DualFromEur amountEur={bid.fuel_price} rate={liveRate} />}
+                    </p>
                     <p><span className="font-semibold text-slate-900">Total:</span>{" "}
-                      <DualFromGbp amountGbp={bid.total_price} rate={liveRate} /></p>
+                      {currency === "GBP"
+                        ? <DualFromGbp amountGbp={bid.total_price} rate={liveRate} />
+                        : <DualFromEur amountEur={bid.total_price} rate={liveRate} />}
+                    </p>
                     <p><span className="font-semibold text-slate-900">Insurance included:</span> {bid.full_insurance_included ? "Yes" : "No"}</p>
                     <p><span className="font-semibold text-slate-900">Full tank included:</span> {bid.full_tank_included ? "Yes" : "No"}</p>
                     {bid.notes && <p><span className="font-semibold text-slate-900">Notes:</span> {bid.notes}</p>}

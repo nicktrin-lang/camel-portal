@@ -32,6 +32,9 @@ export async function POST(req: Request) {
     const bidId = String(body?.bid_id || "").trim();
     if (!bidId) return NextResponse.json({ error: "Missing bid_id" }, { status: 400 });
 
+    // Accept the currency the customer was viewing in — default GBP
+    const currency = body?.currency === "EUR" ? "EUR" : "GBP";
+
     const db = createServiceRoleSupabaseClient();
 
     const { data: bidRow, error: bidErr } = await db
@@ -95,10 +98,11 @@ export async function POST(req: Request) {
           partner_user_id: partnerUserId,
           booking_status: "confirmed",
           amount: totalPrice,
-          fuel_price: fuelPrice,       // full tank price from bid
-          car_hire_price: carHirePrice, // hire price from bid
+          fuel_price: fuelPrice,
+          car_hire_price: carHirePrice,
           notes: bidNotes,
           job_number: jobNumber,
+          currency,               // ← correctly saved now
         })
         .select("id")
         .single();
