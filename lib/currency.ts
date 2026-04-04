@@ -2,7 +2,7 @@
  * Currency utilities for Camel Global
  *
  * - All partner prices are stored and displayed in EUR
- * - Customers can pay in EUR or GBP
+ * - Customers can pay in EUR, GBP, or USD
  * - Live exchange rates from frankfurter.app (no API key required)
  * - Rates are cached for 1 hour to avoid hammering the API
  */
@@ -73,8 +73,16 @@ export function formatGBP(amount: number | null | undefined): string {
   }).format(amount);
 }
 
+export function formatUSD(amount: number | null | undefined): string {
+  if (amount == null || isNaN(amount)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD", minimumFractionDigits: 2,
+  }).format(amount);
+}
+
 export function formatCurrency(amount: number | null | undefined, currency: Currency): string {
   if (currency === "GBP") return formatGBP(amount);
+  if (currency === "USD") return formatUSD(amount);
   return formatEUR(amount);
 }
 
