@@ -24,6 +24,12 @@ type BookingRow = {
   customer_phone: string | null;
 };
 
+const CURRENCY_CONFIG: Record<Currency, { locale: string; label: string; symbol: string }> = {
+  EUR: { locale: "es-ES", label: "EUR", symbol: "€" },
+  GBP: { locale: "en-GB", label: "GBP", symbol: "£" },
+  USD: { locale: "en-US", label: "USD", symbol: "$" },
+};
+
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
   if (!text) return null;
@@ -31,11 +37,11 @@ async function safeJson(res: Response): Promise<any> {
 }
 
 function fmtAmount(amount: number | string | null, currency: Currency | null) {
-  const amt = Number(amount || 0);
+  const amt = Number(amount ?? 0);
   if (!isFinite(amt)) return "—";
   const curr = currency ?? "EUR";
-  const locale = curr === "EUR" ? "es-ES" : curr === "GBP" ? "en-GB" : "en-US";
-  return new Intl.NumberFormat(locale, { style: "currency", currency: curr, maximumFractionDigits: 0 }).format(amt);
+  const { locale } = CURRENCY_CONFIG[curr];
+  return new Intl.NumberFormat(locale, { style: "currency", currency: curr, maximumFractionDigits: 2 }).format(amt);
 }
 
 function fmtDateTime(value?: string | null) {
@@ -76,12 +82,12 @@ function matchesDateRange(value: string | null | undefined, from: string, to: st
   return true;
 }
 
-// Revenue by currency
 function revenuesByCurrency(rows: BookingRow[]): Record<Currency, number> {
   const totals: Record<Currency, number> = { EUR: 0, GBP: 0, USD: 0 };
   for (const r of rows) {
     const curr: Currency = (r.currency as Currency) ?? "EUR";
-    totals[curr] += isFinite(Number(r.amount)) ? Number(r.amount) : 0;
+    const amt = Number(r.amount ?? 0);
+    if (isFinite(amt)) totals[curr] += amt;
   }
   return totals;
 }
@@ -97,6 +103,7 @@ export default function AdminBookingsPage() {
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [currencyFilter, setCurrencyFilter] = useState<"all" | Currency>("all");
 
   async function load() {
     setLoading(true); setError(null);
@@ -125,6 +132,7 @@ export default function AdminBookingsPage() {
       if (!matchesDateRange(row.created_at, dateFrom, dateTo)) return false;
     }
     if (statusFilter !== "all" && String(row.booking_status || "").toLowerCase() !== statusFilter) return false;
+    if (currencyFilter !== "all" && (row.currency ?? "EUR") !== currencyFilter) return false;
     if (!normalizedSearch) return true;
     return [row.job_number, row.partner_company_name, row.pickup_address,
       row.dropoff_address, row.vehicle_category_name, row.booking_status, row.amount, row.customer_name]
@@ -135,9 +143,10 @@ export default function AdminBookingsPage() {
     new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
   );
 
+  const revenues = revenuesByCurrency(filtered);
   const completed = filtered.filter(r => String(r.booking_status || "").toLowerCase() === "completed").length;
   const confirmed = filtered.filter(r => String(r.booking_status || "").toLowerCase() === "confirmed").length;
-  const revenues = revenuesByCurrency(filtered);
+  const active = filtered.filter(r => ["driver_assigned", "en_route", "arrived", "collected", "returned"].includes(String(r.booking_status || "").toLowerCase())).length;
 
   const statusOptions = Array.from(new Set(
     bookings.map(r => String(r.booking_status || "").toLowerCase()).filter(Boolean)
@@ -158,10 +167,10 @@ export default function AdminBookingsPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-[#003768]">All Bookings</h2>
-            <p className="mt-1 text-sm text-slate-600">Review all bookings across all partner accounts. Click any row to view full detail.</p>
+            <p className="mt-1 text-sm text-slate-600">All bookings across all partner accounts. Click any row to view detail.</p>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="xl:min-w-[220px]">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div>
               <label className="text-sm font-medium text-[#003768]">Search</label>
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Job, partner, customer…"
@@ -173,6 +182,16 @@ export default function AdminBookingsPage() {
                 className="mt-1 w-full rounded-xl border border-black/10 p-3 text-sm text-black outline-none focus:border-[#0f4f8a]">
                 <option value="all">All statuses</option>
                 {statusOptions.map(s => <option key={s} value={s}>{fmtStatus(s)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[#003768]">Currency</label>
+              <select value={currencyFilter} onChange={e => setCurrencyFilter(e.target.value as "all" | Currency)}
+                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-sm text-black outline-none focus:border-[#0f4f8a]">
+                <option value="all">All currencies</option>
+                <option value="EUR">EUR €</option>
+                <option value="GBP">GBP £</option>
+                <option value="USD">USD $</option>
               </select>
             </div>
             <div>
@@ -188,7 +207,7 @@ export default function AdminBookingsPage() {
           </div>
         </div>
         <div className="mt-4 flex gap-3">
-          <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setSearch(""); setStatusFilter("all"); }}
+          <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setSearch(""); setStatusFilter("all"); setCurrencyFilter("all"); }}
             className="rounded-full border border-black/10 bg-white px-5 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5">
             Clear Filters
           </button>
@@ -199,36 +218,85 @@ export default function AdminBookingsPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
         {[
-          ["Total Bookings", filtered.length],
-          ["Confirmed", confirmed],
-          ["Completed", completed],
-        ].map(([label, value]) => (
-          <div key={String(label)} className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+          { label: "Total Bookings", value: filtered.length, color: "text-[#003768]" },
+          { label: "Confirmed", value: confirmed, color: "text-green-600" },
+          { label: "Active", value: active, color: "text-amber-600" },
+          { label: "Completed", value: completed, color: "text-blue-600" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <p className="text-sm font-medium text-slate-500">{label}</p>
-            <p className="mt-2 text-2xl font-semibold text-[#003768]">{value}</p>
+            <p className={`mt-2 text-2xl font-semibold ${color}`}>{value}</p>
           </div>
         ))}
-        {/* Revenue split by currency */}
         {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
           const amt = revenues[curr];
-          if (amt === 0) return null;
-          const locale = curr === "EUR" ? "es-ES" : curr === "GBP" ? "en-GB" : "en-US";
+          const { locale, label, symbol } = CURRENCY_CONFIG[curr];
           const formatted = new Intl.NumberFormat(locale, { style: "currency", currency: curr, maximumFractionDigits: 0 }).format(amt);
           return (
             <div key={curr} className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-              <p className="text-sm font-medium text-slate-500">Revenue ({curr})</p>
-              <p className="mt-2 text-2xl font-semibold text-[#003768]">{formatted}</p>
+              <p className="text-sm font-medium text-slate-500">Revenue {symbol} {label}</p>
+              <p className={`mt-2 text-2xl font-semibold ${amt > 0 ? "text-[#003768]" : "text-slate-300"}`}>{formatted}</p>
             </div>
           );
         })}
       </div>
 
-      {/* Table */}
+      {/* Per-Currency Breakdown Table */}
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <h2 className="text-xl font-semibold text-[#003768]">Recent Bookings</h2>
+        <h2 className="text-xl font-semibold text-[#003768]">Revenue by Currency</h2>
+        <p className="mt-1 text-sm text-slate-500">Full breakdown for reconciliation and dispute resolution.</p>
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-black/10">
+          <table className="min-w-full text-sm">
+            <thead className="bg-[#f3f8ff] text-left text-[#003768]">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Currency</th>
+                <th className="px-4 py-3 font-semibold">Total Bookings</th>
+                <th className="px-4 py-3 font-semibold">Confirmed</th>
+                <th className="px-4 py-3 font-semibold">Active</th>
+                <th className="px-4 py-3 font-semibold">Completed</th>
+                <th className="px-4 py-3 font-semibold">Cancelled</th>
+                <th className="px-4 py-3 font-semibold">Total Revenue</th>
+                <th className="px-4 py-3 font-semibold">Completed Revenue</th>
+                <th className="px-4 py-3 font-semibold">Avg per Booking</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
+                const currRows = filtered.filter(r => (r.currency ?? "EUR") === curr);
+                const { locale, label, symbol } = CURRENCY_CONFIG[curr];
+                const fmtC = (n: number) => new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(n);
+                const total = revenues[curr];
+                const completedRows = currRows.filter(r => String(r.booking_status || "").toLowerCase() === "completed");
+                const completedRevenue = completedRows.reduce((sum, r) => sum + (isFinite(Number(r.amount)) ? Number(r.amount) : 0), 0);
+                const activeCount = currRows.filter(r => ["driver_assigned", "en_route", "arrived", "collected", "returned"].includes(String(r.booking_status || "").toLowerCase())).length;
+                const cancelledCount = currRows.filter(r => String(r.booking_status || "").toLowerCase() === "cancelled").length;
+                const confirmedCount = currRows.filter(r => String(r.booking_status || "").toLowerCase() === "confirmed").length;
+                const avg = currRows.length > 0 ? total / currRows.length : 0;
+                return (
+                  <tr key={curr} className={currRows.length === 0 ? "opacity-40" : ""}>
+                    <td className="px-4 py-3 font-semibold text-[#003768]">{symbol} {label}</td>
+                    <td className="px-4 py-3 text-slate-700">{currRows.length}</td>
+                    <td className="px-4 py-3 text-green-700">{confirmedCount}</td>
+                    <td className="px-4 py-3 text-amber-700">{activeCount}</td>
+                    <td className="px-4 py-3 text-blue-700">{completedRows.length}</td>
+                    <td className="px-4 py-3 text-red-600">{cancelledCount}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{fmtC(total)}</td>
+                    <td className="px-4 py-3 font-semibold text-green-700">{fmtC(completedRevenue)}</td>
+                    <td className="px-4 py-3 text-slate-700">{currRows.length > 0 ? fmtC(avg) : "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Bookings Table */}
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <h2 className="text-xl font-semibold text-[#003768]">All Bookings ({sorted.length})</h2>
         <div className="mt-4 overflow-hidden rounded-2xl border border-black/10">
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -243,12 +311,13 @@ export default function AdminBookingsPage() {
                   <th className="px-4 py-3 text-left font-semibold">Pickup At</th>
                   <th className="px-4 py-3 text-left font-semibold">Vehicle</th>
                   <th className="px-4 py-3 text-left font-semibold">Status</th>
+                  <th className="px-4 py-3 text-left font-semibold">Currency</th>
                   <th className="px-4 py-3 text-left font-semibold">Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/5">
                 {sorted.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-4 text-slate-600">No bookings found.</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-4 text-slate-600">No bookings found.</td></tr>
                 ) : sorted.map(row => (
                   <tr key={row.id}
                     onClick={() => router.push(`/admin/bookings/${row.id}`)}
@@ -267,6 +336,11 @@ export default function AdminBookingsPage() {
                     <td className="px-4 py-4">
                       <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusPillClasses(row.booking_status)}`}>
                         {fmtStatus(row.booking_status)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="inline-flex rounded-full border border-black/10 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                        {row.currency ?? "EUR"}
                       </span>
                     </td>
                     <td className="px-4 py-4 font-semibold text-slate-900">
