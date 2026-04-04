@@ -32,9 +32,6 @@ export async function POST(req: Request) {
     const bidId = String(body?.bid_id || "").trim();
     if (!bidId) return NextResponse.json({ error: "Missing bid_id" }, { status: 400 });
 
-    const bidCurrency: "EUR" | "GBP" = 
-      (bidRow.currency === "EUR" || bidRow.currency === "GBP") ? bidRow.currency : "EUR";
-
     const db = createServiceRoleSupabaseClient();
 
     const { data: bidRow, error: bidErr } = await db
@@ -45,6 +42,9 @@ export async function POST(req: Request) {
 
     if (bidErr) return NextResponse.json({ error: bidErr.message }, { status: 400 });
     if (!bidRow) return NextResponse.json({ error: "Bid not found" }, { status: 404 });
+
+    const bidCurrency: "EUR" | "GBP" =
+      (bidRow.currency === "EUR" || bidRow.currency === "GBP") ? bidRow.currency : "EUR";
 
     const requestId = String(bidRow.request_id || "");
     const partnerUserId = String(bidRow.partner_user_id || "");
