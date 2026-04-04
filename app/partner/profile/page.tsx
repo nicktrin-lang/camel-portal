@@ -68,6 +68,43 @@ function inferCurrencyFromCountry(country: string): Currency {
   return "EUR";
 }
 
+// ── Reusable field components ─────────────────────────────────────────────────
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-[#003768]">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function TextInput({ value, onChange, placeholder, type = "text" }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+}) {
+  return (
+    <input type={type} value={value} onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black outline-none focus:border-[#0f4f8a]" />
+  );
+}
+
+function SectionCard({ title, description, children }: {
+  title: string; description?: string; children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] md:p-8">
+      <div className="border-b border-black/5 pb-4 mb-6">
+        <h2 className="text-xl font-semibold text-[#003768]">{title}</h2>
+        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function PartnerProfilePage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
@@ -76,6 +113,9 @@ export default function PartnerProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [profile, setProfile] = useState<ProfileState>({
     company_name: "", contact_name: "", phone: "", address: "",
@@ -84,15 +124,10 @@ export default function PartnerProfilePage() {
     base_lat: "", base_lng: "", search_address: "", default_currency: "EUR",
   });
 
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
   useEffect(() => {
     let mounted = true;
     async function load() {
-      setLoading(true);
-      setError(null);
+      setLoading(true); setError(null);
       try {
         const { data: userData, error: userErr } = await supabase.auth.getUser();
         if (userErr || !userData?.user) { router.replace("/partner/login?reason=not_signed_in"); return; }
@@ -102,16 +137,12 @@ export default function PartnerProfilePage() {
         const { data: existingProfile } = await supabase
           .from("partner_profiles")
           .select("company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_lat,base_lng,default_currency")
-          .eq("user_id", user.id)
-          .maybeSingle();
+          .eq("user_id", user.id).maybeSingle();
 
         const { data: application } = await supabase
           .from("partner_applications")
           .select("company_name,full_name,phone,address,address1,address2,province,postcode,country,website,status")
-          .eq("email", email)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .eq("email", email).order("created_at", { ascending: false }).limit(1).maybeSingle();
 
         const status = String((application as any)?.status || "").toLowerCase();
         if (application && status && status !== "approved" && status !== "live") {
@@ -157,7 +188,6 @@ export default function PartnerProfilePage() {
     setSaved(false);
     setProfile(prev => {
       const next = { ...prev, [key]: value };
-      // Auto-suggest currency when country changes
       if (key === "country" && typeof value === "string") {
         next.default_currency = inferCurrencyFromCountry(value);
       }
@@ -193,9 +223,9 @@ export default function PartnerProfilePage() {
     setSaved(false); setError(null);
     setProfile(prev => ({ ...prev, base_lat: String(lat), base_lng: String(lng) }));
     try {
-      const res = await fetch(`/api/geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`, { method: "GET", cache: "no-store" });
+      const res = await fetch(`/api/geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`, { cache: "no-store" });
       const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || json?._raw || "Failed to get address.");
+      if (!res.ok) throw new Error(json?.error || "Failed to get address.");
       applyAddressParts({ display_name: String(json?.display_name || ""), lat, lng, address_line1: String(json?.address_line1 || ""), address_line2: String(json?.address_line2 || ""), province: String(json?.province || ""), postcode: String(json?.postcode || ""), country: String(json?.country || "") });
     } catch (e: any) { setError(e?.message || "Failed to get address."); }
   }
@@ -216,9 +246,9 @@ export default function PartnerProfilePage() {
     if (!q) { setError("Enter an address to search."); return; }
     setSearching(true);
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { method: "GET", cache: "no-store" });
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { cache: "no-store" });
       const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || json?._raw || "Search failed.");
+      if (!res.ok) throw new Error(json?.error || "Search failed.");
       const results = Array.isArray(json?.results) ? json.results as Suggestion[] : [];
       if (!results.length) { setSuggestions([]); setShowSuggestions(false); throw new Error("No suggestions found."); }
       setSuggestions(results); setShowSuggestions(true);
@@ -240,26 +270,24 @@ export default function PartnerProfilePage() {
       const radius = Number(profile.service_radius_km);
       if (!Number.isFinite(radius) || radius <= 0) throw new Error("Service radius must be a valid number.");
 
-      const { error: upsertErr } = await supabase
-        .from("partner_profiles")
-        .upsert({
-          user_id: userId,
-          company_name: profile.company_name.trim() || null,
-          contact_name: profile.contact_name.trim() || null,
-          phone: profile.phone.trim() || null,
-          address: profile.address.trim() || null,
-          address1: profile.address1.trim() || null,
-          address2: profile.address2.trim() || null,
-          province: profile.province.trim() || null,
-          postcode: profile.postcode.trim() || null,
-          country: profile.country.trim() || null,
-          website: profile.website.trim() || null,
-          service_radius_km: radius,
-          base_address: profile.base_address.trim() || profile.search_address.trim() || null,
-          base_lat: lat,
-          base_lng: lng,
-          default_currency: profile.default_currency,
-        }, { onConflict: "user_id" });
+      const { error: upsertErr } = await supabase.from("partner_profiles").upsert({
+        user_id: userId,
+        company_name: profile.company_name.trim() || null,
+        contact_name: profile.contact_name.trim() || null,
+        phone: profile.phone.trim() || null,
+        address: profile.address.trim() || null,
+        address1: profile.address1.trim() || null,
+        address2: profile.address2.trim() || null,
+        province: profile.province.trim() || null,
+        postcode: profile.postcode.trim() || null,
+        country: profile.country.trim() || null,
+        website: profile.website.trim() || null,
+        service_radius_km: radius,
+        base_address: profile.base_address.trim() || profile.search_address.trim() || null,
+        base_lat: lat,
+        base_lng: lng,
+        default_currency: profile.default_currency,
+      }, { onConflict: "user_id" });
 
       if (upsertErr) throw upsertErr;
       const liveRefresh = await triggerPartnerLiveRefresh();
@@ -281,86 +309,97 @@ export default function PartnerProfilePage() {
   return (
     <div className="space-y-6">
       {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-      {saved && <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">Profile saved successfully.</div>}
+      {saved && <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">✓ Profile saved successfully.</div>}
 
-      <form onSubmit={handleSave} className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] md:p-10">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div>
-            <label className="text-sm font-medium text-[#003768]">Company name</label>
-            <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-              value={profile.company_name} onChange={e => updateField("company_name", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[#003768]">Contact name</label>
-            <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-              value={profile.contact_name} onChange={e => updateField("contact_name", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[#003768]">Phone</label>
-            <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-              value={profile.phone} onChange={e => updateField("phone", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[#003768]">Website</label>
-            <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-              value={profile.website} onChange={e => updateField("website", e.target.value)} />
-          </div>
-          <div className="md:col-span-2">
-            <label className="text-sm font-medium text-[#003768]">Business Address</label>
-            <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-              value={profile.address} onChange={e => updateField("address", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[#003768]">Service radius (km)</label>
-            <input type="number" min="1" step="1" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-              value={profile.service_radius_km} onChange={e => updateField("service_radius_km", e.target.value)} />
-          </div>
+      <form onSubmit={handleSave} className="space-y-6">
 
-          {/* Currency selector */}
-          <div>
-            <label className="text-sm font-medium text-[#003768]">Default currency</label>
-            <p className="mt-0.5 text-xs text-slate-500">The currency you bid in. Auto-detected from your country.</p>
-            <div className="mt-2 flex gap-3">
-              {(["EUR", "GBP", "USD"] as Currency[]).map(c => (
-                <button key={c} type="button"
-                  onClick={() => updateField("default_currency", c)}
-                  className={[
-                    "flex-1 rounded-xl border px-4 py-3 text-sm font-bold transition-all",
-                    profile.default_currency === c
-                      ? "border-[#003768] bg-[#003768] text-white"
-                      : "border-black/10 bg-white text-slate-700 hover:border-[#003768]/40"
-                  ].join(" ")}>
-                  {c === "EUR" ? "€ Euro" : c === "GBP" ? "£ British Pound" : "$ US Dollar"}
-                </button>
-              ))}
+        {/* ── Section 1: Company Information ── */}
+        <SectionCard
+          title="Company Information"
+          description="Your basic company details shown to customers when you win a bid.">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <Field label="Company name">
+              <TextInput value={profile.company_name} onChange={v => updateField("company_name", v)} placeholder="e.g. Valencia Cars" />
+            </Field>
+            <Field label="Contact name">
+              <TextInput value={profile.contact_name} onChange={v => updateField("contact_name", v)} placeholder="e.g. Nick Smith" />
+            </Field>
+            <Field label="Phone">
+              <TextInput value={profile.phone} onChange={v => updateField("phone", v)} placeholder="+34 600 000 000" />
+            </Field>
+            <Field label="Website">
+              <TextInput value={profile.website} onChange={v => updateField("website", v)} placeholder="https://yourcompany.com" />
+            </Field>
+          </div>
+        </SectionCard>
+
+        {/* ── Section 2: Business Address ── */}
+        <SectionCard
+          title="Business Address"
+          description="Your registered company address for correspondence and records.">
+          <Field label="Full business address">
+            <TextInput value={profile.address} onChange={v => updateField("address", v)} placeholder="Full address" />
+          </Field>
+        </SectionCard>
+
+        {/* ── Section 3: Service Settings ── */}
+        <SectionCard
+          title="Service Settings"
+          description="Control your service radius and the currency you bid in.">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <Field label="Service radius (km)">
+              <p className="mt-0.5 mb-1 text-xs text-slate-500">Customer requests within this distance from your base will be sent to you.</p>
+              <TextInput type="number" value={profile.service_radius_km} onChange={v => updateField("service_radius_km", v)} placeholder="30" />
+            </Field>
+
+            <Field label="Billing currency">
+              <p className="mt-0.5 mb-2 text-xs text-slate-500">The currency your bids and bookings will be quoted in. Auto-detected from your country.</p>
+              <div className="flex gap-2">
+                {(["EUR", "GBP", "USD"] as Currency[]).map(c => (
+                  <button key={c} type="button"
+                    onClick={() => updateField("default_currency", c)}
+                    className={[
+                      "flex-1 rounded-xl border px-3 py-3 text-sm font-bold transition-all",
+                      profile.default_currency === c
+                        ? "border-[#003768] bg-[#003768] text-white shadow-[0_4px_12px_rgba(0,55,104,0.3)]"
+                        : "border-black/10 bg-white text-slate-700 hover:border-[#003768]/40"
+                    ].join(" ")}>
+                    {c === "EUR" ? "€ Euro" : c === "GBP" ? "£ GBP" : "$ USD"}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          </div>
+        </SectionCard>
+
+        {/* ── Section 4: Car Fleet Base Location ── */}
+        <SectionCard
+          title="Car Fleet Base Location"
+          description="The location your vehicles are based. Customer requests within your service radius of this point will be sent to you. Use the search, GPS button, or click the map.">
+
+          {/* Search tools */}
+          <div className="rounded-2xl border border-[#003768]/10 bg-[#f3f8ff] p-4">
+            <p className="text-sm font-semibold text-[#003768] mb-3">Find your location</p>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={useCurrentLocation}
+                className="rounded-full border border-[#003768]/20 bg-white px-5 py-2 text-sm font-semibold text-[#003768] hover:bg-[#003768]/5">
+                📍 Use my current location
+              </button>
             </div>
-          </div>
-        </div>
-
-        {/* Car Fleet Address section */}
-        <div className="mt-8 rounded-2xl border border-black/10 p-4">
-          <h2 className="text-xl font-semibold text-[#003768]">Car Fleet Address</h2>
-          <p className="mt-2 text-sm text-slate-600">Type an address to see suggestions, use GPS, or click on the map. Then click Save.</p>
-
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button type="button" onClick={useCurrentLocation}
-              className="rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[#003768] hover:bg-black/5">
-              Use my current location
-            </button>
-            <button type="button" onClick={searchAddress}
-              className="rounded-full bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
-              {searching ? "Searching..." : "Search"}
-            </button>
-          </div>
-
-          <div className="mt-5">
-            <label className="text-sm font-medium text-[#003768]">Search address</label>
-            <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-              value={profile.search_address}
-              onChange={e => { updateField("search_address", e.target.value); setShowSuggestions(true); }}
-              onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); searchAddress(); } }} />
-            <p className="mt-2 text-xs text-slate-500">Tip: click Search or press Enter, then choose a suggestion.</p>
+            <div className="mt-3 flex gap-2">
+              <input type="text"
+                value={profile.search_address}
+                onChange={e => { updateField("search_address", e.target.value); setShowSuggestions(true); }}
+                onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); searchAddress(); } }}
+                placeholder="Search for your fleet base address…"
+                className="flex-1 rounded-xl border border-black/10 p-3 text-black outline-none focus:border-[#0f4f8a]" />
+              <button type="button" onClick={searchAddress}
+                className="rounded-xl bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
+                {searching ? "Searching…" : "Search"}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">Press Enter or click Search, then choose a suggestion from the list.</p>
             {showSuggestions && suggestions.length > 0 && (
               <div className="mt-2 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg">
                 {suggestions.map((item, idx) => (
@@ -373,64 +412,60 @@ export default function PartnerProfilePage() {
             )}
           </div>
 
-          <div className="mt-5">
-            <label className="text-sm font-medium text-[#003768]">Car Fleet Address</label>
-            <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-              value={profile.base_address} onChange={e => updateField("base_address", e.target.value)} />
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Address line 1</label>
-              <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-                value={profile.address1} onChange={e => updateField("address1", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Address line 2</label>
-              <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-                value={profile.address2} onChange={e => updateField("address2", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Province</label>
-              <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-                value={profile.province} onChange={e => updateField("province", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Postcode</label>
-              <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-                value={profile.postcode} onChange={e => updateField("postcode", e.target.value)} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium text-[#003768]">Country</label>
-              <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-                value={profile.country} onChange={e => updateField("country", e.target.value)} />
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Base latitude</label>
-              <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-                value={profile.base_lat} onChange={e => updateField("base_lat", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Base longitude</label>
-              <input type="text" className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black"
-                value={profile.base_lng} onChange={e => updateField("base_lng", e.target.value)} />
-            </div>
-          </div>
-
+          {/* Fleet address fields */}
           <div className="mt-6">
-            <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
-            <p className="mt-2 text-xs text-slate-500">Click anywhere on the map to set the partner base location.</p>
+            <Field label="Fleet base address (full)">
+              <p className="mt-0.5 mb-1 text-xs text-slate-500">Auto-filled from search or map. You can also type it manually.</p>
+              <TextInput value={profile.base_address} onChange={v => updateField("base_address", v)} />
+            </Field>
           </div>
-        </div>
 
-        <div className="mt-8">
+          <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+            <Field label="Address line 1">
+              <TextInput value={profile.address1} onChange={v => updateField("address1", v)} />
+            </Field>
+            <Field label="Address line 2">
+              <TextInput value={profile.address2} onChange={v => updateField("address2", v)} />
+            </Field>
+            <Field label="Province / Region">
+              <TextInput value={profile.province} onChange={v => updateField("province", v)} />
+            </Field>
+            <Field label="Postcode">
+              <TextInput value={profile.postcode} onChange={v => updateField("postcode", v)} />
+            </Field>
+            <div className="md:col-span-2">
+              <Field label="Country">
+                <TextInput value={profile.country} onChange={v => updateField("country", v)} />
+              </Field>
+            </div>
+          </div>
+
+          {/* Coordinates */}
+          <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+            <Field label="Base latitude">
+              <p className="mt-0.5 mb-1 text-xs text-slate-500">Auto-filled from search or map click.</p>
+              <TextInput value={profile.base_lat} onChange={v => updateField("base_lat", v)} placeholder="e.g. 38.842" />
+            </Field>
+            <Field label="Base longitude">
+              <p className="mt-0.5 mb-1 text-xs text-slate-500">Auto-filled from search or map click.</p>
+              <TextInput value={profile.base_lng} onChange={v => updateField("base_lng", v)} placeholder="e.g. 0.112" />
+            </Field>
+          </div>
+
+          {/* Map */}
+          <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
+            <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
+          </div>
+          <p className="mt-2 text-xs text-slate-500">💡 Click anywhere on the map to set or adjust your fleet base location. The address fields above will update automatically.</p>
+        </SectionCard>
+
+        {/* Save button */}
+        <div className="flex items-center gap-4">
           <button type="submit" disabled={saving}
             className="rounded-full bg-[#ff7a00] px-8 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60">
-            {saving ? "Saving..." : "Save changes"}
+            {saving ? "Saving…" : "Save changes"}
           </button>
+          {saved && <p className="text-sm font-medium text-green-600">✓ Saved successfully</p>}
         </div>
       </form>
     </div>
