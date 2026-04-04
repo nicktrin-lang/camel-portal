@@ -3,9 +3,18 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getEurToGbpRateWithSource, formatGBP, formatEUR } from "@/lib/currency";
 
 // ── Types ────────────────────────────────────────────────────────────────────
+
+type Currency = "EUR" | "GBP" | "USD";
+
+const CURRENCY_META: Record<Currency, { symbol: string; locale: string; label: string }> = {
+  EUR: { symbol: "€", locale: "es-ES", label: "EUR" },
+  GBP: { symbol: "£", locale: "en-GB", label: "GBP" },
+  USD: { symbol: "$", locale: "en-US", label: "USD" },
+};
+
+type Rates = { GBP: number; USD: number };
 
 type DriverRow = {
   id: string; partner_user_id: string; auth_user_id: string | null;
@@ -21,7 +30,7 @@ type BookingRow = {
   driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
   fuel_price: number | null; car_hire_price: number | null;
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
-  currency: "EUR" | "GBP";
+  currency: Currency;
   collection_confirmed_by_driver?: boolean | null;
   collection_confirmed_by_driver_at?: string | null;
   collection_fuel_level_driver?: string | null;
@@ -60,7 +69,43 @@ type RequestRow = {
 type BookingApiResponse = { booking: BookingRow; request: RequestRow | null; role: string | null };
 type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Currency helpers ──────────────────────────────────────────────────────────
+
+function fmtCurr(amount: number, curr: Currency): string {
+  const { locale } = CURRENCY_META[curr] ?? CURRENCY_META.EUR;
+  return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(amount);
+}
+
+function toEur(amount: number, stored: Currency, rates: Rates): number {
+  if (stored === "EUR") return amount;
+  if (stored === "GBP") return Math.round((amount / rates.GBP) * 100) / 100;
+  return Math.round((amount / rates.USD) * 100) / 100;
+}
+
+function fromEur(amountEur: number, target: Currency, rates: Rates): number {
+  if (target === "EUR") return amountEur;
+  if (target === "GBP") return Math.round(amountEur * rates.GBP * 100) / 100;
+  return Math.round(amountEur * rates.USD * 100) / 100;
+}
+
+function Amt({ amount, stored, rates }: {
+  amount: number | null | undefined;
+  stored: Currency;
+  rates: Rates;
+}) {
+  if (amount == null || isNaN(amount)) return <span>—</span>;
+  const secondary: Currency = stored === "EUR" ? "GBP" : "EUR";
+  const inEur = toEur(amount, stored, rates);
+  const secondaryAmt = fromEur(inEur, secondary, rates);
+  return (
+    <span>
+      {fmtCurr(amount, stored)}{" "}
+      <span className="opacity-60 text-[0.85em] font-normal">({fmtCurr(secondaryAmt, secondary)})</span>
+    </span>
+  );
+}
+
+// ── Fuel helpers ──────────────────────────────────────────────────────────────
 
 function normalizeFuel(v: unknown): string | null {
   if (!v) return null;
@@ -144,43 +189,14 @@ const QUARTER_LABELS: Record<number, string> = {
   0: "Empty", 1: "¼ Tank", 2: "½ Tank", 3: "¾ Tank", 4: "Full Tank",
 };
 
-// ── Currency helpers ──────────────────────────────────────────────────────────
-
-function fmtCurr(amount: number, curr: "EUR" | "GBP"): string {
-  return new Intl.NumberFormat(curr === "EUR" ? "es-ES" : "en-GB", {
-    style: "currency", currency: curr,
-  }).format(amount);
-}
-
-function convertToOther(amount: number, stored: "EUR" | "GBP", rate: number): number {
-  if (stored === "EUR") return Math.round(amount * rate * 100) / 100;
-  return Math.round((amount / rate) * 100) / 100;
-}
-
-// Partner always sees stored currency primary, other secondary
-function Amt({ amount, stored, rate }: {
-  amount: number | null | undefined;
-  stored: "EUR" | "GBP";
-  rate: number;
-}) {
-  if (amount == null || isNaN(amount)) return <span>—</span>;
-  const other: "EUR" | "GBP" = stored === "EUR" ? "GBP" : "EUR";
-  const otherAmt = convertToOther(amount, stored, rate);
-  return (
-    <span>
-      {fmtCurr(amount, stored)}{" "}
-      <span className="opacity-60 text-[0.85em] font-normal">({fmtCurr(otherAmt, other)})</span>
-    </span>
-  );
-}
-
 // ── Payment + Fuel Summary Card ───────────────────────────────────────────────
 
-function BookingSummaryCard({ booking, rate, isLive }: {
-  booking: BookingRow; rate: number; isLive: boolean;
+function BookingSummaryCard({ booking, rates, isLive }: {
+  booking: BookingRow; rates: Rates; isLive: boolean;
 }) {
-  const stored: "EUR" | "GBP" = booking.currency ?? "EUR";
-  const other: "EUR" | "GBP" = stored === "EUR" ? "GBP" : "EUR";
+  const stored: Currency = booking.currency ?? "EUR";
+  const { symbol } = CURRENCY_META[stored];
+  const secondary: Currency = stored === "EUR" ? "GBP" : "EUR";
 
   const carHireAmt   = Number(booking.car_hire_price || 0);
   const fullTankAmt  = Number(booking.fuel_price || 0);
@@ -198,7 +214,14 @@ function BookingSummaryCard({ booking, rate, isLive }: {
     normalizeFuel(booking.return_fuel_level_customer);
 
   const primary = (v: number) => fmtCurr(v, stored);
-  const secondary = (v: number) => `(${fmtCurr(convertToOther(v, stored, rate), other)})`;
+  const sec = (v: number) => {
+    const inEur = toEur(v, stored, rates);
+    return `(${fmtCurr(fromEur(inEur, secondary, rates), secondary)})`;
+  };
+
+  const rateBadge = stored === "USD"
+    ? `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`
+    : `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)}`;
 
   return (
     <div className="rounded-3xl border border-[#003768]/20 bg-[#003768] p-8 text-white shadow-[0_18px_45px_rgba(0,0,0,0.18)]">
@@ -206,29 +229,28 @@ function BookingSummaryCard({ booking, rate, isLive }: {
         <h2 className="text-2xl font-bold">Booking Summary</h2>
         <span className="rounded-full bg-green-400 px-3 py-1 text-xs font-bold text-green-900">Finalised</span>
       </div>
-
-      {/* Total + breakdown */}
-      <div className="mt-6 rounded-2xl bg-white/10 p-5">
+      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-sm font-semibold text-white/80">
+        <span>{symbol}</span> All amounts in {CURRENCY_META[stored].label}
+      </div>
+      <div className="mt-4 rounded-2xl bg-white/10 p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Total booking value</p>
         <p className="mt-1 text-4xl font-black">
           {primary(totalAmt)}{" "}
-          <span className="text-2xl font-normal opacity-60">{secondary(totalAmt)}</span>
+          <span className="text-2xl font-normal opacity-60">{sec(totalAmt)}</span>
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="rounded-xl bg-white/10 px-3 py-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Car hire</p>
             <p className="mt-0.5 font-bold text-white">{primary(carHireAmt)}</p>
-            <p className="text-xs text-white/50">{secondary(carHireAmt)}</p>
+            <p className="text-xs text-white/50">{sec(carHireAmt)}</p>
           </div>
           <div className="rounded-xl bg-white/10 px-3 py-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Full tank deposit</p>
             <p className="mt-0.5 font-bold text-white">{primary(fullTankAmt)}</p>
-            <p className="text-xs text-white/50">{secondary(fullTankAmt)}</p>
+            <p className="text-xs text-white/50">{sec(fullTankAmt)}</p>
           </div>
         </div>
       </div>
-
-      {/* Fuel levels */}
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl bg-white/10 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Collection fuel</p>
@@ -245,45 +267,35 @@ function BookingSummaryCard({ booking, rate, isLive }: {
           <p className="mt-1 text-xl font-bold">
             {usedQuarters !== null ? QUARTER_LABELS[usedQuarters] ?? `${usedQuarters}/4` : "—"}
           </p>
-          <p className="mt-1 text-xs text-white/60">
-            {usedQuarters !== null ? `${usedQuarters} of 4 quarters` : ""}
-          </p>
+          <p className="mt-1 text-xs text-white/60">{usedQuarters !== null ? `${usedQuarters} of 4 quarters` : ""}</p>
         </div>
         <div className="rounded-2xl bg-white/10 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Price per quarter</p>
           <p className="mt-1 text-xl font-bold">{primary(perQtrAmt)}</p>
-          <p className="mt-1 text-xs text-white/60">{secondary(perQtrAmt)}</p>
+          <p className="mt-1 text-xs text-white/60">{sec(perQtrAmt)}</p>
         </div>
       </div>
-
-      {/* Fuel charge + refund */}
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl bg-[#ff7a00]/20 p-5 border border-[#ff7a00]/40">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Fuel charge to customer</p>
           <p className="mt-2 text-4xl font-black">
             {fuelCharge != null ? primary(fuelCharge) : "—"}{" "}
-            {fuelCharge != null && <span className="text-2xl font-normal opacity-60">{secondary(fuelCharge)}</span>}
+            {fuelCharge != null && <span className="text-2xl font-normal opacity-60">{sec(fuelCharge)}</span>}
           </p>
-          <p className="mt-1 text-sm text-white/60">
-            For {usedQuarters ?? "—"} quarter{usedQuarters !== 1 ? "s" : ""} used
-          </p>
+          <p className="mt-1 text-sm text-white/60">For {usedQuarters ?? "—"} quarter{usedQuarters !== 1 ? "s" : ""} used</p>
         </div>
         <div className="rounded-2xl bg-green-500/20 p-5 border border-green-400/40">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Refund to customer</p>
           <p className="mt-2 text-4xl font-black">
             {fuelRefund != null ? primary(fuelRefund) : "—"}{" "}
-            {fuelRefund != null && <span className="text-2xl font-normal opacity-60">{secondary(fuelRefund)}</span>}
+            {fuelRefund != null && <span className="text-2xl font-normal opacity-60">{sec(fuelRefund)}</span>}
           </p>
           <p className="mt-1 text-sm text-white/60">Unused fuel portion returned</p>
         </div>
       </div>
-
-      {/* Rate badge */}
-      <div className={`mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-base font-bold ${
-        isLive ? "bg-green-400/20 text-green-200" : "bg-white/10 text-white/70"
-      }`}>
+      <div className={`mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold ${isLive ? "bg-green-400/20 text-green-200" : "bg-white/10 text-white/70"}`}>
         <span className={`h-2.5 w-2.5 rounded-full ${isLive ? "bg-green-400" : "bg-white/40"}`} />
-        1€ = {formatGBP(rate)}{isLive ? " · Live rate (frankfurter.app)" : ""}
+        {rateBadge}{isLive ? " · Live rate (frankfurter.app)" : ""}
       </div>
     </div>
   );
@@ -319,7 +331,6 @@ function FuelStageCard({
         <h3 className="text-xl font-bold text-[#003768]">{title}</h3>
         {locked && <span className="rounded-full bg-green-600 px-3 py-1 text-xs font-bold text-white">✓ Locked</span>}
       </div>
-
       <div className={`mt-4 rounded-2xl border p-4 ${driverConfirmed ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Driver recorded</p>
         {driverConfirmed && driverFuel ? (
@@ -332,7 +343,6 @@ function FuelStageCard({
           <p className="mt-1 text-sm italic text-slate-400">Driver has not yet recorded fuel level</p>
         )}
       </div>
-
       <div className={`mt-3 rounded-2xl border p-4 ${customerConfirmed ? "border-green-200 bg-green-50" : "border-slate-200 bg-slate-50"}`}>
         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Customer confirmed</p>
         {customerConfirmed ? (
@@ -345,7 +355,6 @@ function FuelStageCard({
           <p className="mt-1 text-sm italic text-slate-400">Waiting for customer to confirm</p>
         )}
       </div>
-
       {locked ? (
         <div className="mt-4 rounded-2xl border border-green-300 bg-green-100 p-3 text-sm font-semibold text-green-800">
           ✓ Both driver and customer agree on {fuelLabel(effectiveFuel(driverFuel, savedPartnerFuel))}
@@ -412,17 +421,15 @@ export default function PartnerBookingDetailPage() {
   const [ok, setOk] = useState<string | null>(null);
   const [data, setData] = useState<BookingApiResponse | null>(null);
   const [drivers, setDrivers] = useState<DriverRow[]>([]);
-  const [eurGbpRate, setEurGbpRate] = useState<number>(0.85);
+  const [rates, setRates] = useState<Rates>({ GBP: 0.85, USD: 1.08 });
   const [rateIsLive, setRateIsLive] = useState<boolean>(false);
 
-  // Driver assignment fields
   const [selectedDriverId, setSelectedDriverId] = useState("");
   const [driverName, setDriverName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
   const [driverVehicle, setDriverVehicle] = useState("");
   const [driverNotes, setDriverNotes] = useState("");
 
-  // Fuel fields
   const [collectionFuel, setCollectionFuel] = useState<FuelLevel>("full");
   const [collectionConfirmed, setCollectionConfirmed] = useState(false);
   const [collectionNotes, setCollectionNotes] = useState("");
@@ -468,13 +475,21 @@ export default function PartnerBookingDetailPage() {
     finally { setLoadingDrivers(false); }
   }
 
+  async function loadRates() {
+    try {
+      const res = await fetch("/api/currency/rate", { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (json?.rates) {
+        setRates({ GBP: Number(json.rates.GBP) || 0.85, USD: Number(json.rates.USD) || 1.08 });
+        setRateIsLive(!!json.live);
+      }
+    } catch { /* use fallback rates */ }
+  }
+
   useEffect(() => {
     loadBooking(true, true);
     loadDrivers();
-    getEurToGbpRateWithSource().then(({ rate, live }) => {
-      setEurGbpRate(rate);
-      setRateIsLive(live);
-    }).catch(() => {});
+    loadRates();
   }, [bookingId]);
 
   useEffect(() => {
@@ -564,12 +579,17 @@ export default function PartnerBookingDetailPage() {
 
   const bk = data.booking;
   const req = data.request;
-  const stored: "EUR" | "GBP" = bk.currency ?? "EUR";
+  const stored: Currency = (bk.currency === "EUR" || bk.currency === "GBP" || bk.currency === "USD") ? bk.currency : "EUR";
+  const { symbol, label: currLabel } = CURRENCY_META[stored];
 
   const collEffective = effectiveFuel(bk.collection_fuel_level_driver, bk.collection_fuel_level_partner);
   const retEffective = effectiveFuel(bk.return_fuel_level_driver, bk.return_fuel_level_partner);
   const collectionLocked = isLocked({ driverOrPartnerFuel: collEffective, customerConfirmed: bk.collection_confirmed_by_customer, customerFuel: bk.collection_fuel_level_customer });
   const returnLocked = isLocked({ driverOrPartnerFuel: retEffective, customerConfirmed: bk.return_confirmed_by_customer, customerFuel: bk.return_fuel_level_customer });
+
+  const rateBadgeText = stored === "USD"
+    ? `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`
+    : `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)}`;
 
   return (
     <div className="space-y-6 px-4 py-8 md:px-8">
@@ -581,30 +601,28 @@ export default function PartnerBookingDetailPage() {
           <h1 className="text-3xl font-semibold text-[#003768]">Booking Detail</h1>
           <p className="mt-1 text-slate-600">View and manage this booking.</p>
         </div>
-        <Link href="/partner/bookings"
-          className="rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[#003768] hover:bg-black/5">
+        <Link href="/partner/bookings" className="rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[#003768] hover:bg-black/5">
           Back to Bookings
         </Link>
       </div>
 
-      {/* Booking + Journey info */}
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <h2 className="text-2xl font-semibold text-[#003768]">Booking Information</h2>
           <div className="mt-6 space-y-3 text-slate-700">
             <p><span className="font-semibold text-slate-900">Job No.:</span> {bk.job_number ?? req?.job_number ?? "—"}</p>
             <p><span className="font-semibold text-slate-900">Status:</span> {statusLabel(bk.booking_status)}</p>
-            <p>
-              <span className="font-semibold text-slate-900">Total:</span>{" "}
-              <Amt amount={bk.amount} stored={stored} rate={eurGbpRate} />
-            </p>
+            <p><span className="font-semibold text-slate-900">Total:</span> <Amt amount={bk.amount} stored={stored} rates={rates} /></p>
             <p><span className="font-semibold text-slate-900">Created:</span> {fmt(bk.created_at)}</p>
             <p><span className="font-semibold text-slate-900">Driver:</span> {drivers.find(d => d.id === bk.assigned_driver_id)?.full_name || bk.driver_name || "—"}</p>
             <p><span className="font-semibold text-slate-900">Driver assigned:</span> {fmt(bk.driver_assigned_at)}</p>
             <p><span className="font-semibold text-slate-900">Notes:</span> {bk.notes || "—"}</p>
-            <div className={`mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-base font-bold ${rateIsLive ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-700"}`}>
+            <div className={`mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold ${rateIsLive ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-700"}`}>
               <span className={`h-2.5 w-2.5 rounded-full ${rateIsLive ? "bg-green-500" : "bg-slate-400"}`} />
-              1€ = {formatGBP(eurGbpRate)}{rateIsLive ? " · Live rate (frankfurter.app)" : ""}
+              {rateBadgeText}{rateIsLive ? " · Live rate (frankfurter.app)" : ""}
+            </div>
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#003768]/20 bg-[#003768]/5 px-3 py-1 text-sm font-semibold text-[#003768]">
+              {symbol} Booking currency: {currLabel}
             </div>
           </div>
         </div>
@@ -626,7 +644,6 @@ export default function PartnerBookingDetailPage() {
         </div>
       </div>
 
-      {/* Driver assignment — status shown as text, no dropdown */}
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">Driver Assignment</h2>
         <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700">
@@ -675,12 +692,10 @@ export default function PartnerBookingDetailPage() {
         </form>
       </div>
 
-      {/* Full booking + fuel summary — shown when both stages locked */}
       {collectionLocked && returnLocked && (
-        <BookingSummaryCard booking={bk} rate={eurGbpRate} isLive={rateIsLive} />
+        <BookingSummaryCard booking={bk} rates={rates} isLive={rateIsLive} />
       )}
 
-      {/* Fuel tracking */}
       <div>
         <h2 className="mb-1 text-2xl font-semibold text-[#003768]">Fuel Tracking</h2>
         <p className="mb-4 text-sm text-slate-500">
