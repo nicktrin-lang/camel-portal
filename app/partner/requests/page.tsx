@@ -30,9 +30,9 @@ function fmt(v?: string | null) {
 function fmtDuration(m?: number | null) {
   if (!m) return "—";
   const mpd = 24 * 60;
-  if (m >= mpd) { const d = Math.ceil(m/mpd); return `${d} day${d===1?"":"s"}`; }
+  if (m >= mpd) { const d = Math.ceil(m / mpd); return `${d} day${d === 1 ? "" : "s"}`; }
   if (m < 60) return `${m} min`;
-  const h = Math.floor(m/60), mins = m%60;
+  const h = Math.floor(m / 60), mins = m % 60;
   return mins ? `${h}h ${mins}m` : `${h}h`;
 }
 
@@ -51,6 +51,8 @@ function statusPill(status: string) {
 
 function norm(v: unknown) { return String(v || "").toLowerCase().trim(); }
 
+const PAGE_SIZE = 10;
+
 export default function PartnerRequestsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<RequestRow[]>([]);
@@ -59,6 +61,7 @@ export default function PartnerRequestsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   async function load() {
     setLoading(true); setError(null);
@@ -74,6 +77,9 @@ export default function PartnerRequestsPage() {
 
   useEffect(() => { load(); }, []);
 
+  // Reset pagination when filters change
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [filter, search]);
+
   const q = norm(search);
   const filtered = useMemo(() => rows.filter(row => {
     if (filter !== "all" && row.status !== filter) return false;
@@ -81,6 +87,9 @@ export default function PartnerRequestsPage() {
     return [row.job_number, row.pickup_address, row.dropoff_address, row.vehicle_category_name, row.status]
       .map(norm).join(" ").includes(q);
   }), [rows, filter, q]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = filtered.length > visibleCount;
 
   return (
     <div className="space-y-6 px-4 py-8 md:px-8">
@@ -111,55 +120,77 @@ export default function PartnerRequestsPage() {
             </button>
           </div>
         </div>
+
         {loading ? (
           <p className="mt-6 text-slate-600">Loading...</p>
         ) : filtered.length === 0 ? (
           <p className="mt-6 text-slate-600">No requests found.</p>
         ) : (
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-black/10">
-            <table className="min-w-full text-sm">
-              <thead className="bg-[#f3f8ff] text-left text-[#003768]">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Job No.</th>
-                  <th className="px-4 py-3 font-semibold">Booking Status</th>
-                  <th className="px-4 py-3 font-semibold">Request Status</th>
-                  <th className="px-4 py-3 font-semibold">Pickup</th>
-                  <th className="px-4 py-3 font-semibold">Dropoff</th>
-                  <th className="px-4 py-3 font-semibold">Pickup Time</th>
-                  <th className="px-4 py-3 font-semibold">Duration</th>
-                  <th className="px-4 py-3 font-semibold">Vehicle</th>
-                  <th className="px-4 py-3 font-semibold">Passengers</th>
-                  <th className="px-4 py-3 font-semibold">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/5">
-                {filtered.map(row => (
-                  <tr key={row.id}
-                    onClick={() => router.push(`/partner/requests/${row.id}`)}
-                    className="cursor-pointer hover:bg-[#f3f8ff] transition-colors">
-                    <td className="px-4 py-4 font-bold text-[#003768]">{row.job_number ?? "—"}</td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPill(row.request_status)}`}>
-                        {row.request_status.replaceAll("_", " ")}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPill(row.status)}`}>
-                        {row.status.replaceAll("_", " ")}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 max-w-[180px] truncate text-slate-700">{row.pickup_address || "—"}</td>
-                    <td className="px-4 py-4 max-w-[180px] truncate text-slate-700">{row.dropoff_address || "—"}</td>
-                    <td className="px-4 py-4 text-slate-700">{fmt(row.pickup_at)}</td>
-                    <td className="px-4 py-4 text-slate-700">{fmtDuration(row.journey_duration_minutes)}</td>
-                    <td className="px-4 py-4 text-slate-700">{row.vehicle_category_name || "—"}</td>
-                    <td className="px-4 py-4 text-slate-700">{row.passengers}</td>
-                    <td className="px-4 py-4 text-slate-700">{fmt(row.created_at)}</td>
+          <>
+            <div className="mt-4 mb-2 flex items-center justify-between">
+              <p className="text-sm text-slate-500">
+                Showing <span className="font-semibold text-[#003768]">{Math.min(visibleCount, filtered.length)}</span> of <span className="font-semibold text-[#003768]">{filtered.length}</span> requests
+              </p>
+            </div>
+            <div className="overflow-x-auto rounded-2xl border border-black/10">
+              <table className="min-w-full text-sm">
+                <thead className="bg-[#f3f8ff] text-left text-[#003768]">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Job No.</th>
+                    <th className="px-4 py-3 font-semibold">Booking Status</th>
+                    <th className="px-4 py-3 font-semibold">Request Status</th>
+                    <th className="px-4 py-3 font-semibold">Pickup</th>
+                    <th className="px-4 py-3 font-semibold">Dropoff</th>
+                    <th className="px-4 py-3 font-semibold">Pickup Time</th>
+                    <th className="px-4 py-3 font-semibold">Duration</th>
+                    <th className="px-4 py-3 font-semibold">Vehicle</th>
+                    <th className="px-4 py-3 font-semibold">Passengers</th>
+                    <th className="px-4 py-3 font-semibold">Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-black/5">
+                  {visible.map(row => (
+                    <tr key={row.id}
+                      onClick={() => router.push(`/partner/requests/${row.id}`)}
+                      className="cursor-pointer hover:bg-[#f3f8ff] transition-colors">
+                      <td className="px-4 py-4 font-bold text-[#003768]">{row.job_number ?? "—"}</td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPill(row.request_status)}`}>
+                          {row.request_status.replaceAll("_", " ")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPill(row.status)}`}>
+                          {row.status.replaceAll("_", " ")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 max-w-[180px] truncate text-slate-700">{row.pickup_address || "—"}</td>
+                      <td className="px-4 py-4 max-w-[180px] truncate text-slate-700">{row.dropoff_address || "—"}</td>
+                      <td className="px-4 py-4 text-slate-700">{fmt(row.pickup_at)}</td>
+                      <td className="px-4 py-4 text-slate-700">{fmtDuration(row.journey_duration_minutes)}</td>
+                      <td className="px-4 py-4 text-slate-700">{row.vehicle_category_name || "—"}</td>
+                      <td className="px-4 py-4 text-slate-700">{row.passengers}</td>
+                      <td className="px-4 py-4 text-slate-700">{fmt(row.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {hasMore && (
+              <button type="button"
+                onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
+                className="mt-4 w-full rounded-2xl border border-black/10 bg-slate-50 py-3 text-sm font-semibold text-[#003768] hover:bg-slate-100">
+                ▼ Show more ({filtered.length - visibleCount} remaining)
+              </button>
+            )}
+            {visibleCount > PAGE_SIZE && !hasMore && (
+              <button type="button"
+                onClick={() => setVisibleCount(PAGE_SIZE)}
+                className="mt-4 w-full rounded-2xl border border-black/10 bg-slate-50 py-3 text-sm font-semibold text-[#003768] hover:bg-slate-100">
+                ▲ Show less
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
