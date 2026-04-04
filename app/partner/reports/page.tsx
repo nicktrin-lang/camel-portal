@@ -25,7 +25,6 @@ function fmtAmt(amount: number | string | null, currency: Currency | null): stri
 
 type BookingRow = {
   id: string;
-  request_id: string | null;
   booking_status: string | null;
   amount: number | string | null;
   currency: Currency | null;
@@ -62,13 +61,14 @@ type RequestRow = {
   pickup_at: string | null;
   dropoff_at: string | null;
   vehicle_category_name: string | null;
-  request_status: string | null;
   status: string | null;
   created_at: string | null;
   expires_at: string | null;
 };
 
-const QUARTER_LABELS: Record<number, string> = { 0: "Empty", 1: "¼ Tank", 2: "½ Tank", 3: "¾ Tank", 4: "Full Tank" };
+const QUARTER_LABELS: Record<number, string> = {
+  0: "Empty", 1: "¼ Tank", 2: "½ Tank", 3: "¾ Tank", 4: "Full Tank",
+};
 
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
@@ -76,14 +76,14 @@ async function safeJson(res: Response): Promise<any> {
   try { return JSON.parse(text); } catch { return { _raw: text }; }
 }
 
-function fmtDateTime(value?: string | null) {
-  if (!value) return "—";
-  try { return new Date(value).toLocaleString(); } catch { return value; }
-}
-
 function fmtDate(value?: string | null) {
   if (!value) return "";
   try { return new Date(value).toLocaleDateString(); } catch { return value; }
+}
+
+function fmtDateTime(value?: string | null) {
+  if (!value) return "—";
+  try { return new Date(value).toLocaleString(); } catch { return value; }
 }
 
 function statusPillClasses(status?: string | null) {
@@ -122,21 +122,22 @@ function getPreviousMonthKey() {
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
 }
 
-// ── Excel export ──────────────────────────────────────────────────────────────
-
 function escapeXml(v: unknown): string {
-  return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return String(v ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function buildXlsx(sheets: { name: string; headers: string[]; rows: Array<Array<unknown>> }[]): Blob {
-  // Simple SpreadsheetML (XML-based xlsx-compatible format)
-  const xmlSheets = sheets.map((sheet, i) => {
+function buildXls(sheets: { name: string; headers: string[]; rows: Array<Array<unknown>> }[]): Blob {
+  const xmlSheets = sheets.map(sheet => {
     const rowsXml = [
-      `<Row ss:Index="1">${sheet.headers.map(h => `<Cell><Data ss:Type="String">${escapeXml(h)}</Data></Cell>`).join("")}</Row>`,
+      `<Row ss:Index="1">${sheet.headers.map(h =>
+        `<Cell ss:StyleID="header"><Data ss:Type="String">${escapeXml(h)}</Data></Cell>`
+      ).join("")}</Row>`,
       ...sheet.rows.map((row, ri) =>
         `<Row ss:Index="${ri + 2}">${row.map(cell => {
           const v = cell ?? "";
-          const isNum = typeof v === "number" || (typeof v === "string" && v !== "" && !isNaN(Number(v)));
+          const isNum = typeof v === "number" || (typeof v === "string" && v !== "" && !isNaN(Number(v)) && v.trim() !== "");
           return isNum
             ? `<Cell><Data ss:Type="Number">${escapeXml(v)}</Data></Cell>`
             : `<Cell><Data ss:Type="String">${escapeXml(v)}</Data></Cell>`;
@@ -151,7 +152,7 @@ function buildXlsx(sheets: { name: string; headers: string[]; rows: Array<Array<
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
   xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
   <Styles>
-    <Style ss:ID="header"><Font ss:Bold="1"/></Style>
+    <Style ss:ID="header"><Font ss:Bold="1" ss:Color="#003768"/><Interior ss:Color="#f3f8ff" ss:Pattern="Solid"/></Style>
   </Styles>
   ${xmlSheets.join("\n")}
 </Workbook>`;
@@ -166,8 +167,6 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
-
-// ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function PartnerReportsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -207,7 +206,6 @@ export default function PartnerReportsPage() {
   const filteredBookings = bookings.filter(r => matchesDateRange(r.created_at, dateFrom, dateTo));
   const completedBookings = filteredBookings.filter(r => String(r.booking_status || "").toLowerCase() === "completed");
 
-  // Per-currency revenue totals
   const revenuesByCurrency = useMemo(() => {
     const t: Record<Currency, { total: number; carHire: number; fuelDeposit: number; fuelCharge: number; fuelRefund: number; count: number; completed: number }> = {
       EUR: { total: 0, carHire: 0, fuelDeposit: 0, fuelCharge: 0, fuelRefund: 0, count: 0, completed: 0 },
@@ -230,26 +228,25 @@ export default function PartnerReportsPage() {
 
   const currentMonthKey = getCurrentMonthKey();
   const previousMonthKey = getPreviousMonthKey();
-  const bidsSubmitted = filteredRequests.filter(r => ["bid_submitted","bid_successful","bid_unsuccessful"].includes(String(r.status||"").toLowerCase())).length;
-  const acceptedBids = filteredRequests.filter(r => String(r.status||"").toLowerCase() === "bid_successful").length;
+
+  const bidsSubmitted = filteredRequests.filter(r =>
+    ["bid_submitted", "bid_successful", "bid_unsuccessful"].includes(String(r.status || "").toLowerCase())
+  ).length;
+  const acceptedBids = filteredRequests.filter(r => String(r.status || "").toLowerCase() === "bid_successful").length;
   const conversionRate = bidsSubmitted > 0 ? Math.round((acceptedBids / bidsSubmitted) * 100) : 0;
 
   const vehicleBreakdown = Array.from(
     filteredBookings.reduce((map, r) => {
       const key = String(r.vehicle_category_name || "Unknown");
-      const curr: Currency = (r.currency as Currency) ?? "EUR";
       if (!map.has(key)) map.set(key, { category: key, count: 0 });
       map.get(key)!.count++;
       return map;
     }, new Map<string, { category: string; count: number }>())
   ).map(([, v]) => v).sort((a, b) => b.count - a.count);
 
-  // ── Excel export ────────────────────────────────────────────────────────────
-
   function exportExcel() {
     const dateStr = new Date().toISOString().split("T")[0];
 
-    // Sheet 1: Fuel Reconciliation (completed bookings with fuel data)
     const fuelHeaders = [
       "Job Number", "Customer", "Customer Email", "Customer Phone",
       "Pickup Address", "Dropoff Address", "Pickup At", "Dropoff At",
@@ -259,13 +256,12 @@ export default function PartnerReportsPage() {
       "Return Fuel (Driver)", "Return Fuel (Partner Override)",
       "Quarters Used", "Fuel Used Label",
       "Fuel Charge to Customer", "Fuel Refund to Customer",
-      "Total Booking Amount", "Net Revenue (Car Hire Only)",
+      "Total Booking Amount", "Net Revenue to Partner (Car Hire + Net Fuel)",
       "Customer Collection Confirmed", "Customer Return Confirmed",
       "Booking Status", "Created At",
     ];
 
     const fuelRows = filteredBookings.map(b => {
-      const curr: Currency = (b.currency as Currency) ?? "EUR";
       const usedQ = b.fuel_used_quarters;
       return [
         b.job_number || "",
@@ -279,7 +275,7 @@ export default function PartnerReportsPage() {
         b.vehicle_category_name || "",
         b.driver_name || "",
         b.driver_vehicle || "",
-        curr,
+        b.currency || "EUR",
         Number(b.car_hire_price ?? 0),
         Number(b.fuel_price ?? 0),
         b.collection_fuel_level_driver || b.collection_fuel_level_partner || "—",
@@ -291,7 +287,7 @@ export default function PartnerReportsPage() {
         Number(b.fuel_charge ?? 0),
         Number(b.fuel_refund ?? 0),
         Number(b.amount ?? 0),
-        Number(b.car_hire_price ?? 0), // net = car hire (fuel deposit returned)
+        Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0) - Number(b.fuel_refund ?? 0),
         b.collection_confirmed_by_customer ? "Yes" : "No",
         b.return_confirmed_by_customer ? "Yes" : "No",
         b.booking_status || "",
@@ -299,54 +295,38 @@ export default function PartnerReportsPage() {
       ];
     });
 
-    // Sheet 2: Currency Summary
     const summaryHeaders = [
       "Currency", "Total Bookings", "Completed",
       "Total Revenue", "Car Hire Revenue", "Fuel Deposits Collected",
-      "Fuel Charges Billed", "Fuel Refunds Issued",
-      "Net Fuel Revenue (Charge - Refund)",
+      "Fuel Charges Billed", "Fuel Refunds Issued", "Net Fuel Revenue",
     ];
-
     const summaryRows = (["EUR", "GBP", "USD"] as Currency[]).map(curr => {
       const t = revenuesByCurrency[curr];
       return [
         `${curr} ${CURRENCY_META[curr].symbol}`,
-        t.count,
-        t.completed,
-        t.total,
-        t.carHire,
-        t.fuelDeposit,
-        t.fuelCharge,
-        t.fuelRefund,
+        t.count, t.completed, t.total, t.carHire,
+        t.fuelDeposit, t.fuelCharge, t.fuelRefund,
         t.fuelCharge - t.fuelRefund,
       ];
     });
 
-    // Sheet 3: All Bookings
     const allHeaders = [
       "Job Number", "Customer", "Pickup", "Dropoff", "Pickup At",
       "Vehicle", "Driver", "Status", "Currency", "Amount", "Created At",
     ];
     const allRows = filteredBookings.map(b => [
-      b.job_number || "",
-      b.customer_name || "",
-      b.pickup_address || "",
-      b.dropoff_address || "",
-      fmtDate(b.pickup_at),
-      b.vehicle_category_name || "",
-      b.driver_name || "",
-      b.booking_status || "",
-      b.currency || "EUR",
-      Number(b.amount ?? 0),
-      fmtDate(b.created_at),
+      b.job_number || "", b.customer_name || "",
+      b.pickup_address || "", b.dropoff_address || "",
+      fmtDate(b.pickup_at), b.vehicle_category_name || "",
+      b.driver_name || "", b.booking_status || "",
+      b.currency || "EUR", Number(b.amount ?? 0), fmtDate(b.created_at),
     ]);
 
-    const blob = buildXlsx([
+    const blob = buildXls([
       { name: "Fuel Reconciliation", headers: fuelHeaders, rows: fuelRows },
       { name: "Currency Summary", headers: summaryHeaders, rows: summaryRows },
       { name: "All Bookings", headers: allHeaders, rows: allRows },
     ]);
-
     downloadBlob(blob, `camel-report-${dateStr}.xls`);
   }
 
@@ -407,23 +387,50 @@ export default function PartnerReportsPage() {
         ))}
       </div>
 
+      {/* Month comparison */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {[
+          {
+            label: "This Month Requests",
+            value: filteredRequests.filter(r => getMonthKey(r.created_at) === currentMonthKey).length,
+            prev: filteredRequests.filter(r => getMonthKey(r.created_at) === previousMonthKey).length,
+          },
+          {
+            label: "This Month Bookings",
+            value: filteredBookings.filter(r => getMonthKey(r.created_at) === currentMonthKey).length,
+            prev: filteredBookings.filter(r => getMonthKey(r.created_at) === previousMonthKey).length,
+          },
+          {
+            label: "Open Requests",
+            value: filteredRequests.filter(r => String(r.status || "").toLowerCase() === "open").length,
+            prev: null,
+          },
+        ].map(({ label, value, prev }) => (
+          <div key={label} className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+            <p className="text-sm font-medium text-slate-500">{label}</p>
+            <p className="mt-2 text-2xl font-semibold text-[#003768]">{value}</p>
+            {prev !== null && <p className="mt-1 text-xs text-slate-400">Previous month: {prev}</p>}
+          </div>
+        ))}
+      </div>
+
       {/* Per-currency revenue + fuel reconciliation */}
       {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
         const t = revenuesByCurrency[curr];
         if (t.count === 0) return null;
         const { symbol, label } = CURRENCY_META[curr];
         const netFuel = t.fuelCharge - t.fuelRefund;
+        const currBookings = filteredBookings.filter(b => (b.currency ?? "EUR") === curr);
         return (
           <div key={curr} className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-[#003768]/10 px-3 py-1 text-sm font-bold text-[#003768]">
-                {symbol} {label}
+                {symbol}
               </span>
-              <h2 className="text-xl font-semibold text-[#003768]">Revenue & Fuel Reconciliation</h2>
+              <h2 className="text-xl font-semibold text-[#003768]">Revenue &amp; Fuel Reconciliation</h2>
             </div>
 
-            {/* Summary cards */}
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
               {[
                 { label: "Total Bookings", value: t.count, isMoney: false },
                 { label: "Completed", value: t.completed, isMoney: false },
@@ -441,7 +448,6 @@ export default function PartnerReportsPage() {
               ))}
             </div>
 
-            {/* Fuel detail table */}
             <div className="mt-4 overflow-x-auto rounded-2xl border border-black/10">
               <table className="min-w-full text-sm">
                 <thead className="bg-[#f3f8ff] text-left text-[#003768]">
@@ -455,37 +461,39 @@ export default function PartnerReportsPage() {
                     <th className="px-4 py-3 font-semibold">Fuel Charge</th>
                     <th className="px-4 py-3 font-semibold">Fuel Refund</th>
                     <th className="px-4 py-3 font-semibold">Total</th>
+                    <th className="px-4 py-3 font-semibold">Net Revenue</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black/5">
-                  {filteredBookings
-                    .filter(b => (b.currency ?? "EUR") === curr)
-                    .map(b => {
-                      const usedQ = b.fuel_used_quarters;
-                      return (
-                        <tr key={b.id} className="hover:bg-[#f3f8ff]">
-                          <td className="px-4 py-3 font-semibold text-[#003768]">{b.job_number || "—"}</td>
-                          <td className="px-4 py-3 text-slate-700">{b.customer_name || "—"}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusPillClasses(b.booking_status)}`}>
-                              {String(b.booking_status || "—").replaceAll("_", " ")}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-slate-700">{fmtAmt(b.car_hire_price, curr)}</td>
-                          <td className="px-4 py-3 text-slate-700">{fmtAmt(b.fuel_price, curr)}</td>
-                          <td className="px-4 py-3 text-slate-700">
-                            {usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-orange-700 font-semibold">
-                            {b.fuel_charge !== null ? fmtAmt(b.fuel_charge, curr) : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-green-700 font-semibold">
-                            {b.fuel_refund !== null ? fmtAmt(b.fuel_refund, curr) : "—"}
-                          </td>
-                          <td className="px-4 py-3 font-bold text-[#003768]">{fmtAmt(b.amount, curr)}</td>
-                        </tr>
-                      );
-                    })}
+                  {currBookings.map(b => {
+                    const usedQ = b.fuel_used_quarters;
+                    return (
+                      <tr key={b.id} className="hover:bg-[#f3f8ff]">
+                        <td className="px-4 py-3 font-semibold text-[#003768]">{b.job_number || "—"}</td>
+                        <td className="px-4 py-3 text-slate-700">{b.customer_name || "—"}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusPillClasses(b.booking_status)}`}>
+                            {String(b.booking_status || "—").replaceAll("_", " ")}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{fmtAmt(b.car_hire_price, curr)}</td>
+                        <td className="px-4 py-3 text-slate-700">{fmtAmt(b.fuel_price, curr)}</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          {usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—"}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-orange-700">
+                          {b.fuel_charge !== null ? fmtAmt(b.fuel_charge, curr) : "—"}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-green-700">
+                          {b.fuel_refund !== null ? fmtAmt(b.fuel_refund, curr) : "—"}
+                        </td>
+                        <td className="px-4 py-3 font-bold text-[#003768]">{fmtAmt(b.amount, curr)}</td>
+                        <td className="px-4 py-3 font-bold text-green-700">
+                          {fmtCurr(Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0) - Number(b.fuel_refund ?? 0), curr)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -516,21 +524,6 @@ export default function PartnerReportsPage() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Month comparison */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {[
-          { label: "This Month Requests", value: filteredRequests.filter(r => getMonthKey(r.created_at) === currentMonthKey).length, prev: filteredRequests.filter(r => getMonthKey(r.created_at) === getPreviousMonthKey()).length, unit: "" },
-          { label: "This Month Bookings", value: filteredBookings.filter(r => getMonthKey(r.created_at) === currentMonthKey).length, prev: filteredBookings.filter(r => getMonthKey(r.created_at) === getPreviousMonthKey()).length, unit: "" },
-          { label: "Open Requests", value: filteredRequests.filter(r => String(r.status || "").toLowerCase() === "open").length, prev: null, unit: "" },
-        ].map(({ label, value, prev }) => (
-          <div key={label} className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-            <p className="text-sm font-medium text-slate-500">{label}</p>
-            <p className="mt-2 text-2xl font-semibold text-[#003768]">{value}</p>
-            {prev !== null && <p className="mt-1 text-xs text-slate-400">Previous month: {prev}</p>}
-          </div>
-        ))}
       </div>
     </div>
   );
