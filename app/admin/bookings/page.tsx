@@ -24,6 +24,7 @@ type BookingRow = {
   pickup_address: string | null;
   dropoff_address: string | null;
   pickup_at: string | null;
+  dropoff_at: string | null;
   vehicle_category_name: string | null;
   customer_name: string | null;
   customer_email: string | null;
