@@ -22,17 +22,25 @@ function PartnerResetPasswordInner() {
   const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      supabase.auth.getSession().then(({ data, error }: { data: any; error: any }) => {
-        if (error || !data?.session) {
-          setSessionError("This reset link has expired or is invalid. Please request a new one.");
-        } else {
-          setSessionReady(true);
-        }
-      });
-    }, 800);
+    // Flow 1: #access_token in hash (implicit flow via root page redirect)
+    // authClient with detectSessionInUrl:true handles this automatically
+    // Flow 2: Direct Supabase verify link — session set in SSR cookie, use supabase client
+    const checkSession = async () => {
+      // First try authClient (handles hash token)
+      const { data: authData } = await authClient.auth.getSession();
+      if (authData?.session) { setSessionReady(true); return; }
+
+      // Then try SSR client (handles cookie session from direct verify link)
+      const { data: ssrData } = await supabase.auth.getSession();
+      if (ssrData?.session) { setSessionReady(true); return; }
+
+      setSessionError("This reset link has expired or is invalid. Please request a new one.");
+    };
+
+    // Give detectSessionInUrl time to process the hash
+    const timer = setTimeout(checkSession, 800);
     return () => clearTimeout(timer);
-  }, [supabase]);
+  }, [authClient, supabase]);
 
   async function getPostResetRedirect(): Promise<string> {
     try {
@@ -56,7 +64,10 @@ function PartnerResetPasswordInner() {
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     setLoading(true); setError("");
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      // Try whichever client has the active session
+      const { data: authSession } = await authClient.auth.getSession();
+      const client = authSession?.session ? authClient : supabase;
+      const { error } = await client.auth.updateUser({ password });
       if (error) throw error;
       setSuccess(true);
       const redirect = await getPostResetRedirect();
