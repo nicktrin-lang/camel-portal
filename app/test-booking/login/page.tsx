@@ -42,7 +42,7 @@ export default function TestBookingLoginPage() {
     setResetLoading(true); setResetError("");
     try {
       document.cookie = "resetPortal=customer; domain=.camel-global.com; path=/; max-age=3600";
-      const res = await fetch("/api/auth/send-reset-email", {
+      const res = await fetch("/api/auth/send-customer-reset-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
