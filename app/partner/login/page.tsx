@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { createAuthSupabaseClient } from "@/lib/supabase/auth-client";
 
 function reasonMessage(reason: string | null) {
   switch (reason) {
@@ -30,6 +31,7 @@ function clearStaleSupabaseLocks() {
 
 function PartnerLoginInner() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const authClient = useMemo(() => createAuthSupabaseClient(), []);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -79,7 +81,7 @@ function PartnerLoginInner() {
     e.preventDefault();
     setResetLoading(true); setResetError("");
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      const { error } = await authClient.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}/partner/reset-password`,
       });
       if (error) throw error;

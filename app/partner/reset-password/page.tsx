@@ -5,9 +5,11 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { createAuthSupabaseClient } from "@/lib/supabase/auth-client";
 
 function PartnerResetPasswordInner() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const authClient = useMemo(() => createAuthSupabaseClient(), []);
   const router = useRouter();
 
   const [password, setPassword] = useState("");
@@ -19,10 +21,8 @@ function PartnerResetPasswordInner() {
   const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
-    // With implicit flow, Supabase sets the session from the URL hash automatically.
-    // Wait briefly for detectSessionInUrl to process it, then check.
     const timer = setTimeout(() => {
-      supabase.auth.getSession().then(({ data, error }: { data: any; error: any }) => {
+      authClient.auth.getSession().then(({ data, error }: { data: any; error: any }) => {
         if (error || !data?.session) {
           setSessionError("This reset link has expired or is invalid. Please request a new one.");
         } else {
@@ -31,7 +31,7 @@ function PartnerResetPasswordInner() {
       });
     }, 500);
     return () => clearTimeout(timer);
-  }, [supabase]);
+  }, [authClient]);
 
   async function getPostResetRedirect(): Promise<string> {
     try {
@@ -55,7 +55,7 @@ function PartnerResetPasswordInner() {
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     setLoading(true); setError("");
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await authClient.auth.updateUser({ password });
       if (error) throw error;
       setSuccess(true);
       const redirect = await getPostResetRedirect();
