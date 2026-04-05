@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   });
 
   if (error) {
-    console.error("verifyOtp error:", error.message);
+    console.error("verifyOtp error:", JSON.stringify(error));
     return NextResponse.redirect(new URL("/partner/login?error=link_expired", req.url));
   }
 
