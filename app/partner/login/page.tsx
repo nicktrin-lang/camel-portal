@@ -81,6 +81,7 @@ function PartnerLoginInner() {
     e.preventDefault();
     setResetLoading(true); setResetError("");
     try {
+      document.cookie = "resetPortal=partner; domain=.camel-global.com; path=/; max-age=3600";
       const res = await fetch("/api/auth/send-reset-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

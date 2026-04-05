@@ -71,7 +71,7 @@ function PartnerResetPasswordInner() {
     document.cookie = "resetPortal=; domain=.camel-global.com; path=/; max-age=0";
     if (stored === "driver") return "/driver/jobs";
     if (stored === "customer") return "/test-booking/requests";
-    return "/partner/requests";
+    return "/partner/requests"; // default including stored === "partner"
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -160,4 +160,5 @@ export default function PartnerResetPasswordPage() {
     </Suspense>
   );
 }
+
 
