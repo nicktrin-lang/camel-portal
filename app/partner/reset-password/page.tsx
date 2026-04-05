@@ -22,24 +22,33 @@ function PartnerResetPasswordInner() {
   const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
-    // Flow 1: #access_token in hash (implicit flow via root page redirect)
-    // authClient with detectSessionInUrl:true handles this automatically
-    // Flow 2: Direct Supabase verify link — session set in SSR cookie, use supabase client
-    const checkSession = async () => {
-      // First try authClient (handles hash token)
+    // Listen for auth state change — fires when detectSessionInUrl processes the hash
+    const { data: { subscription } } = authClient.auth.onAuthStateChange((event: any, session: any) => {
+      if (event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") {
+        if (session) {
+          setSessionReady(true);
+        }
+      }
+    });
+
+    // Also check immediately in case session is already set
+    authClient.auth.getSession().then(({ data }: { data: any }) => {
+      if (data?.session) setSessionReady(true);
+    });
+
+    // Fallback timeout
+    const timer = setTimeout(async () => {
       const { data: authData } = await authClient.auth.getSession();
       if (authData?.session) { setSessionReady(true); return; }
-
-      // Then try SSR client (handles cookie session from direct verify link)
       const { data: ssrData } = await supabase.auth.getSession();
       if (ssrData?.session) { setSessionReady(true); return; }
-
       setSessionError("This reset link has expired or is invalid. Please request a new one.");
-    };
+    }, 2000);
 
-    // Give detectSessionInUrl time to process the hash
-    const timer = setTimeout(checkSession, 800);
-    return () => clearTimeout(timer);
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timer);
+    };
   }, [authClient, supabase]);
 
   async function getPostResetRedirect(): Promise<string> {
