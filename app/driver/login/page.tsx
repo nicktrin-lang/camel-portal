@@ -44,7 +44,7 @@ export default function DriverLoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: email.trim(),
-          redirectTo: `${window.location.origin}/partner/reset-password`,
+          redirectTo: `${window.location.origin}/?portal=driver`,
         }),
       });
       const json = await res.json();

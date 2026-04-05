@@ -46,7 +46,7 @@ export default function TestBookingLoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
-          redirectTo: `${window.location.origin}/test-booking/reset-password`,
+          redirectTo: `${window.location.origin}/?portal=customer`,
         }),
       });
       const json = await res.json();

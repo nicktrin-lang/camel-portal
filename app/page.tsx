@@ -1396,16 +1396,26 @@ export default function Page() {
   const [host, setHost] = useState("");
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.location.hash.includes("access_token")) {
-      window.location.replace("/partner/reset-password" + window.location.hash);
+    if (window.location.hash.includes("access_token")) {
+      const hash = window.location.hash;
+      const params = new URLSearchParams(window.location.search);
+      const portal = params.get("portal");
+      if (portal === "customer") {
+        window.location.replace("/test-booking/reset-password" + hash);
+      } else if (portal === "driver") {
+        window.location.replace("/driver/reset-password" + hash);
+      } else {
+        window.location.replace("/partner/reset-password" + hash);
+      }
       return;
     }
     setHost(window.location.hostname);
   }, []);
 
   if (host === "test.camel-global.com" || host.includes("localhost")) {
-    return <CustomerMapHome />
+    return <CustomerMapHome />;
   }
 
   return <PartnerMarketingHome />;
 }
+
