@@ -28,13 +28,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error?.message ?? "Failed to generate link" }, { status: 400 });
   }
 
-  const resetLink = data.properties.action_link;
+  // Supabase ignores our redirectTo in the action_link URL params.
+  // Instead, we modify the action_link to override redirect_to with our value.
+  const actionUrl = new URL(data.properties.action_link);
+  actionUrl.searchParams.set("redirect_to", redirect);
+  const resetLink = actionUrl.toString();
 
-  await sendEmail({
-    to: email,
-    subject: "Reset your Camel Global password",
-    html: "<div style='font-family:Arial;color:#222;line-height:1.6'><h2>Reset your password</h2><p>Click below to reset your password. This link expires in 1 hour.</p><p><a href='" + resetLink + "' style='display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:600'>Reset Password</a></p><p style='margin-top:16px;font-size:13px;color:#666'>If you did not request this, ignore this email.</p><p style='margin-top:24px'>Best Regards,<br>The Camel Global Team</p></div>",
-  });
+  try {
+    await sendEmail({
+      to: email,
+      subject: "Reset your Camel Global password",
+      html: "<div style='font-family:Arial;color:#222;line-height:1.6'><h2>Reset your password</h2><p>Click below to reset your password. This link expires in 1 hour.</p><p><a href='" + resetLink + "' style='display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:600'>Reset Password</a></p><p style='margin-top:16px;font-size:13px;color:#666'>If you did not request this, ignore this email.</p><p style='margin-top:24px'>Best Regards,<br>The Camel Global Team</p></div>",
+    });
+  } catch (e: any) {
+    return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }
