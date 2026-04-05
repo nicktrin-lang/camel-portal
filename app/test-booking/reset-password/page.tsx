@@ -1,13 +1,12 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { createCustomerBrowserClient } from "@/lib/supabase-customer/browser";
+import { useRouter } from "next/navigation";
+import { createCustomerAuthSupabaseClient } from "@/lib/supabase/auth-client";
 
 function CustomerResetPasswordInner() {
-  const supabase = useMemo(() => createCustomerBrowserClient(), []);
+  const authClient = useMemo(() => createCustomerAuthSupabaseClient(), []);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -19,7 +18,7 @@ function CustomerResetPasswordInner() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      supabase.auth.getSession().then(({ data, error }: { data: any; error: any }) => {
+      authClient.auth.getSession().then(({ data, error }: { data: any; error: any }) => {
         if (error || !data?.session) {
           setSessionError("This reset link has expired or is invalid. Please request a new one.");
         } else {
@@ -28,7 +27,7 @@ function CustomerResetPasswordInner() {
       });
     }, 500);
     return () => clearTimeout(timer);
-  }, [supabase]);
+  }, [authClient]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,7 +35,7 @@ function CustomerResetPasswordInner() {
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     setLoading(true); setError("");
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await authClient.auth.updateUser({ password });
       if (error) throw error;
       setSuccess(true);
       setTimeout(() => router.replace("/test-booking/requests"), 2500);

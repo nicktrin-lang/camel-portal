@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createCustomerBrowserClient } from "@/lib/supabase-customer/browser";
+import { createCustomerAuthSupabaseClient } from "@/lib/supabase/auth-client";
 
 export default function TestBookingLoginPage() {
   const supabase = useMemo(() => createCustomerBrowserClient(), []);
+  const authClient = useMemo(() => createCustomerAuthSupabaseClient(), []);
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -39,7 +41,7 @@ export default function TestBookingLoginPage() {
     e.preventDefault();
     setResetLoading(true); setResetError("");
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      const { error } = await authClient.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
         redirectTo: `${window.location.origin}/test-booking/reset-password`,
       });
       if (error) throw error;

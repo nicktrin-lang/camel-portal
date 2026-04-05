@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { createAuthSupabaseClient } from "@/lib/supabase/auth-client";
 
 export default function DriverLoginPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const authClient = useMemo(() => createAuthSupabaseClient(), []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,8 +39,8 @@ export default function DriverLoginPage() {
     e.preventDefault();
     setResetLoading(true); setResetError("");
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/driver/reset-password`,
+      const { error } = await authClient.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/partner/reset-password`,
       });
       if (error) throw error;
       setResetSent(true);
