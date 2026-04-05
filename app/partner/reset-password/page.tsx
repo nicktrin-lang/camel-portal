@@ -71,18 +71,6 @@ function PartnerResetPasswordInner() {
     document.cookie = "resetPortal=; domain=.camel-global.com; path=/; max-age=0";
     if (stored === "driver") return "/driver/jobs";
     if (stored === "customer") return "/test-booking/requests";
-    try {
-      const { data } = await authClient.auth.getUser();
-      const email = data?.user?.email;
-      if (!email) return "/partner/requests";
-      const res = await fetch("/api/driver/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-        credentials: "include",
-      });
-      if (res.ok) return "/driver/jobs";
-    } catch {}
     return "/partner/requests";
   }
 
@@ -172,3 +160,4 @@ export default function PartnerResetPasswordPage() {
     </Suspense>
   );
 }
+
