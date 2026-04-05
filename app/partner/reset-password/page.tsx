@@ -22,7 +22,7 @@ function PartnerResetPasswordInner() {
   useEffect(() => {
     // Supabase PKCE recovery flow: listen for PASSWORD_RECOVERY event
     // which fires after Supabase verifies the token from the email link
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
       if (event === "PASSWORD_RECOVERY") {
         setSessionReady(true);
       }
