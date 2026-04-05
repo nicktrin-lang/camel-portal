@@ -37,8 +37,9 @@ function PartnerResetPasswordInner() {
       }
 
       if (accessToken && refreshToken) {
-        // Set the session directly from the hash tokens
-        const { error } = await authClient.auth.setSession({
+        const portalCookie = document.cookie.split("; ").find(r => r.startsWith("resetPortal="))?.split("=")[1] ?? null;
+        const initClient = portalCookie === "customer" ? customerAuthClient : authClient;
+        const { error } = await initClient.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
@@ -163,6 +164,7 @@ export default function PartnerResetPasswordPage() {
     </Suspense>
   );
 }
+
 
 
 
