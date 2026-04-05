@@ -1396,6 +1396,10 @@ export default function Page() {
   const [host, setHost] = useState("");
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash.includes("access_token")) {
+      window.location.replace("/partner/reset-password" + window.location.hash);
+      return;
+    }
     setHost(window.location.hostname);
   }, []);
 
