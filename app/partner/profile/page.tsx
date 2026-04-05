@@ -441,31 +441,79 @@ export default function PartnerProfilePage() {
         {/* ── Section 4: Car Fleet Base Location ── */}
         <SectionCard
           title="Car Fleet Base Location"
-          description="The location your vehicles are based. Customer requests within your service radius of this point will be sent to you. Use the search, GPS button, or click the map.">
+          description="Where your vehicles are dispatched from. The coordinates set here control your service radius — separate from the address fields below.">
 
-          {/* Search tools */}
-          <div className="rounded-2xl border border-[#003768]/10 bg-[#f3f8ff] p-4">
-            <p className="text-sm font-semibold text-[#003768] mb-3">Find your location</p>
-            <div className="flex flex-wrap gap-3">
+          {/* Same as business checkbox */}
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[#003768]/20 bg-[#f3f8ff] px-4 py-3 mb-6">
+            <input type="checkbox" checked={profile.same_as_business}
+              onChange={e => toggleSameAsBusiness(e.target.checked)}
+              className="h-4 w-4 accent-[#003768]" />
+            <div>
+              <span className="text-sm font-semibold text-[#003768]">Same as business address</span>
+              <p className="text-xs text-slate-500">Tick to copy your business address as the fleet base address</p>
+            </div>
+          </label>
+
+          {/* Fleet address fields */}
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <Field label="Fleet base full address">
+                <p className="mt-0.5 mb-1 text-xs text-slate-500">Combined — auto-fills from the fields below, search or map.</p>
+                <TextInput value={profile.base_address} onChange={v => updateField("base_address", v)} />
+              </Field>
+            </div>
+            <Field label="Address line 1">
+              <TextInput value={profile.base_address1} onChange={v => {
+                setProfile(prev => ({ ...prev, base_address1: v, base_address: [v, prev.base_address2, prev.base_province, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }));
+              }} placeholder="e.g. Carrer de la Marina 5" />
+            </Field>
+            <Field label="Address line 2">
+              <TextInput value={profile.base_address2} onChange={v => {
+                setProfile(prev => ({ ...prev, base_address2: v, base_address: [prev.base_address1, v, prev.base_province, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }));
+              }} placeholder="e.g. Unit 3" />
+            </Field>
+            <Field label="Province / Region">
+              <TextInput value={profile.base_province} onChange={v => {
+                setProfile(prev => ({ ...prev, base_province: v, base_address: [prev.base_address1, prev.base_address2, v, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }));
+              }} placeholder="e.g. Comunitat Valenciana" />
+            </Field>
+            <Field label="Postcode">
+              <TextInput value={profile.base_postcode} onChange={v => {
+                setProfile(prev => ({ ...prev, base_postcode: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, v, prev.base_country].filter(Boolean).join(", ") }));
+              }} placeholder="e.g. 46001" />
+            </Field>
+            <div className="md:col-span-2">
+              <Field label="Country">
+                <TextInput value={profile.base_country} onChange={v => {
+                  setProfile(prev => ({ ...prev, base_country: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, prev.base_postcode, v].filter(Boolean).join(", ") }));
+                }} placeholder="e.g. España" />
+              </Field>
+            </div>
+          </div>
+
+          {/* GPS coordinates — controls service radius */}
+          <div className="mt-6 rounded-2xl border border-[#003768]/10 bg-[#f3f8ff] p-4">
+            <p className="text-sm font-semibold text-[#003768] mb-1">📍 GPS Coordinates — Service Radius Centre Point</p>
+            <p className="text-xs text-slate-500 mb-3">These coordinates determine the centre of your service radius. Use search, GPS or click the map to set them. They do not affect the address fields above.</p>
+            <div className="flex flex-wrap gap-3 mb-3">
               <button type="button" onClick={useCurrentLocation}
                 className="rounded-full border border-[#003768]/20 bg-white px-5 py-2 text-sm font-semibold text-[#003768] hover:bg-[#003768]/5">
-                📍 Use my current location
+                Use my current location
               </button>
             </div>
-            <div className="mt-3 flex gap-2">
+            <div className="flex gap-2">
               <input type="text"
                 value={profile.search_address}
                 onChange={e => { updateField("search_address", e.target.value); setShowSuggestions(true); }}
                 onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); searchAddress(); } }}
-                placeholder="Search for your fleet base address…"
+                placeholder="Search to set GPS pin location…"
                 className="flex-1 rounded-xl border border-black/10 p-3 text-black outline-none focus:border-[#0f4f8a]" />
               <button type="button" onClick={searchAddress}
                 className="rounded-xl bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
                 {searching ? "Searching…" : "Search"}
               </button>
             </div>
-            <p className="mt-2 text-xs text-slate-500">Press Enter or click Search, then choose a suggestion from the list.</p>
             {showSuggestions && suggestions.length > 0 && (
               <div className="mt-2 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg">
                 {suggestions.map((item, idx) => (
@@ -476,33 +524,21 @@ export default function PartnerProfilePage() {
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Fleet address fields */}
-          <div className="mt-6">
-            <Field label="Fleet base address (full)">
-              <p className="mt-0.5 mb-1 text-xs text-slate-500">Auto-filled from search or map. You can also type it manually.</p>
-              <TextInput value={profile.base_address} onChange={v => updateField("base_address", v)} />
-            </Field>
-          </div>
-
-          {/* Coordinates */}
-          <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-            <Field label="Base latitude">
-              <p className="mt-0.5 mb-1 text-xs text-slate-500">Auto-filled from search or map click.</p>
-              <TextInput value={profile.base_lat} onChange={v => updateField("base_lat", v)} placeholder="e.g. 38.842" />
-            </Field>
-            <Field label="Base longitude">
-              <p className="mt-0.5 mb-1 text-xs text-slate-500">Auto-filled from search or map click.</p>
-              <TextInput value={profile.base_lng} onChange={v => updateField("base_lng", v)} placeholder="e.g. 0.112" />
-            </Field>
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <Field label="Latitude">
+                <TextInput value={profile.base_lat} onChange={v => updateField("base_lat", v)} placeholder="e.g. 38.842" />
+              </Field>
+              <Field label="Longitude">
+                <TextInput value={profile.base_lng} onChange={v => updateField("base_lng", v)} placeholder="e.g. 0.112" />
+              </Field>
+            </div>
           </div>
 
           {/* Map */}
-          <div className="mt-6 overflow-hidden rounded-2xl border border-black/10">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-black/10">
             <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
           </div>
-          <p className="mt-2 text-xs text-slate-500">💡 Click anywhere on the map to set or adjust your fleet base location. The address fields above will update automatically.</p>
+          <p className="mt-2 text-xs text-slate-500">💡 Click the map to move the pin and update your GPS coordinates.</p>
         </SectionCard>
 
         {/* Save button */}
