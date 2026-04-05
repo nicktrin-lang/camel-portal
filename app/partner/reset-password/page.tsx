@@ -3,13 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 function PartnerResetPasswordInner() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -20,36 +19,16 @@ function PartnerResetPasswordInner() {
   const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
-    // Supabase PKCE recovery flow: listen for PASSWORD_RECOVERY event
-    // which fires after Supabase verifies the token from the email link
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
-      if (event === "PASSWORD_RECOVERY") {
+    // After Supabase verifies the recovery token it sets a session automatically.
+    // We just need to check if that session exists and is valid.
+    supabase.auth.getSession().then(({ data, error }: { data: any; error: any }) => {
+      if (error || !data?.session) {
+        setSessionError("This reset link has expired or is invalid. Please request a new one.");
+      } else {
         setSessionReady(true);
       }
     });
-
-    // Also handle ?code= param (fallback for some Supabase versions)
-    const code = searchParams.get("code");
-    if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ error }: { error: any }) => {
-        if (error) setSessionError("This reset link has expired or is invalid. Please request a new one.");
-        else setSessionReady(true);
-      });
-    }
-
-    // If neither fires after 3s, show error
-    const timeout = setTimeout(() => {
-      setSessionReady(prev => {
-        if (!prev) setSessionError("This reset link has expired or is invalid. Please request a new one.");
-        return prev;
-      });
-    }, 10000);
-
-    return () => {
-      subscription.unsubscribe();
-      clearTimeout(timeout);
-    };
-  }, [searchParams, supabase]);
+  }, [supabase]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
