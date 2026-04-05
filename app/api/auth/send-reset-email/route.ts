@@ -9,7 +9,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }
 
-  const redirect = redirectTo ?? `${process.env.NEXT_PUBLIC_SITE_URL}/partner/reset-password`;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://portal.camel-global.com";
+  const redirect = `${siteUrl}/partner/reset-password`;
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,14 +24,14 @@ export async function POST(req: Request) {
     options: { redirectTo: redirect },
   });
 
-  if (error || !data?.properties) {
+  if (error || !data?.properties?.action_link) {
     return NextResponse.json({ error: error?.message ?? "Failed to generate link" }, { status: 400 });
   }
 
-  // Build the link directly using the token hash — bypasses Supabase's redirect logic entirely
-  const tokenHash = data.properties.hashed_token;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://portal.camel-global.com";
-  const resetLink = `${siteUrl}/api/auth/exchange-reset-code?token_hash=${tokenHash}&type=recovery`;
+  // Take the action_link and replace redirect_to with our page
+  const actionLink = new URL(data.properties.action_link);
+  actionLink.searchParams.set("redirect_to", redirect);
+  const resetLink = actionLink.toString();
 
   await sendEmail({
     to: email,
