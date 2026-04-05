@@ -1,7 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Plain (non-SSR) Supabase client for auth flows like password reset.
-// Uses localStorage instead of cookies so PKCE verifier issues don't apply.
 export function createAuthSupabaseClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
