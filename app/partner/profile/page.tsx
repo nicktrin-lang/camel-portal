@@ -365,7 +365,37 @@ export default function PartnerProfilePage() {
           </div>
         </SectionCard>
 
-        {/* ── Section 2: Business Address ── */}
+        {/* ── Section 2: Service Settings ── */}
+        <SectionCard
+          title="Service Settings"
+          description="Control your service radius and the currency you bid in.">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <Field label="Service radius (km)">
+              <p className="mt-0.5 mb-1 text-xs text-slate-500">Customer requests within this distance from your base will be sent to you.</p>
+              <TextInput type="number" value={profile.service_radius_km} onChange={v => updateField("service_radius_km", v)} placeholder="30" />
+            </Field>
+
+            <Field label="Billing currency">
+              <p className="mt-0.5 mb-2 text-xs text-slate-500">The currency your bids and bookings will be quoted in. Auto-detected from your country.</p>
+              <div className="flex gap-2">
+                {(["EUR", "GBP", "USD"] as Currency[]).map(c => (
+                  <button key={c} type="button"
+                    onClick={() => updateField("default_currency", c)}
+                    className={[
+                      "flex-1 rounded-xl border px-3 py-3 text-sm font-bold transition-all",
+                      profile.default_currency === c
+                        ? "border-[#003768] bg-[#003768] text-white shadow-[0_4px_12px_rgba(0,55,104,0.3)]"
+                        : "border-black/10 bg-white text-slate-700 hover:border-[#003768]/40"
+                    ].join(" ")}>
+                    {c === "EUR" ? "€ Euro" : c === "GBP" ? "£ GBP" : "$ USD"}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          </div>
+        </SectionCard>
+
+        {/* ── Section 3: Business Address ── */}
         <SectionCard
           title="Business Address"
           description="Your registered company address for correspondence and records. Each field is stored separately in the database.">
@@ -405,36 +435,6 @@ export default function PartnerProfilePage() {
                 }} placeholder="e.g. España" />
               </Field>
             </div>
-          </div>
-        </SectionCard>
-
-        {/* ── Section 3: Service Settings ── */}
-        <SectionCard
-          title="Service Settings"
-          description="Control your service radius and the currency you bid in.">
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <Field label="Service radius (km)">
-              <p className="mt-0.5 mb-1 text-xs text-slate-500">Customer requests within this distance from your base will be sent to you.</p>
-              <TextInput type="number" value={profile.service_radius_km} onChange={v => updateField("service_radius_km", v)} placeholder="30" />
-            </Field>
-
-            <Field label="Billing currency">
-              <p className="mt-0.5 mb-2 text-xs text-slate-500">The currency your bids and bookings will be quoted in. Auto-detected from your country.</p>
-              <div className="flex gap-2">
-                {(["EUR", "GBP", "USD"] as Currency[]).map(c => (
-                  <button key={c} type="button"
-                    onClick={() => updateField("default_currency", c)}
-                    className={[
-                      "flex-1 rounded-xl border px-3 py-3 text-sm font-bold transition-all",
-                      profile.default_currency === c
-                        ? "border-[#003768] bg-[#003768] text-white shadow-[0_4px_12px_rgba(0,55,104,0.3)]"
-                        : "border-black/10 bg-white text-slate-700 hover:border-[#003768]/40"
-                    ].join(" ")}>
-                    {c === "EUR" ? "€ Euro" : c === "GBP" ? "£ GBP" : "$ USD"}
-                  </button>
-                ))}
-              </div>
-            </Field>
           </div>
         </SectionCard>
 
