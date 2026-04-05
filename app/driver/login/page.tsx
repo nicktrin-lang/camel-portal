@@ -38,7 +38,7 @@ export default function DriverLoginPage() {
     setResetLoading(true); setResetError("");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/driver/login`,
+        redirectTo: `${window.location.origin}/driver/reset-password`,
       });
       if (error) throw error;
       setResetSent(true);

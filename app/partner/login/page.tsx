@@ -80,7 +80,7 @@ function PartnerLoginInner() {
     setResetLoading(true); setResetError("");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/partner/login`,
+        redirectTo: `${window.location.origin}/partner/reset-password`,
       });
       if (error) throw error;
       setResetSent(true);

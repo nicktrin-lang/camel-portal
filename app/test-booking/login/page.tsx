@@ -40,7 +40,7 @@ export default function TestBookingLoginPage() {
     setResetLoading(true); setResetError("");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-        redirectTo: `${window.location.origin}/test-booking/login`,
+        redirectTo: `${window.location.origin}/test-booking/reset-password`,
       });
       if (error) throw error;
       setResetSent(true);
