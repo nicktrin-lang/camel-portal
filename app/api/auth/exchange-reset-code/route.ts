@@ -4,10 +4,10 @@ import { cookies } from "next/headers";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const code = searchParams.get("code");
+  const tokenHash = searchParams.get("token_hash");
   const next = "/partner/reset-password";
 
-  if (!code) {
+  if (!tokenHash) {
     return NextResponse.redirect(new URL("/partner/login?error=link_expired", req.url));
   }
 
@@ -28,10 +28,13 @@ export async function GET(req: Request) {
     }
   );
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { error } = await supabase.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: "recovery",
+  });
 
   if (error) {
-    console.error("exchange-reset-code error:", error.message);
+    console.error("verifyOtp error:", error.message);
     return NextResponse.redirect(new URL("/partner/login?error=link_expired", req.url));
   }
 

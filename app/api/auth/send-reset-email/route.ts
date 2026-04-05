@@ -23,11 +23,14 @@ export async function POST(req: Request) {
     options: { redirectTo: redirect },
   });
 
-  if (error || !data?.properties?.action_link) {
+  if (error || !data?.properties) {
     return NextResponse.json({ error: error?.message ?? "Failed to generate link" }, { status: 400 });
   }
 
-  const resetLink = data.properties.action_link;
+  // Build the link directly using the token hash — bypasses Supabase's redirect logic entirely
+  const tokenHash = data.properties.hashed_token;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://portal.camel-global.com";
+  const resetLink = `${siteUrl}/api/auth/exchange-reset-code?token_hash=${tokenHash}&type=recovery`;
 
   await sendEmail({
     to: email,
