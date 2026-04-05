@@ -4,10 +4,11 @@ import { cookies } from "next/headers";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/partner/reset-password";
+  const tokenHash = searchParams.get("token_hash");
+  const type = searchParams.get("type") ?? "recovery";
+  const next = "/partner/reset-password";
 
-  if (!code) {
+  if (!tokenHash) {
     return NextResponse.redirect(new URL("/partner/login?reason=not_signed_in", req.url));
   }
 
@@ -28,11 +29,14 @@ export async function GET(req: Request) {
     }
   );
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { error } = await supabase.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: "recovery",
+  });
 
   if (error) {
     console.error("exchange-reset-code error:", error);
-    return NextResponse.redirect(new URL("/partner/login?reason=not_signed_in", req.url));
+    return NextResponse.redirect(new URL("/partner/login?error=link_expired", req.url));
   }
 
   return NextResponse.redirect(new URL(next, req.url));
