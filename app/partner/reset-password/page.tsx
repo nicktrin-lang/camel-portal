@@ -22,7 +22,7 @@ function PartnerResetPasswordInner() {
   useEffect(() => {
     const code = searchParams.get("code");
     if (!code) { setSessionError("Invalid or missing reset link. Please request a new one."); return; }
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+    supabase.auth.exchangeCodeForSession(code).then(({ error }: { error: any }) => {
       if (error) setSessionError("This reset link has expired or is invalid. Please request a new one.");
       else setSessionReady(true);
     });
