@@ -67,8 +67,8 @@ function PartnerResetPasswordInner() {
   }, [authClient, supabase]);
 
   async function getSuccessRedirect(): Promise<string> {
-    const stored = localStorage.getItem("resetPortal");
-    localStorage.removeItem("resetPortal");
+    const stored = document.cookie.split("; ").find(r => r.startsWith("resetPortal="))?.split("=")[1] ?? null;
+    document.cookie = "resetPortal=; domain=.camel-global.com; path=/; max-age=0";
     if (stored === "driver") return "/driver/jobs";
     if (stored === "customer") return "/test-booking/requests";
     try {

@@ -41,7 +41,7 @@ export default function TestBookingLoginPage() {
     e.preventDefault();
     setResetLoading(true); setResetError("");
     try {
-      localStorage.setItem("resetPortal", "customer");
+      document.cookie = "resetPortal=customer; domain=.camel-global.com; path=/; max-age=3600";
       const res = await fetch("/api/auth/send-reset-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
