@@ -116,8 +116,20 @@ export async function GET(
       requestRow = reqData || null;
     }
 
+    // Fetch partner company name
+    const { data: profileRow } = await db
+      .from("partner_profiles")
+      .select("company_name")
+      .eq("user_id", bookingRow.partner_user_id)
+      .maybeSingle();
+
+    const bookingWithPartner = {
+      ...bookingRow,
+      partner_company_name: profileRow?.company_name || null,
+    };
+
     return NextResponse.json(
-      { booking: bookingRow, request: requestRow, role: role || "partner" },
+      { booking: bookingWithPartner, request: requestRow, role: role || "partner" },
       { status: 200 }
     );
   } catch (e: any) {
@@ -127,3 +139,4 @@ export async function GET(
     );
   }
 }
+
