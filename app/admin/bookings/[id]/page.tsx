@@ -4,16 +4,26 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+type Currency = "EUR" | "GBP" | "USD";
+
+const CURRENCY_META: Record<Currency, { symbol: string; locale: string; label: string }> = {
+  EUR: { symbol: "€", locale: "es-ES", label: "EUR" },
+  GBP: { symbol: "£", locale: "en-GB", label: "GBP" },
+  USD: { symbol: "$", locale: "en-US", label: "USD" },
+};
+
+type Rates = { GBP: number; USD: number };
 
 type BookingRow = {
   id: string; request_id: string; partner_user_id: string; winning_bid_id: string;
+  partner_company_name?: string | null;
   booking_status: string; amount: number | null; notes: string | null;
   created_at: string; job_number: number | null; assigned_driver_id?: string | null;
   driver_name: string | null; driver_phone: string | null;
   driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
   fuel_price: number | null; car_hire_price: number | null;
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
+  currency: Currency;
   collection_confirmed_by_driver?: boolean | null;
   collection_confirmed_by_driver_at?: string | null;
   collection_fuel_level_driver?: string | null;
@@ -50,7 +60,22 @@ type RequestRow = {
 
 type ApiResponse = { booking: BookingRow; request: RequestRow | null; role: string | null };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtCurr(amount: number, curr: Currency): string {
+  const { locale } = CURRENCY_META[curr] ?? CURRENCY_META.EUR;
+  return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(amount);
+}
+
+function toEur(amount: number, stored: Currency, rates: Rates): number {
+  if (stored === "EUR") return amount;
+  if (stored === "GBP") return Math.round((amount / rates.GBP) * 100) / 100;
+  return Math.round((amount / rates.USD) * 100) / 100;
+}
+
+function fromEur(amountEur: number, target: Currency, rates: Rates): number {
+  if (target === "EUR") return amountEur;
+  if (target === "GBP") return Math.round(amountEur * rates.GBP * 100) / 100;
+  return Math.round(amountEur * rates.USD * 100) / 100;
+}
 
 function normalizeFuel(v: unknown): string | null {
   if (!v) return null;
@@ -96,16 +121,6 @@ function fmt(v?: string | null) {
   try { return new Date(v).toLocaleString(); } catch { return v; }
 }
 
-function fmtGBP(v?: number | null) {
-  if (v == null || isNaN(v)) return "—";
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(v);
-}
-
-function fmtEUR(v?: number | null) {
-  if (v == null || isNaN(v)) return "—";
-  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(v);
-}
-
 function fmtDuration(m?: number | null) {
   if (!m) return "—";
   if (m >= 1440) return `${Math.ceil(m/1440)} day${Math.ceil(m/1440)===1?"":"s"}`;
@@ -138,9 +153,7 @@ function ConfirmRow({ label, confirmed, fuel, confirmedAt, notes }: {
         <span className={`text-sm font-semibold ${confirmed ? "text-green-700" : "text-slate-400"}`}>
           {confirmed ? "✓ Confirmed" : "Pending"}
         </span>
-        {confirmed && fuel && (
-          <span className="text-sm text-slate-700">{fuelLabel(fuel)}</span>
-        )}
+        {confirmed && fuel && <span className="text-sm text-slate-700">{fuelLabel(fuel)}</span>}
       </div>
       {confirmed && fuel && <FuelBar level={fuel} />}
       {confirmed && confirmedAt && <p className="mt-1 text-xs text-slate-400">{fmt(confirmedAt)}</p>}
@@ -149,7 +162,115 @@ function ConfirmRow({ label, confirmed, fuel, confirmedAt, notes }: {
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+function BookingSummaryCard({ booking, rates, isLive }: {
+  booking: BookingRow; rates: Rates; isLive: boolean;
+}) {
+  const stored: Currency = booking.currency ?? "EUR";
+  const { symbol } = CURRENCY_META[stored];
+  const sec1: Currency = stored === "USD" ? "EUR" : stored === "GBP" ? "EUR" : "GBP";
+  const sec2: Currency = stored === "EUR" ? "USD" : stored === "GBP" ? "USD" : "GBP";
+
+  const carHireAmt  = Number(booking.car_hire_price || 0);
+  const fullTankAmt = Number(booking.fuel_price || 0);
+  const totalAmt    = Number(booking.amount || 0);
+  const fuelCharge  = booking.fuel_charge ?? null;
+  const fuelRefund  = booking.fuel_refund ?? null;
+  const perQtrAmt   = fullTankAmt / 4;
+  const usedQuarters = booking.fuel_used_quarters ?? null;
+
+  const collFuel = normalizeFuel(booking.collection_fuel_level_partner) || normalizeFuel(booking.collection_fuel_level_driver) || normalizeFuel(booking.collection_fuel_level_customer);
+  const retFuel  = normalizeFuel(booking.return_fuel_level_partner)     || normalizeFuel(booking.return_fuel_level_driver)     || normalizeFuel(booking.return_fuel_level_customer);
+
+  const primary = (v: number) => fmtCurr(v, stored);
+  const sec = (v: number) => {
+    const inEur = toEur(v, stored, rates);
+    return `(${fmtCurr(fromEur(inEur, sec1, rates), sec1)} · ${fmtCurr(fromEur(inEur, sec2, rates), sec2)})`;
+  };
+
+  const rateBadge = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
+
+  return (
+    <div className="rounded-3xl border border-[#003768]/20 bg-[#003768] p-8 text-white shadow-[0_18px_45px_rgba(0,0,0,0.18)]">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Booking Summary</h2>
+        <span className="rounded-full bg-green-400 px-3 py-1 text-xs font-bold text-green-900">Finalised</span>
+      </div>
+
+      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-sm font-semibold text-white/80">
+        <span>{symbol}</span> All amounts in {CURRENCY_META[stored].label}
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-white/10 p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Total booking value</p>
+        <p className="mt-1 text-4xl font-black">
+          {primary(totalAmt)}{" "}
+          <span className="text-2xl font-normal opacity-60">{sec(totalAmt)}</span>
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-white/10 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Car hire</p>
+            <p className="mt-0.5 font-bold text-white">{primary(carHireAmt)}</p>
+            <p className="text-xs text-white/50">{sec(carHireAmt)}</p>
+          </div>
+          <div className="rounded-xl bg-white/10 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Full tank deposit</p>
+            <p className="mt-0.5 font-bold text-white">{primary(fullTankAmt)}</p>
+            <p className="text-xs text-white/50">{sec(fullTankAmt)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl bg-white/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Collection fuel</p>
+          <p className="mt-1 text-xl font-bold">{fuelLabel(collFuel)}</p>
+          <FuelBar level={collFuel} />
+        </div>
+        <div className="rounded-2xl bg-white/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Return fuel</p>
+          <p className="mt-1 text-xl font-bold">{fuelLabel(retFuel)}</p>
+          <FuelBar level={retFuel} />
+        </div>
+        <div className="rounded-2xl bg-white/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Fuel used</p>
+          <p className="mt-1 text-xl font-bold">
+            {usedQuarters !== null ? QUARTER_LABELS[usedQuarters] ?? `${usedQuarters}/4` : "—"}
+          </p>
+          <p className="mt-1 text-xs text-white/60">{usedQuarters !== null ? `${usedQuarters} of 4 quarters` : ""}</p>
+        </div>
+        <div className="rounded-2xl bg-white/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Price per quarter</p>
+          <p className="mt-1 text-xl font-bold">{primary(perQtrAmt)}</p>
+          <p className="mt-1 text-xs text-white/60">{sec(perQtrAmt)}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl bg-[#ff7a00]/20 p-5 border border-[#ff7a00]/40">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Fuel charge to customer</p>
+          <p className="mt-2 text-4xl font-black">
+            {fuelCharge != null ? primary(fuelCharge) : "—"}{" "}
+            {fuelCharge != null && <span className="text-2xl font-normal opacity-60">{sec(fuelCharge)}</span>}
+          </p>
+          <p className="mt-1 text-sm text-white/60">For {usedQuarters ?? "—"} quarter{usedQuarters !== 1 ? "s" : ""} used</p>
+        </div>
+        <div className="rounded-2xl bg-green-500/20 p-5 border border-green-400/40">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Refund to customer</p>
+          <p className="mt-2 text-4xl font-black">
+            {fuelRefund != null ? primary(fuelRefund) : "—"}{" "}
+            {fuelRefund != null && <span className="text-2xl font-normal opacity-60">{sec(fuelRefund)}</span>}
+          </p>
+          <p className="mt-1 text-sm text-white/60">Unused fuel portion returned</p>
+        </div>
+      </div>
+
+      <div className={`mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold ${isLive ? "bg-green-400/20 text-green-200" : "bg-white/10 text-white/70"}`}>
+        <span className={`h-2.5 w-2.5 rounded-full ${isLive ? "bg-green-400" : "bg-white/40"}`} />
+        {rateBadge}{isLive ? " · Live rate (frankfurter.app)" : ""}
+      </div>
+    </div>
+  );
+}
 
 export default function AdminBookingDetailPage() {
   const params = useParams<{ id: string }>();
@@ -158,6 +279,8 @@ export default function AdminBookingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ApiResponse | null>(null);
+  const [rates, setRates] = useState<Rates>({ GBP: 0.85, USD: 1.08 });
+  const [rateIsLive, setRateIsLive] = useState(false);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -174,7 +297,18 @@ export default function AdminBookingDetailPage() {
         setLoading(false);
       }
     }
+    async function loadRates() {
+      try {
+        const res = await fetch("/api/currency/rate", { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (json?.rates) {
+          setRates({ GBP: Number(json.rates.GBP) || 0.85, USD: Number(json.rates.USD) || 1.08 });
+          setRateIsLive(!!json.live);
+        }
+      } catch {}
+    }
     load();
+    loadRates();
   }, [bookingId]);
 
   if (loading) return (
@@ -195,23 +329,17 @@ export default function AdminBookingDetailPage() {
   const req = data.request;
 
   const collEffective = normalizeFuel(bk.collection_fuel_level_partner) || normalizeFuel(bk.collection_fuel_level_driver);
-  const retEffective = normalizeFuel(bk.return_fuel_level_partner) || normalizeFuel(bk.return_fuel_level_driver);
+  const retEffective  = normalizeFuel(bk.return_fuel_level_partner)     || normalizeFuel(bk.return_fuel_level_driver);
 
   const collectionLocked = !!collEffective && !!bk.collection_confirmed_by_customer &&
     normalizeFuel(bk.collection_fuel_level_customer) === collEffective;
   const returnLocked = !!retEffective && !!bk.return_confirmed_by_customer &&
     normalizeFuel(bk.return_fuel_level_customer) === retEffective;
 
-  const fullTankPrice = Number(bk.fuel_price || 0);
-  const pricePerQuarter = fullTankPrice / 4;
-
   return (
     <div className="space-y-6 px-4 py-8 md:px-8">
       <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold text-[#003768]">Booking Detail</h1>
-          <p className="mt-1 text-slate-500">Admin view — read only</p>
-        </div>
+        <h1 className="text-3xl font-semibold text-[#003768]">Booking Detail</h1>
         <Link href="/admin/bookings"
           className="rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[#003768] hover:bg-black/5">
           Back to Bookings
@@ -225,9 +353,8 @@ export default function AdminBookingDetailPage() {
           <div className="mt-6 space-y-3 text-slate-700">
             <p><span className="font-semibold text-slate-900">Job No.:</span> {bk.job_number ?? req?.job_number ?? "—"}</p>
             <p><span className="font-semibold text-slate-900">Status:</span> {statusLabel(bk.booking_status)}</p>
-            <p><span className="font-semibold text-slate-900">Amount:</span> {fmtGBP(bk.amount)}</p>
-            <p><span className="font-semibold text-slate-900">Car hire:</span> {fmtGBP(bk.car_hire_price)}</p>
-            <p><span className="font-semibold text-slate-900">Fuel deposit:</span> {fmtGBP(bk.fuel_price)}</p>
+            <p><span className="font-semibold text-slate-900">Partner:</span> {bk.partner_company_name || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Currency:</span> {bk.currency ?? "EUR"}</p>
             <p><span className="font-semibold text-slate-900">Created:</span> {fmt(bk.created_at)}</p>
             <p><span className="font-semibold text-slate-900">Driver:</span> {bk.driver_name || "—"}</p>
             <p><span className="font-semibold text-slate-900">Driver phone:</span> {bk.driver_phone || "—"}</p>
@@ -256,11 +383,13 @@ export default function AdminBookingDetailPage() {
         </div>
       </div>
 
+      {/* Booking Summary — always show if booking exists */}
+      <BookingSummaryCard booking={bk} rates={rates} isLive={rateIsLive} />
+
       {/* Fuel tracking */}
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">Fuel Tracking</h2>
         <div className="mt-6 grid gap-6 xl:grid-cols-2">
-          {/* Collection */}
           <div className={`rounded-2xl border p-5 ${collectionLocked ? "border-green-200 bg-green-50" : "border-black/10"}`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-[#003768]">Collection</h3>
@@ -277,8 +406,6 @@ export default function AdminBookingDetailPage() {
                 notes={bk.collection_customer_notes} />
             </div>
           </div>
-
-          {/* Return */}
           <div className={`rounded-2xl border p-5 ${returnLocked ? "border-green-200 bg-green-50" : "border-black/10"}`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-[#003768]">Return</h3>
@@ -297,55 +424,6 @@ export default function AdminBookingDetailPage() {
           </div>
         </div>
       </div>
-
-      {/* Fuel cost summary */}
-      {collectionLocked && returnLocked && (
-        <div className="rounded-3xl border border-[#003768]/20 bg-[#003768] p-8 text-white shadow-[0_18px_45px_rgba(0,0,0,0.18)]">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">Fuel Cost Summary</h2>
-            <span className="rounded-full bg-green-400 px-3 py-1 text-xs font-bold text-green-900">Finalised</span>
-          </div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl bg-white/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Collection fuel</p>
-              <p className="mt-1 text-xl font-bold">{fuelLabel(collEffective)}</p>
-              <FuelBar level={collEffective} />
-            </div>
-            <div className="rounded-2xl bg-white/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Return fuel</p>
-              <p className="mt-1 text-xl font-bold">{fuelLabel(retEffective)}</p>
-              <FuelBar level={retEffective} />
-            </div>
-            <div className="rounded-2xl bg-white/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Fuel used</p>
-              <p className="mt-1 text-xl font-bold">
-                {bk.fuel_used_quarters !== null ? QUARTER_LABELS[bk.fuel_used_quarters] ?? `${bk.fuel_used_quarters}/4` : "—"}
-              </p>
-              <p className="mt-1 text-xs text-white/60">{bk.fuel_used_quarters ?? "—"} of 4 quarters</p>
-            </div>
-            <div className="rounded-2xl bg-white/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Price per quarter</p>
-              <p className="mt-1 text-xl font-bold">{fmtEUR(pricePerQuarter)}</p>
-              <p className="mt-1 text-xs text-white/60">Full tank: {fmtEUR(fullTankPrice)}</p>
-            </div>
-          </div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl bg-[#ff7a00]/20 border border-[#ff7a00]/40 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Fuel charge</p>
-              <p className="mt-2 text-4xl font-black">{fmtEUR(bk.fuel_charge)}</p>
-              <p className="mt-1 text-sm text-white/60">Customer pays for fuel used</p>
-            </div>
-            <div className="rounded-2xl bg-green-500/20 border border-green-400/40 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Fuel refund</p>
-              <p className="mt-2 text-4xl font-black">{fmtEUR(bk.fuel_refund)}</p>
-              <p className="mt-1 text-sm text-white/60">Unused fuel returned to customer</p>
-            </div>
-          </div>
-          <p className="mt-4 text-xs text-white/40">
-            Car hire: {fmtGBP(bk.car_hire_price)} · Full tank deposit: {fmtGBP(bk.fuel_price)} · Total: {fmtGBP(bk.amount)}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
