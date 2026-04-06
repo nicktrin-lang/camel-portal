@@ -298,57 +298,34 @@ function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: ()
           <p>Camel Global uses your fleet base location to match you with customers within your service radius. Only requests within your radius will be sent to you - set this accurately to your depot or office location.</p>
         </InfoBox>
         {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
         <AddressSearch onSelect={applyResult} />
-
-        {geocoding && (
-          <div className="rounded-xl border border-[#003768]/10 bg-[#f3f8ff] px-4 py-2 text-sm text-[#003768]">
-            Fetching address for selected location...
-          </div>
-        )}
-
+        {geocoding && <div className="rounded-xl border border-[#003768]/10 bg-[#f3f8ff] px-4 py-2 text-sm text-[#003768]">Fetching address...</div>}
+        <div>
+          <label className="block text-sm font-semibold text-[#003768] mb-1.5">Pin your exact location on the map</label>
+          <p className="text-xs text-slate-400 mb-2">Click anywhere on the map - the address fields below will update automatically.</p>
+          <div className="rounded-2xl overflow-hidden border border-black/10"><MapPicker lat={lat} lng={lng} onPick={handleMapPick} /></div>
+          <p className="mt-1.5 text-xs text-slate-400">GPS: {lat.toFixed(5)}, {lng.toFixed(5)}</p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <FieldInput label="Address line 1" value={addr1} onChange={setAddr1} placeholder="e.g. Calle Mayor 12" required />
-          </div>
-          <div className="sm:col-span-2">
-            <FieldInput label="Address line 2" value={addr2} onChange={setAddr2} placeholder="e.g. Unit 3 (optional)" />
-          </div>
+          <div className="sm:col-span-2"><FieldInput label="Address line 1" value={addr1} onChange={setAddr1} placeholder="e.g. Calle Mayor 12" required /></div>
+          <div className="sm:col-span-2"><FieldInput label="Address line 2" value={addr2} onChange={setAddr2} placeholder="e.g. Unit 3 (optional)" /></div>
           <FieldInput label="Town" value={town} onChange={setTown} placeholder="e.g. Paterna" />
           <FieldInput label="City" value={city} onChange={setCity} placeholder="e.g. Valencia" />
           <FieldInput label="Province / Region" value={province} onChange={setProvince} placeholder="e.g. Comunitat Valenciana" />
           <FieldInput label="Postcode" value={postcode} onChange={setPostcode} placeholder="e.g. 46001" />
-          <div className="sm:col-span-2">
-            <FieldInput label="Country" value={country} onChange={setCountry} placeholder="e.g. Spain" required />
-          </div>
+          <div className="sm:col-span-2"><FieldInput label="Country" value={country} onChange={setCountry} placeholder="e.g. Spain" required /></div>
         </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-[#003768] mb-1.5">
-            Service radius: <span className="text-[#ff7a00]">{radius} km</span>
-          </label>
-          <input type="range" min={5} max={150} step={5} value={radius}
-            onChange={e => setRadius(Number(e.target.value))} className="w-full accent-[#ff7a00]" />
-          <div className="flex justify-between text-xs text-slate-400 mt-1">
-            <span>5 km</span><span>Local area</span><span>150 km</span>
-          </div>
-          <InfoBox>
-            <p>A <strong>{radius} km</strong> radius means you will receive requests from customers within {radius} km of your base. Start with 30 km and expand once established.</p>
-          </InfoBox>
+        <div className="rounded-2xl border border-[#003768]/10 bg-[#f3f8ff] p-5">
+          <h3 className="text-base font-bold text-[#003768] mb-3">Service Radius</h3>
+          <label className="block text-sm font-semibold text-[#003768] mb-1.5">Coverage: <span className="text-[#ff7a00]">{radius} km</span></label>
+          <input type="range" min={5} max={150} step={5} value={radius} onChange={e => setRadius(Number(e.target.value))} className="w-full accent-[#ff7a00]" />
+          <div className="flex justify-between text-xs text-slate-400 mt-1"><span>5 km</span><span>Local area</span><span>150 km</span></div>
+          <p className="mt-3 text-sm text-[#003768]">A <strong>{radius} km</strong> radius means you will receive requests from customers within {radius} km of your base. Start with 30 km and expand once established.</p>
         </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-[#003768] mb-1.5">Pin your exact location on the map</label>
-          <p className="text-xs text-slate-400 mb-2">Click anywhere on the map - the address fields above will update automatically.</p>
-          <div className="rounded-2xl overflow-hidden border border-black/10">
-            <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
-          </div>
-          <p className="mt-1.5 text-xs text-slate-400">GPS: {lat.toFixed(5)}, {lng.toFixed(5)}</p>
-        </div>
-
         <NavButtons onNext={save} saving={saving} nextLabel="Save Location & Continue" />
       </div>
     </Card>
+  );
   );
 }
 
