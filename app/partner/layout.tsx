@@ -45,13 +45,13 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
     pathname === "/partner/signup" ||
     pathname.startsWith("/partner/signup/");
 
-  const isOnboarding = pathname === "/partner/onboarding";
+  
 
   useEffect(() => {
     let mounted = true;
 
     async function guard() {
-      if (isPublicPartnerPage || isOnboarding) { setLoading(false); return; }
+      if (isPublicPartnerPage) { setLoading(false); return; }
 
       setLoading(true);
 
@@ -101,7 +101,7 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
 
     guard();
     return () => { mounted = false; };
-  }, [router, supabase, isPublicPartnerPage, isOnboarding]);
+  }, [router, supabase, isPublicPartnerPage]);
 
   useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
