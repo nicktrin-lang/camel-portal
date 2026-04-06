@@ -117,7 +117,7 @@ export default function PartnerDashboardPage() {
           fetch("/api/partner/bookings", { cache: "no-store", credentials: "include" }),
           fetch("/api/partner/requests", { cache: "no-store", credentials: "include" }),
           fetch("/api/partner/drivers", { cache: "no-store", credentials: "include" }),
-          fetch("/api/partner/requests", { cache: "no-store", credentials: "include" }), // reuse for fleet via profile
+          supabase.from("partner_fleet").select("id").eq("user_id", user.id).eq("is_active", true),
         ]);
 
         const bkJson = await safeJson(bkRes);
