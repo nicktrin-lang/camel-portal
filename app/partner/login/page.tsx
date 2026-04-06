@@ -68,7 +68,7 @@ function PartnerLoginInner() {
       if (nextRole === "admin" || nextRole === "super_admin") {
         router.replace("/admin/approvals");
       } else {
-        router.replace("/partner/requests");
+        router.replace("/partner/onboarding");
       }
       router.refresh();
     } catch (e: any) {

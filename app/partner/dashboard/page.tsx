@@ -322,10 +322,11 @@ export default function PartnerDashboardPage() {
           <p className="mt-1 text-xs text-slate-500">Complete these steps to start receiving bookings.</p>
           <div className="mt-4 space-y-3">
             {[
-              { label: "Profile complete", done: !!(profile?.company_name && profile?.address), href: "/partner/profile" },
+              { label: "Fleet location set", done: false, href: "/partner/onboarding" },
+              { label: "Bidding currency set", done: false, href: "/partner/onboarding" },
               { label: "Account approved", done: isApproved, href: "/partner/account" },
-              { label: "Drivers added", done: driverCount > 0, href: "/partner/drivers" },
-              { label: "Fleet added", done: false, href: "/partner/fleet" },
+              { label: "Drivers added", done: driverCount > 0, href: "/partner/onboarding" },
+              { label: "Fleet added", done: false, href: "/partner/onboarding" },
               { label: "First booking received", done: bookings.length > 0, href: "/partner/bookings" },
             ].map(({ label, done, href }) => (
               <Link key={label} href={href}
