@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
@@ -137,20 +136,65 @@ function NavButtons({ onBack, onNext, nextLabel, saving, canSkip, onSkip }: {
 
 function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: () => void }) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [addr1,    setAddr1]    = useState(profile?.base_address1  ?? "");
-  const [addr2,    setAddr2]    = useState(profile?.base_address2  ?? "");
-  const [town,     setTown]     = useState(profile?.base_town      ?? "");
-  const [city,     setCity]     = useState(profile?.base_city      ?? "");
-  const [province, setProvince] = useState(profile?.base_province  ?? "");
-  const [postcode, setPostcode] = useState(profile?.base_postcode  ?? "");
-  const [country,  setCountry]  = useState(profile?.base_country   ?? "Spain");
-  const [lat,      setLat]      = useState<number>(profile?.base_lat ?? 39.4699);
-  const [lng,      setLng]      = useState<number>(profile?.base_lng ?? -0.3763);
-  const [radius,   setRadius]   = useState<number>(profile?.service_radius_km ?? 30);
-  const [saving,   setSaving]   = useState(false);
-  const [error,    setError]    = useState("");
+  const [addr1,      setAddr1]      = useState(profile?.base_address1 ?? "");
+  const [addr2,      setAddr2]      = useState(profile?.base_address2 ?? "");
+  const [town,       setTown]       = useState(profile?.base_town ?? "");
+  const [city,       setCity]       = useState(profile?.base_city ?? "");
+  const [province,   setProvince]   = useState(profile?.base_province ?? "");
+  const [postcode,   setPostcode]   = useState(profile?.base_postcode ?? "");
+  const [country,    setCountry]    = useState(profile?.base_country ?? "Spain");
+  const [lat,        setLat]        = useState<number>(profile?.base_lat ?? 39.4699);
+  const [lng,        setLng]        = useState<number>(profile?.base_lng ?? -0.3763);
+  const [radius,     setRadius]     = useState<number>(profile?.service_radius_km ?? 30);
+  const [saving,     setSaving]     = useState(false);
+  const [geocoding,  setGeocoding]  = useState(false);
+  const [searching,  setSearching]  = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [error,      setError]      = useState("");
 
   const fullAddress = [addr1, addr2, town, city, province, postcode, country].filter(Boolean).join(", ");
+
+  async function handleMapPick(newLat: number, newLng: number) {
+    setLat(newLat);
+    setLng(newLng);
+    setGeocoding(true);
+    try {
+      const res = await fetch(`/api/maps/reverse?lat=${newLat}&lng=${newLng}`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json) {
+        if (json.address_line1) setAddr1(json.address_line1);
+        if (json.address_line2) setAddr2(json.address_line2);
+        if (json.town)          setTown(json.town);
+        if (json.city)          setCity(json.city);
+        if (json.province)      setProvince(json.province);
+        if (json.postcode)      setPostcode(json.postcode);
+        if (json.country)       setCountry(json.country);
+      }
+    } catch { }
+    finally { setGeocoding(false); }
+  }
+
+  async function handleSearch() {
+    if (!searchText.trim()) return;
+    setSearching(true); setError("");
+    try {
+      const res  = await fetch(`/api/maps/search?q=${encodeURIComponent(searchText.trim())}`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json) throw new Error("Search failed");
+      const result = Array.isArray(json.results) ? json.results[0] : json;
+      if (!result) throw new Error("No results found for that address");
+      if (result.lat) setLat(Number(result.lat));
+      if (result.lng) setLng(Number(result.lng));
+      if (result.address_line1) setAddr1(result.address_line1);
+      if (result.address_line2) setAddr2(result.address_line2 ?? "");
+      if (result.town)          setTown(result.town ?? "");
+      if (result.city)          setCity(result.city ?? "");
+      if (result.province)      setProvince(result.province ?? "");
+      if (result.postcode)      setPostcode(result.postcode ?? "");
+      if (result.country)       setCountry(result.country ?? "Spain");
+    } catch (e: any) { setError(e.message || "Address not found"); }
+    finally { setSearching(false); }
+  }
 
   async function save() {
     if (!addr1.trim()) { setError("Address line 1 is required."); return; }
@@ -161,19 +205,19 @@ function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: ()
       if (!user) throw new Error("Not signed in");
       const { data: existing } = await supabase.from("partner_profiles").select("company_name,contact_name").eq("user_id", user.id).maybeSingle();
       const { error: e } = await supabase.from("partner_profiles").upsert({
-        user_id: user.id,
-        company_name: existing?.company_name ?? "",
-        contact_name: existing?.contact_name ?? null,
-        base_address: fullAddress,
-        base_address1: addr1,
-        base_address2: addr2 || null,
-        base_town: town || null,
-        base_city: city || null,
-        base_province: province || null,
-        base_postcode: postcode || null,
-        base_country: country,
-        base_lat: lat,
-        base_lng: lng,
+        user_id:          user.id,
+        company_name:     existing?.company_name ?? "",
+        contact_name:     existing?.contact_name ?? null,
+        base_address:     fullAddress,
+        base_address1:    addr1,
+        base_address2:    addr2 || null,
+        base_town:        town || null,
+        base_city:        city || null,
+        base_province:    province || null,
+        base_postcode:    postcode || null,
+        base_country:     country,
+        base_lat:         lat,
+        base_lng:         lng,
         service_radius_km: radius,
       }, { onConflict: "user_id" });
       if (e) throw new Error(e.message);
@@ -189,7 +233,34 @@ function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: ()
           <p className="font-semibold mb-1">Why this matters</p>
           <p>Camel Global uses your fleet base location to match you with customers within your service radius. Only requests within your radius will be sent to you — set this accurately to your depot or office location.</p>
         </InfoBox>
+
         {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+
+        {/* Address search */}
+        <div>
+          <label className="block text-sm font-semibold text-[#003768] mb-1.5">Search for your address</label>
+          <div className="flex gap-2">
+            <input
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSearch(); } }}
+              placeholder="Type your address and press Search…"
+              className="flex-1 rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#0f4f8a] bg-white" />
+            <button type="button" onClick={handleSearch} disabled={searching}
+              className="rounded-xl bg-[#003768] px-5 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 shrink-0">
+              {searching ? "Searching…" : "Search"}
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-slate-400">Or click the map below to drop a pin — the address fields will fill automatically.</p>
+        </div>
+
+        {geocoding && (
+          <div className="rounded-xl border border-[#003768]/10 bg-[#f3f8ff] px-4 py-3 text-sm text-[#003768]">
+            Fetching address for selected location…
+          </div>
+        )}
+
+        {/* Address fields */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <FieldInput label="Address line 1" value={addr1} onChange={setAddr1} placeholder="e.g. Calle Mayor 12" required />
@@ -197,14 +268,16 @@ function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: ()
           <div className="sm:col-span-2">
             <FieldInput label="Address line 2" value={addr2} onChange={setAddr2} placeholder="e.g. Unit 3 (optional)" />
           </div>
-          <FieldInput label="Town" value={town} onChange={setTown} placeholder="e.g. Paterna" />
-          <FieldInput label="City" value={city} onChange={setCity} placeholder="e.g. Valencia" />
+          <FieldInput label="Town"             value={town}     onChange={setTown}     placeholder="e.g. Paterna" />
+          <FieldInput label="City"             value={city}     onChange={setCity}     placeholder="e.g. Valencia" />
           <FieldInput label="Province / Region" value={province} onChange={setProvince} placeholder="e.g. Comunitat Valenciana" />
-          <FieldInput label="Postcode" value={postcode} onChange={setPostcode} placeholder="e.g. 46001" />
+          <FieldInput label="Postcode"         value={postcode} onChange={setPostcode} placeholder="e.g. 46001" />
           <div className="sm:col-span-2">
             <FieldInput label="Country" value={country} onChange={setCountry} placeholder="e.g. Spain" required />
           </div>
         </div>
+
+        {/* Service radius */}
         <div>
           <label className="block text-sm font-semibold text-[#003768] mb-1.5">
             Service radius: <span className="text-[#ff7a00]">{radius} km</span>
@@ -218,14 +291,17 @@ function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: ()
             <p>A <strong>{radius} km</strong> radius means you will receive requests from customers within {radius} km of your base. Start with 30 km and expand once established.</p>
           </InfoBox>
         </div>
+
+        {/* Map */}
         <div>
           <label className="block text-sm font-semibold text-[#003768] mb-1.5">Pin your exact location on the map</label>
-          <p className="text-xs text-slate-400 mb-2">Click anywhere on the map to move the pin to your exact fleet base location.</p>
+          <p className="text-xs text-slate-400 mb-2">Click anywhere on the map — the address fields above will update automatically.</p>
           <div className="rounded-2xl overflow-hidden border border-black/10">
-            <MapPicker lat={lat} lng={lng} onPick={(newLat: number, newLng: number) => { setLat(newLat); setLng(newLng); }} />
+            <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
           </div>
           <p className="mt-1.5 text-xs text-slate-400">GPS: {lat.toFixed(5)}, {lng.toFixed(5)}</p>
         </div>
+
         <NavButtons onNext={save} saving={saving} nextLabel="Save Location & Continue →" />
       </div>
     </Card>
@@ -251,9 +327,9 @@ function StepCurrency({ profile, onDone, onBack }: { profile: Profile | null; on
       if (!user) throw new Error("Not signed in");
       const { data: existing } = await supabase.from("partner_profiles").select("company_name,contact_name").eq("user_id", user.id).maybeSingle();
       const { error: e } = await supabase.from("partner_profiles").upsert({
-        user_id: user.id,
-        company_name: existing?.company_name ?? "",
-        contact_name: existing?.contact_name ?? null,
+        user_id:          user.id,
+        company_name:     existing?.company_name ?? "",
+        contact_name:     existing?.contact_name ?? null,
         default_currency: currency,
       }, { onConflict: "user_id" });
       if (e) throw new Error(e.message);
@@ -318,14 +394,14 @@ function StepFleet({ onDone, onBack }: { onDone: () => void; onBack: () => void 
       if (!user) throw new Error("Not signed in");
       const cat = FLEET_CATEGORIES.find(c => c.slug === form.category_slug);
       const { error: e } = await supabase.from("partner_fleet").insert({
-        user_id: user.id,
-        category_slug: form.category_slug,
-        category_name: cat?.name || form.category_slug,
-        max_passengers: form.max_passengers,
-        max_suitcases: form.max_suitcases,
+        user_id:          user.id,
+        category_slug:    form.category_slug,
+        category_name:    cat?.name || form.category_slug,
+        max_passengers:   form.max_passengers,
+        max_suitcases:    form.max_suitcases,
         max_hand_luggage: form.max_hand_luggage,
-        service_level: "standard",
-        is_active: true,
+        service_level:    "standard",
+        is_active:        true,
       });
       if (e) throw new Error(e.message);
       await load();
@@ -375,8 +451,8 @@ function StepFleet({ onDone, onBack }: { onDone: () => void; onBack: () => void 
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {[
-                { key: "max_passengers", label: "Max passengers" },
-                { key: "max_suitcases", label: "Max suitcases" },
+                { key: "max_passengers",   label: "Max passengers" },
+                { key: "max_suitcases",    label: "Max suitcases" },
                 { key: "max_hand_luggage", label: "Hand luggage" },
               ].map(({ key, label }) => (
                 <div key={key}>
@@ -550,7 +626,7 @@ function StepGoLive({ profile, fleetCount, driverCount, onBack }: {
         {allDone ? (
           <div className="rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
             <p className="text-2xl mb-2">🎉</p>
-            <p className="font-bold text-green-800 text-lg">You're all set!</p>
+            <p className="font-bold text-green-800 text-lg">You are all set!</p>
             <p className="text-sm text-green-700 mt-1">Your account is ready. The Camel Global team will review and activate you shortly. You will receive an email once you are live.</p>
           </div>
         ) : (
@@ -587,7 +663,6 @@ export default function PartnerOnboardingPage() {
   async function refreshProfile(userId: string) {
     const { data } = await supabase.from("partner_profiles").select(cols).eq("user_id", userId).maybeSingle();
     if (data) setProfile(data as Profile);
-    return data;
   }
 
   useEffect(() => {
