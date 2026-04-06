@@ -60,7 +60,7 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
         ))}
       </div>
       <div className="flex text-xs text-slate-500 mt-1">
-        {STEP_LABELS.map(l => <span key={l} className="flex-1 text-center first:text-left last:text-right">{l}</span>)}
+        <div className="flex items-start mt-1">{STEP_LABELS.map((l, i) => (<div key={l} className="flex flex-col items-center flex-1"><span className="text-xs text-slate-500 text-center leading-tight">{l}</span></div>))}</div>
       </div>
     </div>
   );
