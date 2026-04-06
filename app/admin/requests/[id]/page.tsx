@@ -241,9 +241,12 @@ export default function AdminRequestDetailPage({
                     <p><span className="font-semibold text-slate-900">Phone:</span> {bid.partner_phone || "—"}</p>
                     <p><span className="font-semibold text-slate-900">Address:</span> {bid.partner_address || "—"}</p>
                     <p><span className="font-semibold text-slate-900">Vehicle:</span> {bid.vehicle_category_name}</p>
-                    <p><span className="font-semibold text-slate-900">Car hire:</span> {bid.currency} {bid.car_hire_price?.toFixed(2)}</p>
-                    <p><span className="font-semibold text-slate-900">Fuel:</span> {bid.currency} {bid.fuel_price?.toFixed(2)}</p>
-                    <p><span className="font-semibold text-slate-900">Total:</span> {bid.currency} {bid.total_price?.toFixed(2)}</p>
+                    <p><span className="font-semibold text-slate-900">Pickup:</span> {fmtDateTime(data.request.pickup_at)}</p>
+                    <p><span className="font-semibold text-slate-900">Dropoff:</span> {fmtDateTime(data.request.dropoff_at)}</p>
+                    <p><span className="font-semibold text-slate-900">Duration:</span> {fmtDuration(data.request.journey_duration_minutes)}</p>
+                    <p><span className="font-semibold text-slate-900">Car hire:</span> {bid.currency ?? "EUR"} {bid.car_hire_price?.toFixed(2)}</p>
+                    <p><span className="font-semibold text-slate-900">Fuel:</span> {bid.currency ?? "EUR"} {bid.fuel_price?.toFixed(2)}</p>
+                    <p><span className="font-semibold text-slate-900">Total:</span> {bid.currency ?? "EUR"} {bid.total_price?.toFixed(2)}</p>
                     <p><span className="font-semibold text-slate-900">Full insurance:</span> {bid.full_insurance_included ? "Yes" : "No"}</p>
                     <p><span className="font-semibold text-slate-900">Full tank:</span> {bid.full_tank_included ? "Yes" : "No"}</p>
                     <p><span className="font-semibold text-slate-900">Notes:</span> {bid.notes || "—"}</p>
@@ -276,3 +279,4 @@ export default function AdminRequestDetailPage({
     </div>
   );
 }
+
