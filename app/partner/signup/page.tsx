@@ -2,10 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Suggestion = {
   display_name: string;
@@ -14,7 +12,7 @@ type Suggestion = {
   address?: {
     road?: string; house_number?: string; suburb?: string; city?: string;
     town?: string; village?: string; state?: string; postcode?: string;
-    country?: string; country_code?: string;
+    country?: string;
   };
 };
 
@@ -23,8 +21,6 @@ const COUNTRIES = [
   "France", "Italy", "Germany", "Netherlands", "Belgium",
   "United States", "Canada", "Australia", "Other",
 ];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function parseSuggestion(s: Suggestion) {
   const a = s.address ?? {};
@@ -41,6 +37,8 @@ function parseSuggestion(s: Suggestion) {
     display: s.display_name,
   };
 }
+
+const STEP_LABELS = ["Your Business", "Business Address", "Fleet Address", "Password", "Review"];
 
 function ProgressBar({ step, total }: { step: number; total: number }) {
   return (
@@ -62,10 +60,7 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
         ))}
       </div>
       <div className="flex justify-between text-xs text-slate-500 mt-1">
-        <span>Your Business</span>
-        <span>Address</span>
-        <span>Password</span>
-        <span>Review</span>
+        {STEP_LABELS.map(l => <span key={l}>{l}</span>)}
       </div>
     </div>
   );
@@ -94,10 +89,16 @@ function Input({ className = "", ...props }: React.InputHTMLAttributes<HTMLInput
   );
 }
 
-// ── Address Search ─────────────────────────────────────────────────────────────
+function InfoBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-[#003768]/10 bg-[#f3f8ff] px-4 py-3 text-sm text-[#003768]">
+      {children}
+    </div>
+  );
+}
 
 function AddressSearch({ onSelect, placeholder }: {
-  onSelect: (result: ReturnType<typeof parseSuggestion>) => void;
+  onSelect: (r: ReturnType<typeof parseSuggestion>) => void;
   placeholder?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -118,8 +119,7 @@ function AddressSearch({ onSelect, placeholder }: {
           { headers: { "Accept-Language": "en" } }
         );
         const data = await res.json();
-        setSuggestions(data);
-        setOpen(true);
+        setSuggestions(data); setOpen(true);
       } catch { setSuggestions([]); }
       finally { setLoading(false); }
     }, 400);
@@ -128,21 +128,17 @@ function AddressSearch({ onSelect, placeholder }: {
   function select(s: Suggestion) {
     const parsed = parseSuggestion(s);
     setQuery(parsed.display);
-    setSuggestions([]);
-    setOpen(false);
+    setSuggestions([]); setOpen(false);
     onSelect(parsed);
   }
 
   return (
     <div className="relative">
       <div className="relative">
-        <Input
-          value={query}
-          onChange={e => search(e.target.value)}
-          placeholder={placeholder ?? "Search for your address…"}
+        <Input value={query} onChange={e => search(e.target.value)}
+          placeholder={placeholder ?? "Search for your address..."}
           onFocus={() => suggestions.length > 0 && setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-        />
+          onBlur={() => setTimeout(() => setOpen(false), 150)} />
         {loading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#0f4f8a] border-t-transparent" />
@@ -164,14 +160,18 @@ function AddressSearch({ onSelect, placeholder }: {
   );
 }
 
-// ── Steps ─────────────────────────────────────────────────────────────────────
-
 type FormData = {
   companyName: string; contactName: string; email: string;
   phone: string; website: string;
+  // Business address
   address1: string; address2: string; city: string;
   province: string; postcode: string; country: string;
   addressLat: number | null; addressLng: number | null;
+  // Fleet address
+  fleetAddress1: string; fleetAddress2: string; fleetCity: string;
+  fleetProvince: string; fleetPostcode: string; fleetCountry: string;
+  fleetLat: number | null; fleetLng: number | null;
+  // Auth
   password: string; confirmPassword: string;
   agreedToTerms: boolean;
 };
@@ -180,15 +180,15 @@ const EMPTY: FormData = {
   companyName: "", contactName: "", email: "", phone: "", website: "",
   address1: "", address2: "", city: "", province: "", postcode: "", country: "Spain",
   addressLat: null, addressLng: null,
+  fleetAddress1: "", fleetAddress2: "", fleetCity: "", fleetProvince: "",
+  fleetPostcode: "", fleetCountry: "Spain", fleetLat: null, fleetLng: null,
   password: "", confirmPassword: "", agreedToTerms: false,
 };
 
 // Step 1 — Business Details
 function Step1({ data, onChange, onNext, error }: {
-  data: FormData;
-  onChange: (k: keyof FormData, v: string) => void;
-  onNext: () => void;
-  error: string;
+  data: FormData; onChange: (k: keyof FormData, v: string) => void;
+  onNext: () => void; error: string;
 }) {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
 
@@ -198,8 +198,7 @@ function Step1({ data, onChange, onNext, error }: {
     if (!data.contactName.trim()) e.contactName = "Contact name is required";
     if (!data.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) e.email = "Valid email is required";
     if (!data.phone.trim()) e.phone = "Phone number is required";
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    setErrors(e); return Object.keys(e).length === 0;
   }
 
   return (
@@ -208,39 +207,29 @@ function Step1({ data, onChange, onNext, error }: {
         <h2 className="text-2xl font-bold text-[#003768]">Your Business</h2>
         <p className="mt-1 text-slate-500">Tell us about your car hire company.</p>
       </div>
-
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Company name" required error={errors.companyName}>
-          <Input value={data.companyName} onChange={e => onChange("companyName", e.target.value)}
-            placeholder="Valencia Cars S.L." />
+          <Input value={data.companyName} onChange={e => onChange("companyName", e.target.value)} placeholder="Valencia Cars S.L." />
         </Field>
         <Field label="Contact name" required error={errors.contactName}>
-          <Input value={data.contactName} onChange={e => onChange("contactName", e.target.value)}
-            placeholder="Juan García" />
+          <Input value={data.contactName} onChange={e => onChange("contactName", e.target.value)} placeholder="Juan Garcia" />
         </Field>
       </div>
-
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Email address" required error={errors.email}>
-          <Input type="email" value={data.email} onChange={e => onChange("email", e.target.value)}
-            placeholder="info@valenciacars.com" autoComplete="email" />
+          <Input type="email" value={data.email} onChange={e => onChange("email", e.target.value)} placeholder="info@valenciacars.com" autoComplete="email" />
         </Field>
         <Field label="Phone number" required error={errors.phone}>
-          <Input type="tel" value={data.phone} onChange={e => onChange("phone", e.target.value)}
-            placeholder="+34 600 000 000" autoComplete="tel" />
+          <Input type="tel" value={data.phone} onChange={e => onChange("phone", e.target.value)} placeholder="+34 600 000 000" autoComplete="tel" />
         </Field>
       </div>
-
       <Field label="Website">
-        <Input type="url" value={data.website} onChange={e => onChange("website", e.target.value)}
-          placeholder="https://valenciacars.com" />
+        <Input type="url" value={data.website} onChange={e => onChange("website", e.target.value)} placeholder="https://valenciacars.com" />
       </Field>
-
       <button type="button" onClick={() => validate() && onNext()}
-        className="w-full rounded-full bg-[#ff7a00] py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(255,122,0,0.3)] hover:opacity-95 transition-opacity">
-        Continue to Business Address →
+        className="w-full rounded-full bg-[#ff7a00] py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(255,122,0,0.3)] hover:opacity-95">
+        Continue to Business Address
       </button>
     </div>
   );
@@ -248,23 +237,21 @@ function Step1({ data, onChange, onNext, error }: {
 
 // Step 2 — Business Address
 function Step2({ data, onChange, onNext, onBack }: {
-  data: FormData;
-  onChange: (k: keyof FormData, v: string | number | null) => void;
-  onNext: () => void;
-  onBack: () => void;
+  data: FormData; onChange: (k: keyof FormData, v: string | number | null) => void;
+  onNext: () => void; onBack: () => void;
 }) {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [searchDone, setSearchDone] = useState(false);
 
-  function handleSelect(result: ReturnType<typeof parseSuggestion>) {
-    onChange("address1", result.address1);
-    onChange("address2", result.address2);
-    onChange("city", result.address2 || "");
-    onChange("province", result.province);
-    onChange("postcode", result.postcode);
-    onChange("country", result.country || "Spain");
-    onChange("addressLat", result.lat);
-    onChange("addressLng", result.lng);
+  function handleSelect(r: ReturnType<typeof parseSuggestion>) {
+    onChange("address1", r.address1);
+    onChange("address2", r.address2);
+    onChange("city", r.address2 || "");
+    onChange("province", r.province);
+    onChange("postcode", r.postcode);
+    onChange("country", r.country || "Spain");
+    onChange("addressLat", r.lat);
+    onChange("addressLng", r.lng);
     setSearchDone(true);
   }
 
@@ -274,51 +261,38 @@ function Step2({ data, onChange, onNext, onBack }: {
     if (!data.province.trim()) e.province = "Province is required";
     if (!data.postcode.trim()) e.postcode = "Postcode is required";
     if (!data.country.trim()) e.country = "Country is required";
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    setErrors(e); return Object.keys(e).length === 0;
   }
 
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-bold text-[#003768]">Business Address</h2>
-        <p className="mt-1 text-slate-500">Your registered business address. Search below or fill in manually.</p>
+        <p className="mt-1 text-slate-500">Your registered company address for correspondence and records.</p>
       </div>
-
-      <div className="rounded-xl border border-[#003768]/10 bg-[#f3f8ff] p-4">
-        <p className="text-sm font-medium text-[#003768] mb-2">Search your address</p>
-        <AddressSearch onSelect={handleSelect} placeholder="e.g. Calle Mayor 12, Valencia…" />
-        {searchDone && (
-          <p className="mt-2 text-xs text-green-700 font-medium">✓ Address found — check the fields below and correct if needed</p>
-        )}
-      </div>
-
+      <InfoBox>
+        <p className="font-semibold mb-1">Search your address</p>
+        <AddressSearch onSelect={handleSelect} placeholder="e.g. Calle Mayor 12, Valencia..." />
+        {searchDone && <p className="mt-2 text-xs text-green-700 font-medium">Address found — check fields below and correct if needed</p>}
+      </InfoBox>
       <div className="space-y-4">
         <Field label="Address line 1" required error={errors.address1}>
-          <Input value={data.address1} onChange={e => onChange("address1", e.target.value)}
-            placeholder="Street name and number" />
+          <Input value={data.address1} onChange={e => onChange("address1", e.target.value)} placeholder="Street name and number" />
         </Field>
-
         <Field label="Address line 2">
-          <Input value={data.address2} onChange={e => onChange("address2", e.target.value)}
-            placeholder="Apartment, unit, floor (optional)" />
+          <Input value={data.address2} onChange={e => onChange("address2", e.target.value)} placeholder="Apartment, unit, floor (optional)" />
         </Field>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="City / Town">
-            <Input value={data.city} onChange={e => onChange("city", e.target.value)}
-              placeholder="Valencia" />
+            <Input value={data.city} onChange={e => onChange("city", e.target.value)} placeholder="Valencia" />
           </Field>
           <Field label="Province / Region" required error={errors.province}>
-            <Input value={data.province} onChange={e => onChange("province", e.target.value)}
-              placeholder="Comunitat Valenciana" />
+            <Input value={data.province} onChange={e => onChange("province", e.target.value)} placeholder="Comunitat Valenciana" />
           </Field>
         </div>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Postcode" required error={errors.postcode}>
-            <Input value={data.postcode} onChange={e => onChange("postcode", e.target.value)}
-              placeholder="46001" />
+            <Input value={data.postcode} onChange={e => onChange("postcode", e.target.value)} placeholder="46001" />
           </Field>
           <Field label="Country" required error={errors.country}>
             <select value={data.country} onChange={e => onChange("country", e.target.value)}
@@ -328,27 +302,128 @@ function Step2({ data, onChange, onNext, onBack }: {
           </Field>
         </div>
       </div>
-
       <div className="flex gap-3">
         <button type="button" onClick={onBack}
-          className="flex-1 rounded-full border border-black/10 py-4 font-semibold text-[#003768] hover:bg-black/5 transition-colors">
-          ← Back
-        </button>
+          className="flex-1 rounded-full border border-black/10 py-4 font-semibold text-[#003768] hover:bg-black/5">Back</button>
         <button type="button" onClick={() => validate() && onNext()}
-          className="flex-[2] rounded-full bg-[#ff7a00] py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(255,122,0,0.3)] hover:opacity-95 transition-opacity">
-          Continue to Password →
+          className="flex-[2] rounded-full bg-[#ff7a00] py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(255,122,0,0.3)] hover:opacity-95">
+          Continue to Fleet Address
         </button>
       </div>
     </div>
   );
 }
 
-// Step 3 — Password
+// Step 3 — Fleet Base Address
 function Step3({ data, onChange, onNext, onBack }: {
-  data: FormData;
-  onChange: (k: keyof FormData, v: string) => void;
-  onNext: () => void;
-  onBack: () => void;
+  data: FormData; onChange: (k: keyof FormData, v: string | number | null | boolean) => void;
+  onNext: () => void; onBack: () => void;
+}) {
+  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
+  const [searchDone, setSearchDone] = useState(false);
+  const [sameAsBusiness, setSameAsBusiness] = useState(false);
+
+  function handleSameAsBusiness(checked: boolean) {
+    setSameAsBusiness(checked);
+    if (checked) {
+      onChange("fleetAddress1", data.address1);
+      onChange("fleetAddress2", data.address2);
+      onChange("fleetCity", data.city);
+      onChange("fleetProvince", data.province);
+      onChange("fleetPostcode", data.postcode);
+      onChange("fleetCountry", data.country);
+      onChange("fleetLat", data.addressLat);
+      onChange("fleetLng", data.addressLng);
+    }
+  }
+
+  function handleSelect(r: ReturnType<typeof parseSuggestion>) {
+    onChange("fleetAddress1", r.address1);
+    onChange("fleetAddress2", r.address2);
+    onChange("fleetCity", r.address2 || "");
+    onChange("fleetProvince", r.province);
+    onChange("fleetPostcode", r.postcode);
+    onChange("fleetCountry", r.country || "Spain");
+    onChange("fleetLat", r.lat);
+    onChange("fleetLng", r.lng);
+    setSearchDone(true);
+  }
+
+  function validate() {
+    const e: Partial<Record<keyof FormData, string>> = {};
+    if (!data.fleetAddress1.trim()) e.fleetAddress1 = "Address line 1 is required";
+    if (!data.fleetCountry.trim()) e.fleetCountry = "Country is required";
+    setErrors(e); return Object.keys(e).length === 0;
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-bold text-[#003768]">Fleet Base Address</h2>
+        <p className="mt-1 text-slate-500">Where your vehicles are based and dispatched from. This is used to match you with nearby customers.</p>
+      </div>
+
+      <label className="flex items-center gap-3 cursor-pointer rounded-xl border border-[#003768]/10 bg-[#f3f8ff] px-4 py-3">
+        <input type="checkbox" checked={sameAsBusiness} onChange={e => handleSameAsBusiness(e.target.checked)}
+          className="h-4 w-4 accent-[#003768]" />
+        <div>
+          <span className="text-sm font-semibold text-[#003768]">Same as business address</span>
+          <p className="text-xs text-slate-500">Tick if your fleet is based at your registered business address</p>
+        </div>
+      </label>
+
+      {!sameAsBusiness && (
+        <InfoBox>
+          <p className="font-semibold mb-1">Search your fleet address</p>
+          <AddressSearch onSelect={handleSelect} placeholder="e.g. Cami del Coscollar, Manises..." />
+          {searchDone && <p className="mt-2 text-xs text-green-700 font-medium">Address found — check fields below and correct if needed</p>}
+        </InfoBox>
+      )}
+
+      <div className="space-y-4">
+        <Field label="Address line 1" required error={errors.fleetAddress1}>
+          <Input value={data.fleetAddress1} onChange={e => onChange("fleetAddress1", e.target.value)} placeholder="Street name and number" />
+        </Field>
+        <Field label="Address line 2">
+          <Input value={data.fleetAddress2} onChange={e => onChange("fleetAddress2", e.target.value)} placeholder="Unit, depot, yard (optional)" />
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="City / Town">
+            <Input value={data.fleetCity} onChange={e => onChange("fleetCity", e.target.value)} placeholder="Valencia" />
+          </Field>
+          <Field label="Province / Region">
+            <Input value={data.fleetProvince} onChange={e => onChange("fleetProvince", e.target.value)} placeholder="Comunitat Valenciana" />
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Postcode">
+            <Input value={data.fleetPostcode} onChange={e => onChange("fleetPostcode", e.target.value)} placeholder="46001" />
+          </Field>
+          <Field label="Country" required error={errors.fleetCountry}>
+            <select value={data.fleetCountry} onChange={e => onChange("fleetCountry", e.target.value)}
+              className="w-full rounded-xl border border-black/10 px-4 py-3 text-slate-900 outline-none focus:border-[#0f4f8a]">
+              {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Field>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <button type="button" onClick={onBack}
+          className="flex-1 rounded-full border border-black/10 py-4 font-semibold text-[#003768] hover:bg-black/5">Back</button>
+        <button type="button" onClick={() => validate() && onNext()}
+          className="flex-[2] rounded-full bg-[#ff7a00] py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(255,122,0,0.3)] hover:opacity-95">
+          Continue to Password
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Step 4 — Password
+function Step4({ data, onChange, onNext, onBack }: {
+  data: FormData; onChange: (k: keyof FormData, v: string) => void;
+  onNext: () => void; onBack: () => void;
 }) {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [showPw, setShowPw] = useState(false);
@@ -357,13 +432,10 @@ function Step3({ data, onChange, onNext, onBack }: {
     const e: Partial<Record<keyof FormData, string>> = {};
     if (!data.password || data.password.length < 8) e.password = "Password must be at least 8 characters";
     if (data.password !== data.confirmPassword) e.confirmPassword = "Passwords do not match";
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    setErrors(e); return Object.keys(e).length === 0;
   }
 
-  const strength = data.password.length === 0 ? 0 :
-    data.password.length < 8 ? 1 :
-    data.password.length < 12 ? 2 : 3;
+  const strength = data.password.length === 0 ? 0 : data.password.length < 8 ? 1 : data.password.length < 12 ? 2 : 3;
 
   return (
     <div className="space-y-5">
@@ -371,7 +443,6 @@ function Step3({ data, onChange, onNext, onBack }: {
         <h2 className="text-2xl font-bold text-[#003768]">Set Your Password</h2>
         <p className="mt-1 text-slate-500">Choose a strong password to secure your partner account.</p>
       </div>
-
       <Field label="Password" required error={errors.password}>
         <div className="relative">
           <Input type={showPw ? "text" : "password"} value={data.password}
@@ -383,7 +454,7 @@ function Step3({ data, onChange, onNext, onBack }: {
           </button>
         </div>
         {data.password.length > 0 && (
-          <div className="mt-2 flex gap-1">
+          <div className="mt-2 flex gap-1 items-center">
             {[1,2,3].map(i => (
               <div key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${
                 i <= strength ? strength === 1 ? "bg-red-400" : strength === 2 ? "bg-yellow-400" : "bg-green-500" : "bg-slate-200"
@@ -395,67 +466,60 @@ function Step3({ data, onChange, onNext, onBack }: {
           </div>
         )}
       </Field>
-
       <Field label="Confirm password" required error={errors.confirmPassword}>
         <Input type={showPw ? "text" : "password"} value={data.confirmPassword}
           onChange={e => onChange("confirmPassword", e.target.value)}
           placeholder="Repeat your password" autoComplete="new-password" />
         {data.confirmPassword && data.password === data.confirmPassword && (
-          <p className="mt-1 text-xs text-green-600 font-medium">✓ Passwords match</p>
+          <p className="mt-1 text-xs text-green-600 font-medium">Passwords match</p>
         )}
       </Field>
-
       <div className="flex gap-3">
         <button type="button" onClick={onBack}
-          className="flex-1 rounded-full border border-black/10 py-4 font-semibold text-[#003768] hover:bg-black/5 transition-colors">
-          ← Back
-        </button>
+          className="flex-1 rounded-full border border-black/10 py-4 font-semibold text-[#003768] hover:bg-black/5">Back</button>
         <button type="button" onClick={() => validate() && onNext()}
-          className="flex-[2] rounded-full bg-[#ff7a00] py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(255,122,0,0.3)] hover:opacity-95 transition-opacity">
-          Review & Submit →
+          className="flex-[2] rounded-full bg-[#ff7a00] py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(255,122,0,0.3)] hover:opacity-95">
+          Review & Submit
         </button>
       </div>
     </div>
   );
 }
 
-// Step 4 — Review & Submit
-function Step4({ data, onChange, onBack, onSubmit, submitting, error }: {
-  data: FormData;
-  onChange: (k: keyof FormData, v: boolean) => void;
-  onBack: () => void;
-  onSubmit: () => void;
-  submitting: boolean;
-  error: string;
+// Step 5 — Review & Submit
+function Step5({ data, onChange, onBack, onSubmit, submitting, error }: {
+  data: FormData; onChange: (k: keyof FormData, v: boolean) => void;
+  onBack: () => void; onSubmit: () => void; submitting: boolean; error: string;
 }) {
+  const bizAddress = [data.address1, data.address2, data.city, data.province, data.postcode, data.country].filter(Boolean).join(", ");
+  const fleetAddress = [data.fleetAddress1, data.fleetAddress2, data.fleetCity, data.fleetProvince, data.fleetPostcode, data.fleetCountry].filter(Boolean).join(", ");
+
   const rows: [string, string][] = [
     ["Company", data.companyName],
     ["Contact", data.contactName],
     ["Email", data.email],
     ["Phone", data.phone],
     ["Website", data.website || "—"],
-    ["Address", [data.address1, data.address2, data.city, data.province, data.postcode, data.country].filter(Boolean).join(", ")],
+    ["Business Address", bizAddress],
+    ["Fleet Address", fleetAddress],
   ];
 
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-bold text-[#003768]">Review Your Details</h2>
-        <p className="mt-1 text-slate-500">Check everything looks correct before submitting your application.</p>
+        <p className="mt-1 text-slate-500">Check everything looks correct before submitting.</p>
       </div>
-
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
       <div className="rounded-2xl border border-black/5 bg-slate-50 p-5 space-y-3">
         {rows.map(([label, value]) => (
           <div key={label} className="flex gap-3 text-sm">
-            <span className="w-24 shrink-0 font-semibold text-slate-500">{label}</span>
+            <span className="w-32 shrink-0 font-semibold text-slate-500">{label}</span>
             <span className="text-slate-800">{value}</span>
           </div>
         ))}
       </div>
-
-      <div className="rounded-xl border border-[#003768]/10 bg-[#f3f8ff] p-4">
+      <InfoBox>
         <label className="flex items-start gap-3 cursor-pointer">
           <input type="checkbox" checked={data.agreedToTerms}
             onChange={e => onChange("agreedToTerms", e.target.checked)}
@@ -465,25 +529,21 @@ function Step4({ data, onChange, onBack, onSubmit, submitting, error }: {
             <a href="/partner/terms" target="_blank" className="font-semibold text-[#003768] underline">
               Camel Global Partner Terms & Conditions
             </a>{" "}
-            and confirm that all information provided is accurate.
+            and confirm all information is accurate.
           </span>
         </label>
-      </div>
-
+      </InfoBox>
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
         <p className="font-semibold">What happens next?</p>
-        <p className="mt-1">Your application will be reviewed by our team. You'll receive an email confirmation shortly, and we'll be in touch once your account has been approved.</p>
+        <p className="mt-1">Your application will be reviewed by our team. You will receive an email confirmation shortly, and we will be in touch once your account has been approved.</p>
       </div>
-
       <div className="flex gap-3">
         <button type="button" onClick={onBack}
-          className="flex-1 rounded-full border border-black/10 py-4 font-semibold text-[#003768] hover:bg-black/5 transition-colors">
-          ← Back
-        </button>
+          className="flex-1 rounded-full border border-black/10 py-4 font-semibold text-[#003768] hover:bg-black/5">Back</button>
         <button type="button" onClick={onSubmit}
           disabled={!data.agreedToTerms || submitting}
-          className="flex-[2] rounded-full bg-[#ff7a00] py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(255,122,0,0.3)] hover:opacity-95 disabled:opacity-50 transition-opacity">
-          {submitting ? "Submitting…" : "Create my account"}
+          className="flex-[2] rounded-full bg-[#ff7a00] py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(255,122,0,0.3)] hover:opacity-95 disabled:opacity-50">
+          {submitting ? "Submitting..." : "Create my account"}
         </button>
       </div>
     </div>
@@ -504,9 +564,11 @@ export default function PartnerSignupPage() {
   }
 
   async function submit() {
-    setSubmitting(true);
-    setError("");
+    setSubmitting(true); setError("");
     try {
+      const fleetAddress = [data.fleetAddress1, data.fleetAddress2, data.fleetCity, data.fleetProvince, data.fleetPostcode, data.fleetCountry].filter(Boolean).join(", ");
+      const bizAddress = [data.address1, data.address2, data.city, data.province, data.postcode, data.country].filter(Boolean).join(", ");
+
       const res = await fetch("/api/partner/complete-signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -525,10 +587,16 @@ export default function PartnerSignupPage() {
           country: data.country,
           addressLat: data.addressLat,
           addressLng: data.addressLng,
-          // Fleet address not required at signup — set after approval
-          baseAddress: [data.address1, data.city, data.country].filter(Boolean).join(", "),
-          baseLat: data.addressLat,
-          baseLng: data.addressLng,
+          address: bizAddress,
+          baseAddress: fleetAddress,
+          baseAddress1: data.fleetAddress1,
+          baseAddress2: data.fleetAddress2,
+          baseCity: data.fleetCity,
+          baseProvince: data.fleetProvince,
+          basePostcode: data.fleetPostcode,
+          baseCountry: data.fleetCountry,
+          baseLat: data.fleetLat,
+          baseLng: data.fleetLng,
         }),
       });
       const json = await res.json().catch(() => null);
@@ -536,7 +604,7 @@ export default function PartnerSignupPage() {
       router.replace("/partner/application-submitted");
     } catch (e: any) {
       setError(e?.message || "Something went wrong. Please try again.");
-      setStep(4);
+      setStep(5);
     } finally {
       setSubmitting(false);
     }
@@ -545,40 +613,30 @@ export default function PartnerSignupPage() {
   return (
     <div className="min-h-screen bg-[#f7f9fc]">
       <header className="fixed inset-x-0 top-0 z-40 h-20 bg-[#0f4f8a] shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
-        <div className="flex h-full items-center px-4 md:px-8">
+        <div className="flex h-full items-center px-6 md:px-12">
           <Link href="/partner/login">
             <Image src="/camel-logo.png" alt="Camel Global" width={160} height={54} priority className="h-[48px] w-auto" />
           </Link>
         </div>
       </header>
 
-      <div className="mx-auto max-w-xl px-4 pt-28 pb-16">
-        <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <ProgressBar step={step} total={4} />
+      <div className="pt-28 pb-16 px-4 sm:px-8 md:px-16 lg:px-24">
+        <div className="max-w-4xl mx-auto">
+          <div className="rounded-3xl border border-black/5 bg-white p-8 md:p-12 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+            <ProgressBar step={step} total={5} />
 
-          {step === 1 && (
-            <Step1 data={data} onChange={(k, v) => setField(k, v)}
-              onNext={() => { setError(""); setStep(2); }} error={error} />
-          )}
-          {step === 2 && (
-            <Step2 data={data} onChange={(k, v) => setField(k, v)}
-              onNext={() => { setError(""); setStep(3); }} onBack={() => setStep(1)} />
-          )}
-          {step === 3 && (
-            <Step3 data={data} onChange={(k, v) => setField(k, v as string)}
-              onNext={() => { setError(""); setStep(4); }} onBack={() => setStep(2)} />
-          )}
-          {step === 4 && (
-            <Step4 data={data} onChange={(k, v) => setField(k, v as boolean)}
-              onBack={() => setStep(3)} onSubmit={submit}
-              submitting={submitting} error={error} />
-          )}
+            {step === 1 && <Step1 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(2); }} error={error} />}
+            {step === 2 && <Step2 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(3); }} onBack={() => setStep(1)} />}
+            {step === 3 && <Step3 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(4); }} onBack={() => setStep(2)} />}
+            {step === 4 && <Step4 data={data} onChange={(k, v) => setField(k, v as string)} onNext={() => { setError(""); setStep(5); }} onBack={() => setStep(3)} />}
+            {step === 5 && <Step5 data={data} onChange={(k, v) => setField(k, v as boolean)} onBack={() => setStep(4)} onSubmit={submit} submitting={submitting} error={error} />}
+          </div>
+
+          <p className="mt-6 text-center text-sm text-slate-500">
+            Already have an account?{" "}
+            <Link href="/partner/login" className="font-semibold text-[#003768] hover:underline">Sign in</Link>
+          </p>
         </div>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Already have an account?{" "}
-          <Link href="/partner/login" className="font-semibold text-[#003768] hover:underline">Sign in</Link>
-        </p>
       </div>
     </div>
   );
