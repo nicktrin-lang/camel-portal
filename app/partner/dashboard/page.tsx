@@ -132,6 +132,7 @@ export default function PartnerDashboardPage() {
         setBookings(Array.isArray(bkJson?.data) ? bkJson.data.slice(0, 5) : []);
         setRequests(Array.isArray(reqJson?.data) ? reqJson.data.slice(0, 5) : []);
         setDriverCount(Array.isArray(drvJson?.data) ? drvJson.data.filter((d: any) => d.is_active).length : 0);
+        setFleetCount(Array.isArray(fleetRes?.data) ? fleetRes.data.length : 0);
       } catch (e: any) {
         if (!mounted) return;
         setError(e?.message || "Failed to load dashboard.");
