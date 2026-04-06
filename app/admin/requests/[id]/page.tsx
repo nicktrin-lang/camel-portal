@@ -36,6 +36,7 @@ type BidRow = {
   status: string;
   created_at: string;
   partner_company_name: string | null;
+  currency: string | null;
   partner_contact_name: string | null;
   partner_phone: string | null;
   partner_address: string | null;
@@ -57,6 +58,7 @@ function fmtDateTime(value?: string | null) {
 
 function fmtDuration(minutes?: number | null) {
   if (minutes === null || minutes === undefined || Number.isNaN(minutes)) return "—";
+  if (minutes >= 1440) return `${Math.ceil(minutes / 1440)} day${Math.ceil(minutes / 1440) === 1 ? "" : "s"}`;
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -239,9 +241,9 @@ export default function AdminRequestDetailPage({
                     <p><span className="font-semibold text-slate-900">Phone:</span> {bid.partner_phone || "—"}</p>
                     <p><span className="font-semibold text-slate-900">Address:</span> {bid.partner_address || "—"}</p>
                     <p><span className="font-semibold text-slate-900">Vehicle:</span> {bid.vehicle_category_name}</p>
-                    <p><span className="font-semibold text-slate-900">Car hire:</span> {bid.car_hire_price}</p>
-                    <p><span className="font-semibold text-slate-900">Fuel:</span> {bid.fuel_price}</p>
-                    <p><span className="font-semibold text-slate-900">Total:</span> {bid.total_price}</p>
+                    <p><span className="font-semibold text-slate-900">Car hire:</span> {bid.currency} {bid.car_hire_price?.toFixed(2)}</p>
+                    <p><span className="font-semibold text-slate-900">Fuel:</span> {bid.currency} {bid.fuel_price?.toFixed(2)}</p>
+                    <p><span className="font-semibold text-slate-900">Total:</span> {bid.currency} {bid.total_price?.toFixed(2)}</p>
                     <p><span className="font-semibold text-slate-900">Full insurance:</span> {bid.full_insurance_included ? "Yes" : "No"}</p>
                     <p><span className="font-semibold text-slate-900">Full tank:</span> {bid.full_tank_included ? "Yes" : "No"}</p>
                     <p><span className="font-semibold text-slate-900">Notes:</span> {bid.notes || "—"}</p>
