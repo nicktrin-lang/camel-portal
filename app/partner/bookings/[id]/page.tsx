@@ -94,13 +94,13 @@ function Amt({ amount, stored, rates }: {
   rates: Rates;
 }) {
   if (amount == null || isNaN(amount)) return <span>—</span>;
-  const secondary: Currency = stored === "EUR" ? "GBP" : "EUR";
+  const sec1: Currency = stored === "USD" ? "EUR" : stored === "GBP" ? "EUR" : "GBP";
+  const sec2: Currency = stored === "EUR" ? "USD" : stored === "GBP" ? "USD" : "GBP";
   const inEur = toEur(amount, stored, rates);
-  const secondaryAmt = fromEur(inEur, secondary, rates);
   return (
     <span>
       {fmtCurr(amount, stored)}{" "}
-      <span className="opacity-60 text-[0.85em] font-normal">({fmtCurr(secondaryAmt, secondary)})</span>
+      <span className="opacity-60 text-[0.85em] font-normal">({fmtCurr(fromEur(inEur, sec1, rates), sec1)} · {fmtCurr(fromEur(inEur, sec2, rates), sec2)})</span>
     </span>
   );
 }
@@ -720,6 +720,7 @@ export default function PartnerBookingDetailPage() {
     </div>
   );
 }
+
 
 
 
