@@ -123,6 +123,8 @@ export default function AdminApprovalDetailPage() {
   const [profile, setProfile] = useState<PartnerProfile | null>(null);
   const [fleet, setFleet] = useState<FleetRow[]>([]);
   const [drivers, setDrivers] = useState<DriverRow[]>([]);
+  const [bizLat, setBizLat] = useState<number | null>(null);
+  const [bizLng, setBizLng] = useState<number | null>(null);
 
   async function load() {
     setLoading(true); setError(null);
@@ -141,10 +143,23 @@ export default function AdminApprovalDetailPage() {
       const json = await safeJson(res);
       if (!res.ok) throw new Error(json?.error || json?._raw || "Failed to load partner detail.");
 
-      setApplication((json?.application || null) as PartnerApplication | null);
-      setProfile((json?.profile || null) as PartnerProfile | null);
+      const app = (json?.application || null) as PartnerApplication | null;
+      const prof = (json?.profile || null) as PartnerProfile | null;
+      setApplication(app);
+      setProfile(prof);
       setFleet(Array.isArray(json?.fleet) ? json.fleet : []);
       setDrivers(Array.isArray(json?.drivers) ? json.drivers : []);
+
+      // Geocode business address for map
+      const bizAddr = app?.address || prof?.address || [app?.address1, app?.address2, app?.province, app?.postcode, app?.country].filter(Boolean).join(", ");
+      if (bizAddr) {
+        try {
+          const geoRes = await fetch(`/api/maps/search?q=${encodeURIComponent(bizAddr)}`, { cache: "no-store" });
+          const geoJson = await geoRes.json().catch(() => null);
+          const first = geoJson?.data?.[0];
+          if (first?.lat && first?.lng) { setBizLat(first.lat); setBizLng(first.lng); }
+        } catch {}
+      }
     } catch (e: any) {
       setError(e?.message || "Failed to load partner detail.");
     } finally {
