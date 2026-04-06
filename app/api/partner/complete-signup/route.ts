@@ -153,16 +153,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Country is required." }, { status: 400 });
     }
 
-    if (!baseAddress) {
-      return NextResponse.json({ error: "Car fleet address is required." }, { status: 400 });
-    }
-
-    if (baseLat === null || baseLng === null) {
-      return NextResponse.json(
-        { error: "Car fleet latitude and longitude must be valid numbers." },
-        { status: 400 }
-      );
-    }
+    // Fleet address is optional at signup — set after approval in activation checklist
 
     const db = createServiceRoleSupabaseClient();
 
