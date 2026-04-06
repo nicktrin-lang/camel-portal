@@ -309,7 +309,7 @@ function CustomerPaymentSummary({ booking, rates, rateIsLive, customerCurrency }
         rateIsLive ? "bg-green-400/20 text-green-200" : "bg-white/10 text-white/70"
       }`}>
         <span className={`h-2.5 w-2.5 rounded-full ${rateIsLive ? "bg-green-400" : "bg-white/40"}`} />
-        1€ = {gbpStr(rates.GBP)}{rateIsLive ? " · Live rate (frankfurter.app)" : ""}
+        1€ = {gbpStr(rates.GBP)} · 1€ = ${ new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(rates.USD)}{rateIsLive ? " · Live rate (frankfurter.app)" : ""}
       </div>
     </div>
   );
@@ -399,8 +399,8 @@ export default function TestBookingRequestDetailPage({
   const [rateIsLive, setRateIsLive] = useState(false);
 
   useEffect(() => {
-    getEurToGbpRateWithSource().then(({ rate: r, live }) => {
-      setLiveRates(prev => ({ ...prev, GBP: r }));
+    fetch("/api/currency/rate", { cache: "no-store" }).then(r => r.json()).then(({ rates, live }) => {
+      setLiveRates({ GBP: Number(rates?.GBP) || 0.85, USD: Number(rates?.USD) || 1.08 });
       setRateIsLive(live);
     }).catch(() => {});
   }, []);
