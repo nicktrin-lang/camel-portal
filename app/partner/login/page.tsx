@@ -84,7 +84,7 @@ function PartnerLoginInner() {
             .limit(1)
             .maybeSingle();
           const status = String(app?.status || "").toLowerCase();
-          if (status === "live") {
+          if (status === "live" || status === "approved") {
             router.replace("/partner/dashboard");
             router.refresh();
             return;
