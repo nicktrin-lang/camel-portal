@@ -154,11 +154,11 @@ export default function PartnerFleetPage() {
     setOk(null);
 
     try {
+      const { data: { user: fleetUser } } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("partner_fleet")
         .update({ is_active: nextValue })
-        .eq("id", id);
-
+        .eq("id", id).eq("user_id", fleetUser?.id ?? "");
       if (error) throw error;
 
       const liveRefresh = await triggerPartnerLiveRefresh();
@@ -184,7 +184,7 @@ export default function PartnerFleetPage() {
     setOk(null);
 
     try {
-      const { error } = await supabase.from("partner_fleet").delete().eq("id", id);
+      const { error } = await supabase.from("partner_fleet").delete().eq("id", id).eq("user_id", userData?.user?.id ?? "");
 
       if (error) throw error;
 
