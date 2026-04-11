@@ -647,7 +647,7 @@ function StepGoLive({ profile, fleetCount, driverCount, onBack }: {
           <div className="rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
             <p className="text-2xl mb-2">🎉</p>
             <p className="font-bold text-green-800 text-lg">You are all set!</p>
-            <p className="text-sm text-green-700 mt-1">Your account is ready. The Camel Global team will review and activate you shortly. You will receive an email once you are live.</p>
+            <p className="text-sm text-green-700 mt-1">Your account is now live! You will start receiving customer booking requests within your service radius immediately.</p>
           </div>
         ) : (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
