@@ -184,7 +184,8 @@ export default function PartnerFleetPage() {
     setOk(null);
 
     try {
-      const { error } = await supabase.from("partner_fleet").delete().eq("id", id).eq("user_id", userData?.user?.id ?? "");
+      const { data: { user: fleetUser2 } } = await supabase.auth.getUser();
+      const { error } = await supabase.from("partner_fleet").delete().eq("id", id).eq("user_id", fleetUser2?.id ?? "");
 
       if (error) throw error;
 
