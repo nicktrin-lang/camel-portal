@@ -89,7 +89,7 @@ function PartnerLoginInner() {
           const status = String(app?.status || "").toLowerCase();
           const fleetRes = await supabase.from("partner_fleet").select("id").eq("user_id", user.id).eq("is_active", true).limit(1);
           const hasFleet = (fleetRes.data?.length ?? 0) > 0;
-          const isLive = status === "live" || !!app?.live_email_sent_at || (status === "approved" && !!prof?.base_lat && !!prof?.base_lng && !!prof?.default_currency && hasFleet);
+          const isLive = (status === "approved" || status === "live") && !!prof?.base_lat && !!prof?.base_lng && hasFleet;
           if (isLive) {
             router.replace("/partner/dashboard");
             router.refresh();
