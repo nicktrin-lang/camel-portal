@@ -78,13 +78,13 @@ function PartnerLoginInner() {
         if (user) {
           const { data: app } = await supabase
             .from("partner_applications")
-            .select("status")
+            .select("status,live_email_sent_at")
             .eq("email", email.trim().toLowerCase())
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
           const status = String(app?.status || "").toLowerCase();
-          if (status === "live") {
+          if (status === "live" || !!app?.live_email_sent_at) {
             router.replace("/partner/dashboard");
             router.refresh();
             return;
