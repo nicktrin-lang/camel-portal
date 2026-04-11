@@ -37,6 +37,22 @@ type RequestRow = {
   expires_at: string | null;
 };
 
+type LiveStatus = {
+  isLive: boolean;
+  missing: string[];
+};
+
+const MISSING_LABELS: Record<string, { label: string; href: string }> = {
+  service_radius_km: { label: "Service radius not set",            href: "/partner/profile" },
+  base_address:      { label: "Fleet base address missing",        href: "/partner/profile" },
+  base_location:     { label: "Fleet base map pin missing",        href: "/partner/profile" },
+  base_lat:          { label: "Fleet base location missing",       href: "/partner/profile" },
+  base_lng:          { label: "Fleet base location missing",       href: "/partner/profile" },
+  fleet:             { label: "No active fleet vehicles added",    href: "/partner/fleet" },
+  driver:            { label: "No active drivers added",           href: "/partner/drivers" },
+  default_currency:  { label: "Billing currency not set",         href: "/partner/profile" },
+};
+
 function fmtDateTime(iso?: string | null) {
   if (!iso) return "—";
   try { return new Date(iso).toLocaleString(); } catch { return iso ?? "—"; }
@@ -80,15 +96,16 @@ export default function PartnerDashboardPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [appStatus, setAppStatus] = useState("pending");
-  const [email, setEmail] = useState("");
-  const [bookings, setBookings] = useState<BookingRow[]>([]);
-  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState<string | null>(null);
+  const [profile,     setProfile]     = useState<Profile | null>(null);
+  const [appStatus,   setAppStatus]   = useState("pending");
+  const [email,       setEmail]       = useState("");
+  const [bookings,    setBookings]    = useState<BookingRow[]>([]);
+  const [requests,    setRequests]    = useState<RequestRow[]>([]);
   const [driverCount, setDriverCount] = useState(0);
-  const [fleetCount, setFleetCount] = useState(0);
+  const [fleetCount,  setFleetCount]  = useState(0);
+  const [liveStatus,  setLiveStatus]  = useState<LiveStatus | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -120,7 +137,7 @@ export default function PartnerDashboardPage() {
           supabase.from("partner_fleet").select("id").eq("user_id", user.id).eq("is_active", true),
         ]);
 
-        const bkJson = await safeJson(bkRes);
+        const bkJson  = await safeJson(bkRes);
         const reqJson = await safeJson(reqRes);
         const drvJson = await safeJson(drvRes);
 
@@ -133,6 +150,23 @@ export default function PartnerDashboardPage() {
         setRequests(Array.isArray(reqJson?.data) ? reqJson.data.slice(0, 5) : []);
         setDriverCount(Array.isArray(drvJson?.data) ? drvJson.data.filter((d: any) => d.is_active).length : 0);
         setFleetCount(Array.isArray(fleetRes?.data) ? fleetRes.data.length : 0);
+
+        // Fetch live status
+        try {
+          const liveRes = await fetch("/api/partner/refresh-live-status", {
+            method: "POST", cache: "no-store", credentials: "include",
+          });
+          if (liveRes.ok) {
+            const liveJson = await liveRes.json();
+            if (mounted) {
+              setLiveStatus({
+                isLive: !!(liveJson?.becameLive || liveJson?.alreadyLive),
+                missing: Array.isArray(liveJson?.missing) ? liveJson.missing : [],
+              });
+            }
+          }
+        } catch {}
+
       } catch (e: any) {
         if (!mounted) return;
         setError(e?.message || "Failed to load dashboard.");
@@ -153,10 +187,9 @@ export default function PartnerDashboardPage() {
 
   const isApproved = appStatus.toLowerCase() === "approved";
 
-  // Booking stats
-  const activeBookings = bookings.filter(b => ["confirmed","driver_assigned","en_route","arrived","collected","returned"].includes(String(b.booking_status||"").toLowerCase()));
+  const activeBookings    = bookings.filter(b => ["confirmed","driver_assigned","en_route","arrived","collected","returned"].includes(String(b.booking_status||"").toLowerCase()));
   const completedBookings = bookings.filter(b => String(b.booking_status||"").toLowerCase() === "completed");
-  const openRequests = requests.filter(r => String(r.status||"").toLowerCase() === "open");
+  const openRequests      = requests.filter(r => String(r.status||"").toLowerCase() === "open");
 
   return (
     <div className="space-y-6">
@@ -180,7 +213,36 @@ export default function PartnerDashboardPage() {
         </div>
       </div>
 
-      {/* Pending banner */}
+      {/* Live status banner */}
+      {liveStatus && !liveStatus.isLive && (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">⚠️</span>
+            <div className="flex-1">
+              <p className="font-semibold text-amber-800">Your account is not yet live</p>
+              <p className="mt-1 text-sm text-amber-700">Complete the following to start receiving customer requests:</p>
+              {liveStatus.missing.length > 0 && (
+                <ul className="mt-3 flex flex-wrap gap-2">
+                  {liveStatus.missing.map(m => {
+                    const info = MISSING_LABELS[m] ?? { label: m, href: "/partner/profile" };
+                    return (
+                      <li key={m}>
+                        <a href={info.href}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 transition-colors">
+                          <span className="text-amber-500">→</span>
+                          {info.label}
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pending approval banner */}
       {!isApproved && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <span className="font-semibold">Your account is under review.</span> You will receive an email once approved. In the meantime you can complete your profile, add your fleet and drivers.
@@ -216,8 +278,8 @@ export default function PartnerDashboardPage() {
         {[
           { label: "📋 View Requests", href: "/partner/requests", primary: true },
           { label: "📅 View Bookings", href: "/partner/bookings", primary: false },
-          { label: "📊 Reports", href: "/partner/reports", primary: false },
-          { label: "✏️ Edit Profile", href: "/partner/profile", primary: false },
+          { label: "📊 Reports",       href: "/partner/reports",  primary: false },
+          { label: "✏️ Edit Profile",  href: "/partner/profile",  primary: false },
         ].map(({ label, href, primary }) => (
           <Link key={href} href={href}
             className={`rounded-2xl px-4 py-3 text-center text-sm font-semibold transition-opacity hover:opacity-90 ${
@@ -295,18 +357,18 @@ export default function PartnerDashboardPage() {
         </div>
       </div>
 
-      {/* Account summary + quick setup */}
+      {/* Account summary + setup checklist + navigation */}
       <div className="grid gap-6 xl:grid-cols-3">
         {/* Account summary */}
         <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <h2 className="text-xl font-semibold text-[#003768]">Account Summary</h2>
           <div className="mt-4 space-y-3 text-sm">
             {[
-              { label: "Email", value: email },
-              { label: "Company", value: profile?.company_name || "—" },
-              { label: "Contact", value: profile?.contact_name || "—" },
+              { label: "Email",          value: email },
+              { label: "Company",        value: profile?.company_name || "—" },
+              { label: "Contact",        value: profile?.contact_name || "—" },
               { label: "Service Radius", value: profile?.service_radius_km ? `${profile.service_radius_km} km` : "—" },
-              { label: "Country", value: profile?.country || "—" },
+              { label: "Country",        value: profile?.country || "—" },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between gap-2">
                 <span className="text-slate-500 shrink-0">{label}</span>
@@ -326,12 +388,11 @@ export default function PartnerDashboardPage() {
           <p className="mt-1 text-xs text-slate-500">Complete these steps to start receiving bookings.</p>
           <div className="mt-4 space-y-3">
             {[
-              { label: "Fleet location set", done: !!(profile?.base_lat && profile?.base_lng), href: "/partner/onboarding" },
-              { label: "Bidding currency set", done: !!(profile?.default_currency), href: "/partner/onboarding" },
-              { label: "Account approved", done: isApproved, href: "/partner/account" },
-              { label: "Drivers added", done: driverCount > 0, href: "/partner/onboarding" },
-              { label: "Fleet added", done: fleetCount > 0, href: "/partner/onboarding" },
-              
+              { label: "Fleet location set",   done: !!(profile?.base_lat && profile?.base_lng), href: "/partner/profile" },
+              { label: "Bidding currency set",  done: !!(profile?.default_currency),              href: "/partner/profile" },
+              { label: "Account approved",      done: isApproved,                                 href: "/partner/account" },
+              { label: "Drivers added",         done: driverCount > 0,                            href: "/partner/drivers" },
+              { label: "Fleet added",           done: fleetCount > 0,                             href: "/partner/fleet" },
             ].map(({ label, done, href }) => (
               <Link key={label} href={href}
                 className="flex items-center gap-3 rounded-xl border border-black/5 bg-slate-50 px-3 py-2.5 hover:bg-[#f3f8ff] transition-colors">
@@ -353,11 +414,11 @@ export default function PartnerDashboardPage() {
           <div className="mt-4 space-y-2">
             {[
               { label: "📋 Requests", desc: "View & bid on customer requests", href: "/partner/requests" },
-              { label: "📅 Bookings", desc: "Manage confirmed bookings", href: "/partner/bookings" },
-              { label: "📊 Reports", desc: "Revenue & fuel reconciliation", href: "/partner/reports" },
-              { label: "🚗 Car Fleet", desc: "Manage your vehicles", href: "/partner/fleet" },
-              { label: "👤 Drivers", desc: "Manage your drivers", href: "/partner/drivers" },
-              { label: "⚙️ Account", desc: "Profile, rules & settings", href: "/partner/account" },
+              { label: "📅 Bookings", desc: "Manage confirmed bookings",        href: "/partner/bookings" },
+              { label: "📊 Reports",  desc: "Revenue & fuel reconciliation",    href: "/partner/reports" },
+              { label: "🚗 Car Fleet", desc: "Manage your vehicles",            href: "/partner/fleet" },
+              { label: "👤 Drivers",  desc: "Manage your drivers",              href: "/partner/drivers" },
+              { label: "⚙️ Account",  desc: "Profile, rules & settings",        href: "/partner/account" },
             ].map(({ label, desc, href }) => (
               <Link key={href} href={href}
                 className="flex items-center justify-between rounded-xl border border-black/5 bg-slate-50 px-3 py-2.5 hover:bg-[#f3f8ff] transition-colors">

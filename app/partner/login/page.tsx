@@ -59,64 +59,22 @@ function PartnerLoginInner() {
       const { error: signInError } = await Promise.race([signInPromise, timeoutPromise]);
       if (signInError) throw signInError;
 
-      // Check if admin
-      let nextRole = "partner";
+      // Check if admin — send to admin portal
       try {
         const meRes = await fetch("/api/admin/me", { cache: "no-store", credentials: "include" });
-        if (meRes.ok) { const meJson = await safeJson(meRes); nextRole = meJson?.role || "partner"; }
-      } catch { nextRole = "partner"; }
-
-      if (nextRole === "admin" || nextRole === "super_admin") {
-        router.replace("/admin/approvals");
-        router.refresh();
-        return;
-      }
-
-      // Check if partner is already live — if so skip onboarding
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: app } = await supabase
-            .from("partner_applications")
-            .select("status,live_email_sent_at")
-            .eq("email", email.trim().toLowerCase())
-            .order("created_at", { ascending: false })
-            .limit(1).maybeSingle();
-          const { data: prof } = await supabase
-            .from("partner_profiles")
-            .select("base_lat,base_lng")
-            .eq("user_id", user.id).maybeSingle();
-          const status = String(app?.status || "").toLowerCase();
-          const fleetRes = await supabase.from("partner_fleet").select("id").eq("user_id", user.id).eq("is_active", true).limit(1);
-          const hasFleet = (fleetRes.data?.length ?? 0) > 0;
-          const isLive = (status === "approved" || status === "live") && !!prof?.base_lat && !!prof?.base_lng && hasFleet;
-          if (isLive) {
-            router.replace("/partner/dashboard");
+        if (meRes.ok) {
+          const meJson = await safeJson(meRes);
+          const role = meJson?.role || "";
+          if (role === "admin" || role === "super_admin") {
+            router.replace("/admin/approvals");
             router.refresh();
             return;
           }
         }
-      } catch { }
+      } catch {}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      router.replace("/partner/onboarding");
+      // Everyone else goes to dashboard — live status and setup checklist handled there
+      router.replace("/partner/dashboard");
       router.refresh();
     } catch (e: any) {
       setError(e?.message || "Login failed. Please try again.");
