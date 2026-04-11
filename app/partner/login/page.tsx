@@ -81,16 +81,38 @@ function PartnerLoginInner() {
             .select("status,live_email_sent_at")
             .eq("email", email.trim().toLowerCase())
             .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .limit(1).maybeSingle();
+          const { data: prof } = await supabase
+            .from("partner_profiles")
+            .select("base_lat,base_lng")
+            .eq("user_id", user.id).maybeSingle();
           const status = String(app?.status || "").toLowerCase();
-          if (status === "live" || !!app?.live_email_sent_at) {
+          const isLive = status === "live" || !!app?.live_email_sent_at || (status === "approved" && !!prof?.base_lat && !!prof?.base_lng);
+          if (isLive) {
             router.replace("/partner/dashboard");
             router.refresh();
             return;
           }
         }
-      } catch { /* fall through to onboarding */ }
+      } catch { }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
       router.replace("/partner/onboarding");
       router.refresh();
