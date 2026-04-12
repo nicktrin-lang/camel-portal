@@ -24,11 +24,9 @@ type DriverJob = {
 type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
 
 const FUEL_OPTIONS: FuelLevel[] = ["full", "3/4", "half", "quarter", "empty"];
-
 const FUEL_LABELS: Record<FuelLevel, string> = {
   full: "Full", "3/4": "¾ Tank", half: "½ Tank", quarter: "¼ Tank", empty: "Empty",
 };
-
 const FUEL_BARS: Record<FuelLevel, number> = {
   full: 4, "3/4": 3, half: 2, quarter: 1, empty: 0,
 };
@@ -37,16 +35,12 @@ function FuelBar({ level }: { level: FuelLevel }) {
   const filled = FUEL_BARS[level] ?? 0;
   return (
     <div className="flex gap-1">
-      {[0, 1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className={[
-            "h-3 flex-1 rounded-full",
-            i < filled
-              ? filled >= 3 ? "bg-green-500" : filled === 2 ? "bg-yellow-400" : "bg-red-400"
-              : "bg-slate-200",
-          ].join(" ")}
-        />
+      {[0, 1, 2, 3].map(i => (
+        <div key={i} className={`h-3 flex-1 rounded-full ${
+          i < filled
+            ? filled >= 3 ? "bg-green-500" : filled === 2 ? "bg-yellow-400" : "bg-red-400"
+            : "bg-slate-200"
+        }`} />
       ))}
     </div>
   );
@@ -58,149 +52,13 @@ function fmt(v?: string | null) {
   catch { return v; }
 }
 
-function StatusPill({ label }: { label: string }) {
-  const colours: Record<string, string> = {
-    "Awaiting delivery": "bg-blue-100 text-blue-800",
-    "On Hire": "bg-orange-100 text-orange-800",
-    "Completed": "bg-green-100 text-green-800",
-  };
-  return (
-    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${colours[label] ?? "bg-slate-100 text-slate-700"}`}>
-      {label}
-    </span>
-  );
-}
-
-function JobCard({
-  job, mode, fuelInput, onFuelChange, onConfirm, saving,
-}: {
-  job: DriverJob;
-  mode: "collection" | "return" | "readonly";
-  fuelInput: FuelLevel;
-  onFuelChange: (v: FuelLevel) => void;
-  onConfirm: () => void;
-  saving: boolean;
-}) {
-  const [expanded, setExpanded] = useState(mode !== "readonly");
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
-      {/* Header — always visible */}
-      <button
-        type="button"
-        onClick={() => setExpanded((p) => !p)}
-        className="flex w-full items-center justify-between gap-3 p-4 text-left"
-      >
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <span className="text-base font-bold text-[#003768]">
-              Job #{job.job_number ?? "—"}
-            </span>
-            <StatusPill label={job.booking_status_label} />
-          </div>
-          <span className="text-sm text-slate-600 line-clamp-1">
-            {job.pickup_address ?? "—"}
-          </span>
-          <span className="text-xs text-slate-400">{fmt(job.pickup_at)}</span>
-        </div>
-        <svg
-          viewBox="0 0 24 24" className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
-          fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
-
-      {expanded && (
-        <div className="border-t border-black/5 px-4 pb-5 pt-4 space-y-5">
-          {/* Journey details */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Detail label="Customer" value={job.customer_name} />
-            <Detail label="Customer phone" value={job.customer_phone} phone />
-            <Detail label="Vehicle" value={job.vehicle_category_name} />
-            <Detail label="Driver vehicle" value={job.driver_vehicle} />
-            <Detail label="Pickup" value={job.pickup_address} />
-            <Detail label="Dropoff" value={job.dropoff_address} />
-            <Detail label="Pickup time" value={fmt(job.pickup_at)} />
-            <Detail label="Dropoff time" value={fmt(job.dropoff_at)} />
-          </div>
-
-          {/* Fuel status summary */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FuelSummaryCard
-              title="Collection fuel"
-              confirmed={!!job.collection_confirmed_by_driver}
-              confirmedAt={job.collection_confirmed_by_driver_at}
-              fuelLevel={job.collection_fuel_level_driver as FuelLevel | null}
-            />
-            <FuelSummaryCard
-              title="Return fuel"
-              confirmed={!!job.return_confirmed_by_driver}
-              confirmedAt={job.return_confirmed_by_driver_at}
-              fuelLevel={job.return_fuel_level_driver as FuelLevel | null}
-            />
-          </div>
-
-          {/* Action area */}
-          {mode !== "readonly" && (
-            <div className="rounded-2xl bg-slate-50 p-4 space-y-4">
-              <p className="text-sm font-semibold text-[#003768]">
-                {mode === "collection" ? "Record collection fuel level" : "Record return fuel level"}
-              </p>
-
-              {/* Fuel selector */}
-              <div className="grid grid-cols-5 gap-2">
-                {FUEL_OPTIONS.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => onFuelChange(opt)}
-                    className={[
-                      "flex flex-col items-center gap-1 rounded-xl border-2 p-2 text-xs font-semibold transition",
-                      fuelInput === opt
-                        ? "border-[#003768] bg-[#003768] text-white"
-                        : "border-black/10 bg-white text-slate-700 hover:border-[#003768]/40",
-                    ].join(" ")}
-                  >
-                    <span className="text-base leading-none">
-                      {opt === "full" ? "F" : opt === "3/4" ? "¾" : opt === "half" ? "½" : opt === "quarter" ? "¼" : "E"}
-                    </span>
-                    <span className="hidden sm:block">{FUEL_LABELS[opt]}</span>
-                  </button>
-                ))}
-              </div>
-
-              <FuelBar level={fuelInput} />
-
-              <button
-                type="button"
-                onClick={onConfirm}
-                disabled={saving}
-                className="w-full rounded-full bg-[#ff7a00] py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60 active:scale-95 transition-transform"
-              >
-                {saving
-                  ? "Saving…"
-                  : mode === "collection"
-                  ? "✓ Confirm Collection"
-                  : "✓ Confirm Return"}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Detail({ label, value, phone }: { label: string; value?: string | null; phone?: boolean }) {
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      {phone && value ? (
-        <a href={`tel:${value}`} className="text-sm font-medium text-[#003768] underline">{value}</a>
-      ) : (
-        <p className="text-sm font-medium text-slate-800">{value || "—"}</p>
-      )}
+      {phone && value
+        ? <a href={`tel:${value}`} className="text-sm font-medium text-[#003768] underline">{value}</a>
+        : <p className="text-sm font-medium text-slate-800">{value || "—"}</p>}
     </div>
   );
 }
@@ -217,15 +75,93 @@ function FuelSummaryCard({ title, confirmed, confirmedAt, fuelLevel }: {
         </span>
       </div>
       {confirmed && fuelLevel && <div className="mt-2"><FuelBar level={fuelLevel} /></div>}
-      {confirmed && confirmedAt && (
-        <p className="mt-1 text-xs text-slate-400">{fmt(confirmedAt)}</p>
+      {confirmed && confirmedAt && <p className="mt-1 text-xs text-slate-400">{fmt(confirmedAt)}</p>}
+    </div>
+  );
+}
+
+function JobCard({ job, mode, fuelInput, onFuelChange, onConfirm, saving }: {
+  job: DriverJob; mode: "collection" | "return" | "readonly";
+  fuelInput: FuelLevel; onFuelChange: (v: FuelLevel) => void;
+  onConfirm: () => void; saving: boolean;
+}) {
+  const [expanded, setExpanded] = useState(mode !== "readonly");
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
+      <button type="button" onClick={() => setExpanded(p => !p)}
+        className="flex w-full items-center justify-between gap-3 p-4 text-left">
+        <div className="flex flex-col gap-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-base font-bold text-[#003768]">Job #{job.job_number ?? "—"}</span>
+          </div>
+          <span className="text-sm text-slate-600 truncate">{job.pickup_address ?? "—"}</span>
+          <span className="text-xs text-slate-400">{fmt(job.pickup_at)}</span>
+        </div>
+        <svg viewBox="0 0 24 24" className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+          fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-black/5 px-4 pb-5 pt-4 space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Detail label="Customer"       value={job.customer_name} />
+            <Detail label="Customer phone" value={job.customer_phone} phone />
+            <Detail label="Vehicle"        value={job.vehicle_category_name} />
+            <Detail label="Driver vehicle" value={job.driver_vehicle} />
+            <Detail label="Pickup"         value={job.pickup_address} />
+            <Detail label="Dropoff"        value={job.dropoff_address} />
+            <Detail label="Pickup time"    value={fmt(job.pickup_at)} />
+            <Detail label="Dropoff time"   value={fmt(job.dropoff_at)} />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FuelSummaryCard title="Collection fuel" confirmed={!!job.collection_confirmed_by_driver}
+              confirmedAt={job.collection_confirmed_by_driver_at}
+              fuelLevel={job.collection_fuel_level_driver as FuelLevel | null} />
+            <FuelSummaryCard title="Return fuel" confirmed={!!job.return_confirmed_by_driver}
+              confirmedAt={job.return_confirmed_by_driver_at}
+              fuelLevel={job.return_fuel_level_driver as FuelLevel | null} />
+          </div>
+
+          {mode !== "readonly" && (
+            <div className="rounded-2xl bg-slate-50 p-4 space-y-4">
+              <p className="text-sm font-semibold text-[#003768]">
+                {mode === "collection" ? "Record collection fuel level" : "Record return fuel level"}
+              </p>
+              <div className="grid grid-cols-5 gap-2">
+                {FUEL_OPTIONS.map(opt => (
+                  <button key={opt} type="button" onClick={() => onFuelChange(opt)}
+                    className={`flex flex-col items-center gap-1 rounded-xl border-2 p-2 text-xs font-semibold transition ${
+                      fuelInput === opt
+                        ? "border-[#003768] bg-[#003768] text-white"
+                        : "border-black/10 bg-white text-slate-700 hover:border-[#003768]/40"
+                    }`}>
+                    <span className="text-base leading-none">
+                      {opt === "full" ? "F" : opt === "3/4" ? "¾" : opt === "half" ? "½" : opt === "quarter" ? "¼" : "E"}
+                    </span>
+                    <span className="hidden sm:block">{FUEL_LABELS[opt]}</span>
+                  </button>
+                ))}
+              </div>
+              <FuelBar level={fuelInput} />
+              <button type="button" onClick={onConfirm} disabled={saving}
+                className="w-full rounded-full bg-[#ff7a00] py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60 active:scale-95 transition-transform">
+                {saving ? "Saving…" : mode === "collection" ? "✓ Confirm Collection" : "✓ Confirm Return"}
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-function Section({ title, jobs, mode, fuelInputs, onFuelChange, onConfirm, savingId }: {
-  title: string; jobs: DriverJob[]; mode: "collection" | "return" | "readonly";
+function Section({ title, icon, accent, jobs, mode, fuelInputs, onFuelChange, onConfirm, savingId }: {
+  title: string; icon: string; accent: string; jobs: DriverJob[];
+  mode: "collection" | "return" | "readonly";
   fuelInputs: Record<string, FuelLevel>;
   onFuelChange: (id: string, v: FuelLevel) => void;
   onConfirm: (id: string, stage: "collection" | "return") => void;
@@ -234,23 +170,18 @@ function Section({ title, jobs, mode, fuelInputs, onFuelChange, onConfirm, savin
   if (jobs.length === 0) return null;
   return (
     <section>
-      <div className="mb-3 flex items-center gap-3">
-        <h2 className="text-lg font-bold text-[#003768]">{title}</h2>
-        <span className="rounded-full bg-[#003768]/10 px-2.5 py-0.5 text-xs font-bold text-[#003768]">
-          {jobs.length}
-        </span>
+      <div className="mb-3 flex items-center gap-2">
+        <span className="text-xl">{icon}</span>
+        <h2 className={`text-lg font-bold ${accent}`}>{title}</h2>
+        <span className="rounded-full bg-black/5 px-2.5 py-0.5 text-xs font-bold text-slate-600">{jobs.length}</span>
       </div>
       <div className="space-y-3">
-        {jobs.map((job) => (
-          <JobCard
-            key={job.booking_id}
-            job={job}
-            mode={mode}
+        {jobs.map(job => (
+          <JobCard key={job.booking_id} job={job} mode={mode}
             fuelInput={fuelInputs[job.booking_id] ?? "full"}
-            onFuelChange={(v) => onFuelChange(job.booking_id, v)}
+            onFuelChange={v => onFuelChange(job.booking_id, v)}
             onConfirm={() => onConfirm(job.booking_id, mode === "readonly" ? "return" : mode)}
-            saving={savingId === job.booking_id}
-          />
+            saving={savingId === job.booking_id} />
         ))}
       </div>
     </section>
@@ -258,19 +189,18 @@ function Section({ title, jobs, mode, fuelInputs, onFuelChange, onConfirm, savin
 }
 
 export default function DriverJobsPage() {
-  const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const [driver, setDriver] = useState<DriverInfo | null>(null);
-  const [jobs, setJobs] = useState<DriverJob[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [savingId,   setSavingId]   = useState<string | null>(null);
+  const [error,      setError]      = useState<string | null>(null);
+  const [toast,      setToast]      = useState<string | null>(null);
+  const [driver,     setDriver]     = useState<DriverInfo | null>(null);
+  const [jobs,       setJobs]       = useState<DriverJob[]>([]);
   const [fuelInputs, setFuelInputs] = useState<Record<string, FuelLevel>>({});
 
   async function load() {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const res = await fetch("/api/driver/jobs", { credentials: "include", cache: "no-store" });
+      const res  = await fetch("/api/driver/jobs", { credentials: "include", cache: "no-store" });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to load jobs.");
       setDriver(json.driver ?? null);
@@ -288,10 +218,9 @@ export default function DriverJobsPage() {
   useEffect(() => { load(); }, []);
 
   async function confirmStage(bookingId: string, stage: "collection" | "return") {
-    setSavingId(bookingId);
-    setError(null);
+    setSavingId(bookingId); setError(null);
     try {
-      const res = await fetch(`/api/driver/bookings/${bookingId}/confirm`, {
+      const res  = await fetch(`/api/driver/bookings/${bookingId}/confirm`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage, fuel_level: fuelInputs[bookingId] ?? "full" }),
@@ -309,20 +238,20 @@ export default function DriverJobsPage() {
   }
 
   const { awaiting, onHire, completed } = useMemo(() => ({
-    awaiting: jobs.filter((j) => j.booking_status_label === "Awaiting delivery"),
-    onHire: jobs.filter((j) => j.booking_status_label === "On Hire"),
-    completed: jobs.filter((j) => j.booking_status_label === "Completed"),
+    awaiting:  jobs.filter(j => j.booking_status_label === "Awaiting delivery"),
+    onHire:    jobs.filter(j => j.booking_status_label === "On Hire"),
+    completed: jobs.filter(j => j.booking_status_label === "Completed"),
   }), [jobs]);
 
   const sharedProps = {
     fuelInputs,
-    onFuelChange: (id: string, v: FuelLevel) => setFuelInputs((p) => ({ ...p, [id]: v })),
+    onFuelChange: (id: string, v: FuelLevel) => setFuelInputs(p => ({ ...p, [id]: v })),
     onConfirm: confirmStage,
     savingId,
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="space-y-6">
       {/* Toast */}
       {toast && (
         <div className="fixed top-24 inset-x-4 z-50 rounded-2xl bg-green-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-xl md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-96">
@@ -330,22 +259,16 @@ export default function DriverJobsPage() {
         </div>
       )}
 
-      {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
-      )}
+      {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#003768]">My Jobs</h1>
-          {driver && <p className="mt-1 text-sm text-slate-500">Signed in as <span className="font-semibold">{driver.full_name}</span></p>}
+          {driver && <p className="mt-1 text-sm text-slate-500">Signed in as <span className="font-semibold text-[#003768]">{driver.full_name}</span></p>}
         </div>
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5 disabled:opacity-50"
-        >
+        <button type="button" onClick={load} disabled={loading}
+          className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5 disabled:opacity-50 shadow-sm">
           {loading ? "Loading…" : "↻ Refresh"}
         </button>
       </div>
@@ -354,15 +277,40 @@ export default function DriverJobsPage() {
         <div className="rounded-3xl border border-black/5 bg-white p-8 text-center text-slate-500">Loading jobs…</div>
       ) : jobs.length === 0 ? (
         <div className="rounded-3xl border border-black/5 bg-white p-8 text-center">
-          <p className="text-2xl">🚗</p>
-          <p className="mt-2 font-semibold text-slate-700">No jobs assigned yet</p>
+          <p className="text-4xl">🚗</p>
+          <p className="mt-3 text-lg font-semibold text-slate-700">No jobs assigned yet</p>
           <p className="mt-1 text-sm text-slate-500">Your partner will assign jobs to you here.</p>
         </div>
       ) : (
         <>
-          <Section title="Awaiting Delivery" mode="collection" jobs={awaiting} {...sharedProps} />
-          <Section title="On Hire" mode="return" jobs={onHire} {...sharedProps} />
-          <Section title="Completed" mode="readonly" jobs={completed} {...sharedProps} />
+          {/* Summary cards */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 shadow-sm text-center">
+              <p className="text-3xl font-bold text-blue-700">{awaiting.length}</p>
+              <p className="mt-1 text-xs font-semibold text-blue-600 uppercase tracking-wide">Awaiting</p>
+              <p className="text-xs text-blue-500">Collection</p>
+            </div>
+            <div className="rounded-3xl border border-orange-100 bg-orange-50 p-4 shadow-sm text-center">
+              <p className="text-3xl font-bold text-orange-600">{onHire.length}</p>
+              <p className="mt-1 text-xs font-semibold text-orange-500 uppercase tracking-wide">On Hire</p>
+              <p className="text-xs text-orange-400">Active</p>
+            </div>
+            <div className="rounded-3xl border border-green-100 bg-green-50 p-4 shadow-sm text-center">
+              <p className="text-3xl font-bold text-green-700">{completed.length}</p>
+              <p className="mt-1 text-xs font-semibold text-green-600 uppercase tracking-wide">Completed</p>
+              <p className="text-xs text-green-500">Done</p>
+            </div>
+          </div>
+
+          {/* Job sections */}
+          <div className="space-y-8">
+            <Section title="Awaiting Collection" icon="🔵" accent="text-blue-700"
+              mode="collection" jobs={awaiting} {...sharedProps} />
+            <Section title="On Hire" icon="🟠" accent="text-orange-600"
+              mode="return" jobs={onHire} {...sharedProps} />
+            <Section title="Completed" icon="✅" accent="text-green-700"
+              mode="readonly" jobs={completed} {...sharedProps} />
+          </div>
         </>
       )}
     </div>
