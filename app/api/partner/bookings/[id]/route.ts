@@ -69,7 +69,11 @@ export async function GET(
         return_confirmed_by_customer,
         return_confirmed_by_customer_at,
         return_fuel_level_customer,
-        return_customer_notes
+        return_customer_notes,
+        insurance_docs_confirmed_by_driver,
+        insurance_docs_confirmed_by_driver_at,
+        insurance_docs_confirmed_by_customer,
+        insurance_docs_confirmed_by_customer_at
       `)
       .eq("id", id);
 
@@ -92,23 +96,10 @@ export async function GET(
       const { data: reqData } = await db
         .from("customer_requests")
         .select(`
-          id,
-          job_number,
-          customer_name,
-          customer_email,
-          customer_phone,
-          pickup_address,
-          dropoff_address,
-          pickup_at,
-          dropoff_at,
-          journey_duration_minutes,
-          passengers,
-          suitcases,
-          hand_luggage,
-          vehicle_category_name,
-          notes,
-          status,
-          created_at
+          id, job_number, customer_name, customer_email, customer_phone,
+          pickup_address, dropoff_address, pickup_at, dropoff_at,
+          journey_duration_minutes, passengers, suitcases, hand_luggage,
+          vehicle_category_name, notes, status, created_at
         `)
         .eq("id", bookingRow.request_id)
         .maybeSingle();
@@ -116,7 +107,6 @@ export async function GET(
       requestRow = reqData || null;
     }
 
-    // Fetch partner company name
     const { data: profileRow } = await db
       .from("partner_profiles")
       .select("company_name")
@@ -139,4 +129,3 @@ export async function GET(
     );
   }
 }
-

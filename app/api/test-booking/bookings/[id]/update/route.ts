@@ -63,8 +63,9 @@ export async function POST(
     const section = String(body?.section || "");
     const confirmed = !!body?.confirmed;
     const notes = String(body?.notes || "").trim() || null;
-    // Insurance confirmation — only valid on collection section
-    const insuranceConfirmed = section === "collection" ? !!body?.insurance_confirmed : undefined;
+    // insurance_only flag — save insurance confirmation without touching fuel state
+    const insuranceOnly = !!body?.insurance_only;
+    const insuranceConfirmed = body?.insurance_confirmed !== undefined ? !!body.insurance_confirmed : undefined;
 
     if (section !== "collection" && section !== "return") {
       return NextResponse.json({ error: "Invalid section" }, { status: 400 });
@@ -103,6 +104,22 @@ export async function POST(
 
     if (!requestRow || requestRow.customer_user_id !== customerUser.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    // ── Insurance-only path — save without touching fuel confirmation state ──
+    if (insuranceOnly && insuranceConfirmed !== undefined) {
+      const insurancePayload: Record<string, any> = {
+        insurance_docs_confirmed_by_customer: insuranceConfirmed,
+        insurance_docs_confirmed_by_customer_at: insuranceConfirmed
+          ? bookingRow.insurance_docs_confirmed_by_customer_at || now
+          : null,
+      };
+      const { error: insErr } = await db
+        .from("partner_bookings")
+        .update(insurancePayload)
+        .eq("id", id);
+      if (insErr) return NextResponse.json({ error: insErr.message }, { status: 400 });
+      return NextResponse.json({ ok: true, insurance_saved: true }, { status: 200 });
     }
 
     const collectionAlreadyLocked = isFuelLocked({

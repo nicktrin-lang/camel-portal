@@ -186,7 +186,14 @@ function JobCard({ job, mode, fuelInput, onFuelChange, insuranceChecked, onInsur
                 </label>
               )}
 
-              <button type="button" onClick={onConfirm} disabled={saving}
+              {/* Delivery blocked until insurance ticked; collection has no insurance requirement */}
+              {mode === "collection" && !insuranceChecked && (
+                <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                  ⚠ You must tick the insurance box above before confirming delivery.
+                </p>
+              )}
+              <button type="button" onClick={onConfirm}
+                disabled={saving || (mode === "collection" && !insuranceChecked)}
                 className="w-full rounded-full bg-[#ff7a00] py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60 active:scale-95 transition-transform">
                 {saving ? "Saving…" : mode === "collection" ? "✓ Confirm Delivery" : "✓ Confirm Collection"}
               </button>

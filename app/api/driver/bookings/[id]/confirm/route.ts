@@ -84,12 +84,19 @@ export async function POST(
     const updatePayload: Record<string, any> = {};
 
     if (stage === "collection") {
+      // Insurance is a hard blocker at delivery — driver must tick before confirming
+      if (!insuranceHandedOver) {
+        return NextResponse.json(
+          { error: "You must confirm that insurance documents have been handed to the customer before confirming delivery." },
+          { status: 400 }
+        );
+      }
+
       updatePayload.collection_confirmed_by_driver = true;
       updatePayload.collection_confirmed_by_driver_at = now;
       updatePayload.collection_fuel_level_driver = fuelLevel;
-      // Record insurance handover — driver confirms they handed docs to customer
-      updatePayload.insurance_docs_confirmed_by_driver = !!insuranceHandedOver;
-      updatePayload.insurance_docs_confirmed_by_driver_at = insuranceHandedOver ? now : null;
+      updatePayload.insurance_docs_confirmed_by_driver = true;
+      updatePayload.insurance_docs_confirmed_by_driver_at = now;
 
       if (["confirmed", "driver_assigned", "en_route", "arrived"].includes(bookingRow.booking_status)) {
         updatePayload.booking_status = "collected";

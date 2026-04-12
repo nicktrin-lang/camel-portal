@@ -126,7 +126,11 @@ export async function GET(
           return_confirmed_by_customer,
           return_confirmed_by_customer_at,
           return_fuel_level_customer,
-          return_customer_notes
+          return_customer_notes,
+          insurance_docs_confirmed_by_driver,
+          insurance_docs_confirmed_by_driver_at,
+          insurance_docs_confirmed_by_customer,
+          insurance_docs_confirmed_by_customer_at
         `)
         .eq("winning_bid_id", acceptedBid.id)
         .order("created_at", { ascending: false })
@@ -183,6 +187,10 @@ export async function GET(
           return_confirmed_by_customer_at: bk.return_confirmed_by_customer_at || null,
           return_fuel_level_customer: bk.return_fuel_level_customer || null,
           return_customer_notes: bk.return_customer_notes || null,
+          insurance_docs_confirmed_by_driver: !!bk.insurance_docs_confirmed_by_driver,
+          insurance_docs_confirmed_by_driver_at: bk.insurance_docs_confirmed_by_driver_at || null,
+          insurance_docs_confirmed_by_customer: !!bk.insurance_docs_confirmed_by_customer,
+          insurance_docs_confirmed_by_customer_at: bk.insurance_docs_confirmed_by_customer_at || null,
         };
       }
     }

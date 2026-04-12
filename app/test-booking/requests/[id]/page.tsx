@@ -582,9 +582,8 @@ export default function TestBookingRequestDetailPage({
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
-          section: "collection",       // insurance is delivery-stage only
-          confirmed: data.booking.collection_confirmed_by_customer, // don't change fuel confirm
-          notes: collectionNotes,
+          section: "collection",   // required by API validation but insurance_only ignores fuel state
+          insurance_only: true,
           insurance_confirmed: confirmed,
         }),
       });
