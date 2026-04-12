@@ -33,22 +33,13 @@ export async function GET(_req: NextRequest) {
     }
 
     const db = createServiceRoleSupabaseClient();
-
     const signedInEmail = String(user.email || "").trim().toLowerCase();
 
     let driverRow = null as any;
 
     const { data: byAuthUser, error: byAuthErr } = await db
       .from("partner_drivers")
-      .select(`
-        id,
-        partner_user_id,
-        auth_user_id,
-        full_name,
-        email,
-        phone,
-        is_active
-      `)
+      .select("id,partner_user_id,auth_user_id,full_name,email,phone,is_active")
       .eq("auth_user_id", user.id)
       .eq("is_active", true)
       .maybeSingle();
@@ -62,15 +53,7 @@ export async function GET(_req: NextRequest) {
     if (!driverRow && signedInEmail) {
       const { data: byEmail, error: byEmailErr } = await db
         .from("partner_drivers")
-        .select(`
-          id,
-          partner_user_id,
-          auth_user_id,
-          full_name,
-          email,
-          phone,
-          is_active
-        `)
+        .select("id,partner_user_id,auth_user_id,full_name,email,phone,is_active")
         .ilike("email", signedInEmail)
         .eq("is_active", true)
         .maybeSingle();
@@ -92,11 +75,19 @@ export async function GET(_req: NextRequest) {
     if (!driverRow.auth_user_id) {
       await db
         .from("partner_drivers")
-        .update({
-          auth_user_id: user.id,
-          updated_at: new Date().toISOString(),
-        })
+        .update({ auth_user_id: user.id, updated_at: new Date().toISOString() })
         .eq("id", driverRow.id);
+    }
+
+    // Fetch company name from partner profile
+    let companyName: string | null = null;
+    if (driverRow?.partner_user_id) {
+      const { data: partnerProfile } = await db
+        .from("partner_profiles")
+        .select("company_name")
+        .eq("user_id", driverRow.partner_user_id)
+        .maybeSingle();
+      companyName = partnerProfile?.company_name || null;
     }
 
     const { data: bookingRows, error: bookingErr } = await db
@@ -117,30 +108,24 @@ export async function GET(_req: NextRequest) {
         driver_vehicle,
         driver_notes,
         driver_assigned_at,
-
         collection_confirmed_by_driver,
         collection_confirmed_by_driver_at,
         collection_fuel_level_driver,
-
         return_confirmed_by_driver,
         return_confirmed_by_driver_at,
         return_fuel_level_driver,
-
         collection_confirmed_by_partner,
         collection_confirmed_by_partner_at,
         collection_fuel_level_partner,
         collection_partner_notes,
-
         return_confirmed_by_partner,
         return_confirmed_by_partner_at,
         return_fuel_level_partner,
         return_partner_notes,
-
         collection_confirmed_by_customer,
         collection_confirmed_by_customer_at,
         collection_fuel_level_customer,
         collection_customer_notes,
-
         return_confirmed_by_customer,
         return_confirmed_by_customer_at,
         return_fuel_level_customer,
@@ -196,7 +181,6 @@ export async function GET(_req: NextRequest) {
 
     const jobs = (bookingRows || []).map((booking: any) => {
       const request = requestMap.get(String(booking.request_id)) || null;
-
       return {
         booking_id: booking.id,
         request_id: booking.request_id,
@@ -205,13 +189,11 @@ export async function GET(_req: NextRequest) {
         booking_status_label: bookingStatusLabel(booking.booking_status),
         amount: booking.amount,
         created_at: booking.created_at,
-
         driver_name: booking.driver_name || null,
         driver_phone: booking.driver_phone || null,
         driver_vehicle: booking.driver_vehicle || null,
         driver_notes: booking.driver_notes || null,
         driver_assigned_at: booking.driver_assigned_at || null,
-
         pickup_address: request?.pickup_address || null,
         dropoff_address: request?.dropoff_address || null,
         pickup_at: request?.pickup_at || null,
@@ -219,35 +201,26 @@ export async function GET(_req: NextRequest) {
         customer_name: request?.customer_name || null,
         customer_phone: request?.customer_phone || null,
         vehicle_category_name: request?.vehicle_category_name || null,
-
-        collection_confirmed_by_driver:
-          booking.collection_confirmed_by_driver ?? null,
-        collection_confirmed_by_driver_at:
-          booking.collection_confirmed_by_driver_at || null,
-        collection_fuel_level_driver:
-          booking.collection_fuel_level_driver || null,
-
-        return_confirmed_by_driver:
-          booking.return_confirmed_by_driver ?? null,
-        return_confirmed_by_driver_at:
-          booking.return_confirmed_by_driver_at || null,
-        return_fuel_level_driver:
-          booking.return_fuel_level_driver || null,
+        collection_confirmed_by_driver: booking.collection_confirmed_by_driver ?? null,
+        collection_confirmed_by_driver_at: booking.collection_confirmed_by_driver_at || null,
+        collection_fuel_level_driver: booking.collection_fuel_level_driver || null,
+        return_confirmed_by_driver: booking.return_confirmed_by_driver ?? null,
+        return_confirmed_by_driver_at: booking.return_confirmed_by_driver_at || null,
+        return_fuel_level_driver: booking.return_fuel_level_driver || null,
       };
     });
 
-    return NextResponse.json(
-      {
-        driver: {
-          id: driverRow.id,
-          full_name: driverRow.full_name,
-          email: driverRow.email,
-          phone: driverRow.phone,
-        },
-        jobs,
+    return NextResponse.json({
+      driver: {
+        id: driverRow.id,
+        full_name: driverRow.full_name,
+        email: driverRow.email,
+        phone: driverRow.phone,
+        company_name: companyName,
       },
-      { status: 200 }
-    );
+      jobs,
+    }, { status: 200 });
+
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "Server error" },

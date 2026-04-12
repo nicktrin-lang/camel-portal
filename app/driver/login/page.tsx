@@ -7,18 +7,18 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { createAuthSupabaseClient } from "@/lib/supabase/auth-client";
 
 export default function DriverLoginPage() {
-  const router = useRouter();
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router     = useRouter();
+  const supabase   = useMemo(() => createBrowserSupabaseClient(), []);
   const authClient = useMemo(() => createAuthSupabaseClient(), []);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"login" | "forgot">("login");
-  const [resetSent, setResetSent] = useState(false);
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+  const [mode,         setMode]         = useState<"login" | "forgot">("login");
+  const [resetSent,    setResetSent]    = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
-  const [resetError, setResetError] = useState("");
+  const [resetError,   setResetError]   = useState("");
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -40,7 +40,7 @@ export default function DriverLoginPage() {
     setResetLoading(true); setResetError("");
     try {
       document.cookie = "resetPortal=driver; domain=.camel-global.com; path=/; max-age=3600";
-      const res = await fetch("/api/auth/send-reset-email", {
+      const res  = await fetch("/api/auth/send-reset-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -59,7 +59,7 @@ export default function DriverLoginPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-120px)] max-w-7xl items-center px-4 py-10">
+    <div className="mx-auto max-w-7xl px-4 py-10">
       <div className="mx-auto w-full max-w-xl rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)] md:p-10">
 
         {mode === "login" ? (
@@ -115,7 +115,7 @@ export default function DriverLoginPage() {
             {resetSent ? (
               <div className="mt-8 rounded-2xl border border-green-200 bg-green-50 p-5 text-sm text-green-700">
                 <p className="font-semibold">Reset email sent ✓</p>
-                <p className="mt-1">Check your inbox for a password reset link. It may take a minute to arrive.</p>
+                <p className="mt-1">Check your inbox for a password reset link.</p>
                 <button type="button" onClick={() => setMode("login")} className="mt-4 text-[#003768] underline font-medium">Back to login</button>
               </div>
             ) : (

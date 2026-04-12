@@ -12,8 +12,9 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
   const router   = useRouter();
   const pathname = usePathname();
 
-  const [loading,    setLoading]    = useState(true);
-  const [driverName, setDriverName] = useState("");
+  const [loading,     setLoading]     = useState(true);
+  const [driverName,  setDriverName]  = useState("");
+  const [companyName, setCompanyName] = useState("");
 
   const isPublic = PUBLIC_DRIVER_PATHS.includes(pathname);
 
@@ -28,7 +29,14 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
         String(data.user.user_metadata?.full_name || "").trim() ||
         String(data.user.email || "").split("@")[0] || ""
       );
-      setLoading(false);
+      // Fetch company name from jobs API
+      try {
+        const res  = await fetch("/api/driver/jobs", { credentials: "include", cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (mounted && json?.driver?.company_name) setCompanyName(json.driver.company_name);
+        if (mounted && json?.driver?.full_name) setDriverName(json.driver.full_name);
+      } catch {}
+      if (mounted) setLoading(false);
     }
     guard();
     return () => { mounted = false; };
@@ -39,7 +47,7 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
     window.location.replace("/driver/login?reason=signed_out");
   }
 
-  // Public pages (login, signup, reset) — render inside a simple shell
+  // Public pages (login, signup, reset) — simple shell with header only
   if (isPublic) {
     return (
       <div className="min-h-screen bg-[#e3f4ff]">
@@ -71,7 +79,12 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
         <div className="flex h-full items-center justify-between px-4 md:px-8">
           <Image src="/camel-logo.png" alt="Camel Global" width={180} height={60} priority className="h-[52px] w-auto" />
           <div className="flex items-center gap-3">
-            {driverName && <span className="hidden text-sm font-semibold text-white/95 md:block">{driverName}</span>}
+            {driverName && (
+              <div className="hidden flex-col items-end md:flex">
+                <span className="text-sm font-semibold text-white">{driverName}</span>
+                {companyName && <span className="text-xs text-white/70">{companyName}</span>}
+              </div>
+            )}
             <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">Driver</span>
             <button type="button" onClick={handleLogout}
               className="rounded-full bg-[#ff7a00] px-5 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
@@ -80,7 +93,6 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
           </div>
         </div>
       </header>
-
       <div className="pt-20 pb-4">
         <div className="px-4 py-5 md:px-8 md:py-8">{children}</div>
       </div>
