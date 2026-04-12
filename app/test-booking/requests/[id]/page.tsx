@@ -48,13 +48,13 @@ type BookingData = {
   collection_fuel_level_customer: string | null; collection_customer_notes: string | null;
   return_confirmed_by_customer: boolean; return_confirmed_by_customer_at: string | null;
   return_fuel_level_customer: string | null; return_customer_notes: string | null;
-  // Insurance
   insurance_docs_confirmed_by_driver: boolean; insurance_docs_confirmed_by_driver_at: string | null;
   insurance_docs_confirmed_by_customer: boolean; insurance_docs_confirmed_by_customer_at: string | null;
 };
 
 type ResponseShape = { request: RequestData; bids: BidRow[]; booking: BookingData | null };
 type ConfirmSection = "collection" | "return";
+type Rates = { GBP: number; USD: number };
 
 // ── Fuel helpers ──────────────────────────────────────────────────────────────
 
@@ -71,12 +71,12 @@ function normalizeFuel(v: unknown): string | null {
 
 function fuelLabel(v: unknown): string {
   switch (normalizeFuel(v)) {
-    case "empty": return "Empty";
+    case "empty":   return "Empty";
     case "quarter": return "¼ Tank";
-    case "half": return "½ Tank";
-    case "3/4": return "¾ Tank";
-    case "full": return "Full Tank";
-    default: return "—";
+    case "half":    return "½ Tank";
+    case "3/4":     return "¾ Tank";
+    case "full":    return "Full Tank";
+    default:        return "—";
   }
 }
 
@@ -87,12 +87,12 @@ function FuelBar({ level }: { level: string | null }) {
   const filled = n ? (FUEL_BARS[n] ?? 0) : 0;
   return (
     <div className="flex gap-1 mt-1">
-      {[0,1,2,3].map(i => (
+      {[0, 1, 2, 3].map(i => (
         <div key={i} className={[
           "h-3 flex-1 rounded-full",
           i < filled
             ? filled >= 3 ? "bg-green-500" : filled === 2 ? "bg-yellow-400" : "bg-red-400"
-            : "bg-slate-200"
+            : "bg-slate-200",
         ].join(" ")} />
       ))}
     </div>
@@ -108,9 +108,9 @@ function fmt(v?: string | null) {
 
 function formatDuration(m?: number | null) {
   if (!m) return "—";
-  if (m >= 1440) return `${Math.ceil(m/1440)} day${Math.ceil(m/1440)===1?"":"s"}`;
+  if (m >= 1440) return `${Math.ceil(m / 1440)} day${Math.ceil(m / 1440) === 1 ? "" : "s"}`;
   if (m < 60) return `${m} min`;
-  const h = Math.floor(m/60), mins = m%60;
+  const h = Math.floor(m / 60), mins = m % 60;
   return mins ? `${h}h ${mins}m` : `${h}h`;
 }
 
@@ -118,19 +118,19 @@ function getTimeRemaining(expiresAt?: string | null) {
   if (!expiresAt) return null;
   const diff = new Date(expiresAt).getTime() - Date.now();
   if (diff <= 0) return { expired: true, label: "Expired" };
-  const s = Math.floor(diff/1000);
-  const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60), sec = s%60;
-  const label = d>0 ? `${d}d ${h}h ${m}m` : h>0 ? `${h}h ${m}m ${sec}s` : `${m}m ${sec}s`;
+  const s = Math.floor(diff / 1000);
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const label = d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m ${sec}s` : `${m}m ${sec}s`;
   return { expired: false, label };
 }
 
 function bookingStatusLabel(s?: string | null) {
-  switch (String(s||"").toLowerCase()) {
+  switch (String(s || "").toLowerCase()) {
     case "confirmed": case "driver_assigned": case "en_route": case "arrived": return "Awaiting delivery";
     case "collected": case "returned": return "On Hire";
     case "completed": return "Completed";
     case "cancelled": return "Cancelled";
-    default: return String(s||"—").replaceAll("_"," ");
+    default: return String(s || "—").replaceAll("_", " ");
   }
 }
 
@@ -140,15 +140,11 @@ const QUARTER_LABELS: Record<number, string> = {
 
 // ── Currency helpers ──────────────────────────────────────────────────────────
 
-const LOCALE_MAP: Record<Currency, string> = {
-  EUR: "es-ES", GBP: "en-GB", USD: "en-US",
-};
+const LOCALE_MAP: Record<Currency, string> = { EUR: "es-ES", GBP: "en-GB", USD: "en-US" };
 
 function fmtCurr(amount: number, curr: Currency): string {
   return new Intl.NumberFormat(LOCALE_MAP[curr], { style: "currency", currency: curr }).format(amount);
 }
-
-type Rates = { GBP: number; USD: number };
 
 function convertAmount(amount: number, from: Currency, to: Currency, rates: Rates): number {
   if (from === to) return amount;
@@ -161,33 +157,31 @@ function convertAmount(amount: number, from: Currency, to: Currency, rates: Rate
 }
 
 function BidAmount({ amount, bidCurrency, customerCurrency, rates }: {
-  amount: number | null | undefined; bidCurrency: Currency;
-  customerCurrency: Currency; rates: Rates;
+  amount: number | null | undefined; bidCurrency: Currency; customerCurrency: Currency; rates: Rates;
 }) {
   if (amount == null || isNaN(amount)) return <span>—</span>;
-  const primaryAmt = convertAmount(amount, bidCurrency, customerCurrency, rates);
+  const primary = convertAmount(amount, bidCurrency, customerCurrency, rates);
   const secondaryStr = bidCurrency !== customerCurrency ? fmtCurr(amount, bidCurrency) : null;
   return (
     <span>
-      {fmtCurr(primaryAmt, customerCurrency)}
+      {fmtCurr(primary, customerCurrency)}
       {secondaryStr && <span className="opacity-60 text-[0.85em] font-normal ml-1">({secondaryStr})</span>}
     </span>
   );
 }
 
 function BookingAmount({ amount, storedCurrency, customerCurrency, rates }: {
-  amount: number | null | undefined; storedCurrency: Currency;
-  customerCurrency: Currency; rates: Rates;
+  amount: number | null | undefined; storedCurrency: Currency; customerCurrency: Currency; rates: Rates;
 }) {
   if (amount == null || isNaN(Number(amount))) return <span>—</span>;
   const amt = Number(amount);
-  const primaryAmt = convertAmount(amt, storedCurrency, customerCurrency, rates);
+  const primary = convertAmount(amt, storedCurrency, customerCurrency, rates);
   const otherCurr: Currency = customerCurrency === "EUR" ? "GBP" : "EUR";
-  const secondaryAmt = convertAmount(amt, storedCurrency, otherCurr, rates);
+  const secondary = convertAmount(amt, storedCurrency, otherCurr, rates);
   return (
     <span>
-      {fmtCurr(primaryAmt, customerCurrency)}{" "}
-      <span className="opacity-60 text-[0.85em] font-normal">({fmtCurr(secondaryAmt, otherCurr)})</span>
+      {fmtCurr(primary, customerCurrency)}{" "}
+      <span className="opacity-60 text-[0.85em] font-normal">({fmtCurr(secondary, otherCurr)})</span>
     </span>
   );
 }
@@ -198,8 +192,7 @@ function CustomerPaymentSummary({ booking, rates, rateIsLive, customerCurrency }
   booking: BookingData; rates: Rates; rateIsLive: boolean; customerCurrency: Currency;
 }) {
   const storedCurr: Currency = booking.currency ?? "EUR";
-  const otherCurr: Currency = customerCurrency === "EUR" ? "GBP" : "EUR";
-
+  const otherCurr: Currency  = customerCurrency === "EUR" ? "GBP" : "EUR";
   const totalAmt      = Number(booking.amount || 0);
   const carHireAmt    = Number(booking.car_hire_price || 0);
   const fullTankAmt   = Number(booking.fuel_price || 0);
@@ -207,12 +200,8 @@ function CustomerPaymentSummary({ booking, rates, rateIsLive, customerCurrency }
   const fuelRefundAmt = Number(booking.fuel_refund || 0);
   const perQtrAmt     = fullTankAmt / 4;
   const usedQuarters  = booking.fuel_used_quarters ?? null;
-
-  const collFuel = normalizeFuel(booking.collection_fuel_level_driver) ||
-    normalizeFuel(booking.collection_fuel_level_partner);
-  const retFuel = normalizeFuel(booking.return_fuel_level_driver) ||
-    normalizeFuel(booking.return_fuel_level_partner);
-
+  const collFuel = normalizeFuel(booking.collection_fuel_level_driver) || normalizeFuel(booking.collection_fuel_level_partner);
+  const retFuel  = normalizeFuel(booking.return_fuel_level_driver)      || normalizeFuel(booking.return_fuel_level_partner);
   const primary   = (amt: number) => fmtCurr(convertAmount(amt, storedCurr, customerCurrency, rates), customerCurrency);
   const secondary = (amt: number) => `(${fmtCurr(convertAmount(amt, storedCurr, otherCurr, rates), otherCurr)})`;
   const gbpStr    = (v: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(v);
@@ -232,12 +221,12 @@ function CustomerPaymentSummary({ booking, rates, rateIsLive, customerCurrency }
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="rounded-xl bg-white/10 px-3 py-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Car hire</p>
-            <p className="mt-0.5 font-bold text-white">{primary(carHireAmt)}</p>
+            <p className="mt-0.5 font-bold">{primary(carHireAmt)}</p>
             <p className="text-xs text-white/50">{secondary(carHireAmt)}</p>
           </div>
           <div className="rounded-xl bg-white/10 px-3 py-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Full tank deposit</p>
-            <p className="mt-0.5 font-bold text-white">{primary(fullTankAmt)}</p>
+            <p className="mt-0.5 font-bold">{primary(fullTankAmt)}</p>
             <p className="text-xs text-white/50">{secondary(fullTankAmt)}</p>
           </div>
         </div>
@@ -259,8 +248,7 @@ function CustomerPaymentSummary({ booking, rates, rateIsLive, customerCurrency }
             {usedQuarters !== null ? QUARTER_LABELS[usedQuarters] ?? `${usedQuarters}/4` : "—"}
           </p>
           <p className="mt-1 text-xs text-white/60">
-            {primary(perQtrAmt)}{" "}
-            <span className="text-white/40">{secondary(perQtrAmt)}</span> per quarter
+            {primary(perQtrAmt)} <span className="text-white/40">{secondary(perQtrAmt)}</span> per quarter
           </p>
         </div>
       </div>
@@ -282,11 +270,10 @@ function CustomerPaymentSummary({ booking, rates, rateIsLive, customerCurrency }
           <p className="mt-1 text-sm text-white/60">Unused fuel returned to you</p>
         </div>
       </div>
-      <div className={`mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-base font-bold ${
-        rateIsLive ? "bg-green-400/20 text-green-200" : "bg-white/10 text-white/70"
-      }`}>
+      <div className={`mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-base font-bold ${rateIsLive ? "bg-green-400/20 text-green-200" : "bg-white/10 text-white/70"}`}>
         <span className={`h-2.5 w-2.5 rounded-full ${rateIsLive ? "bg-green-400" : "bg-white/40"}`} />
-        1€ = {gbpStr(rates.GBP)} · 1€ = {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(rates.USD)}{rateIsLive ? " · Live rate (frankfurter.app)" : ""}
+        1€ = {gbpStr(rates.GBP)} · 1€ = {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(rates.USD)}
+        {rateIsLive ? " · Live rate (frankfurter.app)" : ""}
       </div>
     </div>
   );
@@ -307,9 +294,7 @@ function InsuranceConfirmCard({
   saving: boolean; locked: boolean;
 }) {
   return (
-    <div className={`rounded-3xl border p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] ${
-      locked ? "border-green-200 bg-green-50" : "border-black/5 bg-white"
-    }`}>
+    <div className={`rounded-3xl border p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] ${locked ? "border-green-200 bg-green-50" : "border-black/5 bg-white"}`}>
       <div className="flex items-center gap-3">
         <span className="text-2xl">📄</span>
         <h2 className="text-2xl font-semibold text-[#003768]">Insurance Documents</h2>
@@ -318,7 +303,6 @@ function InsuranceConfirmCard({
         The driver must hand you the insurance paperwork at delivery. Both you and the driver confirm this has happened.
       </p>
 
-      {/* Driver status */}
       <div className={`mt-4 rounded-2xl border p-4 ${driverConfirmed ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver confirmed handover</p>
         {driverConfirmed ? (
@@ -344,9 +328,7 @@ function InsuranceConfirmCard({
           )}
 
           {!customerConfirmed && (
-            <label className={`mt-4 flex items-start gap-3 rounded-xl border-2 p-3 cursor-pointer transition ${
-              insuranceChecked ? "border-green-400 bg-green-50" : "border-black/10 bg-slate-50"
-            }`}>
+            <label className={`mt-4 flex items-start gap-3 rounded-xl border-2 p-3 cursor-pointer transition ${insuranceChecked ? "border-green-400 bg-green-50" : "border-black/10 bg-slate-50"}`}>
               <input type="checkbox" checked={insuranceChecked} onChange={e => onInsuranceChange(e.target.checked)}
                 disabled={!driverConfirmed || saving}
                 className="mt-0.5 h-5 w-5 shrink-0 accent-[#003768]" />
@@ -364,7 +346,10 @@ function InsuranceConfirmCard({
               <button type="button" onClick={onConfirm}
                 disabled={saving || !driverConfirmed || !insuranceChecked}
                 className="flex-1 rounded-full bg-[#ff7a00] py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-50 active:scale-95 transition-transform">
-                {saving ? "Saving…" : !driverConfirmed ? "Waiting for driver…" : !insuranceChecked ? "Tick box above to confirm" : "✓ Confirm receipt of documents"}
+                {saving ? "Saving…"
+                  : !driverConfirmed ? "Waiting for driver…"
+                  : !insuranceChecked ? "Tick box above to confirm"
+                  : "✓ Confirm receipt of documents"}
               </button>
             ) : (
               <button type="button" onClick={onUnconfirm} disabled={saving}
@@ -398,7 +383,7 @@ function FuelConfirmCard({
   onUnconfirm: () => void; saving: boolean;
 }) {
   return (
-    <div className={`rounded-3xl border p-6 ${locked ? "border-green-200 bg-green-50" : "border-black/5 bg-white"} shadow-[0_18px_45px_rgba(0,0,0,0.08)]`}>
+    <div className={`rounded-3xl border p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] ${locked ? "border-green-200 bg-green-50" : "border-black/5 bg-white"}`}>
       <h2 className="text-2xl font-semibold text-[#003768]">{title}</h2>
       <div className="mt-4 rounded-2xl border border-black/10 bg-slate-50 p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver recorded</p>
@@ -457,23 +442,11 @@ function FuelConfirmCard({
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function TestBookingRequestDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function TestBookingRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = useMemo(() => createCustomerBrowserClient(), []);
   const { rates: hookRates, currency } = useCurrency();
-  const [liveRates, setLiveRates] = useState<Rates>(hookRates ?? { GBP: 0.85, USD: 1.08 });
-  const [rateIsLive, setRateIsLive] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/currency/rate", { cache: "no-store" }).then(r => r.json()).then(({ rates, live }) => {
-      setLiveRates({ GBP: Number(rates?.GBP) || 0.85, USD: Number(rates?.USD) || 1.08 });
-      setRateIsLive(live);
-    }).catch(() => {});
-  }, []);
-
+  const [liveRates,        setLiveRates]        = useState<Rates>(hookRates ?? { GBP: 0.85, USD: 1.08 });
+  const [rateIsLive,       setRateIsLive]       = useState(false);
   const [requestId,        setRequestId]        = useState("");
   const [loading,          setLoading]          = useState(true);
   const [acceptingId,      setAcceptingId]      = useState<string | null>(null);
@@ -487,6 +460,13 @@ export default function TestBookingRequestDetailPage({
   const [returnNotes,      setReturnNotes]      = useState("");
   const [insuranceChecked, setInsuranceChecked] = useState(false);
 
+  useEffect(() => {
+    fetch("/api/currency/rate", { cache: "no-store" }).then(r => r.json()).then(({ rates, live }) => {
+      setLiveRates({ GBP: Number(rates?.GBP) || 0.85, USD: Number(rates?.USD) || 1.08 });
+      setRateIsLive(live);
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => { params.then(r => setRequestId(r.id)); }, [params]);
 
   async function load(showSpinner = false) {
@@ -496,7 +476,7 @@ export default function TestBookingRequestDetailPage({
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not signed in");
-      const res = await fetch(`/api/test-booking/requests/${requestId}`, {
+      const res  = await fetch(`/api/test-booking/requests/${requestId}`, {
         cache: "no-store",
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -536,7 +516,7 @@ export default function TestBookingRequestDetailPage({
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not signed in");
-      const res = await fetch("/api/test-booking/bids/accept", {
+      const res  = await fetch("/api/test-booking/bids/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ bid_id: bidId, currency }),
@@ -555,12 +535,11 @@ export default function TestBookingRequestDetailPage({
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not signed in");
-      const res = await fetch(`/api/test-booking/bookings/${data.booking.id}/update`, {
+      const res  = await fetch(`/api/test-booking/bookings/${data.booking.id}/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
-          section,
-          confirmed,
+          section, confirmed,
           notes: section === "collection" ? collectionNotes : returnNotes,
         }),
       });
@@ -578,14 +557,10 @@ export default function TestBookingRequestDetailPage({
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not signed in");
-      const res = await fetch(`/api/test-booking/bookings/${data.booking.id}/update`, {
+      const res  = await fetch(`/api/test-booking/bookings/${data.booking.id}/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({
-          section: "collection",   // required by API validation but insurance_only ignores fuel state
-          insurance_only: true,
-          insurance_confirmed: confirmed,
-        }),
+        body: JSON.stringify({ section: "collection", insurance_only: true, insurance_confirmed: confirmed }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to save.");
@@ -622,7 +597,6 @@ export default function TestBookingRequestDetailPage({
     !!bk?.return_confirmed_by_customer &&
     normalizeFuel(bk.return_fuel_level_driver) === normalizeFuel(bk.return_fuel_level_customer);
 
-  // Insurance locked when both driver and customer have confirmed
   const insuranceLocked = !!bk?.insurance_docs_confirmed_by_driver &&
     !!bk?.insurance_docs_confirmed_by_customer;
 
@@ -631,6 +605,7 @@ export default function TestBookingRequestDetailPage({
       {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
       {ok    && <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">{ok}</div>}
 
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-[#003768]">Request Detail</h1>
@@ -642,12 +617,14 @@ export default function TestBookingRequestDetailPage({
         </Link>
       </div>
 
+      {/* Bid window timer */}
       {data.request.status === "open" && (
         <div className={`rounded-2xl border p-4 text-sm ${expired ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
           <span className="font-semibold">Bid window:</span> {timeLabel}
         </div>
       )}
 
+      {/* Request info */}
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">Request Information</h2>
         <div className="mt-6 grid gap-3 text-slate-700 sm:grid-cols-2">
@@ -670,8 +647,10 @@ export default function TestBookingRequestDetailPage({
         </div>
       </div>
 
+      {/* Booking section */}
       {bk && (
         <>
+          {/* Booking summary card */}
           <div className="rounded-3xl border border-green-200 bg-green-50 p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <h2 className="text-2xl font-semibold text-[#003768]">Your Booking</h2>
             <div className="mt-6 grid gap-3 text-slate-700 sm:grid-cols-2">
@@ -705,7 +684,7 @@ export default function TestBookingRequestDetailPage({
               </div>
             </div>
             <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-slate-600 space-y-2">
-              <p>For any vehicle condition concerns, contact the car hire company directly using the details above. All vehicles are fully insured by the car hire company.</p>
+              <p>For any vehicle condition concerns, contact the car hire company directly. All vehicles are fully insured by the car hire company.</p>
               <p className="text-slate-500">We recommend using WhatsApp for the fastest response:</p>
               <div className="flex flex-wrap gap-2 mt-1">
                 {bk.company_phone && (
@@ -726,62 +705,62 @@ export default function TestBookingRequestDetailPage({
             </div>
           </div>
 
-          {/* Insurance card — always visible once booking exists, independent of fuel lock state */}
-          <InsuranceConfirmCard
-                driverConfirmed={bk.insurance_docs_confirmed_by_driver}
-                driverConfirmedAt={bk.insurance_docs_confirmed_by_driver_at}
-                customerConfirmed={bk.insurance_docs_confirmed_by_customer}
-                customerConfirmedAt={bk.insurance_docs_confirmed_by_customer_at}
-                insuranceChecked={insuranceChecked}
-                onInsuranceChange={setInsuranceChecked}
-                onConfirm={() => saveInsuranceConfirmation(true)}
-                onUnconfirm={() => saveInsuranceConfirmation(false)}
-                saving={savingConfirm === "insurance"}
-                locked={insuranceLocked}
-              />
-
+          {/* Payment summary — only when fully complete */}
           {collectionLocked && returnLocked && bk.fuel_charge !== null && (
             <CustomerPaymentSummary
               booking={bk} rates={liveRates} rateIsLive={rateIsLive} customerCurrency={currency}
             />
           )}
 
+          {/* Insurance confirmation — always visible once booking exists */}
+          <InsuranceConfirmCard
+            driverConfirmed={bk.insurance_docs_confirmed_by_driver}
+            driverConfirmedAt={bk.insurance_docs_confirmed_by_driver_at}
+            customerConfirmed={bk.insurance_docs_confirmed_by_customer}
+            customerConfirmedAt={bk.insurance_docs_confirmed_by_customer_at}
+            insuranceChecked={insuranceChecked}
+            onInsuranceChange={setInsuranceChecked}
+            onConfirm={() => saveInsuranceConfirmation(true)}
+            onUnconfirm={() => saveInsuranceConfirmation(false)}
+            saving={savingConfirm === "insurance"}
+            locked={insuranceLocked}
+          />
+
+          {/* Fuel confirmation cards — only while not both locked */}
           {(!collectionLocked || !returnLocked) && (
-            <>
-              {/* Fuel confirmation cards */}
-              <div className="grid gap-6 xl:grid-cols-2">
-                <FuelConfirmCard
-                  title="Delivery Fuel"
-                  driverConfirmed={bk.collection_confirmed_by_driver}
-                  driverFuel={bk.collection_fuel_level_driver}
-                  driverConfirmedAt={bk.collection_confirmed_by_driver_at}
-                  customerConfirmed={bk.collection_confirmed_by_customer}
-                  customerConfirmedAt={bk.collection_confirmed_by_customer_at}
-                  locked={collectionLocked} notes={collectionNotes}
-                  onNotesChange={setCollectionNotes}
-                  onConfirm={() => saveConfirmation("collection", true)}
-                  onUnconfirm={() => saveConfirmation("collection", false)}
-                  saving={savingConfirm === "collection"}
-                />
-                <FuelConfirmCard
-                  title="Collection Fuel"
-                  driverConfirmed={bk.return_confirmed_by_driver}
-                  driverFuel={bk.return_fuel_level_driver}
-                  driverConfirmedAt={bk.return_confirmed_by_driver_at}
-                  customerConfirmed={bk.return_confirmed_by_customer}
-                  customerConfirmedAt={bk.return_confirmed_by_customer_at}
-                  locked={returnLocked} notes={returnNotes}
-                  onNotesChange={setReturnNotes}
-                  onConfirm={() => saveConfirmation("return", true)}
-                  onUnconfirm={() => saveConfirmation("return", false)}
-                  saving={savingConfirm === "return"}
-                />
-              </div>
-            </>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <FuelConfirmCard
+                title="Delivery Fuel"
+                driverConfirmed={bk.collection_confirmed_by_driver}
+                driverFuel={bk.collection_fuel_level_driver}
+                driverConfirmedAt={bk.collection_confirmed_by_driver_at}
+                customerConfirmed={bk.collection_confirmed_by_customer}
+                customerConfirmedAt={bk.collection_confirmed_by_customer_at}
+                locked={collectionLocked} notes={collectionNotes}
+                onNotesChange={setCollectionNotes}
+                onConfirm={() => saveConfirmation("collection", true)}
+                onUnconfirm={() => saveConfirmation("collection", false)}
+                saving={savingConfirm === "collection"}
+              />
+              <FuelConfirmCard
+                title="Collection Fuel"
+                driverConfirmed={bk.return_confirmed_by_driver}
+                driverFuel={bk.return_fuel_level_driver}
+                driverConfirmedAt={bk.return_confirmed_by_driver_at}
+                customerConfirmed={bk.return_confirmed_by_customer}
+                customerConfirmedAt={bk.return_confirmed_by_customer_at}
+                locked={returnLocked} notes={returnNotes}
+                onNotesChange={setReturnNotes}
+                onConfirm={() => saveConfirmation("return", true)}
+                onUnconfirm={() => saveConfirmation("return", false)}
+                saving={savingConfirm === "return"}
+              />
+            </div>
           )}
         </>
       )}
 
+      {/* Partner bids */}
       <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
         <h2 className="text-2xl font-semibold text-[#003768]">Partner Bids</h2>
         {expired || data.request.status === "expired" ? (
