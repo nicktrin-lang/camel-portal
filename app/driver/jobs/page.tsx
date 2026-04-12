@@ -188,7 +188,7 @@ function Section({ title, icon, accent, jobs, mode, fuelInputs, onFuelChange, on
   );
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 export default function DriverJobsPage() {
   const [loading,    setLoading]    = useState(true);
@@ -314,10 +314,8 @@ export default function DriverJobsPage() {
           <div className="grid grid-cols-3 gap-3">
             {tabs.map(tab => (
               <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
-                className={`rounded-3xl border-2 p-4 shadow-sm text-center transition-all ${
-                  activeTab === tab.key
-                    ? `${tab.bg} ${tab.border} shadow-md scale-[1.02]`
-                    : "border-black/10 bg-white hover:bg-slate-50"
+                className={`rounded-3xl border-2 p-4 shadow-sm text-center transition-all ${tab.bg} ${tab.border} ${
+                  activeTab === tab.key ? "shadow-md scale-[1.02]" : "opacity-60 hover:opacity-80"
                 }`}>
                 <p className={`text-3xl font-bold ${activeTab === tab.key ? tab.accent : "text-slate-700"}`}>{tab.count}</p>
                 <p className={`mt-1 text-xs font-semibold uppercase tracking-wide ${activeTab === tab.key ? tab.accent : "text-slate-500"}`}>
