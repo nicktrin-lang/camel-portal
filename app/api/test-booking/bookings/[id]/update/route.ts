@@ -18,7 +18,6 @@ async function getCustomerUserFromAccessToken(accessToken?: string | null) {
   return data.user;
 }
 
-// Canonical fuel values — everything normalises to these
 function normalizeFuel(value: unknown): string | null {
   if (!value) return null;
   const v = String(value).toLowerCase().trim();
@@ -34,7 +33,7 @@ function sameFuel(a: unknown, b: unknown) {
   return normalizeFuel(a) === normalizeFuel(b) && normalizeFuel(a) !== null;
 }
 
-function isLocked(opts: {
+function isFuelLocked(opts: {
   driverConfirmed?: boolean | null;
   customerConfirmed?: boolean | null;
   driverFuel?: string | null;
@@ -64,6 +63,8 @@ export async function POST(
     const section = String(body?.section || "");
     const confirmed = !!body?.confirmed;
     const notes = String(body?.notes || "").trim() || null;
+    // Insurance confirmation — only valid on collection section
+    const insuranceConfirmed = section === "collection" ? !!body?.insurance_confirmed : undefined;
 
     if (section !== "collection" && section !== "return") {
       return NextResponse.json({ error: "Invalid section" }, { status: 400 });
@@ -83,7 +84,9 @@ export async function POST(
         return_confirmed_by_customer, return_confirmed_by_customer_at,
         return_fuel_level_customer, return_customer_notes,
         collection_confirmed_by_partner, collection_fuel_level_partner,
-        return_confirmed_by_partner, return_fuel_level_partner
+        return_confirmed_by_partner, return_fuel_level_partner,
+        insurance_docs_confirmed_by_driver, insurance_docs_confirmed_by_driver_at,
+        insurance_docs_confirmed_by_customer, insurance_docs_confirmed_by_customer_at
       `)
       .eq("id", id)
       .maybeSingle();
@@ -102,15 +105,14 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Check if already locked
-    const collectionAlreadyLocked = isLocked({
+    const collectionAlreadyLocked = isFuelLocked({
       driverConfirmed: bookingRow.collection_confirmed_by_driver,
       customerConfirmed: bookingRow.collection_confirmed_by_customer,
       driverFuel: bookingRow.collection_fuel_level_driver,
       customerFuel: bookingRow.collection_fuel_level_customer,
     });
 
-    const returnAlreadyLocked = isLocked({
+    const returnAlreadyLocked = isFuelLocked({
       driverConfirmed: bookingRow.return_confirmed_by_driver,
       customerConfirmed: bookingRow.return_confirmed_by_customer,
       driverFuel: bookingRow.return_fuel_level_driver,
@@ -118,21 +120,12 @@ export async function POST(
     });
 
     if (section === "collection" && collectionAlreadyLocked) {
-      return NextResponse.json(
-        { error: "Collection is already locked — both driver and customer agreed." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Collection is already locked — both driver and customer agreed." }, { status: 400 });
     }
-
     if (section === "return" && returnAlreadyLocked) {
-      return NextResponse.json(
-        { error: "Return is already locked — both driver and customer agreed." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Return is already locked — both driver and customer agreed." }, { status: 400 });
     }
 
-    // Customer confirms driver's reading — fuel level comes from driver record
-    // Customer just says yes/no, we copy the driver's fuel level as the customer fuel
     const now = new Date().toISOString();
     const updatePayload: Record<string, any> = {};
 
@@ -141,7 +134,7 @@ export async function POST(
 
       if (confirmed && !bookingRow.collection_confirmed_by_driver) {
         return NextResponse.json(
-          { error: "Driver has not yet confirmed collection. Please wait for the driver to record the fuel level." },
+          { error: "Driver has not yet confirmed delivery. Please wait for the driver to record the fuel level." },
           { status: 400 }
         );
       }
@@ -150,9 +143,16 @@ export async function POST(
       updatePayload.collection_confirmed_by_customer_at = confirmed
         ? bookingRow.collection_confirmed_by_customer_at || now
         : null;
-      // Customer fuel = driver's recorded fuel (they're confirming the same reading)
       updatePayload.collection_fuel_level_customer = confirmed ? driverFuel : null;
       updatePayload.collection_customer_notes = notes;
+
+      // Insurance confirmation — customer confirms they received the docs
+      if (insuranceConfirmed !== undefined) {
+        updatePayload.insurance_docs_confirmed_by_customer = insuranceConfirmed;
+        updatePayload.insurance_docs_confirmed_by_customer_at = insuranceConfirmed
+          ? bookingRow.insurance_docs_confirmed_by_customer_at || now
+          : null;
+      }
     }
 
     if (section === "return") {
@@ -160,7 +160,7 @@ export async function POST(
 
       if (confirmed && !bookingRow.return_confirmed_by_driver) {
         return NextResponse.json(
-          { error: "Driver has not yet confirmed return. Please wait for the driver to record the fuel level." },
+          { error: "Driver has not yet confirmed collection. Please wait for the driver to record the fuel level." },
           { status: 400 }
         );
       }
@@ -169,14 +169,13 @@ export async function POST(
       updatePayload.return_confirmed_by_customer_at = confirmed
         ? bookingRow.return_confirmed_by_customer_at || now
         : null;
-      // Customer fuel = driver's recorded fuel
       updatePayload.return_fuel_level_customer = confirmed ? driverFuel : null;
       updatePayload.return_customer_notes = notes;
     }
 
     // Recalculate lock state after this update
     const nextCollectionLocked = section === "collection"
-      ? isLocked({
+      ? isFuelLocked({
           driverConfirmed: bookingRow.collection_confirmed_by_driver,
           customerConfirmed: confirmed,
           driverFuel: bookingRow.collection_fuel_level_driver,
@@ -185,7 +184,7 @@ export async function POST(
       : collectionAlreadyLocked;
 
     const nextReturnLocked = section === "return"
-      ? isLocked({
+      ? isFuelLocked({
           driverConfirmed: bookingRow.return_confirmed_by_driver,
           customerConfirmed: confirmed,
           driverFuel: bookingRow.return_fuel_level_driver,
@@ -193,13 +192,11 @@ export async function POST(
         })
       : returnAlreadyLocked;
 
-    // Auto-advance booking status + calculate fuel charge when both locked
     const wasCompleted = bookingRow.booking_status === "completed";
 
     if (nextCollectionLocked && nextReturnLocked) {
       updatePayload.booking_status = "completed";
 
-      // Calculate fuel charge using effective fuel levels
       const collFuel = normalizeFuel(bookingRow.collection_fuel_level_partner) ||
         normalizeFuel(bookingRow.collection_fuel_level_driver);
       const retFuel = normalizeFuel(section === "return"
@@ -228,7 +225,6 @@ export async function POST(
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
 
-    // Send completion email
     const becameCompleted = !wasCompleted && updatePayload.booking_status === "completed";
     if (becameCompleted && requestRow.customer_email) {
       try {

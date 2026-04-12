@@ -19,6 +19,8 @@ type DriverJob = {
   return_confirmed_by_driver?: boolean | null;
   return_confirmed_by_driver_at?: string | null;
   return_fuel_level_driver?: string | null;
+  insurance_docs_confirmed_by_driver?: boolean | null;
+  insurance_docs_confirmed_by_driver_at?: string | null;
 };
 
 type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
@@ -80,9 +82,26 @@ function FuelSummaryCard({ title, confirmed, confirmedAt, fuelLevel }: {
   );
 }
 
-function JobCard({ job, mode, fuelInput, onFuelChange, onConfirm, saving }: {
+function InsuranceSummaryCard({ confirmed, confirmedAt }: {
+  confirmed: boolean; confirmedAt?: string | null;
+}) {
+  return (
+    <div className={`rounded-xl border p-3 ${confirmed ? "border-green-200 bg-green-50" : "border-amber-100 bg-amber-50"}`}>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Insurance docs</p>
+      <div className="mt-1 flex items-center gap-2">
+        <span className={`text-lg ${confirmed ? "text-green-700" : "text-amber-600"}`}>
+          {confirmed ? "✓ Handed over" : "Not confirmed"}
+        </span>
+      </div>
+      {confirmed && confirmedAt && <p className="mt-1 text-xs text-slate-400">{fmt(confirmedAt)}</p>}
+    </div>
+  );
+}
+
+function JobCard({ job, mode, fuelInput, onFuelChange, insuranceChecked, onInsuranceChange, onConfirm, saving }: {
   job: DriverJob; mode: "collection" | "return" | "readonly";
   fuelInput: FuelLevel; onFuelChange: (v: FuelLevel) => void;
+  insuranceChecked: boolean; onInsuranceChange: (v: boolean) => void;
   onConfirm: () => void; saving: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -115,13 +134,16 @@ function JobCard({ job, mode, fuelInput, onFuelChange, onConfirm, saving }: {
             <Detail label="Dropoff time"   value={fmt(job.dropoff_at)} />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/* Status summary cards */}
+          <div className="grid gap-3 sm:grid-cols-3">
             <FuelSummaryCard title="Delivery fuel"   confirmed={!!job.collection_confirmed_by_driver}
               confirmedAt={job.collection_confirmed_by_driver_at}
               fuelLevel={job.collection_fuel_level_driver as FuelLevel | null} />
             <FuelSummaryCard title="Collection fuel" confirmed={!!job.return_confirmed_by_driver}
               confirmedAt={job.return_confirmed_by_driver_at}
               fuelLevel={job.return_fuel_level_driver as FuelLevel | null} />
+            <InsuranceSummaryCard confirmed={!!job.insurance_docs_confirmed_by_driver}
+              confirmedAt={job.insurance_docs_confirmed_by_driver_at} />
           </div>
 
           {mode !== "readonly" && (
@@ -129,6 +151,8 @@ function JobCard({ job, mode, fuelInput, onFuelChange, onConfirm, saving }: {
               <p className="text-sm font-semibold text-[#003768]">
                 {mode === "collection" ? "Record delivery fuel level" : "Record collection fuel level"}
               </p>
+
+              {/* Fuel selector */}
               <div className="grid grid-cols-5 gap-2">
                 {FUEL_OPTIONS.map(opt => (
                   <button key={opt} type="button" onClick={() => onFuelChange(opt)}
@@ -145,6 +169,23 @@ function JobCard({ job, mode, fuelInput, onFuelChange, onConfirm, saving }: {
                 ))}
               </div>
               <FuelBar level={fuelInput} />
+
+              {/* Insurance checkbox — delivery stage only */}
+              {mode === "collection" && (
+                <label className={`flex items-start gap-3 rounded-xl border-2 p-3 cursor-pointer transition ${
+                  insuranceChecked ? "border-green-400 bg-green-50" : "border-amber-300 bg-amber-50"
+                }`}>
+                  <input type="checkbox" checked={insuranceChecked} onChange={e => onInsuranceChange(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-[#003768]" />
+                  <div>
+                    <p className="text-sm font-semibold text-[#003768]">Insurance documents handed to customer</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Tick to confirm you have handed the insurance paperwork to the customer at delivery.
+                    </p>
+                  </div>
+                </label>
+              )}
+
               <button type="button" onClick={onConfirm} disabled={saving}
                 className="w-full rounded-full bg-[#ff7a00] py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60 active:scale-95 transition-transform">
                 {saving ? "Saving…" : mode === "collection" ? "✓ Confirm Delivery" : "✓ Confirm Collection"}
@@ -160,15 +201,16 @@ function JobCard({ job, mode, fuelInput, onFuelChange, onConfirm, saving }: {
 const PAGE_SIZE = 10;
 
 export default function DriverJobsPage() {
-  const [loading,      setLoading]      = useState(true);
-  const [activeTab,    setActiveTab]    = useState<"awaiting" | "onHire" | "completed">("awaiting");
-  const [savingId,     setSavingId]     = useState<string | null>(null);
-  const [error,        setError]        = useState<string | null>(null);
-  const [toast,        setToast]        = useState<string | null>(null);
-  const [driver,       setDriver]       = useState<DriverInfo | null>(null);
-  const [jobs,         setJobs]         = useState<DriverJob[]>([]);
-  const [fuelInputs,   setFuelInputs]   = useState<Record<string, FuelLevel>>({});
-  const [visibleCount, setVisibleCount] = useState<Record<string, number>>({
+  const [loading,          setLoading]          = useState(true);
+  const [activeTab,        setActiveTab]        = useState<"awaiting" | "onHire" | "completed">("awaiting");
+  const [savingId,         setSavingId]         = useState<string | null>(null);
+  const [error,            setError]            = useState<string | null>(null);
+  const [toast,            setToast]            = useState<string | null>(null);
+  const [driver,           setDriver]           = useState<DriverInfo | null>(null);
+  const [jobs,             setJobs]             = useState<DriverJob[]>([]);
+  const [fuelInputs,       setFuelInputs]       = useState<Record<string, FuelLevel>>({});
+  const [insuranceInputs,  setInsuranceInputs]  = useState<Record<string, boolean>>({});
+  const [visibleCount,     setVisibleCount]     = useState<Record<string, number>>({
     awaiting: PAGE_SIZE, onHire: PAGE_SIZE, completed: PAGE_SIZE,
   });
 
@@ -180,9 +222,14 @@ export default function DriverJobsPage() {
       if (!res.ok) throw new Error(json?.error || "Failed to load jobs.");
       setDriver(json.driver ?? null);
       setJobs(json.jobs ?? []);
-      const inputs: Record<string, FuelLevel> = {};
-      for (const j of json.jobs ?? []) inputs[j.booking_id] = "full";
-      setFuelInputs(inputs);
+      const fInputs: Record<string, FuelLevel> = {};
+      const iInputs: Record<string, boolean>   = {};
+      for (const j of json.jobs ?? []) {
+        fInputs[j.booking_id] = "full";
+        iInputs[j.booking_id] = false;
+      }
+      setFuelInputs(fInputs);
+      setInsuranceInputs(iInputs);
     } catch (e: any) {
       setError(e?.message || "Failed to load jobs.");
     } finally {
@@ -195,10 +242,19 @@ export default function DriverJobsPage() {
   async function confirmStage(bookingId: string, stage: "collection" | "return") {
     setSavingId(bookingId); setError(null);
     try {
+      const body: Record<string, any> = {
+        stage,
+        fuel_level: fuelInputs[bookingId] ?? "full",
+      };
+      // Only send insurance flag on delivery stage
+      if (stage === "collection") {
+        body.insurance_docs_handed_over = insuranceInputs[bookingId] ?? false;
+      }
+
       const res  = await fetch(`/api/driver/bookings/${bookingId}/confirm`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage, fuel_level: fuelInputs[bookingId] ?? "full" }),
+        body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to save.");
@@ -218,7 +274,6 @@ export default function DriverJobsPage() {
     completed: jobs.filter(j => j.booking_status_label === "Completed"),
   }), [jobs]);
 
-  // Auto-select most relevant tab on load
   useEffect(() => {
     if (!loading) {
       if (awaiting.length > 0) setActiveTab("awaiting");
@@ -249,7 +304,6 @@ export default function DriverJobsPage() {
 
       {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
-      {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#003768]">My Jobs</h1>
@@ -271,7 +325,6 @@ export default function DriverJobsPage() {
         </div>
       ) : (
         <>
-          {/* Tab cards */}
           <div className="grid grid-cols-3 gap-3">
             {tabs.map(tab => (
               <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
@@ -289,7 +342,6 @@ export default function DriverJobsPage() {
             ))}
           </div>
 
-          {/* Job list */}
           <div>
             <div className="mb-3 flex items-center gap-2">
               <h2 className={`text-lg font-bold ${tabs.find(t => t.key === activeTab)?.accent}`}>
@@ -308,6 +360,8 @@ export default function DriverJobsPage() {
                   <JobCard key={job.booking_id} job={job} mode={activeMode}
                     fuelInput={fuelInputs[job.booking_id] ?? "full"}
                     onFuelChange={v => setFuelInputs(p => ({ ...p, [job.booking_id]: v }))}
+                    insuranceChecked={insuranceInputs[job.booking_id] ?? false}
+                    onInsuranceChange={v => setInsuranceInputs(p => ({ ...p, [job.booking_id]: v }))}
                     onConfirm={() => confirmStage(job.booking_id, activeMode === "readonly" ? "return" : activeMode)}
                     saving={savingId === job.booking_id} />
                 ))}

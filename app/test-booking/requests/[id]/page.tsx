@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createCustomerBrowserClient } from "@/lib/supabase-customer/browser";
 import { useCurrency } from "@/lib/useCurrency";
-import { getEurToGbpRateWithSource } from "@/lib/currency";
 import type { Currency } from "@/lib/currency";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -49,6 +48,9 @@ type BookingData = {
   collection_fuel_level_customer: string | null; collection_customer_notes: string | null;
   return_confirmed_by_customer: boolean; return_confirmed_by_customer_at: string | null;
   return_fuel_level_customer: string | null; return_customer_notes: string | null;
+  // Insurance
+  insurance_docs_confirmed_by_driver: boolean; insurance_docs_confirmed_by_driver_at: string | null;
+  insurance_docs_confirmed_by_customer: boolean; insurance_docs_confirmed_by_customer_at: string | null;
 };
 
 type ResponseShape = { request: RequestData; bids: BidRow[]; booking: BookingData | null };
@@ -290,6 +292,98 @@ function CustomerPaymentSummary({ booking, rates, rateIsLive, customerCurrency }
   );
 }
 
+// ── Insurance Confirm Card ────────────────────────────────────────────────────
+
+function InsuranceConfirmCard({
+  driverConfirmed, driverConfirmedAt,
+  customerConfirmed, customerConfirmedAt,
+  insuranceChecked, onInsuranceChange,
+  onConfirm, onUnconfirm, saving, locked,
+}: {
+  driverConfirmed: boolean; driverConfirmedAt: string | null;
+  customerConfirmed: boolean; customerConfirmedAt: string | null;
+  insuranceChecked: boolean; onInsuranceChange: (v: boolean) => void;
+  onConfirm: () => void; onUnconfirm: () => void;
+  saving: boolean; locked: boolean;
+}) {
+  return (
+    <div className={`rounded-3xl border p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] ${
+      locked ? "border-green-200 bg-green-50" : "border-black/5 bg-white"
+    }`}>
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">📄</span>
+        <h2 className="text-2xl font-semibold text-[#003768]">Insurance Documents</h2>
+      </div>
+      <p className="mt-2 text-sm text-slate-500">
+        The driver must hand you the insurance paperwork at delivery. Both you and the driver confirm this has happened.
+      </p>
+
+      {/* Driver status */}
+      <div className={`mt-4 rounded-2xl border p-4 ${driverConfirmed ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver confirmed handover</p>
+        {driverConfirmed ? (
+          <>
+            <p className="mt-1 text-lg font-bold text-blue-700">✓ Driver confirmed</p>
+            <p className="mt-0.5 text-xs text-slate-400">{fmt(driverConfirmedAt)}</p>
+          </>
+        ) : (
+          <p className="mt-1 text-sm italic text-slate-400">Waiting for driver to confirm they handed over the documents…</p>
+        )}
+      </div>
+
+      {locked ? (
+        <div className="mt-4 rounded-2xl border border-green-200 bg-green-100 p-4 text-sm font-semibold text-green-800">
+          ✓ Both you and the driver have confirmed insurance documents were handed over.
+        </div>
+      ) : (
+        <>
+          {customerConfirmed && (
+            <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+              You confirmed receipt at {fmt(customerConfirmedAt)}
+            </div>
+          )}
+
+          {!customerConfirmed && (
+            <label className={`mt-4 flex items-start gap-3 rounded-xl border-2 p-3 cursor-pointer transition ${
+              insuranceChecked ? "border-green-400 bg-green-50" : "border-black/10 bg-slate-50"
+            }`}>
+              <input type="checkbox" checked={insuranceChecked} onChange={e => onInsuranceChange(e.target.checked)}
+                disabled={!driverConfirmed || saving}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-[#003768]" />
+              <div>
+                <p className="text-sm font-semibold text-[#003768]">I confirm I have received the insurance documents</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Tick this box to confirm the driver handed you the car hire insurance paperwork at delivery.
+                </p>
+              </div>
+            </label>
+          )}
+
+          <div className="mt-4 flex gap-3">
+            {!customerConfirmed ? (
+              <button type="button" onClick={onConfirm}
+                disabled={saving || !driverConfirmed || !insuranceChecked}
+                className="flex-1 rounded-full bg-[#ff7a00] py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-50 active:scale-95 transition-transform">
+                {saving ? "Saving…" : !driverConfirmed ? "Waiting for driver…" : !insuranceChecked ? "Tick box above to confirm" : "✓ Confirm receipt of documents"}
+              </button>
+            ) : (
+              <button type="button" onClick={onUnconfirm} disabled={saving}
+                className="flex-1 rounded-full border border-black/10 bg-white py-3 font-semibold text-slate-700 hover:bg-black/5 disabled:opacity-50">
+                {saving ? "Saving…" : "Dispute / I did not receive them"}
+              </button>
+            )}
+          </div>
+          {!driverConfirmed && (
+            <p className="mt-2 text-xs text-slate-400">
+              This section will activate once the driver has confirmed they handed over the documents.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Fuel Confirmation Card ────────────────────────────────────────────────────
 
 function FuelConfirmCard({
@@ -380,17 +474,18 @@ export default function TestBookingRequestDetailPage({
     }).catch(() => {});
   }, []);
 
-  const [requestId,       setRequestId]       = useState("");
-  const [loading,         setLoading]         = useState(true);
-  const [acceptingId,     setAcceptingId]     = useState<string | null>(null);
-  const [savingConfirm,   setSavingConfirm]   = useState<ConfirmSection | null>(null);
-  const [error,           setError]           = useState<string | null>(null);
-  const [ok,              setOk]              = useState<string | null>(null);
-  const [data,            setData]            = useState<ResponseShape | null>(null);
-  const [timeLabel,       setTimeLabel]       = useState("—");
-  const [expired,         setExpired]         = useState(false);
-  const [collectionNotes, setCollectionNotes] = useState("");
-  const [returnNotes,     setReturnNotes]     = useState("");
+  const [requestId,        setRequestId]        = useState("");
+  const [loading,          setLoading]          = useState(true);
+  const [acceptingId,      setAcceptingId]      = useState<string | null>(null);
+  const [savingConfirm,    setSavingConfirm]    = useState<ConfirmSection | "insurance" | null>(null);
+  const [error,            setError]            = useState<string | null>(null);
+  const [ok,               setOk]              = useState<string | null>(null);
+  const [data,             setData]             = useState<ResponseShape | null>(null);
+  const [timeLabel,        setTimeLabel]        = useState("—");
+  const [expired,          setExpired]          = useState(false);
+  const [collectionNotes,  setCollectionNotes]  = useState("");
+  const [returnNotes,      setReturnNotes]      = useState("");
+  const [insuranceChecked, setInsuranceChecked] = useState(false);
 
   useEffect(() => { params.then(r => setRequestId(r.id)); }, [params]);
 
@@ -463,11 +558,39 @@ export default function TestBookingRequestDetailPage({
       const res = await fetch(`/api/test-booking/bookings/${data.booking.id}/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ section, confirmed, notes: section === "collection" ? collectionNotes : returnNotes }),
+        body: JSON.stringify({
+          section,
+          confirmed,
+          notes: section === "collection" ? collectionNotes : returnNotes,
+        }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to save.");
       setOk(section === "collection" ? "Delivery fuel confirmed." : "Collection fuel confirmed.");
+      await load(false);
+    } catch (e: any) { setError(e?.message || "Failed to save."); }
+    finally { setSavingConfirm(null); }
+  }
+
+  async function saveInsuranceConfirmation(confirmed: boolean) {
+    if (!data?.booking?.id) return;
+    setSavingConfirm("insurance"); setError(null); setOk(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not signed in");
+      const res = await fetch(`/api/test-booking/bookings/${data.booking.id}/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          section: "collection",       // insurance is delivery-stage only
+          confirmed: data.booking.collection_confirmed_by_customer, // don't change fuel confirm
+          notes: collectionNotes,
+          insurance_confirmed: confirmed,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Failed to save.");
+      setOk(confirmed ? "Insurance documents confirmed." : "Insurance confirmation removed.");
       await load(false);
     } catch (e: any) { setError(e?.message || "Failed to save."); }
     finally { setSavingConfirm(null); }
@@ -492,7 +615,6 @@ export default function TestBookingRequestDetailPage({
   const bk = data.booking;
   const bookingStoredCurr: Currency = bk?.currency ?? "EUR";
 
-  // Lock is driven purely by both driver and customer confirming the same fuel level
   const collectionLocked = !!bk?.collection_confirmed_by_driver &&
     !!bk?.collection_confirmed_by_customer &&
     normalizeFuel(bk.collection_fuel_level_driver) === normalizeFuel(bk.collection_fuel_level_customer);
@@ -500,6 +622,10 @@ export default function TestBookingRequestDetailPage({
   const returnLocked = !!bk?.return_confirmed_by_driver &&
     !!bk?.return_confirmed_by_customer &&
     normalizeFuel(bk.return_fuel_level_driver) === normalizeFuel(bk.return_fuel_level_customer);
+
+  // Insurance locked when both driver and customer have confirmed
+  const insuranceLocked = !!bk?.insurance_docs_confirmed_by_driver &&
+    !!bk?.insurance_docs_confirmed_by_customer;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-10">
@@ -579,8 +705,6 @@ export default function TestBookingRequestDetailPage({
                 </span>
               </div>
             </div>
-
-            {/* Contact note */}
             <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm text-slate-600 space-y-2">
               <p>For any vehicle condition concerns, contact the car hire company directly using the details above. All vehicles are fully insured by the car hire company.</p>
               <p className="text-slate-500">We recommend using WhatsApp for the fastest response:</p>
@@ -610,34 +734,51 @@ export default function TestBookingRequestDetailPage({
           )}
 
           {(!collectionLocked || !returnLocked) && (
-            <div className="grid gap-6 xl:grid-cols-2">
-              <FuelConfirmCard
-                title="Delivery Fuel"
-                driverConfirmed={bk.collection_confirmed_by_driver}
-                driverFuel={bk.collection_fuel_level_driver}
-                driverConfirmedAt={bk.collection_confirmed_by_driver_at}
-                customerConfirmed={bk.collection_confirmed_by_customer}
-                customerConfirmedAt={bk.collection_confirmed_by_customer_at}
-                locked={collectionLocked} notes={collectionNotes}
-                onNotesChange={setCollectionNotes}
-                onConfirm={() => saveConfirmation("collection", true)}
-                onUnconfirm={() => saveConfirmation("collection", false)}
-                saving={savingConfirm === "collection"}
+            <>
+              {/* Insurance card — delivery stage only, shown whenever there's an active booking */}
+              <InsuranceConfirmCard
+                driverConfirmed={bk.insurance_docs_confirmed_by_driver}
+                driverConfirmedAt={bk.insurance_docs_confirmed_by_driver_at}
+                customerConfirmed={bk.insurance_docs_confirmed_by_customer}
+                customerConfirmedAt={bk.insurance_docs_confirmed_by_customer_at}
+                insuranceChecked={insuranceChecked}
+                onInsuranceChange={setInsuranceChecked}
+                onConfirm={() => saveInsuranceConfirmation(true)}
+                onUnconfirm={() => saveInsuranceConfirmation(false)}
+                saving={savingConfirm === "insurance"}
+                locked={insuranceLocked}
               />
-              <FuelConfirmCard
-                title="Collection Fuel"
-                driverConfirmed={bk.return_confirmed_by_driver}
-                driverFuel={bk.return_fuel_level_driver}
-                driverConfirmedAt={bk.return_confirmed_by_driver_at}
-                customerConfirmed={bk.return_confirmed_by_customer}
-                customerConfirmedAt={bk.return_confirmed_by_customer_at}
-                locked={returnLocked} notes={returnNotes}
-                onNotesChange={setReturnNotes}
-                onConfirm={() => saveConfirmation("return", true)}
-                onUnconfirm={() => saveConfirmation("return", false)}
-                saving={savingConfirm === "return"}
-              />
-            </div>
+
+              {/* Fuel confirmation cards */}
+              <div className="grid gap-6 xl:grid-cols-2">
+                <FuelConfirmCard
+                  title="Delivery Fuel"
+                  driverConfirmed={bk.collection_confirmed_by_driver}
+                  driverFuel={bk.collection_fuel_level_driver}
+                  driverConfirmedAt={bk.collection_confirmed_by_driver_at}
+                  customerConfirmed={bk.collection_confirmed_by_customer}
+                  customerConfirmedAt={bk.collection_confirmed_by_customer_at}
+                  locked={collectionLocked} notes={collectionNotes}
+                  onNotesChange={setCollectionNotes}
+                  onConfirm={() => saveConfirmation("collection", true)}
+                  onUnconfirm={() => saveConfirmation("collection", false)}
+                  saving={savingConfirm === "collection"}
+                />
+                <FuelConfirmCard
+                  title="Collection Fuel"
+                  driverConfirmed={bk.return_confirmed_by_driver}
+                  driverFuel={bk.return_fuel_level_driver}
+                  driverConfirmedAt={bk.return_confirmed_by_driver_at}
+                  customerConfirmed={bk.return_confirmed_by_customer}
+                  customerConfirmedAt={bk.return_confirmed_by_customer_at}
+                  locked={returnLocked} notes={returnNotes}
+                  onNotesChange={setReturnNotes}
+                  onConfirm={() => saveConfirmation("return", true)}
+                  onUnconfirm={() => saveConfirmation("return", false)}
+                  saving={savingConfirm === "return"}
+                />
+              </div>
+            </>
           )}
         </>
       )}

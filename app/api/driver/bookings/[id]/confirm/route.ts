@@ -23,6 +23,8 @@ export async function POST(
 
     const stage = String(body?.stage || "").trim().toLowerCase();
     const fuelLevel = normalizeFuel(body?.fuel_level);
+    // Insurance only applies at delivery (collection stage)
+    const insuranceHandedOver = stage === "collection" ? !!body?.insurance_docs_handed_over : undefined;
 
     if (stage !== "collection" && stage !== "return") {
       return NextResponse.json({ error: "Invalid stage." }, { status: 400 });
@@ -33,7 +35,6 @@ export async function POST(
     }
 
     const { user, error: authError } = await getPortalUserRole();
-
     if (!user) {
       return NextResponse.json({ error: authError || "Not signed in" }, { status: 401 });
     }
@@ -50,10 +51,7 @@ export async function POST(
       .eq("is_active", true)
       .maybeSingle();
 
-    if (byAuthErr) {
-      return NextResponse.json({ error: byAuthErr.message }, { status: 400 });
-    }
-
+    if (byAuthErr) return NextResponse.json({ error: byAuthErr.message }, { status: 400 });
     driverRow = byAuthUser || null;
 
     if (!driverRow && signedInEmail) {
@@ -64,10 +62,7 @@ export async function POST(
         .eq("is_active", true)
         .maybeSingle();
 
-      if (byEmailErr) {
-        return NextResponse.json({ error: byEmailErr.message }, { status: 400 });
-      }
-
+      if (byEmailErr) return NextResponse.json({ error: byEmailErr.message }, { status: 400 });
       driverRow = byEmail || null;
     }
 
@@ -82,13 +77,8 @@ export async function POST(
       .eq("assigned_driver_id", driverRow.id)
       .maybeSingle();
 
-    if (bookingErr) {
-      return NextResponse.json({ error: bookingErr.message }, { status: 400 });
-    }
-
-    if (!bookingRow) {
-      return NextResponse.json({ error: "Booking not found for this driver." }, { status: 404 });
-    }
+    if (bookingErr) return NextResponse.json({ error: bookingErr.message }, { status: 400 });
+    if (!bookingRow) return NextResponse.json({ error: "Booking not found for this driver." }, { status: 404 });
 
     const now = new Date().toISOString();
     const updatePayload: Record<string, any> = {};
@@ -97,8 +87,10 @@ export async function POST(
       updatePayload.collection_confirmed_by_driver = true;
       updatePayload.collection_confirmed_by_driver_at = now;
       updatePayload.collection_fuel_level_driver = fuelLevel;
+      // Record insurance handover — driver confirms they handed docs to customer
+      updatePayload.insurance_docs_confirmed_by_driver = !!insuranceHandedOver;
+      updatePayload.insurance_docs_confirmed_by_driver_at = insuranceHandedOver ? now : null;
 
-      // Advance to "collected" — waiting for customer to confirm delivery fuel
       if (["confirmed", "driver_assigned", "en_route", "arrived"].includes(bookingRow.booking_status)) {
         updatePayload.booking_status = "collected";
       }
@@ -108,9 +100,7 @@ export async function POST(
       updatePayload.return_confirmed_by_driver = true;
       updatePayload.return_confirmed_by_driver_at = now;
       updatePayload.return_fuel_level_driver = fuelLevel;
-
-      // Advance to "returned" — waiting for customer to confirm collection fuel
-      // Do NOT set "completed" here — only the customer confirmation flow completes the booking
+      // No insurance at return stage
       if (["collected", "returned"].includes(bookingRow.booking_status)) {
         updatePayload.booking_status = "returned";
       }
@@ -122,11 +112,9 @@ export async function POST(
       .eq("id", id)
       .eq("assigned_driver_id", driverRow.id);
 
-    if (updateErr) {
-      return NextResponse.json({ error: updateErr.message }, { status: 400 });
-    }
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
 
-    return NextResponse.json({ ok: true, stage, fuel_level: fuelLevel }, { status: 200 });
+    return NextResponse.json({ ok: true, stage, fuel_level: fuelLevel, insurance_docs_handed_over: insuranceHandedOver }, { status: 200 });
 
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });

@@ -53,6 +53,11 @@ type BookingRow = {
   return_confirmed_by_customer_at?: string | null;
   return_fuel_level_customer?: string | null;
   return_customer_notes?: string | null;
+  // Insurance
+  insurance_docs_confirmed_by_driver?: boolean | null;
+  insurance_docs_confirmed_by_driver_at?: string | null;
+  insurance_docs_confirmed_by_customer?: boolean | null;
+  insurance_docs_confirmed_by_customer_at?: string | null;
 };
 
 type RequestRow = {
@@ -187,6 +192,71 @@ const QUARTER_LABELS: Record<number, string> = {
   0: "Empty", 1: "¼ Tank", 2: "½ Tank", 3: "¾ Tank", 4: "Full Tank",
 };
 
+// ── Insurance Status Card ─────────────────────────────────────────────────────
+
+function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
+  const driverConfirmed   = !!booking.insurance_docs_confirmed_by_driver;
+  const customerConfirmed = !!booking.insurance_docs_confirmed_by_customer;
+  const bothConfirmed     = driverConfirmed && customerConfirmed;
+
+  return (
+    <div className={`rounded-3xl border p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] ${
+      bothConfirmed ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"
+    }`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">📄</span>
+          <h3 className="text-xl font-bold text-[#003768]">Insurance Documents</h3>
+        </div>
+        {bothConfirmed && (
+          <span className="rounded-full bg-green-600 px-3 py-1 text-xs font-bold text-white">✓ Confirmed</span>
+        )}
+      </div>
+      <p className="mt-2 text-sm text-slate-500">
+        Driver confirms handover at delivery. Customer confirms receipt. Both must agree.
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className={`rounded-2xl border p-4 ${driverConfirmed ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver</p>
+          {driverConfirmed ? (
+            <>
+              <p className="mt-1 text-base font-bold text-blue-700">✓ Handed over</p>
+              <p className="mt-0.5 text-xs text-slate-400">{fmt(booking.insurance_docs_confirmed_by_driver_at)}</p>
+            </>
+          ) : (
+            <p className="mt-1 text-sm italic text-slate-400">Not yet confirmed</p>
+          )}
+        </div>
+        <div className={`rounded-2xl border p-4 ${customerConfirmed ? "border-green-200 bg-green-50" : "border-slate-200 bg-slate-50"}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Customer</p>
+          {customerConfirmed ? (
+            <>
+              <p className="mt-1 text-base font-bold text-green-700">✓ Received</p>
+              <p className="mt-0.5 text-xs text-slate-400">{fmt(booking.insurance_docs_confirmed_by_customer_at)}</p>
+            </>
+          ) : (
+            <p className="mt-1 text-sm italic text-slate-400">Not yet confirmed</p>
+          )}
+        </div>
+      </div>
+      {bothConfirmed && (
+        <div className="mt-4 rounded-2xl border border-green-200 bg-green-100 p-3 text-sm font-semibold text-green-800">
+          ✓ Both driver and customer confirm insurance documents were handed over at delivery.
+        </div>
+      )}
+      {!bothConfirmed && (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-100 p-3 text-sm text-amber-700">
+          {!driverConfirmed && !customerConfirmed
+            ? "Awaiting confirmation from driver and customer."
+            : !driverConfirmed
+            ? "Awaiting driver confirmation."
+            : "Awaiting customer confirmation."}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Booking Summary Card ──────────────────────────────────────────────────────
 
 function BookingSummaryCard({ booking, rates, isLive }: {
@@ -311,15 +381,15 @@ function FuelStageCard({
   notes: string; onNotesChange: (v: string) => void;
   onSave: () => void; saving: boolean; locked: boolean;
 }) {
-  const driverConfirmed = stage === "collection" ? !!booking.collection_confirmed_by_driver : !!booking.return_confirmed_by_driver;
-  const driverFuel = stage === "collection" ? booking.collection_fuel_level_driver : booking.return_fuel_level_driver;
-  const driverAt = stage === "collection" ? booking.collection_confirmed_by_driver_at : booking.return_confirmed_by_driver_at;
+  const driverConfirmed  = stage === "collection" ? !!booking.collection_confirmed_by_driver  : !!booking.return_confirmed_by_driver;
+  const driverFuel       = stage === "collection" ? booking.collection_fuel_level_driver       : booking.return_fuel_level_driver;
+  const driverAt         = stage === "collection" ? booking.collection_confirmed_by_driver_at  : booking.return_confirmed_by_driver_at;
   const customerConfirmed = stage === "collection" ? !!booking.collection_confirmed_by_customer : !!booking.return_confirmed_by_customer;
-  const customerFuel = stage === "collection" ? booking.collection_fuel_level_customer : booking.return_fuel_level_customer;
-  const customerAt = stage === "collection" ? booking.collection_confirmed_by_customer_at : booking.return_confirmed_by_customer_at;
-  const customerNotes = stage === "collection" ? booking.collection_customer_notes : booking.return_customer_notes;
-  const savedPartnerFuel = stage === "collection" ? booking.collection_fuel_level_partner : booking.return_fuel_level_partner;
-  const savedPartnerAt = stage === "collection" ? booking.collection_confirmed_by_partner_at : booking.return_confirmed_by_partner_at;
+  const customerFuel     = stage === "collection" ? booking.collection_fuel_level_customer     : booking.return_fuel_level_customer;
+  const customerAt       = stage === "collection" ? booking.collection_confirmed_by_customer_at : booking.return_confirmed_by_customer_at;
+  const customerNotes    = stage === "collection" ? booking.collection_customer_notes          : booking.return_customer_notes;
+  const savedPartnerFuel = stage === "collection" ? booking.collection_fuel_level_partner      : booking.return_fuel_level_partner;
+  const savedPartnerAt   = stage === "collection" ? booking.collection_confirmed_by_partner_at : booking.return_confirmed_by_partner_at;
   const hasOverride = !!savedPartnerFuel && savedPartnerFuel !== driverFuel;
 
   return (
@@ -411,28 +481,28 @@ export default function PartnerBookingDetailPage() {
   const params = useParams<{ id: string }>();
   const bookingId = String(params?.id || "");
 
-  const [loading, setLoading] = useState(true);
-  const [savingSection, setSavingSection] = useState<"details" | "collection" | "return" | null>(null);
+  const [loading,        setLoading]        = useState(true);
+  const [savingSection,  setSavingSection]  = useState<"details" | "collection" | "return" | null>(null);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const [data, setData] = useState<BookingApiResponse | null>(null);
-  const [drivers, setDrivers] = useState<DriverRow[]>([]);
-  const [rates, setRates] = useState<Rates>({ GBP: 0.85, USD: 1.08 });
-  const [rateIsLive, setRateIsLive] = useState<boolean>(false);
+  const [error,          setError]          = useState<string | null>(null);
+  const [ok,             setOk]             = useState<string | null>(null);
+  const [data,           setData]           = useState<BookingApiResponse | null>(null);
+  const [drivers,        setDrivers]        = useState<DriverRow[]>([]);
+  const [rates,          setRates]          = useState<Rates>({ GBP: 0.85, USD: 1.08 });
+  const [rateIsLive,     setRateIsLive]     = useState<boolean>(false);
 
   const [selectedDriverId, setSelectedDriverId] = useState("");
-  const [driverName, setDriverName] = useState("");
-  const [driverPhone, setDriverPhone] = useState("");
-  const [driverVehicle, setDriverVehicle] = useState("");
-  const [driverNotes, setDriverNotes] = useState("");
+  const [driverName,       setDriverName]       = useState("");
+  const [driverPhone,      setDriverPhone]      = useState("");
+  const [driverVehicle,    setDriverVehicle]    = useState("");
+  const [driverNotes,      setDriverNotes]      = useState("");
 
-  const [collectionFuel, setCollectionFuel] = useState<FuelLevel>("full");
+  const [collectionFuel,      setCollectionFuel]      = useState<FuelLevel>("full");
   const [collectionConfirmed, setCollectionConfirmed] = useState(false);
-  const [collectionNotes, setCollectionNotes] = useState("");
-  const [returnFuel, setReturnFuel] = useState<FuelLevel>("full");
-  const [returnConfirmed, setReturnConfirmed] = useState(false);
-  const [returnNotes, setReturnNotes] = useState("");
+  const [collectionNotes,     setCollectionNotes]     = useState("");
+  const [returnFuel,          setReturnFuel]          = useState<FuelLevel>("full");
+  const [returnConfirmed,     setReturnConfirmed]     = useState(false);
+  const [returnNotes,         setReturnNotes]         = useState("");
 
   function hydrateForm(d: BookingApiResponse) {
     const b = d.booking;
@@ -692,12 +762,18 @@ export default function PartnerBookingDetailPage() {
       )}
 
       <div>
-        <h2 className="mb-1 text-2xl font-semibold text-[#003768]">Fuel Tracking</h2>
+        <h2 className="mb-1 text-2xl font-semibold text-[#003768]">Fuel &amp; Document Tracking</h2>
         <p className="mb-4 text-sm text-slate-500">
-          Driver records fuel level via their app. Use the office override below if the driver is unavailable or you need to correct their reading.
-          Customer confirms the reading to lock each stage.
+          Driver records fuel level and confirms insurance handover via their app.
+          Customer confirms each item to lock it. Use the office override for fuel if the driver is unavailable.
           <span className="ml-1 text-xs text-slate-400">(Refreshes every 10s)</span>
         </p>
+
+        {/* Insurance status — read-only for partner, action is driver/customer only */}
+        <div className="mb-6">
+          <InsuranceStatusCard booking={bk} />
+        </div>
+
         <div className="grid gap-6 xl:grid-cols-2">
           <FuelStageCard title="Delivery" booking={bk} stage="collection"
             fuelValue={collectionFuel} onFuelChange={setCollectionFuel}
