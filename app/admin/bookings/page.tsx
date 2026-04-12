@@ -1,565 +1,544 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 type Currency = "EUR" | "GBP" | "USD";
 
-type BookingRow = {
-  id: string;
-  request_id: string | null;
-  partner_user_id: string | null;
-  partner_company_name: string | null;
-  booking_status: string | null;
-  amount: number | string | null;
-  currency: Currency | null;
-  car_hire_price: number | null;
-  fuel_price: number | null;
-  fuel_used_quarters: number | null;
-  fuel_charge: number | null;
-  fuel_refund: number | null;
-  created_at: string | null;
-  job_number: string | null;
-  pickup_address: string | null;
-  dropoff_address: string | null;
-  pickup_at: string | null;
-  dropoff_at: string | null;
-  vehicle_category_name: string | null;
-  customer_name: string | null;
-  customer_email: string | null;
-  customer_phone: string | null;
-  driver_name: string | null;
-  driver_vehicle: string | null;
-  collection_fuel_level_driver: string | null;
-  collection_fuel_level_partner: string | null;
-  return_fuel_level_driver: string | null;
-  return_fuel_level_partner: string | null;
-  collection_confirmed_by_customer: boolean;
-  return_confirmed_by_customer: boolean;
+const CURRENCY_META: Record<Currency, { symbol: string; locale: string; label: string }> = {
+  EUR: { symbol: "€", locale: "es-ES", label: "EUR" },
+  GBP: { symbol: "£", locale: "en-GB", label: "GBP" },
+  USD: { symbol: "$", locale: "en-US", label: "USD" },
 };
 
-const CURRENCY_CONFIG: Record<Currency, { locale: string; label: string; symbol: string }> = {
-  EUR: { locale: "es-ES", label: "EUR", symbol: "€" },
-  GBP: { locale: "en-GB", label: "GBP", symbol: "£" },
-  USD: { locale: "en-US", label: "USD", symbol: "$" },
+type Rates = { GBP: number; USD: number };
+
+type BookingRow = {
+  id: string; request_id: string; partner_user_id: string; winning_bid_id: string;
+  partner_company_name?: string | null;
+  booking_status: string; amount: number | null; notes: string | null;
+  created_at: string; job_number: number | null; assigned_driver_id?: string | null;
+  driver_name: string | null; driver_phone: string | null;
+  driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
+  fuel_price: number | null; car_hire_price: number | null;
+  fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
+  currency: Currency;
+  collection_confirmed_by_driver?: boolean | null;
+  collection_confirmed_by_driver_at?: string | null;
+  collection_fuel_level_driver?: string | null;
+  return_confirmed_by_driver?: boolean | null;
+  return_confirmed_by_driver_at?: string | null;
+  return_fuel_level_driver?: string | null;
+  collection_confirmed_by_partner?: boolean | null;
+  collection_confirmed_by_partner_at?: string | null;
+  collection_fuel_level_partner?: string | null;
+  collection_partner_notes?: string | null;
+  return_confirmed_by_partner?: boolean | null;
+  return_confirmed_by_partner_at?: string | null;
+  return_fuel_level_partner?: string | null;
+  return_partner_notes?: string | null;
+  collection_confirmed_by_customer?: boolean | null;
+  collection_confirmed_by_customer_at?: string | null;
+  collection_fuel_level_customer?: string | null;
+  collection_customer_notes?: string | null;
+  return_confirmed_by_customer?: boolean | null;
+  return_confirmed_by_customer_at?: string | null;
+  return_fuel_level_customer?: string | null;
+  return_customer_notes?: string | null;
+  // Insurance
+  insurance_docs_confirmed_by_driver?: boolean | null;
+  insurance_docs_confirmed_by_driver_at?: string | null;
+  insurance_docs_confirmed_by_customer?: boolean | null;
+  insurance_docs_confirmed_by_customer_at?: string | null;
+  // Driver audit trail
+  delivery_driver_id?: string | null;
+  delivery_driver_name?: string | null;
+  delivery_confirmed_at?: string | null;
+  collection_driver_id?: string | null;
+  collection_driver_name?: string | null;
+  collection_confirmed_at?: string | null;
 };
+
+type RequestRow = {
+  id: string; job_number: number | null; customer_name: string | null;
+  customer_email: string | null; customer_phone: string | null;
+  pickup_address: string | null; dropoff_address: string | null;
+  pickup_at: string | null; dropoff_at: string | null;
+  journey_duration_minutes: number | null; passengers: number | null;
+  suitcases: number | null; hand_luggage: number | null;
+  vehicle_category_name: string | null; notes: string | null; status: string | null;
+};
+
+type ApiResponse = { booking: BookingRow; request: RequestRow | null; role: string | null };
+
+// ── Currency helpers ──────────────────────────────────────────────────────────
+
+function fmtCurr(amount: number, curr: Currency): string {
+  return new Intl.NumberFormat(CURRENCY_META[curr].locale, { style: "currency", currency: curr }).format(amount);
+}
+
+function toEur(amount: number, stored: Currency, rates: Rates): number {
+  if (stored === "EUR") return amount;
+  if (stored === "GBP") return Math.round((amount / rates.GBP) * 100) / 100;
+  return Math.round((amount / rates.USD) * 100) / 100;
+}
+
+function fromEur(amountEur: number, target: Currency, rates: Rates): number {
+  if (target === "EUR") return amountEur;
+  if (target === "GBP") return Math.round(amountEur * rates.GBP * 100) / 100;
+  return Math.round(amountEur * rates.USD * 100) / 100;
+}
+
+// ── Fuel helpers ──────────────────────────────────────────────────────────────
+
+function normalizeFuel(v: unknown): string | null {
+  if (!v) return null;
+  const s = String(v).toLowerCase().trim();
+  if (s === "empty") return "empty";
+  if (s === "quarter") return "quarter";
+  if (s === "half") return "half";
+  if (s === "three_quarter" || s === "3/4") return "3/4";
+  if (s === "full") return "full";
+  return null;
+}
+
+function fuelLabel(v: unknown): string {
+  switch (normalizeFuel(v)) {
+    case "empty":   return "Empty";
+    case "quarter": return "¼ Tank";
+    case "half":    return "½ Tank";
+    case "3/4":     return "¾ Tank";
+    case "full":    return "Full Tank";
+    default:        return "—";
+  }
+}
+
+const FUEL_BARS: Record<string, number> = { empty: 0, quarter: 1, half: 2, "3/4": 3, full: 4 };
+
+function FuelBar({ level }: { level: unknown }) {
+  const n = normalizeFuel(level);
+  const filled = n ? (FUEL_BARS[n] ?? 0) : 0;
+  return (
+    <div className="flex gap-1 mt-1">
+      {[0, 1, 2, 3].map(i => (
+        <div key={i} className={[
+          "h-2.5 flex-1 rounded-full",
+          i < filled
+            ? filled >= 3 ? "bg-green-500" : filled === 2 ? "bg-yellow-400" : "bg-red-400"
+            : "bg-slate-200",
+        ].join(" ")} />
+      ))}
+    </div>
+  );
+}
+
+function fmt(v?: string | null) {
+  if (!v) return "—";
+  try { return new Date(v).toLocaleString(); } catch { return v; }
+}
+
+function fmtDuration(m?: number | null) {
+  if (!m) return "—";
+  if (m >= 1440) return `${Math.ceil(m / 1440)} day${Math.ceil(m / 1440) === 1 ? "" : "s"}`;
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), mins = m % 60;
+  return mins ? `${h}h ${mins}m` : `${h}h`;
+}
+
+function statusLabel(s?: string | null) {
+  switch (String(s || "").toLowerCase()) {
+    case "confirmed": case "driver_assigned": case "en_route": case "arrived": return "Awaiting delivery";
+    case "collected": case "returned": return "On Hire";
+    case "completed":  return "Completed";
+    case "cancelled":  return "Cancelled";
+    default: return String(s || "—").replaceAll("_", " ");
+  }
+}
 
 const QUARTER_LABELS: Record<number, string> = {
   0: "Empty", 1: "¼ Tank", 2: "½ Tank", 3: "¾ Tank", 4: "Full Tank",
 };
 
-async function safeJson(res: Response): Promise<any> {
-  const text = await res.text();
-  if (!text) return null;
-  try { return JSON.parse(text); } catch { return { _raw: text }; }
-}
+// ── Reusable confirm row ──────────────────────────────────────────────────────
 
-function fmtCurr(amount: number, currency: Currency): string {
-  const { locale } = CURRENCY_CONFIG[currency] ?? CURRENCY_CONFIG.EUR;
-  return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
-}
-
-function fmtAmt(amount: number | string | null, currency: Currency | null): string {
-  const amt = Number(amount ?? 0);
-  if (!isFinite(amt)) return "—";
-  return fmtCurr(amt, currency ?? "EUR");
-}
-
-function fmtDate(value?: string | null) {
-  if (!value) return "";
-  try { return new Date(value).toLocaleDateString(); } catch { return value; }
-}
-
-function fmtDateTime(value?: string | null) {
-  if (!value) return "—";
-  try { return new Date(value).toLocaleString(); } catch { return value; }
-}
-
-function statusPillClasses(status?: string | null) {
-  switch (String(status || "").toLowerCase()) {
-    case "confirmed": case "completed": return "border-green-200 bg-green-50 text-green-700";
-    case "collected": case "returned": return "border-blue-200 bg-blue-50 text-blue-700";
-    case "driver_assigned": case "en_route": case "arrived": return "border-amber-200 bg-amber-50 text-amber-800";
-    case "cancelled": return "border-red-200 bg-red-50 text-red-700";
-    default: return "border-black/10 bg-white text-slate-700";
-  }
-}
-
-function fmtStatus(value?: string | null) {
-  switch (String(value || "").toLowerCase()) {
-    case "confirmed": return "Confirmed";
-    case "driver_assigned": return "Driver assigned";
-    case "en_route": return "En route";
-    case "arrived": return "Arrived";
-    case "collected": return "On hire";
-    case "returned": return "Returned";
-    case "completed": return "Completed";
-    case "cancelled": return "Cancelled";
-    default: return String(value || "—").replaceAll("_", " ");
-  }
-}
-
-function matchesDateRange(value: string | null | undefined, from: string, to: string) {
-  if (!value) return false;
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return false;
-  if (from && d < new Date(`${from}T00:00:00`)) return false;
-  if (to && d > new Date(`${to}T23:59:59.999`)) return false;
-  return true;
-}
-
-function revenuesByCurrency(rows: BookingRow[]): Record<Currency, number> {
-  const totals: Record<Currency, number> = { EUR: 0, GBP: 0, USD: 0 };
-  for (const r of rows) {
-    const curr: Currency = (r.currency as Currency) ?? "EUR";
-    const amt = Number(r.amount ?? 0);
-    if (isFinite(amt)) totals[curr] += amt;
-  }
-  return totals;
-}
-
-// ── Excel export ──────────────────────────────────────────────────────────────
-
-function escapeXml(v: unknown): string {
-  return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-function buildXls(sheets: { name: string; headers: string[]; rows: Array<Array<unknown>> }[]): Blob {
-  const xmlSheets = sheets.map(sheet => {
-    const rowsXml = [
-      `<Row ss:Index="1">${sheet.headers.map(h => `<Cell ss:StyleID="header"><Data ss:Type="String">${escapeXml(h)}</Data></Cell>`).join("")}</Row>`,
-      ...sheet.rows.map((row, ri) =>
-        `<Row ss:Index="${ri + 2}">${row.map(cell => {
-          const v = cell ?? "";
-          const isNum = typeof v === "number" || (typeof v === "string" && v !== "" && !isNaN(Number(v)) && v.trim() !== "");
-          return isNum ? `<Cell><Data ss:Type="Number">${escapeXml(v)}</Data></Cell>` : `<Cell><Data ss:Type="String">${escapeXml(v)}</Data></Cell>`;
-        }).join("")}</Row>`
-      ),
-    ].join("");
-    return `<Worksheet ss:Name="${escapeXml(sheet.name)}"><Table>${rowsXml}</Table></Worksheet>`;
-  });
-  const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-  <Styles><Style ss:ID="header"><Font ss:Bold="1" ss:Color="#003768"/><Interior ss:Color="#f3f8ff" ss:Pattern="Solid"/></Style></Styles>
-  ${xmlSheets.join("\n")}
-</Workbook>`;
-  return new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8;" });
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
-}
-
-const PAGE_SIZE = 10;
-
-// ── Currency Section Component ────────────────────────────────────────────────
-
-type CurrencyTotals = { total: number; carHire: number; fuelCharge: number; fuelRefund: number; count: number; completed: number };
-
-function AdminCurrencySection({ curr, t, bookings, router }: {
-  curr: Currency; t: CurrencyTotals; bookings: BookingRow[]; router: any;
+function ConfirmRow({ label, confirmed, fuel, confirmedAt, notes }: {
+  label: string; confirmed: boolean | null | undefined;
+  fuel: string | null | undefined; confirmedAt: string | null | undefined;
+  notes?: string | null;
 }) {
-  const [showAll, setShowAll] = useState(false);
-  const { symbol } = CURRENCY_CONFIG[curr];
-  const visible = showAll ? bookings : bookings.slice(0, PAGE_SIZE);
+  return (
+    <div className={`rounded-2xl border p-4 ${confirmed ? "border-green-200 bg-green-50" : "border-slate-200 bg-slate-50"}`}>
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+      <div className="mt-2 flex items-center gap-3">
+        <span className={`text-sm font-semibold ${confirmed ? "text-green-700" : "text-slate-400"}`}>
+          {confirmed ? "✓ Confirmed" : "Pending"}
+        </span>
+        {confirmed && fuel && <span className="text-sm text-slate-700">{fuelLabel(fuel)}</span>}
+      </div>
+      {confirmed && fuel && <FuelBar level={fuel} />}
+      {confirmed && confirmedAt && <p className="mt-1 text-xs text-slate-400">{fmt(confirmedAt)}</p>}
+      {notes && <p className="mt-1 text-xs text-slate-600">Note: {notes}</p>}
+    </div>
+  );
+}
+
+// ── Booking Summary Card ──────────────────────────────────────────────────────
+
+function BookingSummaryCard({ booking, rates, isLive }: {
+  booking: BookingRow; rates: Rates; isLive: boolean;
+}) {
+  const stored: Currency  = booking.currency ?? "EUR";
+  const { symbol }        = CURRENCY_META[stored];
+  const sec1: Currency    = stored === "USD" ? "EUR" : stored === "GBP" ? "EUR" : "GBP";
+  const sec2: Currency    = stored === "EUR" ? "USD" : stored === "GBP" ? "USD" : "GBP";
+
+  const carHireAmt   = Number(booking.car_hire_price || 0);
+  const fullTankAmt  = Number(booking.fuel_price || 0);
+  const totalAmt     = Number(booking.amount || 0);
+  const fuelCharge   = booking.fuel_charge ?? null;
+  const fuelRefund   = booking.fuel_refund ?? null;
+  const perQtrAmt    = fullTankAmt / 4;
+  const usedQuarters = booking.fuel_used_quarters ?? null;
+
+  const collFuel = normalizeFuel(booking.collection_fuel_level_partner) ||
+    normalizeFuel(booking.collection_fuel_level_driver) ||
+    normalizeFuel(booking.collection_fuel_level_customer);
+  const retFuel = normalizeFuel(booking.return_fuel_level_partner) ||
+    normalizeFuel(booking.return_fuel_level_driver) ||
+    normalizeFuel(booking.return_fuel_level_customer);
+
+  const primary = (v: number) => fmtCurr(v, stored);
+  const sec = (v: number) => {
+    const inEur = toEur(v, stored, rates);
+    return `(${fmtCurr(fromEur(inEur, sec1, rates), sec1)} · ${fmtCurr(fromEur(inEur, sec2, rates), sec2)})`;
+  };
+  const rateBadge = `1€ = ${new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(rates.USD)}`;
 
   return (
-    <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-      <div className="flex items-center gap-3">
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#003768]/10 px-3 py-1 text-sm font-bold text-[#003768]">{symbol}</span>
-        <h2 className="text-xl font-semibold text-[#003768]">Revenue &amp; Fuel Reconciliation</h2>
+    <div className="rounded-3xl border border-[#003768]/20 bg-[#003768] p-8 text-white shadow-[0_18px_45px_rgba(0,0,0,0.18)]">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Booking Summary</h2>
+        <span className="rounded-full bg-green-400 px-3 py-1 text-xs font-bold text-green-900">Finalised</span>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-sm font-semibold text-white/80">
+        <span>{symbol}</span> All amounts in {CURRENCY_META[stored].label}
+      </div>
+      <div className="mt-4 rounded-2xl bg-white/10 p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Total booking value</p>
+        <p className="mt-1 text-4xl font-black">
+          {primary(totalAmt)}{" "}
+          <span className="text-2xl font-normal opacity-60">{sec(totalAmt)}</span>
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-white/10 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Car hire</p>
+            <p className="mt-0.5 font-bold">{primary(carHireAmt)}</p>
+            <p className="text-xs text-white/50">{sec(carHireAmt)}</p>
+          </div>
+          <div className="rounded-xl bg-white/10 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Full tank deposit</p>
+            <p className="mt-0.5 font-bold">{primary(fullTankAmt)}</p>
+            <p className="text-xs text-white/50">{sec(fullTankAmt)}</p>
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Total Bookings", value: t.count, isMoney: false },
-          { label: "Completed", value: t.completed, isMoney: false },
-          { label: "Total Revenue", value: t.total, isMoney: true },
-          { label: "Car Hire Revenue", value: t.carHire, isMoney: true },
-          { label: "Fuel Charged", value: t.fuelCharge, isMoney: true },
-          { label: "Net Revenue to Partner", value: t.carHire + t.fuelCharge, isMoney: true },
-        ].map(({ label: lbl, value, isMoney }) => (
-          <div key={lbl} className="rounded-2xl border border-black/5 bg-slate-50 p-4">
-            <p className="text-xs font-medium text-slate-500">{lbl}</p>
-            <p className="mt-1 text-lg font-semibold text-[#003768]">{isMoney ? fmtCurr(value as number, curr) : value}</p>
+          { label: "Delivery fuel",   value: fuelLabel(collFuel), bar: collFuel },
+          { label: "Collection fuel", value: fuelLabel(retFuel),  bar: retFuel },
+          { label: "Fuel used",       value: usedQuarters !== null ? QUARTER_LABELS[usedQuarters] ?? `${usedQuarters}/4` : "—", bar: null },
+          { label: "Per quarter",     value: primary(perQtrAmt),  bar: null },
+        ].map(({ label, value, bar }) => (
+          <div key={label} className="rounded-2xl bg-white/10 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/60">{label}</p>
+            <p className="mt-1 text-xl font-bold">{value}</p>
+            {bar && <FuelBar level={bar} />}
           </div>
         ))}
       </div>
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-black/10">
-        <table className="min-w-full text-sm">
-          <thead className="bg-[#f3f8ff] text-left text-[#003768]">
-            <tr>
-              <th className="px-4 py-3 font-semibold">Job</th>
-              <th className="px-4 py-3 font-semibold">Partner</th>
-              <th className="px-4 py-3 font-semibold">Customer</th>
-              <th className="px-4 py-3 font-semibold">Status</th>
-              <th className="px-4 py-3 font-semibold">Car Hire</th>
-              <th className="px-4 py-3 font-semibold">Fuel Deposit</th>
-              <th className="px-4 py-3 font-semibold">Fuel Used</th>
-              <th className="px-4 py-3 font-semibold">Fuel Charge</th>
-              <th className="px-4 py-3 font-semibold">Fuel Refund</th>
-              <th className="px-4 py-3 font-semibold">Total</th>
-              <th className="px-4 py-3 font-semibold">Net Revenue</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-black/5">
-            {visible.map(b => {
-              const usedQ = b.fuel_used_quarters;
-              const netRev = Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0);
-              return (
-                <tr key={b.id} onClick={() => router.push(`/admin/bookings/${b.id}`)} className="cursor-pointer hover:bg-[#f3f8ff]">
-                  <td className="px-4 py-3 font-semibold text-[#003768]">{b.job_number || "—"}</td>
-                  <td className="px-4 py-3 text-slate-700">{b.partner_company_name || "—"}</td>
-                  <td className="px-4 py-3 text-slate-700">{b.customer_name || "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusPillClasses(b.booking_status)}`}>
-                      {fmtStatus(b.booking_status)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-700">{fmtAmt(b.car_hire_price, curr)}</td>
-                  <td className="px-4 py-3 text-slate-700">{fmtAmt(b.fuel_price, curr)}</td>
-                  <td className="px-4 py-3 text-slate-700">{usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—"}</td>
-                  <td className="px-4 py-3 font-semibold text-orange-700">{b.fuel_charge !== null ? fmtAmt(b.fuel_charge, curr) : "—"}</td>
-                  <td className="px-4 py-3 font-semibold text-green-700">{b.fuel_refund !== null ? fmtAmt(b.fuel_refund, curr) : "—"}</td>
-                  <td className="px-4 py-3 font-bold text-[#003768]">{fmtAmt(b.amount, curr)}</td>
-                  <td className="px-4 py-3 font-bold text-green-700">{fmtCurr(netRev, curr)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl bg-[#ff7a00]/20 p-5 border border-[#ff7a00]/40">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Fuel charge to customer</p>
+          <p className="mt-2 text-4xl font-black">
+            {fuelCharge != null ? primary(fuelCharge) : "—"}{" "}
+            {fuelCharge != null && <span className="text-2xl font-normal opacity-60">{sec(fuelCharge)}</span>}
+          </p>
+          <p className="mt-1 text-sm text-white/60">For {usedQuarters ?? "—"} quarter{usedQuarters !== 1 ? "s" : ""} used</p>
+        </div>
+        <div className="rounded-2xl bg-green-500/20 p-5 border border-green-400/40">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Refund to customer</p>
+          <p className="mt-2 text-4xl font-black">
+            {fuelRefund != null ? primary(fuelRefund) : "—"}{" "}
+            {fuelRefund != null && <span className="text-2xl font-normal opacity-60">{sec(fuelRefund)}</span>}
+          </p>
+          <p className="mt-1 text-sm text-white/60">Unused fuel portion returned</p>
+        </div>
       </div>
-      {bookings.length > PAGE_SIZE && (
-        <button type="button" onClick={() => setShowAll(s => !s)}
-          className="mt-3 w-full rounded-2xl border border-black/10 bg-slate-50 py-2.5 text-sm font-semibold text-[#003768] hover:bg-slate-100">
-          {showAll ? "▲ Show less" : `▼ Show all ${bookings.length} bookings`}
-        </button>
-      )}
+      <div className={`mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold ${isLive ? "bg-green-400/20 text-green-200" : "bg-white/10 text-white/70"}`}>
+        <span className={`h-2.5 w-2.5 rounded-full ${isLive ? "bg-green-400" : "bg-white/40"}`} />
+        {rateBadge}{isLive ? " · Live rate (frankfurter.app)" : ""}
+      </div>
     </div>
   );
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function AdminBookingsPage() {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router = useRouter();
+export default function AdminBookingDetailPage() {
+  const params    = useParams<{ id: string }>();
+  const bookingId = String(params?.id || "");
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [bookings, setBookings] = useState<BookingRow[]>([]);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [currencyFilter, setCurrencyFilter] = useState<"all" | Currency>("all");
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [data,       setData]       = useState<ApiResponse | null>(null);
+  const [rates,      setRates]      = useState<Rates>({ GBP: 0.85, USD: 1.08 });
+  const [rateIsLive, setRateIsLive] = useState(false);
 
-  async function load() {
-    setLoading(true); setError(null);
-    try {
-      const { data: userData, error: userErr } = await supabase.auth.getUser();
-      if (userErr || !userData?.user) { router.replace("/partner/login?reason=not_authorized"); return; }
-      const adminRes = await fetch("/api/admin/is-admin", { cache: "no-store", credentials: "include" });
-      const adminJson = await safeJson(adminRes);
-      if (!adminJson?.isAdmin) { router.replace("/partner/login?reason=not_authorized"); return; }
-      const res = await fetch("/api/partner/bookings", { cache: "no-store", credentials: "include" });
-      const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || "Failed to load bookings.");
-      setBookings(Array.isArray(json?.data) ? json.data : []);
-    } catch (e: any) {
-      setError(e?.message || "Failed to load admin bookings.");
-      setBookings([]);
-    } finally { setLoading(false); }
-  }
-
-  useEffect(() => { load(); }, []);
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search, statusFilter, currencyFilter, dateFrom, dateTo]);
-
-  const normalizedSearch = search.trim().toLowerCase();
-
-  const filtered = useMemo(() => {
-    let rows = bookings;
-    if (dateFrom || dateTo) rows = rows.filter(r => matchesDateRange(r.created_at, dateFrom, dateTo));
-    if (statusFilter !== "all") rows = rows.filter(r => String(r.booking_status || "").toLowerCase() === statusFilter);
-    if (currencyFilter !== "all") rows = rows.filter(r => (r.currency ?? "EUR") === currencyFilter);
-    if (normalizedSearch) rows = rows.filter(r =>
-      [r.job_number, r.partner_company_name, r.pickup_address, r.dropoff_address,
-        r.vehicle_category_name, r.booking_status, r.amount, r.customer_name]
-        .map(v => String(v || "").toLowerCase()).join(" ").includes(normalizedSearch)
-    );
-    return [...rows].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-  }, [bookings, dateFrom, dateTo, statusFilter, currencyFilter, normalizedSearch]);
-
-  const revenuesByCurr = useMemo(() => revenuesByCurrency(filtered), [filtered]);
-
-  const currencyTotals = useMemo(() => {
-    const t: Record<Currency, CurrencyTotals> = {
-      EUR: { total: 0, carHire: 0, fuelCharge: 0, fuelRefund: 0, count: 0, completed: 0 },
-      GBP: { total: 0, carHire: 0, fuelCharge: 0, fuelRefund: 0, count: 0, completed: 0 },
-      USD: { total: 0, carHire: 0, fuelCharge: 0, fuelRefund: 0, count: 0, completed: 0 },
-    };
-    for (const b of filtered) {
-      const c: Currency = (b.currency as Currency) ?? "EUR";
-      if (!t[c]) continue;
-      t[c].count++;
-      t[c].total += Number(b.amount ?? 0);
-      t[c].carHire += Number(b.car_hire_price ?? 0);
-      t[c].fuelCharge += Number(b.fuel_charge ?? 0);
-      t[c].fuelRefund += Number(b.fuel_refund ?? 0);
-      if (String(b.booking_status || "").toLowerCase() === "completed") t[c].completed++;
+  useEffect(() => {
+    if (!bookingId) return;
+    async function load() {
+      setLoading(true);
+      try {
+        const res  = await fetch(`/api/partner/bookings/${bookingId}`, { cache: "no-store", credentials: "include" });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || "Failed to load booking.");
+        setData(json);
+      } catch (e: any) { setError(e?.message || "Failed to load booking."); }
+      finally { setLoading(false); }
     }
-    return t;
-  }, [filtered]);
-
-  const completed = filtered.filter(r => String(r.booking_status || "").toLowerCase() === "completed").length;
-  const confirmed = filtered.filter(r => String(r.booking_status || "").toLowerCase() === "confirmed").length;
-  const active = filtered.filter(r => ["driver_assigned", "en_route", "arrived", "collected", "returned"].includes(String(r.booking_status || "").toLowerCase())).length;
-  const statusOptions = Array.from(new Set(bookings.map(r => String(r.booking_status || "").toLowerCase()).filter(Boolean))).sort();
-
-  const visible = filtered.slice(0, visibleCount);
-  const hasMore = filtered.length > visibleCount;
-
-  function exportExcel() {
-    const dateStr = new Date().toISOString().split("T")[0];
-    const fuelHeaders = [
-      "Job Number", "Partner", "Customer", "Customer Email", "Customer Phone",
-      "Pickup Address", "Dropoff Address", "Pickup At", "Dropoff At",
-      "Vehicle", "Driver", "Driver Vehicle", "Currency",
-      "Car Hire Price", "Full Fuel Deposit",
-      "Collection Fuel (Driver)", "Collection Fuel (Partner Override)",
-      "Return Fuel (Driver)", "Return Fuel (Partner Override)",
-      "Quarters Used", "Fuel Used Label",
-      "Fuel Charge to Customer", "Fuel Refund to Customer",
-      "Total Booking Amount", "Net Revenue to Partner (Car Hire + Fuel Charge)",
-      "Customer Collection Confirmed", "Customer Return Confirmed",
-      "Booking Status", "Created At",
-    ];
-    const fuelRows = filtered.map(b => {
-      const usedQ = b.fuel_used_quarters;
-      return [
-        b.job_number || "", b.partner_company_name || "",
-        b.customer_name || "", b.customer_email || "", b.customer_phone || "",
-        b.pickup_address || "", b.dropoff_address || "",
-        fmtDate(b.pickup_at), fmtDate(b.dropoff_at),
-        b.vehicle_category_name || "", b.driver_name || "", b.driver_vehicle || "",
-        b.currency || "EUR",
-        Number(b.car_hire_price ?? 0), Number(b.fuel_price ?? 0),
-        b.collection_fuel_level_driver || b.collection_fuel_level_partner || "—",
-        b.collection_fuel_level_partner || "—",
-        b.return_fuel_level_driver || b.return_fuel_level_partner || "—",
-        b.return_fuel_level_partner || "—",
-        usedQ !== null && usedQ !== undefined ? usedQ : "—",
-        usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—",
-        Number(b.fuel_charge ?? 0), Number(b.fuel_refund ?? 0),
-        Number(b.amount ?? 0),
-        Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0),
-        b.collection_confirmed_by_customer ? "Yes" : "No",
-        b.return_confirmed_by_customer ? "Yes" : "No",
-        b.booking_status || "", fmtDate(b.created_at),
-      ];
-    });
-
-    const summaryHeaders = ["Currency", "Total Bookings", "Completed", "Total Revenue", "Car Hire Revenue", "Fuel Charges Billed", "Fuel Refunds Issued", "Net Revenue to Partner"];
-    const summaryRows = (["EUR", "GBP", "USD"] as Currency[]).map(curr => {
-      const t = currencyTotals[curr];
-      return [`${curr} ${CURRENCY_CONFIG[curr].symbol}`, t.count, t.completed, t.total, t.carHire, t.fuelCharge, t.fuelRefund, t.carHire + t.fuelCharge];
-    });
-
-    const allHeaders = ["Job Number", "Partner", "Customer", "Pickup", "Dropoff", "Pickup At", "Vehicle", "Driver", "Status", "Currency", "Amount", "Net Revenue to Partner", "Created At"];
-    const allRows = filtered.map(b => [
-      b.job_number || "", b.partner_company_name || "", b.customer_name || "",
-      b.pickup_address || "", b.dropoff_address || "",
-      fmtDate(b.pickup_at), b.vehicle_category_name || "", b.driver_name || "",
-      b.booking_status || "", b.currency || "EUR", Number(b.amount ?? 0),
-      Number(b.car_hire_price ?? 0) + Number(b.fuel_charge ?? 0),
-      fmtDate(b.created_at),
-    ]);
-
-    const blob = buildXls([
-      { name: "Fuel Reconciliation", headers: fuelHeaders, rows: fuelRows },
-      { name: "Currency Summary", headers: summaryHeaders, rows: summaryRows },
-      { name: "All Bookings", headers: allHeaders, rows: allRows },
-    ]);
-    downloadBlob(blob, `camel-admin-bookings-${dateStr}.xls`);
-  }
+    async function loadRates() {
+      try {
+        const res  = await fetch("/api/currency/rate", { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        if (json?.rates) {
+          setRates({ GBP: Number(json.rates.GBP) || 0.85, USD: Number(json.rates.USD) || 1.08 });
+          setRateIsLive(!!json.live);
+        }
+      } catch { /* use fallback */ }
+    }
+    load();
+    loadRates();
+  }, [bookingId]);
 
   if (loading) return (
-    <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-      <p className="text-slate-600">Loading bookings...</p>
+    <div className="space-y-6 px-4 py-8 md:px-8">
+      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <p className="text-slate-600">Loading booking…</p>
+      </div>
     </div>
   );
 
+  if (!data?.booking) return (
+    <div className="space-y-6 px-4 py-8 md:px-8">
+      <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">{error || "Booking not found"}</div>
+    </div>
+  );
+
+  const bk  = data.booking;
+  const req = data.request;
+
+  const collEffective    = normalizeFuel(bk.collection_fuel_level_partner) || normalizeFuel(bk.collection_fuel_level_driver);
+  const retEffective     = normalizeFuel(bk.return_fuel_level_partner)     || normalizeFuel(bk.return_fuel_level_driver);
+  const collectionLocked = !!collEffective && !!bk.collection_confirmed_by_customer &&
+    normalizeFuel(bk.collection_fuel_level_customer) === collEffective;
+  const returnLocked     = !!retEffective  && !!bk.return_confirmed_by_customer &&
+    normalizeFuel(bk.return_fuel_level_customer) === retEffective;
+
+  const insuranceBothConfirmed = !!bk.insurance_docs_confirmed_by_driver && !!bk.insurance_docs_confirmed_by_customer;
+
   return (
-    <div className="space-y-6">
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+    <div className="space-y-6 px-4 py-8 md:px-8">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-3xl font-semibold text-[#003768]">Booking Detail</h1>
+        <Link href="/admin/bookings"
+          className="rounded-full border border-black/10 bg-white px-5 py-2 font-semibold text-[#003768] hover:bg-black/5">
+          Back to Bookings
+        </Link>
+      </div>
 
-      {/* Filters */}
-      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-[#003768]">All Bookings</h2>
-            <p className="mt-1 text-sm text-slate-600">All bookings across all partner accounts. Click any row to view detail.</p>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Search</label>
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Job, partner, customer…"
-                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-sm text-black outline-none focus:border-[#0f4f8a]" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Status</label>
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-sm text-black outline-none focus:border-[#0f4f8a]">
-                <option value="all">All statuses</option>
-                {statusOptions.map(s => <option key={s} value={s}>{fmtStatus(s)}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Currency</label>
-              <select value={currencyFilter} onChange={e => setCurrencyFilter(e.target.value as "all" | Currency)}
-                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-sm text-black outline-none focus:border-[#0f4f8a]">
-                <option value="all">All currencies</option>
-                <option value="EUR">EUR €</option>
-                <option value="GBP">GBP £</option>
-                <option value="USD">USD $</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Date from</label>
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-sm text-black outline-none focus:border-[#0f4f8a]" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[#003768]">Date to</label>
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-black/10 p-3 text-sm text-black outline-none focus:border-[#0f4f8a]" />
-            </div>
+      {/* Booking + Journey */}
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+          <h2 className="text-2xl font-semibold text-[#003768]">Booking Information</h2>
+          <div className="mt-6 space-y-3 text-slate-700">
+            <p><span className="font-semibold text-slate-900">Job No.:</span> {bk.job_number ?? req?.job_number ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Status:</span> {statusLabel(bk.booking_status)}</p>
+            <p><span className="font-semibold text-slate-900">Partner:</span> {bk.partner_company_name || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Currency:</span> {bk.currency ?? "EUR"}</p>
+            <p><span className="font-semibold text-slate-900">Created:</span> {fmt(bk.created_at)}</p>
+            <p><span className="font-semibold text-slate-900">Driver:</span> {bk.driver_name || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Driver phone:</span> {bk.driver_phone || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Driver vehicle:</span> {bk.driver_vehicle || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Driver assigned:</span> {fmt(bk.driver_assigned_at)}</p>
+            <p><span className="font-semibold text-slate-900">Notes:</span> {bk.notes || "—"}</p>
           </div>
         </div>
-        <div className="mt-4 flex gap-3">
-          <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setSearch(""); setStatusFilter("all"); setCurrencyFilter("all"); }}
-            className="rounded-full border border-black/10 bg-white px-5 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5">
-            Clear Filters
-          </button>
-          <button type="button" onClick={load}
-            className="rounded-full bg-[#ff7a00] px-5 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
-            Refresh
-          </button>
-          <button type="button" onClick={exportExcel}
-            className="rounded-full bg-[#003768] px-5 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
-            ⬇ Export Excel
-          </button>
+
+        <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+          <h2 className="text-2xl font-semibold text-[#003768]">Journey Information</h2>
+          <div className="mt-6 space-y-3 text-slate-700">
+            <p><span className="font-semibold text-slate-900">Customer:</span> {req?.customer_name || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Email:</span> {req?.customer_email || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Phone:</span> {req?.customer_phone || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Pickup:</span> {req?.pickup_address || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Dropoff:</span> {req?.dropoff_address || "—"}</p>
+            <p><span className="font-semibold text-slate-900">Pickup time:</span> {fmt(req?.pickup_at)}</p>
+            <p><span className="font-semibold text-slate-900">Dropoff time:</span> {fmt(req?.dropoff_at)}</p>
+            <p><span className="font-semibold text-slate-900">Duration:</span> {fmtDuration(req?.journey_duration_minutes)}</p>
+            <p><span className="font-semibold text-slate-900">Passengers:</span> {req?.passengers ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Suitcases:</span> {req?.suitcases ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Hand luggage:</span> {req?.hand_luggage ?? "—"}</p>
+            <p><span className="font-semibold text-slate-900">Vehicle:</span> {req?.vehicle_category_name || "—"}</p>
+          </div>
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        {[
-          { label: "Total Bookings", value: filtered.length, color: "text-[#003768]" },
-          { label: "Confirmed", value: confirmed, color: "text-green-600" },
-          { label: "Active", value: active, color: "text-amber-600" },
-          { label: "Completed", value: completed, color: "text-blue-600" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-            <p className="text-sm font-medium text-slate-500">{label}</p>
-            <p className={`mt-2 text-2xl font-semibold ${color}`}>{value}</p>
+      {/* Booking summary */}
+      <BookingSummaryCard booking={bk} rates={rates} isLive={rateIsLive} />
+
+      {/* Driver audit trail */}
+      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <h2 className="text-2xl font-semibold text-[#003768]">Driver Audit Trail</h2>
+        <p className="mt-1 mb-5 text-sm text-slate-500">
+          Permanently stamped when each driver confirms via their app — never editable.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className={`rounded-2xl border p-5 ${bk.delivery_driver_name ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">🚗 Delivery driver</p>
+            {bk.delivery_driver_name ? (
+              <>
+                <p className="mt-2 text-lg font-bold text-[#003768]">{bk.delivery_driver_name}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">Delivered at</p>
+                <p className="text-sm font-medium text-slate-700">{fmt(bk.delivery_confirmed_at)}</p>
+                {bk.delivery_driver_id !== bk.assigned_driver_id && (
+                  <p className="mt-2 text-xs text-amber-600 font-semibold">⚠ Different driver to current assignment</p>
+                )}
+              </>
+            ) : (
+              <p className="mt-2 text-sm italic text-slate-400">Not yet delivered</p>
+            )}
           </div>
-        ))}
-        {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
-          const amt = revenuesByCurr[curr];
-          const { locale, label, symbol } = CURRENCY_CONFIG[curr];
-          const formatted = new Intl.NumberFormat(locale, { style: "currency", currency: curr, maximumFractionDigits: 0 }).format(amt);
-          return (
-            <div key={curr} className="rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-              <p className="text-sm font-medium text-slate-500">Revenue {symbol} {label}</p>
-              <p className={`mt-2 text-2xl font-semibold ${amt > 0 ? "text-[#003768]" : "text-slate-300"}`}>{formatted}</p>
-            </div>
-          );
-        })}
+          <div className={`rounded-2xl border p-5 ${bk.collection_driver_name ? "border-green-200 bg-green-50" : "border-slate-200 bg-slate-50"}`}>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">🏁 Collection driver</p>
+            {bk.collection_driver_name ? (
+              <>
+                <p className="mt-2 text-lg font-bold text-[#003768]">{bk.collection_driver_name}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">Collected at</p>
+                <p className="text-sm font-medium text-slate-700">{fmt(bk.collection_confirmed_at)}</p>
+                {bk.delivery_driver_id && bk.collection_driver_id &&
+                  bk.delivery_driver_id !== bk.collection_driver_id && (
+                  <p className="mt-2 text-xs text-amber-600 font-semibold">⚠ Different driver to delivery</p>
+                )}
+              </>
+            ) : (
+              <p className="mt-2 text-sm italic text-slate-400">Not yet collected</p>
+            )}
+          </div>
+        </div>
+        {bk.delivery_driver_id && bk.collection_driver_id &&
+          bk.delivery_driver_id !== bk.collection_driver_id && (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            Different drivers handled delivery and collection on this booking.
+          </div>
+        )}
       </div>
 
-      {/* Per-currency fuel reconciliation sections */}
-      {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
-        const t = currencyTotals[curr];
-        if (t.count === 0) return null;
-        const currBookings = filtered.filter(b => (b.currency ?? "EUR") === curr);
-        return <AdminCurrencySection key={curr} curr={curr} t={t} bookings={currBookings} router={router} />;
-      })}
+      {/* Insurance documents */}
+      <div>
+        <h2 className="mb-1 text-2xl font-semibold text-[#003768]">Insurance Documents</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          Driver confirms handover at delivery. Customer confirms receipt.
+        </p>
+        <div className={`rounded-3xl border p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] ${insuranceBothConfirmed ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📄</span>
+              <h3 className="text-xl font-bold text-[#003768]">Insurance Documents</h3>
+            </div>
+            {insuranceBothConfirmed && (
+              <span className="rounded-full bg-green-600 px-3 py-1 text-xs font-bold text-white">✓ Confirmed</span>
+            )}
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className={`rounded-2xl border p-4 ${bk.insurance_docs_confirmed_by_driver ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver</p>
+              {bk.insurance_docs_confirmed_by_driver ? (
+                <>
+                  <p className="mt-1 text-base font-bold text-blue-700">✓ Handed over</p>
+                  <p className="mt-0.5 text-xs text-slate-400">{fmt(bk.insurance_docs_confirmed_by_driver_at)}</p>
+                </>
+              ) : (
+                <p className="mt-1 text-sm italic text-slate-400">Not yet confirmed</p>
+              )}
+            </div>
+            <div className={`rounded-2xl border p-4 ${bk.insurance_docs_confirmed_by_customer ? "border-green-200 bg-green-50" : "border-slate-200 bg-slate-50"}`}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Customer</p>
+              {bk.insurance_docs_confirmed_by_customer ? (
+                <>
+                  <p className="mt-1 text-base font-bold text-green-700">✓ Received</p>
+                  <p className="mt-0.5 text-xs text-slate-400">{fmt(bk.insurance_docs_confirmed_by_customer_at)}</p>
+                </>
+              ) : (
+                <p className="mt-1 text-sm italic text-slate-400">Not yet confirmed</p>
+              )}
+            </div>
+          </div>
+          <div className={`mt-4 rounded-2xl border p-3 text-sm font-semibold ${
+            insuranceBothConfirmed
+              ? "border-green-200 bg-green-100 text-green-800"
+              : "border-amber-200 bg-amber-100 text-amber-700"
+          }`}>
+            {insuranceBothConfirmed
+              ? "✓ Both driver and customer confirm insurance documents were handed over at delivery."
+              : !bk.insurance_docs_confirmed_by_driver && !bk.insurance_docs_confirmed_by_customer
+              ? "Awaiting confirmation from driver and customer."
+              : !bk.insurance_docs_confirmed_by_driver
+              ? "Awaiting driver confirmation."
+              : "Awaiting customer confirmation."}
+          </div>
+        </div>
+      </div>
 
-      {/* Full bookings table */}
-      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xl font-semibold text-[#003768]">All Bookings</h2>
-          <p className="text-sm text-slate-500">
-            Showing <span className="font-semibold text-[#003768]">{Math.min(visibleCount, filtered.length)}</span> of <span className="font-semibold text-[#003768]">{filtered.length}</span>
-          </p>
+      {/* Fuel tracking */}
+      <div>
+        <h2 className="mb-1 text-2xl font-semibold text-[#003768]">Fuel Tracking</h2>
+        <p className="mb-4 text-sm text-slate-500">Full confirmation trail from driver, partner office, and customer.</p>
+        <div className="grid gap-6 xl:grid-cols-2">
+          <div className={`rounded-2xl border p-5 ${collectionLocked ? "border-green-200 bg-green-50" : "border-black/10"}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-[#003768]">Delivery</h3>
+              {collectionLocked && <span className="rounded-full bg-green-600 px-3 py-1 text-xs font-bold text-white">✓ Locked</span>}
+            </div>
+            <div className="space-y-3">
+              <ConfirmRow label="Driver" confirmed={!!bk.collection_confirmed_by_driver}
+                fuel={bk.collection_fuel_level_driver} confirmedAt={bk.collection_confirmed_by_driver_at} />
+              <ConfirmRow label="Partner office" confirmed={!!bk.collection_confirmed_by_partner}
+                fuel={bk.collection_fuel_level_partner} confirmedAt={bk.collection_confirmed_by_partner_at}
+                notes={bk.collection_partner_notes} />
+              <ConfirmRow label="Customer" confirmed={!!bk.collection_confirmed_by_customer}
+                fuel={bk.collection_fuel_level_customer} confirmedAt={bk.collection_confirmed_by_customer_at}
+                notes={bk.collection_customer_notes} />
+            </div>
+          </div>
+          <div className={`rounded-2xl border p-5 ${returnLocked ? "border-green-200 bg-green-50" : "border-black/10"}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-[#003768]">Collection</h3>
+              {returnLocked && <span className="rounded-full bg-green-600 px-3 py-1 text-xs font-bold text-white">✓ Locked</span>}
+            </div>
+            <div className="space-y-3">
+              <ConfirmRow label="Driver" confirmed={!!bk.return_confirmed_by_driver}
+                fuel={bk.return_fuel_level_driver} confirmedAt={bk.return_confirmed_by_driver_at} />
+              <ConfirmRow label="Partner office" confirmed={!!bk.return_confirmed_by_partner}
+                fuel={bk.return_fuel_level_partner} confirmedAt={bk.return_confirmed_by_partner_at}
+                notes={bk.return_partner_notes} />
+              <ConfirmRow label="Customer" confirmed={!!bk.return_confirmed_by_customer}
+                fuel={bk.return_fuel_level_customer} confirmedAt={bk.return_confirmed_by_customer_at}
+                notes={bk.return_customer_notes} />
+            </div>
+          </div>
         </div>
-        <div className="overflow-x-auto rounded-2xl border border-black/10">
-          <table className="min-w-full text-sm">
-            <thead className="bg-[#f3f8ff] text-[#003768]">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Created</th>
-                <th className="px-4 py-3 text-left font-semibold">Job No.</th>
-                <th className="px-4 py-3 text-left font-semibold">Partner</th>
-                <th className="px-4 py-3 text-left font-semibold">Customer</th>
-                <th className="px-4 py-3 text-left font-semibold">Pickup</th>
-                <th className="px-4 py-3 text-left font-semibold">Dropoff</th>
-                <th className="px-4 py-3 text-left font-semibold">Pickup At</th>
-                <th className="px-4 py-3 text-left font-semibold">Vehicle</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-left font-semibold">Currency</th>
-                <th className="px-4 py-3 text-left font-semibold">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-black/5">
-              {visible.length === 0 ? (
-                <tr><td colSpan={11} className="px-4 py-4 text-slate-600">No bookings found.</td></tr>
-              ) : visible.map(row => (
-                <tr key={row.id} onClick={() => router.push(`/admin/bookings/${row.id}`)} className="cursor-pointer hover:bg-[#f3f8ff] transition-colors">
-                  <td className="px-4 py-4 text-slate-700">{fmtDateTime(row.created_at)}</td>
-                  <td className="px-4 py-4 font-semibold text-[#003768]">{row.job_number || "—"}</td>
-                  <td className="px-4 py-4 text-slate-700">{row.partner_company_name || "—"}</td>
-                  <td className="px-4 py-4 text-slate-700">
-                    <div>{row.customer_name || "—"}</div>
-                    <div className="text-xs text-slate-400">{row.customer_phone || ""}</div>
-                  </td>
-                  <td className="px-4 py-4 text-slate-700 max-w-[180px] truncate">{row.pickup_address || "—"}</td>
-                  <td className="px-4 py-4 text-slate-700 max-w-[180px] truncate">{row.dropoff_address || "—"}</td>
-                  <td className="px-4 py-4 text-slate-700">{fmtDateTime(row.pickup_at)}</td>
-                  <td className="px-4 py-4 text-slate-700">{row.vehicle_category_name || "—"}</td>
-                  <td className="px-4 py-4">
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusPillClasses(row.booking_status)}`}>
-                      {fmtStatus(row.booking_status)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex rounded-full border border-black/10 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                      {row.currency ?? "EUR"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 font-semibold text-slate-900">{fmtAmt(row.amount, row.currency)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {hasMore && (
-          <button type="button" onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
-            className="mt-4 w-full rounded-2xl border border-black/10 bg-slate-50 py-3 text-sm font-semibold text-[#003768] hover:bg-slate-100">
-            ▼ Show more ({filtered.length - visibleCount} remaining)
-          </button>
-        )}
-        {visibleCount > PAGE_SIZE && !hasMore && (
-          <button type="button" onClick={() => setVisibleCount(PAGE_SIZE)}
-            className="mt-4 w-full rounded-2xl border border-black/10 bg-slate-50 py-3 text-sm font-semibold text-[#003768] hover:bg-slate-100">
-            ▲ Show less
-          </button>
-        )}
       </div>
     </div>
   );
