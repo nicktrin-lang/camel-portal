@@ -73,17 +73,22 @@ A partner account is **live** only when ALL of the following are true:
 5. At least one active driver (`partner_drivers.is_active = true`)
 6. Billing currency set (`default_currency`)
 
-**Where live status is shown:**
-- `app/admin/approvals/page.tsx` — "Not live" badge with missing items listed per row
-- `app/admin/accounts/page.tsx` — same treatment as approvals page
-- `app/partner/account/page.tsx` — amber banner with clickable links to fix each missing item
-- `app/partner/dashboard/page.tsx` — amber banner at top of dashboard with missing items
-- `app/partner/onboarding/page.tsx` — Go Live step fetches real counts on mount (skipped steps show correctly)
+### Insurance Documents Handover System
+At delivery, both driver and customer must confirm insurance documents were handed over:
+- **Driver app** — checkbox at delivery stage (hard blocker — cannot confirm delivery fuel without ticking)
+- **Customer portal** — separate `InsuranceConfirmCard` always visible once booking exists; customer ticks and confirms after driver has confirmed
+- **Partner portal** — read-only `InsuranceStatusCard` showing both driver and customer status; visible always
+- **DB columns:** `insurance_docs_confirmed_by_driver`, `insurance_docs_confirmed_by_driver_at`, `insurance_docs_confirmed_by_customer`, `insurance_docs_confirmed_by_customer_at` on `partner_bookings`
+- Insurance is delivery-only (not collection/return). Saved via `insurance_only: true` flag in customer update API so it doesn't interfere with fuel confirmation state.
+- Driver app auto-refreshes every 10s (silent fetch, does not reset fuel/insurance input state)
 
-**APIs that compute live status:**
-- `app/api/admin/applications/route.ts` — fetches fleet, drivers, currency per partner
-- `app/api/admin/accounts/route.ts` — same, for account management page
-- `app/api/partner/refresh-live-status/route.ts` — partner's own live status check
+### Fuel Confirmation Flow
+- Driver records fuel at delivery (`collection` stage) and collection (`return` stage)
+- Customer confirms each reading independently — copies driver's fuel level as customer fuel
+- Both must agree (same fuel level) to lock each stage
+- Partner has office override to correct driver reading if needed
+- Booking status: `collected` when delivery locked, `completed` when both locked
+- Fuel charge calculated automatically on completion
 
 ---
 
@@ -91,17 +96,16 @@ A partner account is **live** only when ALL of the following are true:
 
 ### Last Known Good Tag
 ```bash
-git checkout v-stable-live-status-checks
+git checkout v-stable-insurance-handover
 ```
-**Tag:** `v-stable-live-status-checks`
-**Description:** Live status checks require fleet location, service radius, billing currency, at least one active fleet vehicle, and at least one active driver. Missing items shown on admin approvals, admin account management, partner account page, and partner dashboard. Partner login always goes to dashboard (no more onboarding redirect loop). Onboarding Go Live step fetches real counts on mount.
-
-**Tag:** `v-stable-fuel-flow-fixed`
-**Description:** Full fuel confirmation flow working end to end. Driver sets collected/returned status. Customer confirms each fuel stage independently. Booking only completes when both driver and customer confirm both stages.
+**Tag:** `v-stable-insurance-handover`
+**Description:** Full insurance document handover flow. Driver must tick insurance checkbox before confirming delivery (hard blocker). Customer confirms receipt via dedicated card on booking page. Partner sees read-only status of both sides. Driver app shows both driver and customer confirmation status and auto-refreshes every 10s. All four insurance columns added to partner_bookings table. Insurance confirmation saved independently of fuel state via insurance_only flag.
 
 ### Previous Stable Tags
 | Tag | Description |
 |-----|-------------|
+| `v-stable-live-status-checks` | Live status checks require fleet location, service radius, billing currency, at least one active fleet vehicle, and at least one active driver. Missing items shown on admin approvals, admin account management, partner account page, and partner dashboard. Partner login always goes to dashboard. Onboarding Go Live step fetches real counts on mount. |
+| `v-stable-fuel-flow-fixed` | Full fuel confirmation flow working end to end. Driver sets collected/returned status. Customer confirms each fuel stage independently. Booking only completes when both driver and customer confirm both stages. |
 | `v-stable-admin-booking-fixes` | Admin booking detail matches partner view. All three currencies shown everywhere. |
 | `v-stable-password-reset` | All three portals password reset fully working with branded emails. |
 | `v-stable-currency-reporting` | Full EUR/GBP/USD revenue reporting on partner and admin booking pages. |
@@ -131,6 +135,7 @@ git checkout v-stable-live-status-checks
 - **Partner onboarding** — Go Live step shows real completion state even if steps were skipped
 - **Partner dashboard** — amber live status banner with clickable fix links
 - **Driver portal** — independent header with full name + company name, correct logout, login box properly positioned, 3 clickable tab cards, 10-per-page pagination, partner drivers page links to driver portal
+- **Insurance handover** — driver checkbox (hard blocker at delivery), customer confirmation card, partner read-only status, driver app shows both sides, auto-refresh every 10s
 
 ---
 
@@ -180,37 +185,36 @@ git checkout v-stable-live-status-checks
 - Admin request detail — duration in days, bid currency displayed correctly
 - Stable tag: `v-stable-admin-booking-fixes`
 
+### Chat 6 (Completed)
+- Built full annotated file structure breakdown
+- Fixed `lib/portal/refreshPartnerLiveStatus.ts` — added driver and currency checks
+- Updated admin approvals, admin accounts, partner account, partner dashboard — live status banners
+- Updated partner onboarding — Go Live step fetches real counts on mount
+- Updated partner login — removed onboarding redirect, all approved partners go to dashboard
+- Updated driver portal — independent header, correct layout, 3 tab cards, pagination
+- Stable tag: `v-stable-live-status-checks`
+
 ### Chat 7 (Completed)
-- Fixed driver confirm API — return stage now sets `booking_status = "returned"` not `"completed"`. Only customer confirmation flow sets `"completed"`
-- Fixed customer page fuel lock flicker — reverted status-based lock shortcut that was auto-locking without customer confirmation
-- Fixed driver jobs page — jobs start collapsed, correct labels (Delivery/Collection), clickable tab cards, 10 per page
-- Fixed driver layout — independent from global header, shows full name + company name, correct logout
-- Fixed driver login page — login box top-aligned
-- Fixed partner booking detail — "Collection fuel" → "Delivery fuel", FuelStageCard title "Collection" → "Delivery"
-- Fixed partner bookings list — confirmed status now blue (not green)
-- Fixed customer request detail — "Collection Fuel" card = delivery stage, "Delivery Fuel" card = first stage
-- Fixed `app/ClientRootLayout.tsx` — `/driver` paths excluded from global header
+- Fixed driver confirm API — return stage sets `booking_status = "returned"` not `"completed"`
+- Fixed customer page fuel lock flicker
+- Fixed driver jobs page — jobs start collapsed, correct labels, clickable tab cards, 10 per page
+- Fixed driver layout — independent header, full name + company name, correct logout
+- Fixed partner booking detail — correct fuel stage labels
+- Fixed partner bookings list — confirmed status now blue
 - Added driver portal link card to partner drivers page
 - Stable tag: `v-stable-fuel-flow-fixed`
 
-### Chat 6 (Completed)
-- Built full annotated file structure breakdown
-- Fixed `lib/portal/refreshPartnerLiveStatus.ts` — added driver and currency checks, fixed duplicate `.limit(1)` syntax error
-- Updated `app/api/admin/applications/route.ts` — fetches active fleet, active drivers, default_currency; computes full 6-check live status; returns `missing[]` array
-- Updated `app/api/admin/accounts/route.ts` — same 6-check live status logic
-- Updated `app/admin/approvals/page.tsx` — "Not live" badge with missing items listed per row
-- Updated `app/admin/accounts/page.tsx` — same treatment
-- Updated `app/partner/account/page.tsx` — amber banner with clickable fix links; reads `default_currency` directly from profile
-- Updated `app/partner/dashboard/page.tsx` — amber live status banner with missing items
-- Updated `app/partner/onboarding/page.tsx` — Go Live step now fetches real fleet/driver counts on mount (skipped steps no longer falsely show green)
-- Updated `app/partner/login/page.tsx` — removed onboarding redirect logic; all approved partners go straight to dashboard
-- Updated `app/partner/drivers/page.tsx` — added driver portal info card with login URL and link
-- Updated `app/driver/layout.tsx` — excluded from global header; driver-specific header with full name + company name; logout goes to `/driver/login`
-- Updated `app/driver/login/page.tsx` — login box top-aligned, removed vertical centering
-- Updated `app/driver/jobs/page.tsx` — full width, 3 clickable colour-coded tab cards (Awaiting Delivery / On Hire / Completed), 10 jobs per page with view more, correct section labels
-- Updated `app/api/driver/jobs/route.ts` — fetches company name from `partner_profiles` and returns it with driver info
-- Updated `app/ClientRootLayout.tsx` — added `/driver` to excluded paths so global header is suppressed for driver portal
-- Stable tag: `v-stable-live-status-checks`
+### Chat 8 (Completed)
+- Added insurance document handover flow across all three portals
+- Added 4 columns to `partner_bookings`: `insurance_docs_confirmed_by_driver`, `insurance_docs_confirmed_by_driver_at`, `insurance_docs_confirmed_by_customer`, `insurance_docs_confirmed_by_customer_at`
+- **Driver confirm API** — insurance is hard blocker at delivery; 400 error if not ticked
+- **Driver jobs page** — insurance checkbox at delivery, confirm button disabled until ticked; summary card shows both driver and customer status; auto-refresh every 10s (silent, doesn't reset input state)
+- **Driver jobs API** — added insurance columns to select and response map
+- **Customer update API** — `insurance_only: true` flag saves insurance independently of fuel state; `now` variable hoisted before insurance-only block (fixed TS build error)
+- **Customer request page** — `InsuranceConfirmCard` always visible once booking exists, independent of fuel lock state; full clean rewrite to fix JSX structure
+- **Partner booking detail** — `InsuranceStatusCard` always visible, read-only, shows driver + customer status separately; full clean rewrite to fix JSX structure
+- **Both GET API routes** fixed to include insurance columns in Supabase select + response mapping: `app/api/test-booking/requests/[id]/route.ts` and `app/api/partner/bookings/[id]/route.ts`
+- Stable tag: `v-stable-insurance-handover`
 
 ---
 
@@ -249,7 +253,7 @@ Camel Global operates as a **marketplace facilitator**. Customers pay Camel Glob
 ---
 
 ### Insurance (To Build)
-**Status:** Policy defined, not yet enforced in platform.
+**Status:** Handover confirmation done. Certificate upload not yet built.
 
 - Partners upload insurance certificate to profile
 - Certificate expiry alerts (30 days warning)
@@ -345,4 +349,4 @@ git diff
 
 ---
 
-*Last updated: Chat 6 — Live status checks, dashboard banner, login redirect fix*
+*Last updated: Chat 8 — Insurance document handover flow fully working across all portals*

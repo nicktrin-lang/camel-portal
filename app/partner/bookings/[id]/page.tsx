@@ -57,6 +57,13 @@ type BookingRow = {
   insurance_docs_confirmed_by_driver_at?: string | null;
   insurance_docs_confirmed_by_customer?: boolean | null;
   insurance_docs_confirmed_by_customer_at?: string | null;
+  // Driver audit trail
+  delivery_driver_id?: string | null;
+  delivery_driver_name?: string | null;
+  delivery_confirmed_at?: string | null;
+  collection_driver_id?: string | null;
+  collection_driver_name?: string | null;
+  collection_confirmed_at?: string | null;
 };
 
 type RequestRow = {
@@ -743,6 +750,56 @@ export default function PartnerBookingDetailPage() {
       {collectionLocked && returnLocked && (
         <BookingSummaryCard booking={bk} rates={rates} isLive={rateIsLive} />
       )}
+
+      {/* Driver audit trail — always visible once booking exists */}
+      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <h2 className="text-2xl font-semibold text-[#003768]">Driver Audit Trail</h2>
+        <p className="mt-1 mb-5 text-sm text-slate-500">
+          Exact record of who delivered and collected the vehicle and when. Stamped automatically when the driver confirms via their app — never editable.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Delivery */}
+          <div className={`rounded-2xl border p-5 ${bk.delivery_driver_name ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"}`}>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">🚗 Delivery driver</p>
+            {bk.delivery_driver_name ? (
+              <>
+                <p className="mt-2 text-lg font-bold text-[#003768]">{bk.delivery_driver_name}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">Delivered at</p>
+                <p className="text-sm font-medium text-slate-700">{fmt(bk.delivery_confirmed_at)}</p>
+                {bk.delivery_driver_id !== bk.assigned_driver_id && (
+                  <p className="mt-2 text-xs text-amber-600 font-semibold">⚠ Different driver to current assignment</p>
+                )}
+              </>
+            ) : (
+              <p className="mt-2 text-sm italic text-slate-400">Not yet delivered</p>
+            )}
+          </div>
+          {/* Collection */}
+          <div className={`rounded-2xl border p-5 ${bk.collection_driver_name ? "border-green-200 bg-green-50" : "border-slate-200 bg-slate-50"}`}>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">🏁 Collection driver</p>
+            {bk.collection_driver_name ? (
+              <>
+                <p className="mt-2 text-lg font-bold text-[#003768]">{bk.collection_driver_name}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">Collected at</p>
+                <p className="text-sm font-medium text-slate-700">{fmt(bk.collection_confirmed_at)}</p>
+                {bk.delivery_driver_id && bk.collection_driver_id &&
+                  bk.delivery_driver_id !== bk.collection_driver_id && (
+                  <p className="mt-2 text-xs text-amber-600 font-semibold">⚠ Different driver to delivery</p>
+                )}
+              </>
+            ) : (
+              <p className="mt-2 text-sm italic text-slate-400">Not yet collected</p>
+            )}
+          </div>
+        </div>
+        {/* Split driver notice */}
+        {bk.delivery_driver_id && bk.collection_driver_id &&
+          bk.delivery_driver_id !== bk.collection_driver_id && (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            Different drivers handled delivery and collection on this booking.
+          </div>
+        )}
+      </div>
 
       {/* Insurance documents — always visible once booking exists */}
       <div>

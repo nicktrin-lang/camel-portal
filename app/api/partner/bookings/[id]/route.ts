@@ -73,7 +73,13 @@ export async function GET(
         insurance_docs_confirmed_by_driver,
         insurance_docs_confirmed_by_driver_at,
         insurance_docs_confirmed_by_customer,
-        insurance_docs_confirmed_by_customer_at
+        insurance_docs_confirmed_by_customer_at,
+        delivery_driver_id,
+        delivery_driver_name,
+        delivery_confirmed_at,
+        collection_driver_id,
+        collection_driver_name,
+        collection_confirmed_at
       `)
       .eq("id", id);
 

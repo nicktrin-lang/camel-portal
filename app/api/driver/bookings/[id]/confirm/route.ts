@@ -72,7 +72,7 @@ export async function POST(
 
     const { data: bookingRow, error: bookingErr } = await db
       .from("partner_bookings")
-      .select("id, assigned_driver_id, booking_status, collection_confirmed_by_driver, return_confirmed_by_driver")
+      .select("id, assigned_driver_id, booking_status, collection_confirmed_by_driver, return_confirmed_by_driver, delivery_driver_id, collection_driver_id")
       .eq("id", id)
       .eq("assigned_driver_id", driverRow.id)
       .maybeSingle();
@@ -98,6 +98,13 @@ export async function POST(
       updatePayload.insurance_docs_confirmed_by_driver = true;
       updatePayload.insurance_docs_confirmed_by_driver_at = now;
 
+      // Stamp delivery driver — only write once, never overwrite
+      if (!bookingRow.delivery_driver_id) {
+        updatePayload.delivery_driver_id   = driverRow.id;
+        updatePayload.delivery_driver_name = driverRow.full_name || null;
+        updatePayload.delivery_confirmed_at = now;
+      }
+
       if (["confirmed", "driver_assigned", "en_route", "arrived"].includes(bookingRow.booking_status)) {
         updatePayload.booking_status = "collected";
       }
@@ -107,7 +114,14 @@ export async function POST(
       updatePayload.return_confirmed_by_driver = true;
       updatePayload.return_confirmed_by_driver_at = now;
       updatePayload.return_fuel_level_driver = fuelLevel;
-      // No insurance at return stage
+
+      // Stamp collection driver — only write once, never overwrite
+      if (!bookingRow.collection_driver_id) {
+        updatePayload.collection_driver_id   = driverRow.id;
+        updatePayload.collection_driver_name = driverRow.full_name || null;
+        updatePayload.collection_confirmed_at = now;
+      }
+
       if (["collected", "returned"].includes(bookingRow.booking_status)) {
         updatePayload.booking_status = "returned";
       }
