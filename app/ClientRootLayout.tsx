@@ -16,8 +16,9 @@ export default function ClientRootLayout({ children }: { children: React.ReactNo
     pathname === "/partner/signup" ||
     pathname === "/partner/application-submitted";
   const isPortalAppPage =
-    (pathname?.startsWith("/partner") && !isPartnerAuthPage) ||
-    pathname?.startsWith("/admin");
+  (pathname?.startsWith("/partner") && !isPartnerAuthPage) ||
+  pathname?.startsWith("/admin") ||
+  pathname?.startsWith("/driver");
   const isTestBookingArea = pathname?.startsWith("/test-booking");
   const showGlobalHeader = !isHomepage && !isPartnerAuthPage && !isPortalAppPage;
 
