@@ -188,14 +188,20 @@ function Section({ title, icon, accent, jobs, mode, fuelInputs, onFuelChange, on
   );
 }
 
+const PAGE_SIZE = 20;
+
 export default function DriverJobsPage() {
   const [loading,    setLoading]    = useState(true);
+  const [activeTab,  setActiveTab]  = useState<"awaiting" | "onHire" | "completed">("awaiting");
   const [savingId,   setSavingId]   = useState<string | null>(null);
   const [error,      setError]      = useState<string | null>(null);
   const [toast,      setToast]      = useState<string | null>(null);
   const [driver,     setDriver]     = useState<DriverInfo | null>(null);
   const [jobs,       setJobs]       = useState<DriverJob[]>([]);
   const [fuelInputs, setFuelInputs] = useState<Record<string, FuelLevel>>({});
+  const [visibleCount, setVisibleCount] = useState<Record<string, number>>({
+    awaiting: PAGE_SIZE, onHire: PAGE_SIZE, completed: PAGE_SIZE,
+  });
 
   async function load() {
     setLoading(true); setError(null);
@@ -243,12 +249,33 @@ export default function DriverJobsPage() {
     completed: jobs.filter(j => j.booking_status_label === "Completed"),
   }), [jobs]);
 
+  // Auto-select the most relevant tab
+  useEffect(() => {
+    if (!loading) {
+      if (jobs.filter(j => j.booking_status_label === "Awaiting delivery").length > 0) setActiveTab("awaiting");
+      else if (jobs.filter(j => j.booking_status_label === "On Hire").length > 0) setActiveTab("onHire");
+      else setActiveTab("completed");
+    }
+  }, [loading]);
+
   const sharedProps = {
     fuelInputs,
     onFuelChange: (id: string, v: FuelLevel) => setFuelInputs(p => ({ ...p, [id]: v })),
     onConfirm: confirmStage,
     savingId,
   };
+
+  const tabs: { key: "awaiting" | "onHire" | "completed"; label: string; icon: string; count: number; accent: string; bg: string; border: string }[] = [
+    { key: "awaiting",  label: "Awaiting Delivery", icon: "🔵", count: awaiting.length,  accent: "text-blue-700",   bg: "bg-blue-50",   border: "border-blue-200" },
+    { key: "onHire",    label: "On Hire",            icon: "🟠", count: onHire.length,    accent: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200" },
+    { key: "completed", label: "Completed",          icon: "✅", count: completed.length, accent: "text-green-700",  bg: "bg-green-50",  border: "border-green-200" },
+  ];
+
+  const activeJobs = activeTab === "awaiting" ? awaiting : activeTab === "onHire" ? onHire : completed;
+  const activeMode = activeTab === "awaiting" ? "collection" : activeTab === "onHire" ? "return" : "readonly";
+  const activeVisible = visibleCount[activeTab];
+  const visibleJobs = activeJobs.slice(0, activeVisible);
+  const hasMore = activeJobs.length > activeVisible;
 
   return (
     <div className="space-y-6">
@@ -283,33 +310,58 @@ export default function DriverJobsPage() {
         </div>
       ) : (
         <>
-          {/* Summary cards */}
+          {/* Clickable tab cards */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 shadow-sm text-center">
-              <p className="text-3xl font-bold text-blue-700">{awaiting.length}</p>
-              <p className="mt-1 text-xs font-semibold text-blue-600 uppercase tracking-wide">Awaiting</p>
-              <p className="text-xs text-blue-500">Collection</p>
-            </div>
-            <div className="rounded-3xl border border-orange-100 bg-orange-50 p-4 shadow-sm text-center">
-              <p className="text-3xl font-bold text-orange-600">{onHire.length}</p>
-              <p className="mt-1 text-xs font-semibold text-orange-500 uppercase tracking-wide">On Hire</p>
-              <p className="text-xs text-orange-400">Active</p>
-            </div>
-            <div className="rounded-3xl border border-green-100 bg-green-50 p-4 shadow-sm text-center">
-              <p className="text-3xl font-bold text-green-700">{completed.length}</p>
-              <p className="mt-1 text-xs font-semibold text-green-600 uppercase tracking-wide">Completed</p>
-              <p className="text-xs text-green-500">Done</p>
-            </div>
+            {tabs.map(tab => (
+              <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
+                className={`rounded-3xl border-2 p-4 shadow-sm text-center transition-all ${
+                  activeTab === tab.key
+                    ? `${tab.bg} ${tab.border} shadow-md scale-[1.02]`
+                    : "border-black/10 bg-white hover:bg-slate-50"
+                }`}>
+                <p className={`text-3xl font-bold ${activeTab === tab.key ? tab.accent : "text-slate-700"}`}>{tab.count}</p>
+                <p className={`mt-1 text-xs font-semibold uppercase tracking-wide ${activeTab === tab.key ? tab.accent : "text-slate-500"}`}>
+                  {tab.key === "awaiting" ? "Awaiting" : tab.key === "onHire" ? "On Hire" : "Completed"}
+                </p>
+                <p className={`text-xs ${activeTab === tab.key ? tab.accent : "text-slate-400"}`}>
+                  {tab.key === "awaiting" ? "Delivery" : tab.key === "onHire" ? "Active" : "Done"}
+                </p>
+              </button>
+            ))}
           </div>
 
-          {/* Job sections */}
-          <div className="space-y-8">
-            <Section title="Awaiting Collection" icon="🔵" accent="text-blue-700"
-              mode="collection" jobs={awaiting} {...sharedProps} />
-            <Section title="On Hire" icon="🟠" accent="text-orange-600"
-              mode="return" jobs={onHire} {...sharedProps} />
-            <Section title="Completed" icon="✅" accent="text-green-700"
-              mode="readonly" jobs={completed} {...sharedProps} />
+          {/* Active tab job list */}
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-xl">{tabs.find(t => t.key === activeTab)?.icon}</span>
+              <h2 className={`text-lg font-bold ${tabs.find(t => t.key === activeTab)?.accent}`}>
+                {tabs.find(t => t.key === activeTab)?.label}
+              </h2>
+              <span className="rounded-full bg-black/5 px-2.5 py-0.5 text-xs font-bold text-slate-600">{activeJobs.length}</span>
+            </div>
+
+            {activeJobs.length === 0 ? (
+              <div className="rounded-3xl border border-black/5 bg-white p-8 text-center">
+                <p className="text-slate-500 text-sm">No jobs in this category.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {visibleJobs.map(job => (
+                  <JobCard key={job.booking_id} job={job} mode={activeMode}
+                    fuelInput={fuelInputs[job.booking_id] ?? "full"}
+                    onFuelChange={v => setFuelInputs(p => ({ ...p, [job.booking_id]: v }))}
+                    onConfirm={() => confirmStage(job.booking_id, activeMode === "readonly" ? "return" : activeMode)}
+                    saving={savingId === job.booking_id} />
+                ))}
+                {hasMore && (
+                  <button type="button"
+                    onClick={() => setVisibleCount(p => ({ ...p, [activeTab]: p[activeTab] + PAGE_SIZE }))}
+                    className="w-full rounded-2xl border border-black/10 bg-white py-3 text-sm font-semibold text-[#003768] hover:bg-slate-50">
+                    ▼ Show more ({activeJobs.length - activeVisible} remaining)
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
