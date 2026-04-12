@@ -300,7 +300,7 @@ export default function AdminBookingDetailPage() {
     async function load() {
       setLoading(true);
       try {
-        const res  = await fetch(`/api/partner/bookings/${bookingId}`, { cache: "no-store", credentials: "include" });
+        const res  = await fetch(`/api/admin/bookings/${bookingId}`, { cache: "no-store", credentials: "include" });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error || "Failed to load booking.");
         setData(json);
