@@ -104,17 +104,18 @@ Permanent record of exactly who delivered and collected each vehicle and when:
 
 ### Last Known Good Tag
 ```bash
-git checkout v-stable-admin-insurance-live-status
+git checkout v-stable-partner-reviews
 ```
-**Tag:** `v-stable-admin-insurance-live-status`
-**Description:** Admin booking detail and list pages show insurance documents and driver audit trail, matching partner portal. Admin auth fixed — admin bookings detail API now uses admin_users table directly instead of partner_profiles. Admin bookings list API falls back to admin_users check so all bookings are returned for admin users. Live status banner fixed — refreshPartnerLiveStatus now returns isLiveNow on all code paths so already-live accounts no longer show false "not live" banner.
+**Tag:** `v-stable-partner-reviews`
+**Description:** Full partner review system. Customer leaves star rating + comment on completed bookings. Reviews expandable on bid cards so customers can read comments and partner replies before accepting. Partner reviews page shows all reviews with one-reply-only box. Admin review moderation page with hide/restore toggle. 7-day reminder email cron via Vercel. Bad word filter on submit and reply. Ratings shown on bid cards. Reviews and Review Moderation added to sidebars via PortalSidebar.tsx (the actual sidebar in use — PartnerSidebar.tsx and AdminSidebar.tsx are unused). Reviews API at `/api/test-booking/reviews` handles both partner_user_id (public) and booking_id (authenticated) GET params.
 
 ### Previous Stable Tags
 | Tag | Description |
 |-----|-------------|
-| `v-stable-driver-audit-trail` | Driver audit trail — delivery/collection driver stamped permanently with exact timestamps, split-driver warning on partner portal, job disappears from old driver on reassignment. |
-| `v-stable-insurance-handover` | Full insurance document handover flow. Driver checkbox hard blocker. Customer confirmation card. Partner read-only status. Driver app shows both sides and auto-refreshes every 10s. |
-| `v-stable-live-status-checks` | Live status checks require fleet location, service radius, billing currency, at least one active fleet vehicle, and at least one active driver. |
+| `v-stable-admin-insurance-live-status` | Admin booking detail and list pages show insurance and driver audit trail. Admin auth fixed. Live status banner fixed. |
+| `v-stable-driver-audit-trail` | Driver audit trail — delivery/collection driver stamped permanently with exact timestamps, split-driver warning on partner portal. |
+| `v-stable-insurance-handover` | Full insurance document handover flow. Driver checkbox hard blocker. Customer confirmation card. Partner read-only status. |
+| `v-stable-live-status-checks` | Live status checks require fleet location, service radius, billing currency, at least one active fleet vehicle and driver. |
 | `v-stable-fuel-flow-fixed` | Full fuel confirmation flow working end to end. |
 | `v-stable-admin-booking-fixes` | Admin booking detail matches partner view. All three currencies shown everywhere. |
 | `v-stable-password-reset` | All three portals password reset fully working with branded emails. |
@@ -146,7 +147,7 @@ git checkout v-stable-admin-insurance-live-status
 - **Partner dashboard** — amber live status banner with clickable fix links
 - **Driver portal** — independent header, full name + company name, correct logout, 3 tab cards, 10-per-page pagination, auto-refresh every 10s
 - **Insurance handover** — driver checkbox (hard blocker at delivery), customer confirmation card, partner read-only status, driver app shows both sides
-- **Driver audit trail** — permanent stamp of delivery driver + time and collection driver + time; split-driver warning on partner portal; reassignment removes job from old driver immediately
+- **Partner review system** — customer leaves star rating + comment on completed bookings, expandable reviews on bid cards, partner one-reply-only, admin hide/restore moderation, 7-day reminder email cron, bad word filter, ratings shown on bid cards
 
 ---
 
@@ -189,7 +190,21 @@ git checkout v-stable-admin-insurance-live-status
 - Driver app auto-refreshes every 10s silently
 - Stable tag: `v-stable-insurance-handover`
 
-### Chat 10 (Completed)
+### Chat 11 (Completed)
+- Full partner review system built end to end
+- DB: `partner_reviews` table + `review_reminder_sent_at` column on `partner_bookings`
+- `app/api/test-booking/reviews/route.ts` — POST submit review (bad word filter, one per booking, completed only), GET by booking_id or partner_user_id
+- `app/api/partner/reviews/route.ts` — GET all reviews for partner with stats, POST partner reply (one reply only, bad word filter)
+- `app/api/admin/reviews/route.ts` — GET all reviews with company names, PATCH toggle visibility
+- `app/api/cron/review-reminder/route.ts` — daily cron, emails customers 7 days after completion if no review
+- `vercel.json` — cron schedule 10am UTC daily, secured with CRON_SECRET env var
+- `app/partner/reviews/page.tsx` — partner reviews page with star summary, distribution bar, reply box
+- `app/admin/reviews/page.tsx` — admin moderation with hide/restore and platform stats
+- `app/components/portal/PortalSidebar.tsx` — Reviews and Review Moderation added (this is the actual sidebar in use)
+- `lib/email.ts` — `sendReviewReminderEmail` added
+- `app/api/test-booking/requests/[id]/route.ts` — avg rating and review count joined onto bids, existing_review and has_review returned on booking
+- `app/test-booking/requests/[id]/page.tsx` — full rewrite: BidCard component with expandable reviews, ReviewCard on completed bookings, StarPicker, partner reply display
+- Stable tag: `v-stable-partner-reviews`
 - Admin booking detail page (`app/admin/bookings/[id]/page.tsx`) — full rewrite with insurance documents section and driver audit trail, matching partner portal
 - Created `app/api/admin/bookings/[id]/route.ts` — new admin-specific booking detail API using `admin_users` auth (not `partner_profiles`)
 - Fixed admin bookings list API (`app/api/partner/bookings/route.ts`) — falls back to `admin_users` email check so `adminMode = true` for admin users and all bookings are returned
