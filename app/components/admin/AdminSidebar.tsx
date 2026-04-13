@@ -11,7 +11,7 @@ const navItems = [
   { href: "/admin/approvals", label: "Partner Approvals" },
   { href: "/admin/bookings",  label: "Bookings" },
   { href: "/admin/requests",  label: "Requests" },
-  { href: "/admin/reviews",   label: "Review Moderation" },
+  { href: "/admin/reviews", label: "Review Moderation" },
   { href: "/admin/reports",   label: "Report Management" },
   { href: "/admin/users",     label: "Admin Users" },
 ];
