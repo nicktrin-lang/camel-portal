@@ -14,6 +14,7 @@ type Profile = {
   base_lat: number | null;
   base_lng: number | null;
   country: string | null;
+  vat_number: string | null;
 };
 
 type BookingRow = {
@@ -43,14 +44,15 @@ type LiveStatus = {
 };
 
 const MISSING_LABELS: Record<string, { label: string; href: string }> = {
-  service_radius_km: { label: "Service radius not set",            href: "/partner/profile" },
-  base_address:      { label: "Fleet base address missing",        href: "/partner/profile" },
-  base_location:     { label: "Fleet base map pin missing",        href: "/partner/profile" },
-  base_lat:          { label: "Fleet base location missing",       href: "/partner/profile" },
-  base_lng:          { label: "Fleet base location missing",       href: "/partner/profile" },
-  fleet:             { label: "No active fleet vehicles added",    href: "/partner/fleet" },
-  driver:            { label: "No active drivers added",           href: "/partner/drivers" },
-  default_currency:  { label: "Billing currency not set",         href: "/partner/profile" },
+  service_radius_km: { label: "Service radius not set",         href: "/partner/profile" },
+  base_address:      { label: "Fleet base address missing",     href: "/partner/profile" },
+  base_location:     { label: "Fleet base map pin missing",     href: "/partner/profile" },
+  base_lat:          { label: "Fleet base location missing",    href: "/partner/profile" },
+  base_lng:          { label: "Fleet base location missing",    href: "/partner/profile" },
+  fleet:             { label: "No active fleet vehicles added", href: "/partner/fleet" },
+  driver:            { label: "No active drivers added",        href: "/partner/drivers" },
+  default_currency:  { label: "Billing currency not set",      href: "/partner/profile" },
+  vat_number:        { label: "VAT / NIF number not set",      href: "/partner/profile" },
 };
 
 function fmtDateTime(iso?: string | null) {
@@ -126,7 +128,7 @@ export default function PartnerDashboardPage() {
           fleetRes,
         ] = await Promise.all([
           supabase.from("partner_profiles")
-            .select("contact_name,company_name,address,service_radius_km,country,default_currency,base_lat,base_lng")
+            .select("contact_name,company_name,address,service_radius_km,country,default_currency,base_lat,base_lng,vat_number")
             .eq("user_id", user.id).maybeSingle(),
           supabase.from("partner_applications")
             .select("status").eq("email", userEmail)
@@ -151,7 +153,6 @@ export default function PartnerDashboardPage() {
         setDriverCount(Array.isArray(drvJson?.data) ? drvJson.data.filter((d: any) => d.is_active).length : 0);
         setFleetCount(Array.isArray(fleetRes?.data) ? fleetRes.data.length : 0);
 
-        // Fetch live status
         try {
           const liveRes = await fetch("/api/partner/refresh-live-status", {
             method: "POST", cache: "no-store", credentials: "include",
@@ -185,8 +186,7 @@ export default function PartnerDashboardPage() {
     </div>
   );
 
-  const isApproved = appStatus.toLowerCase() === "approved";
-
+  const isApproved        = appStatus.toLowerCase() === "approved";
   const activeBookings    = bookings.filter(b => ["confirmed","driver_assigned","en_route","arrived","collected","returned"].includes(String(b.booking_status||"").toLowerCase()));
   const completedBookings = bookings.filter(b => String(b.booking_status||"").toLowerCase() === "completed");
   const openRequests      = requests.filter(r => String(r.status||"").toLowerCase() === "open");
@@ -390,9 +390,10 @@ export default function PartnerDashboardPage() {
             {[
               { label: "Fleet location set",   done: !!(profile?.base_lat && profile?.base_lng), href: "/partner/profile" },
               { label: "Bidding currency set",  done: !!(profile?.default_currency),              href: "/partner/profile" },
-              { label: "Account approved",      done: isApproved,                                 href: "/partner/account" },
-              { label: "Drivers added",         done: driverCount > 0,                            href: "/partner/drivers" },
-              { label: "Fleet added",           done: fleetCount > 0,                             href: "/partner/fleet" },
+              { label: "VAT / NIF number set",  done: !!(profile?.vat_number),                    href: "/partner/profile" },
+              { label: "Account approved",      done: isApproved,                                  href: "/partner/account" },
+              { label: "Drivers added",         done: driverCount > 0,                             href: "/partner/drivers" },
+              { label: "Fleet added",           done: fleetCount > 0,                              href: "/partner/fleet" },
             ].map(({ label, done, href }) => (
               <Link key={label} href={href}
                 className="flex items-center gap-3 rounded-xl border border-black/5 bg-slate-50 px-3 py-2.5 hover:bg-[#f3f8ff] transition-colors">
@@ -413,12 +414,12 @@ export default function PartnerDashboardPage() {
           <h2 className="text-xl font-semibold text-[#003768]">Navigation</h2>
           <div className="mt-4 space-y-2">
             {[
-              { label: "📋 Requests", desc: "View & bid on customer requests", href: "/partner/requests" },
-              { label: "📅 Bookings", desc: "Manage confirmed bookings",        href: "/partner/bookings" },
-              { label: "📊 Reports",  desc: "Revenue & fuel reconciliation",    href: "/partner/reports" },
-              { label: "🚗 Car Fleet", desc: "Manage your vehicles",            href: "/partner/fleet" },
-              { label: "👤 Drivers",  desc: "Manage your drivers",              href: "/partner/drivers" },
-              { label: "⚙️ Account",  desc: "Profile, rules & settings",        href: "/partner/account" },
+              { label: "📋 Requests",  desc: "View & bid on customer requests", href: "/partner/requests" },
+              { label: "📅 Bookings",  desc: "Manage confirmed bookings",        href: "/partner/bookings" },
+              { label: "📊 Reports",   desc: "Revenue & fuel reconciliation",    href: "/partner/reports" },
+              { label: "🚗 Car Fleet", desc: "Manage your vehicles",             href: "/partner/fleet" },
+              { label: "👤 Drivers",   desc: "Manage your drivers",              href: "/partner/drivers" },
+              { label: "⚙️ Account",   desc: "Profile, rules & settings",        href: "/partner/account" },
             ].map(({ label, desc, href }) => (
               <Link key={href} href={href}
                 className="flex items-center justify-between rounded-xl border border-black/5 bg-slate-50 px-3 py-2.5 hover:bg-[#f3f8ff] transition-colors">

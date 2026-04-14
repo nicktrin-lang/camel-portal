@@ -20,6 +20,9 @@ type AccountProfile = {
   base_lat: number | null;
   base_lng: number | null;
   default_currency: string | null;
+  legal_company_name: string | null;
+  vat_number: string | null;
+  company_registration_number: string | null;
 };
 
 type ApplicationRow = {
@@ -50,9 +53,9 @@ function fmtDateTime(value?: string | null) {
 function statusPillClasses(status?: string | null) {
   switch (String(status || "").toLowerCase()) {
     case "approved": return "border-green-200 bg-green-50 text-green-700";
-    case "pending": return "border-amber-200 bg-amber-50 text-amber-700";
+    case "pending":  return "border-amber-200 bg-amber-50 text-amber-700";
     case "rejected": return "border-red-200 bg-red-50 text-red-700";
-    default: return "border-black/10 bg-white text-slate-700";
+    default:         return "border-black/10 bg-white text-slate-700";
   }
 }
 
@@ -66,14 +69,15 @@ function currencyLabel(currency?: string | null) {
 }
 
 const MISSING_LABELS: Record<string, { label: string; href: string }> = {
-  service_radius_km: { label: "Service radius not set", href: "/partner/profile" },
-  base_address:      { label: "Fleet base address missing", href: "/partner/profile" },
+  service_radius_km: { label: "Service radius not set",            href: "/partner/profile" },
+  base_address:      { label: "Fleet base address missing",        href: "/partner/profile" },
   base_location:     { label: "Fleet base location (map pin) missing", href: "/partner/profile" },
   base_lat:          { label: "Fleet base location (lat) missing", href: "/partner/profile" },
   base_lng:          { label: "Fleet base location (lng) missing", href: "/partner/profile" },
-  fleet:             { label: "No active fleet vehicles added", href: "/partner/fleet" },
-  driver:            { label: "No active drivers added", href: "/partner/drivers" },
-  default_currency:  { label: "Billing currency not set", href: "/partner/profile" },
+  fleet:             { label: "No active fleet vehicles added",    href: "/partner/fleet" },
+  driver:            { label: "No active drivers added",           href: "/partner/drivers" },
+  default_currency:  { label: "Billing currency not set",         href: "/partner/profile" },
+  vat_number:        { label: "VAT / NIF number not set",         href: "/partner/profile" },
 };
 
 // ── Operating Rules ───────────────────────────────────────────────────────────
@@ -173,8 +177,9 @@ const OPERATING_RULES = [
   {
     section: "9. Revenue & Payments",
     rules: [
-      "All booking revenue is collected by the partner directly from the customer at the time of booking confirmation.",
-      "Camel Global does not currently take a platform commission from booking revenue (subject to change with 30 days' notice).",
+      "Camel Global charges a 20% commission on the car hire price for each completed booking, with a minimum commission of €10 per booking.",
+      "Fuel charges are passed through to the partner in full — Camel Global takes no commission on fuel.",
+      "Commission is deducted automatically at the point of payment via Stripe Connect — partners receive their net amount directly.",
       "Partners are responsible for all applicable taxes on income received through the platform.",
       "In the event of a customer refund dispute, Camel Global may mediate but the financial liability rests with the partner.",
       "All fuel refunds owed to customers must be processed within 5 business days of the booking completion.",
@@ -268,7 +273,7 @@ export default function PartnerAccountPage() {
         const [{ data: profileRow, error: profileErr }, { data: applicationRow, error: appErr }] =
           await Promise.all([
             supabase.from("partner_profiles")
-              .select("company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_lat,base_lng,default_currency")
+              .select("company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number")
               .eq("user_id", user.id).maybeSingle(),
             supabase.from("partner_applications")
               .select("status,created_at").eq("email", normalizedEmail)
@@ -283,12 +288,9 @@ export default function PartnerAccountPage() {
         setApplication((applicationRow || null) as ApplicationRow | null);
         setEmail(normalizedEmail);
 
-        // Fetch live status from the refresh endpoint
         try {
           const liveRes = await fetch("/api/partner/refresh-live-status", {
-            method: "POST",
-            cache: "no-store",
-            credentials: "include",
+            method: "POST", cache: "no-store", credentials: "include",
           });
           if (liveRes.ok) {
             const liveJson = await liveRes.json();
@@ -299,9 +301,7 @@ export default function PartnerAccountPage() {
               });
             }
           }
-        } catch {
-          // Non-fatal — live status just won't show
-        }
+        } catch {}
       } catch (e: any) {
         if (!mounted) return;
         setError(e?.message || "Failed to load account.");
@@ -412,6 +412,38 @@ export default function PartnerAccountPage() {
             </div>
           </div>
 
+          {/* Business & Billing */}
+          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+            <h2 className="text-xl font-semibold text-[#003768]">Business & Billing</h2>
+            <p className="mt-1 text-sm text-slate-500">Your legal details used for commission invoicing.</p>
+            <div className="mt-5 grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
+              <div className="md:col-span-2">
+                <span className="text-slate-500">Legal Company Name</span>
+                <p className="font-medium text-slate-800">{fmtValue(profile?.legal_company_name)}</p>
+              </div>
+              <div>
+                <span className="text-slate-500">Company Registration Number</span>
+                <p className="font-medium text-slate-800">{fmtValue(profile?.company_registration_number)}</p>
+              </div>
+              <div>
+                <span className="text-slate-500">VAT / NIF Number</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="font-medium text-slate-800">{fmtValue(profile?.vat_number)}</p>
+                  {profile?.vat_number
+                    ? <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">✓ Provided</span>
+                    : <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">Required</span>
+                  }
+                </div>
+              </div>
+            </div>
+            {!profile?.vat_number && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                ⚠️ Your VAT / NIF number is required before your account can go live.{" "}
+                <a href="/partner/profile" className="font-semibold underline">Add it in your profile →</a>
+              </div>
+            )}
+          </div>
+
           {/* Business Address */}
           <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <h2 className="text-xl font-semibold text-[#003768]">Business Address</h2>
@@ -438,14 +470,8 @@ export default function PartnerAccountPage() {
                 <span className="text-slate-500">Base Address</span>
                 <p className="font-medium text-slate-800">{fmtValue(profile?.base_address)}</p>
               </div>
-              <div>
-                <span className="text-slate-500">Latitude</span>
-                <p className="font-medium text-slate-800">{profile?.base_lat ?? "—"}</p>
-              </div>
-              <div>
-                <span className="text-slate-500">Longitude</span>
-                <p className="font-medium text-slate-800">{profile?.base_lng ?? "—"}</p>
-              </div>
+              <div><span className="text-slate-500">Latitude</span><p className="font-medium text-slate-800">{profile?.base_lat ?? "—"}</p></div>
+              <div><span className="text-slate-500">Longitude</span><p className="font-medium text-slate-800">{profile?.base_lng ?? "—"}</p></div>
               {profile?.service_radius_km && (
                 <div className="md:col-span-2">
                   <span className="text-slate-500">Coverage Radius</span>
@@ -458,26 +484,15 @@ export default function PartnerAccountPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Account Actions */}
           <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <h2 className="text-xl font-semibold text-[#003768]">Account Actions</h2>
             <div className="mt-5 space-y-3">
-              <a href="/partner/profile"
-                className="block rounded-full bg-[#ff7a00] px-5 py-3 text-center text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
-                Edit Profile
-              </a>
-              <a href="/partner/fleet"
-                className="block rounded-full border border-[#003768] px-5 py-3 text-center text-sm font-semibold text-[#003768] hover:bg-[#003768]/5">
-                Manage Fleet
-              </a>
-              <a href="/partner/drivers"
-                className="block rounded-full border border-[#003768] px-5 py-3 text-center text-sm font-semibold text-[#003768] hover:bg-[#003768]/5">
-                Manage Drivers
-              </a>
+              <a href="/partner/profile" className="block rounded-full bg-[#ff7a00] px-5 py-3 text-center text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">Edit Profile</a>
+              <a href="/partner/fleet" className="block rounded-full border border-[#003768] px-5 py-3 text-center text-sm font-semibold text-[#003768] hover:bg-[#003768]/5">Manage Fleet</a>
+              <a href="/partner/drivers" className="block rounded-full border border-[#003768] px-5 py-3 text-center text-sm font-semibold text-[#003768] hover:bg-[#003768]/5">Manage Drivers</a>
             </div>
           </div>
 
-          {/* Application */}
           <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <h2 className="text-xl font-semibold text-[#003768]">Application</h2>
             <div className="mt-4 space-y-3 text-sm text-slate-700">
@@ -494,19 +509,14 @@ export default function PartnerAccountPage() {
                 <p className="font-medium text-slate-800">{fmtDateTime(application?.created_at)}</p>
               </div>
               {application?.status === "pending" && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                  Your application is under review. You will be notified by email once approved.
-                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">Your application is under review. You will be notified by email once approved.</div>
               )}
               {application?.status === "approved" && (
-                <div className="rounded-2xl border border-green-200 bg-green-50 p-3 text-xs text-green-700">
-                  Your account is approved. Complete your profile setup to go live.
-                </div>
+                <div className="rounded-2xl border border-green-200 bg-green-50 p-3 text-xs text-green-700">Your account is approved. Complete your profile setup to go live.</div>
               )}
             </div>
           </div>
 
-          {/* Quick Links */}
           <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <h2 className="text-xl font-semibold text-[#003768]">Quick Links</h2>
             <div className="mt-4 space-y-2 text-sm">
@@ -517,10 +527,8 @@ export default function PartnerAccountPage() {
                 { label: "My Drivers", href: "/partner/drivers" },
                 { label: "My Fleet", href: "/partner/fleet" },
               ].map(({ label, href }) => (
-                <a key={href} href={href}
-                  className="flex items-center justify-between rounded-xl border border-black/10 bg-slate-50 px-4 py-2.5 font-medium text-[#003768] hover:bg-[#f3f8ff] transition-colors">
-                  {label}
-                  <span className="text-slate-400">→</span>
+                <a key={href} href={href} className="flex items-center justify-between rounded-xl border border-black/10 bg-slate-50 px-4 py-2.5 font-medium text-[#003768] hover:bg-[#f3f8ff] transition-colors">
+                  {label}<span className="text-slate-400">→</span>
                 </a>
               ))}
             </div>
@@ -533,12 +541,9 @@ export default function PartnerAccountPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-[#003768]">Partner Operating Rules</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              These rules govern your conduct as a Camel Global partner. By operating on the platform you agree to comply with all sections below.
-            </p>
+            <p className="mt-1 text-sm text-slate-500">These rules govern your conduct as a Camel Global partner. By operating on the platform you agree to comply with all sections below.</p>
           </div>
-          <button type="button"
-            onClick={() => downloadOperatingRulesPDF(profile?.company_name || "Partner")}
+          <button type="button" onClick={() => downloadOperatingRulesPDF(profile?.company_name || "Partner")}
             className="shrink-0 rounded-full bg-[#003768] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
             ⬇ Download PDF
           </button>
@@ -558,9 +563,7 @@ export default function PartnerAccountPage() {
             </div>
           ))}
         </div>
-        <p className="mt-6 text-xs text-slate-400 text-center">
-          Camel Global Partner Operating Rules — Last updated April 2026 — Subject to change with 14 days' notice.
-        </p>
+        <p className="mt-6 text-xs text-slate-400 text-center">Camel Global Partner Operating Rules — Last updated April 2026 — Subject to change with 14 days' notice.</p>
       </div>
     </div>
   );

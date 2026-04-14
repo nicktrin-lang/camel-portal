@@ -53,22 +53,14 @@ type AccountProfile = {
   base_lat: number | null;
   base_lng: number | null;
   default_currency?: string | null;
+  legal_company_name?: string | null;
+  vat_number?: string | null;
+  company_registration_number?: string | null;
+  commission_rate?: number | null;
 };
 
-type FleetRow = {
-  id: string;
-  category_name: string;
-  category_slug: string;
-  max_passengers: number;
-  max_suitcases: number;
-};
-
-type DriverRow = {
-  id: string;
-  full_name: string;
-  email: string;
-  phone: string | null;
-};
+type FleetRow = { id: string; category_name: string; category_slug: string; max_passengers: number; max_suitcases: number; };
+type DriverRow = { id: string; full_name: string; email: string; phone: string | null; };
 
 function fmtDateTime(iso?: string | null) {
   if (!iso) return "—";
@@ -125,6 +117,7 @@ export default function AdminAccountDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState<AppStatus | null>(null);
+  const [savingCommission, setSavingCommission] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [application, setApplication] = useState<AccountApplication | null>(null);
@@ -133,6 +126,7 @@ export default function AdminAccountDetailPage() {
   const [drivers, setDrivers] = useState<DriverRow[]>([]);
   const [isLiveProfile, setIsLiveProfile] = useState(false);
   const [liveProfileReason, setLiveProfileReason] = useState("");
+  const [commissionInput, setCommissionInput] = useState("");
 
   async function load() {
     setLoading(true); setError(null);
@@ -151,12 +145,14 @@ export default function AdminAccountDetailPage() {
       const json = await safeJson(res);
       if (!res.ok) throw new Error(json?.error || json?._raw || "Failed to load partner account.");
 
+      const profileData = (json?.profile || null) as AccountProfile | null;
       setApplication((json?.application || null) as AccountApplication | null);
-      setProfile((json?.profile || null) as AccountProfile | null);
+      setProfile(profileData);
       setFleet(Array.isArray(json?.fleet) ? json.fleet : []);
       setDrivers(Array.isArray(json?.drivers) ? json.drivers : []);
       setIsLiveProfile(!!json?.is_live_profile);
       setLiveProfileReason(String(json?.live_profile_reason || ""));
+      setCommissionInput(String(profileData?.commission_rate ?? 20));
     } catch (e: any) {
       setError(e?.message || "Failed to load partner account.");
     } finally {
@@ -182,6 +178,26 @@ export default function AdminAccountDetailPage() {
       setError(e?.message || "Failed to update status.");
     } finally {
       setSavingStatus(null);
+    }
+  }
+
+  async function saveCommissionRate() {
+    if (!profile?.user_id) return;
+    const rate = parseFloat(commissionInput);
+    if (isNaN(rate) || rate < 0 || rate > 100) { setError("Commission rate must be between 0 and 100."); return; }
+    setSavingCommission(true); setError(null); setNotice(null);
+    try {
+      const { error: e } = await supabase
+        .from("partner_profiles")
+        .update({ commission_rate: rate })
+        .eq("user_id", profile.user_id);
+      if (e) throw new Error(e.message);
+      setProfile(prev => prev ? { ...prev, commission_rate: rate } : prev);
+      setNotice(`Commission rate updated to ${rate}% for this partner.`);
+    } catch (e: any) {
+      setError(e?.message || "Failed to update commission rate.");
+    } finally {
+      setSavingCommission(false);
     }
   }
 
@@ -212,17 +228,15 @@ export default function AdminAccountDetailPage() {
       {/* Top stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { label: "Company",            value: displayCompany },
-          { label: "Status",             value: fmtLabel(application.status), pill: true, status: application.status },
-          { label: "Fleet Categories",   value: String(fleet.length) },
-          { label: "Active Drivers",     value: String(drivers.length) },
+          { label: "Company",          value: displayCompany },
+          { label: "Status",           value: fmtLabel(application.status), pill: true, status: application.status },
+          { label: "Fleet Categories", value: String(fleet.length) },
+          { label: "Active Drivers",   value: String(drivers.length) },
         ].map(({ label, value, pill, status }) => (
           <div key={label} className="rounded-3xl bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <p className="text-sm text-slate-500">{label}</p>
             {pill ? (
-              <div className="mt-2">
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(status)}`}>{value}</span>
-              </div>
+              <div className="mt-2"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${statusPillClasses(status)}`}>{value}</span></div>
             ) : (
               <p className="mt-1 text-xl font-semibold text-[#003768]">{value}</p>
             )}
@@ -244,6 +258,24 @@ export default function AdminAccountDetailPage() {
               <InfoRow label="Bidding Currency" value={profile?.default_currency || null} />
               <InfoRow label="Applied" value={fmtDateTime(application.created_at)} />
               <InfoRow label="Live Profile" value={isLiveProfile ? "Yes" : "No"} />
+            </div>
+          </SectionCard>
+
+          {/* Business & Billing */}
+          <SectionCard title="Business & Billing">
+            <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
+              <div className="md:col-span-2"><InfoRow label="Legal Company Name" value={profile?.legal_company_name} /></div>
+              <InfoRow label="Company Registration Number" value={profile?.company_registration_number} />
+              <div>
+                <span className="text-slate-500 text-sm">VAT / NIF Number</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="font-medium text-slate-800">{fmtValue(profile?.vat_number)}</p>
+                  {profile?.vat_number
+                    ? <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">✓ Provided</span>
+                    : <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">Missing</span>
+                  }
+                </div>
+              </div>
             </div>
           </SectionCard>
 
@@ -271,18 +303,12 @@ export default function AdminAccountDetailPage() {
               <InfoRow label="Postcode" value={profile?.base_postcode} />
               <InfoRow label="Country" value={profile?.base_country} />
               <InfoRow label="GPS Coordinates" value={
-                profile?.base_lat && profile?.base_lng
-                  ? `${profile.base_lat}, ${profile.base_lng}`
-                  : null
+                profile?.base_lat && profile?.base_lng ? `${profile.base_lat}, ${profile.base_lng}` : null
               } />
             </div>
             {profile?.base_lat && profile?.base_lng ? (
               <div className="rounded-2xl overflow-hidden border border-black/10">
-                <MapPicker
-                  lat={profile.base_lat}
-                  lng={profile.base_lng}
-                  onPick={() => {}}
-                />
+                <MapPicker lat={profile.base_lat} lng={profile.base_lng} onPick={() => {}} />
               </div>
             ) : (
               <div className="rounded-2xl border border-black/5 bg-slate-50 p-4 text-sm text-slate-400">No location set yet.</div>
@@ -330,6 +356,7 @@ export default function AdminAccountDetailPage() {
 
         {/* Right column */}
         <div className="space-y-6">
+
           {/* Admin Controls */}
           <SectionCard title="Admin Controls">
             <div className="space-y-3">
@@ -348,6 +375,25 @@ export default function AdminAccountDetailPage() {
             </div>
           </SectionCard>
 
+          {/* Commission Override */}
+          <SectionCard title="Commission Rate">
+            <p className="text-sm text-slate-500 mb-4">Override the platform default (20%) for this partner. Minimum €10 per booking always applies.</p>
+            <div className="flex gap-2 items-center">
+              <input
+                type="number" min={0} max={100} step={0.5}
+                value={commissionInput}
+                onChange={e => setCommissionInput(e.target.value)}
+                className="w-24 rounded-xl border border-black/10 px-3 py-2 text-sm font-bold text-[#003768] outline-none focus:border-[#0f4f8a]"
+              />
+              <span className="text-sm font-semibold text-slate-500">%</span>
+              <button type="button" onClick={saveCommissionRate} disabled={savingCommission}
+                className="flex-1 rounded-full bg-[#003768] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60">
+                {savingCommission ? "Saving..." : "Save rate"}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">Current rate: <strong>{profile?.commission_rate ?? 20}%</strong></p>
+          </SectionCard>
+
           {/* Live Profile Check */}
           <SectionCard title="Live Profile Check">
             <div className="space-y-3 text-sm">
@@ -356,6 +402,7 @@ export default function AdminAccountDetailPage() {
                 { label: "Fleet added",          value: fleet.length > 0 },
                 { label: "Drivers added",        value: drivers.length > 0 },
                 { label: "Currency set",         value: !!profile?.default_currency },
+                { label: "VAT / NIF provided",   value: !!profile?.vat_number },
                 { label: "Live profile status",  value: isLiveProfile },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between">
@@ -366,9 +413,7 @@ export default function AdminAccountDetailPage() {
                 </div>
               ))}
               {!isLiveProfile && liveProfileReason && (
-                <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  {liveProfileReason}
-                </div>
+                <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{liveProfileReason}</div>
               )}
             </div>
           </SectionCard>
