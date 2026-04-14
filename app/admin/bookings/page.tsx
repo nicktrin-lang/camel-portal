@@ -246,8 +246,9 @@ function AdminCurrencySection({ curr, t, bookings, router }: {
               const usedQ   = b.fuel_used_quarters;
               const rate    = b.commission_rate ?? 20;
               const hire    = Number(b.car_hire_price ?? 0);
-              const commAmt = b.commission_amount ?? Math.max((hire * rate) / 100, 10);
-              const payout  = b.partner_payout_amount ?? Math.max(0, hire - commAmt);
+              const commAmt = b.commission_amount != null ? Number(b.commission_amount) : Math.max((hire * rate) / 100, 10);
+              const payout  = (b.partner_payout_amount != null ? Number(b.partner_payout_amount) : Math.max(0, hire - commAmt))
+                              + Number(b.fuel_charge ?? 0);
               return (
                 <tr key={b.id} onClick={() => router.push(`/admin/bookings/${b.id}`)} className="cursor-pointer hover:bg-[#f3f8ff]">
                   <td className="px-4 py-3 font-semibold text-[#003768]">{b.job_number || "—"}</td>
@@ -354,8 +355,9 @@ export default function AdminBookingsPage() {
       if (!t[c]) continue;
       const hire    = Number(b.car_hire_price ?? 0);
       const rate    = b.commission_rate ?? 20;
-      const commAmt = b.commission_amount ?? Math.max((hire * rate) / 100, 10);
-      const payout  = b.partner_payout_amount ?? Math.max(0, hire - commAmt);
+      const commAmt = b.commission_amount != null ? Number(b.commission_amount) : Math.max((hire * rate) / 100, 10);
+      const payout  = (b.partner_payout_amount != null ? Number(b.partner_payout_amount) : Math.max(0, hire - commAmt))
+                      + Number(b.fuel_charge ?? 0);
       t[c].count++;
       t[c].total              += Number(b.amount ?? 0);
       t[c].carHire            += hire;
