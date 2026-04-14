@@ -5,8 +5,8 @@
 ---
 
 ## Working Rules
-- **Always paste the current file before Claude rewrites it.** Claude works from what you paste, not from memory. For small fixes this isn't needed, but for any full file rewrite, paste the file first.
-- **Always give Claude the full file tree** at the start of a new chat by running: `find ~/camel-portal -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.next/*' | sort`
+- **Always paste the current file before Claude rewrites it.** Claude works from what you paste, not from memory.
+- **Always give Claude the full file tree** at the start of a new chat: `find ~/camel-portal -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.next/*' | sort`
 - **Before any rewrite**, Claude will tell you which files to paste, or give you a command to cat them.
 - **Always ask Claude to check the actual file** before rewriting — never assume the artifact is current.
 - **Always provide the git push command** at the end of every change.
@@ -32,7 +32,7 @@
 6. Customer pays only for fuel used (rounded to nearest ¼ tank)
 7. Launching in Spain first, with USD support ready for future US rollout
 
-### Three Portals
+### Portals
 | Portal | Path | Users |
 |--------|------|-------|
 | Customer | `/test-booking` | End customers |
@@ -52,67 +52,159 @@
 | `lib/supabase/browser.ts` | Supabase browser client (partner/admin) |
 | `lib/supabase-customer/browser.ts` | Supabase browser client (customers) |
 | `lib/portal/calculateFuelCharge.ts` | Fuel charge calculation logic |
-| `lib/portal/calculateCommission.ts` | Commission calculation — 20% of hire, min €10 floor |
+| `lib/portal/calculateCommission.ts` | Commission — 20% of hire price, min €10 floor |
 | `lib/portal/syncBookingStatuses.ts` | Booking status sync logic |
-| `lib/portal/refreshPartnerLiveStatus.ts` | Core live status logic — checks all 7 requirements |
+| `lib/portal/refreshPartnerLiveStatus.ts` | Core live status — checks all 7 requirements |
 | `lib/portal/triggerPartnerLiveRefresh.ts` | Triggers the live status refresh |
 | `app/api/currency/rate/route.ts` | Live rate API — fetches EUR→GBP,USD from frankfurter.app |
-| `app/api/partner/refresh-live-status/route.ts` | POST endpoint — runs live status check for current partner |
+| `app/api/partner/refresh-live-status/route.ts` | POST endpoint — runs live status check |
 | `app/api/partner/requests/[id]/route.ts` | Returns commissionRate + minimumCommission to bid form |
 
 ### Currency System
-- **Storage:** All prices stored in the currency the booking was made in (`booking.currency`)
 - **Supported:** `EUR | GBP | USD`
-- **Rates:** Live from `frankfurter.app` (no API key), cached 1 hour, fallback to hardcoded rates
-- **Fallback rates:** GBP 0.85, USD 1.08
+- **Rates:** Live from `frankfurter.app`, cached 1 hour, fallback GBP 0.85 / USD 1.08
+- **Storage:** All prices stored in the currency the booking was made in
 
-### Commission System
-- **Rate:** 20% of car hire price only (not fuel). Per-partner override available in admin.
-- **Minimum:** €10 per booking floor — prevents gaming (e.g. partner setting hire at €1)
-- **Fuel:** 0% commission — passes through 100% to partner
-- **Storage:** `platform_settings` table holds default rate + minimum. `partner_profiles.commission_rate` overrides per partner.
-- **DB columns on `partner_bookings`:** `commission_rate`, `commission_amount`, `partner_payout_amount`, `invoice_period`
-- **Payout formula:** `(car_hire − commission) + fuel_charge`
-- **Display:** Shown on bid form (live preview), partner bookings, partner reports, admin bookings, admin reports
-- **Excel exports:** All exports include commission rate, commission amount, partner payout
+---
 
-### Live Status System
-A partner account is **live** only when ALL of the following are true:
+## Commission & Payments Model
+
+### The Model
+Camel is a **platform intermediary**, not a seller.
+- **Partner** = supplier → issues VAT invoice to customer
+- **Camel** = intermediary → earns commission → invoices partner
+- **Customer** = pays full booking price once
+
+T&Cs must state: *"Camel acts as an intermediary platform. The rental contract is between the customer and the partner."*
+
+### Money Flow
+```
+Customer pays £200
+       ↓
+   Stripe (splits instantly)
+       ↓              ↓
+  £160 → Partner   £40 → Camel
+  Stripe balance   Stripe balance
+```
+
+### Commission Structure
+| Rule | Value |
+|------|-------|
+| Default rate | 20% of hire price only |
+| Minimum per booking | €/£10 floor |
+| Fuel charges | 0% — passes through 100% to partner |
+| Per-partner override | Admin can set custom rate |
+
+### Payout Formula
+```
+Partner Payout = (Car Hire − Commission) + Fuel Charge
+```
+Example: £300 hire, 20% commission (£60), £25 fuel charge → **£265 payout**
+
+### VAT & Tax
+| Transaction | Treatment |
+|-------------|-----------|
+| Customer pays partner (via Camel) | Spanish VAT — partner's responsibility |
+| Camel invoices partner for commission | Reverse charge — no UK VAT added |
+
+Invoice must include: *"VAT reverse charged to customer under Article 44/196 EU VAT Directive"*
+
+### VAT / NIF Note
+Spanish companies use NIF (e.g. B12345678) = ESB12345678 for EU transactions. Collected during onboarding. Required for live status. Admin can edit if partner contacts Camel Global.
+
+### What Goes on a Camel Commission Invoice
+- Camel company name, address, VAT number
+- Partner legal company name, address, VAT/NIF number
+- Invoice number, date, period (e.g. "June 2025")
+- Line item: "Platform commission on completed bookings — [period]"
+- Number of bookings, total value processed, commission rate, commission amount
+- Currency
+- Reverse charge line: *"VAT reverse charged — Article 44/196 EU VAT Directive"*
+- Total due: £0.00 (already collected via Stripe)
+
+**Invoicing lives in Xero, not in the Camel system.** Camel exports clean data; Xero generates and sends invoices.
+
+### Platform Settings Table
+Single row in `platform_settings`:
+- `default_commission_rate` = 20.00
+- `minimum_commission_amount` = 10.00
+
+---
+
+## Live Status System (7 checks)
+A partner account is **live** only when ALL are true:
 1. Fleet base address set (`base_address`)
-2. Fleet base lat/lng set (`base_lat`, `base_lng`)
+2. Fleet base GPS set (`base_lat`, `base_lng`)
 3. Service radius set (`service_radius_km > 0`)
-4. At least one active fleet vehicle (`partner_fleet.is_active = true`)
-5. At least one active driver (`partner_drivers.is_active = true`)
+4. At least one active fleet vehicle
+5. At least one active driver
 6. Billing currency set (`default_currency`)
-7. VAT / NIF number set (`vat_number`) ← added Chat 8
+7. VAT / NIF number set (`vat_number`)
 
-### Business & Billing Details
-Collected during onboarding (Business & Billing step) and editable by admin only:
-- `legal_company_name` — appears on commission invoices
+---
+
+## Business & Billing Details
+Collected in onboarding step 3. Stored on `partner_profiles`:
+- `legal_company_name` — on commission invoices
 - `company_registration_number`
-- `vat_number` — required for live status; used for reverse charge cross-border invoicing
-- `commission_rate` — per-partner override (admin can change)
-- `stripe_account_id`, `stripe_onboarding_status` — for future Stripe Connect
+- `vat_number` — required for live status
+- `commission_rate` — per-partner override
+- `stripe_account_id`, `stripe_onboarding_status`
 
-**VAT / NIF note:** Spanish companies use NIF (e.g. B12345678) which becomes ESB12345678 for EU transactions. Camel invoices partners with reverse charge — no UK VAT added. Invoice wording: *"VAT reverse charged to customer under Article 44/196 EU VAT Directive"*
+**Partner profile page:** Read-only. Contact support@camel-global.com to change.
+**Admin account page:** Inline ✏️ Edit with amber warning — only update if partner has contacted Camel Global.
 
-**Partner profile page:** Business & Billing is read-only — partners cannot edit. Contact support@camel-global.com to change.
-**Admin account page:** Business & Billing has an ✏️ Edit toggle with amber warning — only update if partner has contacted Camel Global.
+---
 
-### Insurance Documents Handover System
-- **Driver app** — checkbox at delivery stage (hard blocker)
+## Insurance Documents Handover System
+- **Driver app** — checkbox hard blocker at delivery
 - **Customer portal** — `InsuranceConfirmCard` always visible
 - **Partner portal** — read-only `InsuranceStatusCard`
-- **DB columns:** `insurance_docs_confirmed_by_driver`, `insurance_docs_confirmed_by_driver_at`, `insurance_docs_confirmed_by_customer`, `insurance_docs_confirmed_by_customer_at`
+- **DB columns:** `insurance_docs_confirmed_by_driver/at`, `insurance_docs_confirmed_by_customer/at`
 
-### Driver Audit Trail System
-- **DB columns:** `delivery_driver_id`, `delivery_driver_name`, `delivery_confirmed_at`, `collection_driver_id`, `collection_driver_name`, `collection_confirmed_at`
-- `delivery_confirmed_at` = actual pickup timestamp (driver confirmed delivery to customer)
-- `collection_confirmed_at` = actual dropoff timestamp (driver confirmed return from customer)
-- Both used in Excel exports for "Actual Pickup Date & Time" and "Actual Dropoff Date & Time"
+---
 
-### Partner Login Flow
-After sign-in, checks if onboarding is complete (`base_lat`, `base_lng`, `default_currency`, `vat_number` all set). If any missing → redirects to `/partner/onboarding`. Otherwise → `/partner/dashboard`.
+## Driver Audit Trail System
+- **DB columns:** `delivery_driver_id/name`, `delivery_confirmed_at`, `collection_driver_id/name`, `collection_confirmed_at`
+- `delivery_confirmed_at` = actual pickup timestamp
+- `collection_confirmed_at` = actual dropoff timestamp
+- Both used in Excel exports for actual pickup/dropoff columns
+
+---
+
+## Fuel Confirmation Flow
+- Driver records fuel at delivery and collection
+- Customer confirms each reading independently
+- Both must agree to lock each stage
+- Partner has office override
+- `fuel_charge` and `fuel_refund` stored on booking at completion
+- **Payout = (hire − commission) + fuel_charge**
+
+---
+
+## Partner Login Flow
+After sign-in checks: `base_lat`, `base_lng`, `default_currency`, `vat_number` all set.
+- Missing any → `/partner/onboarding`
+- All set → `/partner/dashboard`
+
+---
+
+## Partner Onboarding Steps (6 steps)
+1. Fleet Location
+2. Currency
+3. Business & Billing (legal name, reg no, VAT/NIF)
+4. Car Fleet
+5. Drivers
+6. Go Live (7-check progress bar)
+
+---
+
+## DB Columns Added Chat 8
+**`partner_profiles`:** `legal_company_name`, `vat_number`, `company_registration_number`, `stripe_account_id`, `stripe_onboarding_status`, `commission_rate`
+
+**`partner_bookings`:** `commission_rate`, `commission_amount`, `partner_payout_amount`, `invoice_period`
+
+**`platform_settings`** (new table): `default_commission_rate`, `minimum_commission_amount`
 
 ---
 
@@ -122,148 +214,154 @@ After sign-in, checks if onboarding is complete (`base_lat`, `base_lng`, `defaul
 ```bash
 git checkout v-stable-commission-reporting
 ```
-**Tag:** `v-stable-commission-reporting`
-**Description:** Full commission and billing system. Business & Billing onboarding step (legal name, reg number, VAT/NIF). VAT as 7th live status check. Commission shown on bid form with live payout preview. Commission rate, commission amount, partner payout on all reporting pages and Excel exports. Partner login redirects to onboarding if incomplete. Admin can edit billing details and override commission rate per partner. Admin bookings and reports pages show unified columns matching reconciliation table. Actual pickup/dropoff timestamps from driver confirmation in Excel. Partner bookings page shows fuel charge/refund/payout correctly.
+**Description:** Full commission and billing system. Business & Billing onboarding step. VAT as 7th live status check. Commission on bid form with live payout preview. Commission rate, amount and payout on all reporting pages and Excel exports. Partner login redirects to onboarding if incomplete. Admin can edit billing details and override commission rate. Unified table columns across all reporting pages. Actual pickup/dropoff timestamps in Excel from driver confirmation.
 
-### Previous Stable Tags
+### All Stable Tags
 | Tag | Description |
 |-----|-------------|
-| `v-stable-partner-reviews` | Full partner review system, admin moderation, 7-day reminder cron |
+| `v-stable-commission-reporting` | Full commission system, billing details, reporting, Excel exports |
+| `v-stable-partner-reviews` | Partner review system, admin moderation, 7-day reminder cron |
 | `v-stable-admin-insurance-live-status` | Admin booking detail with insurance and driver audit trail |
-| `v-stable-driver-audit-trail` | Driver audit trail — delivery/collection driver stamped permanently |
+| `v-stable-driver-audit-trail` | Driver audit trail — stamped permanently |
 | `v-stable-insurance-handover` | Full insurance document handover flow |
 | `v-stable-live-status-checks` | 6-check live status system |
-| `v-stable-fuel-flow-fixed` | Full fuel confirmation flow working end to end |
+| `v-stable-fuel-flow-fixed` | Full fuel confirmation flow |
 | `v-stable-admin-booking-fixes` | Admin booking detail matches partner view |
-| `v-stable-password-reset` | All three portals password reset fully working |
+| `v-stable-password-reset` | All three portals password reset |
 | `v-stable-currency-reporting` | Full EUR/GBP/USD revenue reporting |
 
-### What Is Working ✅
-- Customer booking flow (test-booking portal)
+---
+
+## What Is Working ✅
+- Customer booking flow
 - Partner bid submission and management
 - Driver job portal
 - Admin approval and account management
-- Full EUR / GBP / USD currency support throughout
-- Live exchange rates with fallback
-- Partner bookings page — per-currency revenue cards + commission + payout + fuel columns
-- Admin bookings page — unified columns matching reconciliation table, correct payout
-- Admin reports page — same columns as bookings, All Bookings section at top, partner breakdown with commission
-- Partner reports page — commission column, correct payout, Excel with actual timestamps
-- All Excel/CSV exports — commission rate, commission amount, payout, legal name, reg no, VAT/NIF, actual pickup/dropoff timestamps, completed date
-- Fuel level recording, fuel charge/refund calculation
-- Email notifications
+- Full EUR / GBP / USD currency support
+- Partner bookings — commission, fuel charge/refund, payout columns
+- Admin bookings — unified columns, correct payout
+- Admin reports — same columns, All Bookings section, partner breakdown with commission
+- Partner reports — commission column, correct payout, Excel with actual timestamps
+- All Excel exports — commission rate/amount/payout, legal name, VAT/NIF, reg no, actual timestamps
+- Fuel level recording, charge/refund calculation
+- Email notifications + password reset on all three portals
 - Google Maps integration
-- Forgot/reset password flow on all three portals
-- Live status system — 7 requirements (added VAT/NIF check)
-- Partner login — redirects to onboarding if setup incomplete
-- Partner onboarding — 6 steps including Business & Billing step
-- Partner dashboard — setup checklist includes VAT/NIF
+- Live status system — 7 checks
+- Partner login → onboarding redirect if incomplete
+- Partner onboarding — 6 steps including Business & Billing
 - Driver portal — independent header, auto-refresh, insurance checkbox
-- Insurance handover — across all three portals
+- Insurance handover — all three portals
 - Partner review system — ratings, replies, admin moderation, cron reminder
-- **Commission system** — 20% default, min €10, per-partner override in admin, shown everywhere
-- **Business & Billing** — collected in onboarding, read-only for partners, editable by admin
-- **Billing details in exports** — legal company name, reg number, VAT/NIF in all Excel downloads
+- Commission system — 20% default, min €10, per-partner override, shown everywhere
+- Business & Billing — onboarding, read-only for partners, editable by admin
 
 ---
 
 ## Session Log
 
-### Chat 8 (Current)
-- Added `platform_settings` table (`default_commission_rate`, `minimum_commission_amount`)
-- Added to `partner_profiles`: `legal_company_name`, `vat_number`, `company_registration_number`, `stripe_account_id`, `stripe_onboarding_status`, `commission_rate`
-- Added to `partner_bookings`: `commission_rate`, `commission_amount`, `partner_payout_amount`, `invoice_period`
-- Built `lib/portal/calculateCommission.ts` — 20% of hire, min €10 floor
-- Added Business & Billing step to partner onboarding (step 3 of 6)
-- VAT/NIF added as 7th live status check in `refreshPartnerLiveStatus.ts`
-- Partner login redirects to onboarding if `base_lat`, `base_lng`, `default_currency`, `vat_number` not all set
-- Partner profile Business & Billing section is read-only with support contact link
-- Admin account detail — Business & Billing inline edit (read-only by default, ✏️ Edit with amber warning)
-- Admin account detail — Commission Rate override card
-- Commission shown on bid form with live 3-column preview (hire / commission / payout)
-- Partner bookings page — added Commission, Fuel Charge, Fuel Refund, Your Payout columns; Export Excel matches reports format
-- Partner reports page — Commission column added to reconciliation table; correct payout; Excel updated
-- Admin bookings API — added `delivery_confirmed_at`, `collection_confirmed_at`, billing fields, commission fields
-- Admin bookings page — unified columns, correct payout calc via `calcPayout()` helper
-- Admin reports page — same columns, All Bookings section at top (10 at a time), Partner Breakdown shows commission
-- All Excel exports — actual pickup/dropoff from `delivery_confirmed_at`/`collection_confirmed_at`, completed date, legal name, reg no, VAT/NIF
+### Chat 8 (Current — Commission & Payments)
+- `platform_settings` table, commission columns on `partner_profiles` and `partner_bookings`
+- `lib/portal/calculateCommission.ts`
+- Business & Billing onboarding step (step 3)
+- VAT/NIF as 7th live status check
+- Partner login onboarding redirect
+- Partner profile billing — read-only
+- Admin billing — inline edit with warning
+- Admin commission rate override per partner
+- Commission on bid form with live 3-column preview
+- Commission + payout in all reporting pages and Excel exports
+- Actual pickup/dropoff timestamps from `delivery_confirmed_at` / `collection_confirmed_at`
+- Unified table columns across all admin pages
 - Stable tag: `v-stable-commission-reporting`
 
 ### Chat 7 (Completed)
-- Fuel flow fixes, driver layout, partner booking detail labels
+- Fuel flow fixes, driver layout, partner booking detail
 - Stable tag: `v-stable-fuel-flow-fixed`
 
 ### Chat 6 (Completed)
-- 6-check live status, dashboard banners, partner login redirect fix, driver portal polish
+- 6-check live status, dashboard banners, partner login fix, driver portal
 - Stable tag: `v-stable-live-status-checks`
 
-### Chats 1–5 (Completed — see previous handover versions)
+### Chat 5 (Completed)
+- Admin booking detail rebuilt, all three currencies everywhere
+- Stable tag: `v-stable-admin-booking-fixes`
+
+### Chat 4 (Completed)
+- Reset-password pages all three portals, branded emails via Resend
+- Stable tag: `v-stable-password-reset`
+
+### Chat 3 (Completed)
+- USD support, full EUR/GBP/USD revenue summary
+- Stable tag: `v-stable-currency-reporting`
+
+### Chats 1–2 (Completed)
+- Project scaffolded, core booking flow, GBP support, live exchange rates
 
 ---
 
-## Business Model & Roadmap
+## Payments Build Phases
 
-### Revenue Model
-Camel Global operates as a **marketplace intermediary**. Camel takes commission and passes remainder to partner.
+### Phase 1 — COMPLETE ✅
+- [x] `platform_settings` table
+- [x] Billing fields on `partner_profiles`
+- [x] Commission fields on `partner_bookings`
+- [x] `calculateCommission.ts`
+- [x] Business & Billing onboarding step
+- [x] VAT/NIF live status check
+- [x] Commission on bid form with live preview
+- [x] Commission in all reporting + Excel exports
+- [x] Admin billing edit + commission rate override
 
-**Commission:** 20% of car hire price, minimum €10 per booking. 0% on fuel.
-**Per-partner override:** Admin can set custom rate on account detail page.
-**Invoicing:** Camel sends monthly commission invoice to partner (already collected via Stripe). No UK VAT — reverse charge applies (B2B cross-border). Invoice must include: *"VAT reverse charged — Article 44/196 EU VAT Directive"*. Invoicing handled in Xero, not in Camel system.
+### Phase 2 — Stripe Connect (before first real payment)
+- [ ] `lib/stripe.ts` + `app/api/stripe/`
+- [ ] Partner Stripe Express onboarding in partner portal
+- [ ] Automatic payment split on completion
+- [ ] Payout scheduling in admin
+- [ ] Refund handling
 
-### Payment Architecture — Stripe Connect (To Build)
-**Status:** Not yet built.
-- Customer card held by Stripe at booking acceptance
-- On completion: automatic split — partner share + Camel commission
-- Partner bank details in Stripe only — never in Camel DB
-- Use Stripe Connect Express accounts for partners
-- Files to create: `app/api/stripe/`, `lib/stripe.ts`, `app/partner/payments/`
+### Phase 3 — Xero Automation (before first invoice run)
+- [ ] `app/api/reports/commission/monthly/route.ts`
+- [ ] Stripe → Xero connection
+- [ ] Invoice template with reverse charge wording
+- [ ] Auto-send monthly per partner
 
-### Invoicing & Tax (To Build)
-**Status:** Not yet built.
-- Auto-generated monthly PDF commission invoices per partner via Xero
-- VAT/IVA handling (UK 20%, Spain 21% — reverse charge for B2B EU)
-- Files to create: `app/api/reports/commission/monthly/route.ts` (clean data endpoint for Xero)
+### Phase 4 — DAC7 Compliance (before EU scale)
+- [ ] Annual partner earnings report
+- [ ] Export for submission
 
-### Finance Pages (To Build)
-**Status:** Not yet built.
-- `/admin/finance` — platform revenue dashboard (Camel's commission totals)
-- `/partner/finance` — partner's commission/payout view
+### Phase 5 — Embedded Insurance (post-launch)
+- [ ] Approach AXA/Zurich with real booking volume
+- [ ] "Camel Protected" optional tier → default
 
-### Insurance Certificate Upload (To Build)
-- Partners upload insurance certificate to profile
-- Certificate expiry alerts (30 days warning)
-- Expired = auto not-live
+---
 
-### Terms & Conditions (To Build)
-- Customer and partner T&Cs with versioned acceptance
-
-### Multilingual Support — English & Spanish (To Build)
-- Portals are English only. Marketing homepage has EN/ES/IT/FR/DE.
-
-### Embedded Insurance — Phase 3 (To Build)
-- Approach AXA/Zurich after launch with real booking volume data
-- Per-booking insurance included in price
-- Phase in as optional "Camel Protected" tier, then make default
+## What NOT to Build Inside Camel
+| Thing | Lives in |
+|-------|----------|
+| Invoice generation | Xero |
+| VAT on full booking | Partner's system |
+| Bank accounts | Stripe |
+| Accountancy | Xero |
+| Tax filing | Accountant |
 
 ---
 
 ## Outstanding TODOs
-- [ ] Stripe Connect integration (before first real payment)
-- [ ] `app/partner/finance` and `app/admin/finance` pages
-- [ ] Xero integration — monthly commission data endpoint
-- [ ] `partner_profiles` — `stripe_account_id` onboarding flow in partner portal
+- [ ] Stripe Connect integration
+- [ ] `/partner/finance` and `/admin/finance` pages
+- [ ] Xero monthly commission data endpoint
+- [ ] Partner Stripe onboarding flow in portal
 - [ ] Insurance certificate upload to partner profile
 - [ ] Terms & Conditions with versioned acceptance
-- [ ] Reports pages multi-currency updates (partially done — commission added, full P&L TBD)
-- [ ] Security headers in `next.config.ts` (CSP, HSTS, X-Frame-Options)
+- [ ] Security headers in `next.config.ts`
 - [ ] Full RLS audit on all Supabase tables
 - [ ] Rate limiting on `/api/auth/` routes
 - [ ] GDPR data deletion endpoint
-- [ ] DAC7 EU platform reporting (annual partner earnings)
-- [ ] `app/partner/bids/` — folder exists, no page.tsx
+- [ ] DAC7 EU platform reporting
+- [ ] `app/partner/bids/` — no page.tsx, build or remove
 - [ ] `app/api/admin/admin/requests/` — legacy duplicate, remove
-- [ ] Clean up stray files: `main`, `camel-portal/camel-portal/`, `public/Screenshot *.png`
-- [ ] `app/components/admin/AdminSidebar.tsx` and `PartnerSidebar.tsx` — unused, remove
+- [ ] Clean up: `main`, `camel-portal/camel-portal/`, `public/Screenshot *.png`
+- [ ] Remove unused `AdminSidebar.tsx` and `PartnerSidebar.tsx`
 
 ---
 
@@ -275,34 +373,30 @@ git add .
 git commit -m "your message"
 git push origin main
 
-# Show full file tree (paste to Claude at start of each chat)
+# Full file tree
 find ~/camel-portal -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.next/*' | sort
 
-# Cat a file for Claude
+# Cat a file
 cat ~/camel-portal/app/partner/bookings/page.tsx
 
-# Create a stable rollback tag
+# Create stable tag
 git tag -a v-tag-name -m "description"
 git push origin v-tag-name
 
-# Roll back to a tag
+# Roll back
 git checkout v-tag-name
 
-# List all tags
-git tag
-
-# Check what's changed
-git status
-git diff
+# List tags
+git tag | grep stable
 ```
 
 ---
 
 ## Environment
 - `.env.local` — Supabase keys, Google Maps API key, Resend, CRON_SECRET
-- Never commit `.env.local` — it is in `.gitignore`
-- Vercel environment variables set separately in Vercel dashboard
+- Never commit `.env.local`
+- Vercel env vars set separately in Vercel dashboard
 
 ---
 
-*Last updated: Chat 8 — Commission system, Business & Billing, reporting and Excel exports fully working*
+*Last updated: Chat 8 — Commission system, Business & Billing, reporting and Excel exports complete*
