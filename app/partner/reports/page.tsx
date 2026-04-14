@@ -48,6 +48,8 @@ type BookingRow = {
   customer_phone: string | null;
   driver_name: string | null;
   driver_vehicle: string | null;
+  delivery_confirmed_at: string | null;
+  collection_confirmed_at: string | null;
   collection_fuel_level_driver: string | null;
   collection_fuel_level_partner: string | null;
   return_fuel_level_driver: string | null;
@@ -401,9 +403,9 @@ export default function PartnerReportsPage() {
         b.customer_name || "", b.customer_email || "", b.customer_phone || "",
         b.pickup_address || "", b.dropoff_address || "",
         fmtDate(b.pickup_at), fmtDate(b.dropoff_at),
-        fmtDate(b.pickup_at),   // actual pickup date & time
-        fmtDate(b.dropoff_at),  // actual dropoff date & time
-        isCompleted ? fmtDate(b.created_at) : "", // completed date
+        fmtDate(b.delivery_confirmed_at),    // actual pickup = driver confirmed delivery
+        fmtDate(b.collection_confirmed_at),  // actual dropoff = driver confirmed return
+        isCompleted ? fmtDate(b.created_at) : "",
         b.vehicle_category_name || "", b.driver_name || "", b.driver_vehicle || "",
         b.currency || "EUR",
         Number(b.car_hire_price ?? 0), rate, commAmt,
@@ -456,8 +458,8 @@ export default function PartnerReportsPage() {
         b.job_number || "", b.customer_name || "",
         b.pickup_address || "", b.dropoff_address || "",
         fmtDate(b.pickup_at),
-        fmtDate(b.pickup_at),
-        fmtDate(b.dropoff_at),
+        fmtDate(b.delivery_confirmed_at),
+        fmtDate(b.collection_confirmed_at),
         isCompleted ? fmtDate(b.created_at) : "",
         b.vehicle_category_name || "",
         b.driver_name || "", b.booking_status || "",

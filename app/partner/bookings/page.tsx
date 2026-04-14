@@ -11,6 +11,8 @@ type BookingRow = {
   notes: string | null; created_at: string; job_number: number | null;
   driver_name: string | null; driver_phone: string | null;
   driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
+  delivery_confirmed_at: string | null;
+  collection_confirmed_at: string | null;
   partner_company_name: string | null; partner_company_phone: string | null;
   partner_legal_company_name: string | null;
   partner_vat_number: string | null;
@@ -199,9 +201,9 @@ function downloadExcel(rows: BookingRow[]) {
       r.dropoff_address ?? "",
       fmtDateTimeStr(r.pickup_at),
       fmtDateTimeStr(r.dropoff_at),
-      fmtDateTimeStr(r.pickup_at),   // actual pickup — same field, driver confirms on arrival
-      fmtDateTimeStr(r.dropoff_at),  // actual dropoff
-      isCompleted ? fmtDateOnly(r.created_at) : "", // completed date (date only)
+      fmtDateTimeStr(r.delivery_confirmed_at),    // actual pickup = driver confirmed delivery
+      fmtDateTimeStr(r.collection_confirmed_at),  // actual dropoff = driver confirmed return
+      isCompleted ? fmtDateOnly(r.created_at) : "",
       fmtDuration(r.journey_duration_minutes),
       r.currency ?? "EUR",
       hire,
@@ -266,8 +268,8 @@ function downloadExcel(rows: BookingRow[]) {
       r.job_number ?? "", r.customer_name ?? "",
       r.pickup_address ?? "", r.dropoff_address ?? "",
       fmtDateTimeStr(r.pickup_at),
-      fmtDateTimeStr(r.pickup_at),
-      fmtDateTimeStr(r.dropoff_at),
+      fmtDateTimeStr(r.delivery_confirmed_at),
+      fmtDateTimeStr(r.collection_confirmed_at),
       isCompleted ? fmtDateOnly(r.created_at) : "",
       r.vehicle_category_name ?? "", r.driver_name ?? "",
       r.booking_status ?? "", r.currency ?? "EUR",
