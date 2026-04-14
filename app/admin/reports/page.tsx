@@ -371,6 +371,8 @@ export default function AdminReportsPage() {
     ["bid_submitted", "bid_successful", "bid_unsuccessful"].includes(String(r.status || "").toLowerCase())
   ).length;
 
+  const [allBookingsVisible, setAllBookingsVisible] = useState(10);
+
   const partnerMap = new Map<string, { name: string; bookings: number; revenue: number; commission: number; payout: number; completed: number }>();
   for (const b of filteredBookings) {
     const pid  = String(b.partner_user_id || "unknown");
@@ -588,6 +590,85 @@ export default function AdminReportsPage() {
             {prev !== null && <p className="mt-1 text-xs text-slate-400">Previous month: {prev}</p>}
           </div>
         ))}
+      </div>
+
+      {/* All Bookings — top-level view, 10 at a time */}
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xl font-semibold text-[#003768]">All Bookings</h2>
+          <p className="text-sm text-slate-500">
+            Showing <span className="font-semibold text-[#003768]">{Math.min(allBookingsVisible, filteredBookings.length)}</span> of{" "}
+            <span className="font-semibold text-[#003768]">{filteredBookings.length}</span>
+          </p>
+        </div>
+        <div className="overflow-x-auto rounded-2xl border border-black/10">
+          <table className="min-w-full text-sm">
+            <thead className="bg-[#f3f8ff] text-left text-[#003768]">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Job</th>
+                <th className="px-4 py-3 font-semibold">Partner</th>
+                <th className="px-4 py-3 font-semibold">Customer</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
+                <th className="px-4 py-3 font-semibold">Car Hire</th>
+                <th className="px-4 py-3 font-semibold">Commission</th>
+                <th className="px-4 py-3 font-semibold">Fuel Deposit</th>
+                <th className="px-4 py-3 font-semibold">Fuel Used</th>
+                <th className="px-4 py-3 font-semibold">Fuel Charge</th>
+                <th className="px-4 py-3 font-semibold">Fuel Refund</th>
+                <th className="px-4 py-3 font-semibold">Total</th>
+                <th className="px-4 py-3 font-semibold">Partner Payout</th>
+                <th className="px-4 py-3 font-semibold">Insurance</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {filteredBookings.length === 0 ? (
+                <tr><td colSpan={13} className="px-4 py-4 text-slate-600">No bookings found.</td></tr>
+              ) : filteredBookings.slice(0, allBookingsVisible).map(b => {
+                const usedQ = b.fuel_used_quarters;
+                const { commAmt, payout, rate } = calcPayout(b);
+                return (
+                  <tr key={b.id} className="hover:bg-[#f3f8ff]">
+                    <td className="px-4 py-3 font-semibold text-[#003768]">{b.job_number || "—"}</td>
+                    <td className="px-4 py-3 text-slate-700">
+                      <div>{b.partner_company_name || "—"}</div>
+                      {b.partner_vat_number && <div className="text-xs text-slate-400">{b.partner_vat_number}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{b.customer_name || "—"}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusPillClasses(b.booking_status)}`}>
+                        {String(b.booking_status || "—").replaceAll("_", " ")}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{fmtAmt(b.car_hire_price, b.currency)}</td>
+                    <td className="px-4 py-3">
+                      <div className="text-xs font-semibold text-amber-700">{fmtCurr(commAmt, b.currency ?? "EUR")}</div>
+                      <div className="text-xs text-slate-400">{rate}%</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{fmtAmt(b.fuel_price, b.currency)}</td>
+                    <td className="px-4 py-3 text-slate-700">{usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—"}</td>
+                    <td className="px-4 py-3 font-semibold text-orange-700">{b.fuel_charge !== null ? fmtAmt(b.fuel_charge, b.currency) : "—"}</td>
+                    <td className="px-4 py-3 font-semibold text-green-700">{b.fuel_refund !== null ? fmtAmt(b.fuel_refund, b.currency) : "—"}</td>
+                    <td className="px-4 py-3 font-bold text-[#003768]">{fmtAmt(b.amount, b.currency)}</td>
+                    <td className="px-4 py-3 font-bold text-green-700">{fmtCurr(payout, b.currency ?? "EUR")}</td>
+                    <td className="px-4 py-3">{insurancePill(b.insurance_docs_confirmed_by_driver, b.insurance_docs_confirmed_by_customer)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {filteredBookings.length > allBookingsVisible && (
+          <button type="button" onClick={() => setAllBookingsVisible(v => v + 10)}
+            className="mt-3 w-full rounded-2xl border border-black/10 bg-slate-50 py-2.5 text-sm font-semibold text-[#003768] hover:bg-slate-100">
+            ▼ Show more ({filteredBookings.length - allBookingsVisible} remaining)
+          </button>
+        )}
+        {allBookingsVisible > 10 && filteredBookings.length <= allBookingsVisible && (
+          <button type="button" onClick={() => setAllBookingsVisible(10)}
+            className="mt-3 w-full rounded-2xl border border-black/10 bg-slate-50 py-2.5 text-sm font-semibold text-[#003768] hover:bg-slate-100">
+            ▲ Show less
+          </button>
+        )}
       </div>
 
       {/* Per-currency fuel reconciliation sections */}
