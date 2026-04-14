@@ -118,6 +118,8 @@ export default function AdminAccountDetailPage() {
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState<AppStatus | null>(null);
   const [savingCommission, setSavingCommission] = useState(false);
+  const [savingBilling, setSavingBilling] = useState(false);
+  const [editingBilling, setEditingBilling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [application, setApplication] = useState<AccountApplication | null>(null);
@@ -127,6 +129,11 @@ export default function AdminAccountDetailPage() {
   const [isLiveProfile, setIsLiveProfile] = useState(false);
   const [liveProfileReason, setLiveProfileReason] = useState("");
   const [commissionInput, setCommissionInput] = useState("");
+  const [billingInput, setBillingInput] = useState({
+    legal_company_name: "",
+    company_registration_number: "",
+    vat_number: "",
+  });
 
   async function load() {
     setLoading(true); setError(null);
@@ -153,6 +160,11 @@ export default function AdminAccountDetailPage() {
       setIsLiveProfile(!!json?.is_live_profile);
       setLiveProfileReason(String(json?.live_profile_reason || ""));
       setCommissionInput(String(profileData?.commission_rate ?? 20));
+      setBillingInput({
+        legal_company_name: String(profileData?.legal_company_name ?? ""),
+        company_registration_number: String(profileData?.company_registration_number ?? ""),
+        vat_number: String(profileData?.vat_number ?? ""),
+      });
     } catch (e: any) {
       setError(e?.message || "Failed to load partner account.");
     } finally {
@@ -178,6 +190,34 @@ export default function AdminAccountDetailPage() {
       setError(e?.message || "Failed to update status.");
     } finally {
       setSavingStatus(null);
+    }
+  }
+
+  async function saveBillingDetails() {
+    if (!profile?.user_id) return;
+    setSavingBilling(true); setError(null); setNotice(null);
+    try {
+      const { error: e } = await supabase
+        .from("partner_profiles")
+        .update({
+          legal_company_name: billingInput.legal_company_name.trim() || null,
+          company_registration_number: billingInput.company_registration_number.trim() || null,
+          vat_number: billingInput.vat_number.trim() || null,
+        })
+        .eq("user_id", profile.user_id);
+      if (e) throw new Error(e.message);
+      setProfile(prev => prev ? {
+        ...prev,
+        legal_company_name: billingInput.legal_company_name.trim() || null,
+        company_registration_number: billingInput.company_registration_number.trim() || null,
+        vat_number: billingInput.vat_number.trim() || null,
+      } : prev);
+      setEditingBilling(false);
+      setNotice("Business & Billing details updated successfully.");
+    } catch (e: any) {
+      setError(e?.message || "Failed to update billing details.");
+    } finally {
+      setSavingBilling(false);
     }
   }
 
@@ -263,20 +303,69 @@ export default function AdminAccountDetailPage() {
 
           {/* Business & Billing */}
           <SectionCard title="Business & Billing">
-            <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
-              <div className="md:col-span-2"><InfoRow label="Legal Company Name" value={profile?.legal_company_name} /></div>
-              <InfoRow label="Company Registration Number" value={profile?.company_registration_number} />
-              <div>
-                <span className="text-slate-500 text-sm">VAT / NIF Number</span>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <p className="font-medium text-slate-800">{fmtValue(profile?.vat_number)}</p>
-                  {profile?.vat_number
-                    ? <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">✓ Provided</span>
-                    : <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">Missing</span>
-                  }
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-slate-500">Legal details for commission invoicing.</p>
+              {!editingBilling ? (
+                <button type="button" onClick={() => { setEditingBilling(true); setBillingInput({ legal_company_name: profile?.legal_company_name ?? "", company_registration_number: profile?.company_registration_number ?? "", vat_number: profile?.vat_number ?? "" }); }}
+                  className="rounded-full border border-[#003768]/20 px-4 py-1.5 text-xs font-semibold text-[#003768] hover:bg-[#003768]/5">
+                  ✏️ Edit
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditingBilling(false)}
+                    className="rounded-full border border-black/10 px-4 py-1.5 text-xs font-semibold text-slate-500 hover:bg-black/5">
+                    Cancel
+                  </button>
+                  <button type="button" onClick={saveBillingDetails} disabled={savingBilling}
+                    className="rounded-full bg-[#ff7a00] px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
+                    {savingBilling ? "Saving..." : "Save changes"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {editingBilling ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                  ⚠️ Only update these details if the partner has contacted Camel Global to request a change.
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-[#003768]">Legal company name</label>
+                  <input value={billingInput.legal_company_name} onChange={e => setBillingInput(p => ({ ...p, legal_company_name: e.target.value }))}
+                    placeholder="e.g. Valencia Cars S.L."
+                    className="mt-1 w-full rounded-xl border border-black/10 px-4 py-3 text-sm outline-none focus:border-[#0f4f8a]" />
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium text-[#003768]">Company registration number</label>
+                    <input value={billingInput.company_registration_number} onChange={e => setBillingInput(p => ({ ...p, company_registration_number: e.target.value }))}
+                      placeholder="e.g. B12345678"
+                      className="mt-1 w-full rounded-xl border border-black/10 px-4 py-3 text-sm outline-none focus:border-[#0f4f8a]" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-[#003768]">VAT / NIF Number</label>
+                    <input value={billingInput.vat_number} onChange={e => setBillingInput(p => ({ ...p, vat_number: e.target.value }))}
+                      placeholder="e.g. ESB12345678"
+                      className="mt-1 w-full rounded-xl border border-black/10 px-4 py-3 text-sm outline-none focus:border-[#0f4f8a]" />
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
+                <div className="md:col-span-2"><InfoRow label="Legal Company Name" value={profile?.legal_company_name} /></div>
+                <InfoRow label="Company Registration Number" value={profile?.company_registration_number} />
+                <div>
+                  <span className="text-slate-500 text-sm">VAT / NIF Number</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="font-medium text-slate-800">{fmtValue(profile?.vat_number)}</p>
+                    {profile?.vat_number
+                      ? <span className="inline-flex rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">✓ Provided</span>
+                      : <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">Missing</span>
+                    }
+                  </div>
+                </div>
+              </div>
+            )}
           </SectionCard>
 
           {/* Business Address */}
