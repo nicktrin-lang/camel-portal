@@ -27,7 +27,7 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
 
   const { data: profile, error: profileErr } = await db
     .from("partner_profiles")
-    .select(`user_id, service_radius_km, base_address, base_lat, base_lng, default_currency`)
+    .select(`user_id, service_radius_km, base_address, base_lat, base_lng, default_currency, vat_number`)
     .eq("user_id", cleanUserId)
     .maybeSingle();
 
@@ -91,13 +91,14 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
     profile.service_radius_km !== undefined &&
     Number(profile.service_radius_km) > 0;
 
-  if (!hasRadius)              missing.push("service_radius_km");
-  if (!hasText(profile.base_address))  missing.push("base_address");
-  if (!hasValidNumber(profile.base_lat)) missing.push("base_lat");
-  if (!hasValidNumber(profile.base_lng)) missing.push("base_lng");
-  if (!Array.isArray(fleetRows) || fleetRows.length === 0) missing.push("fleet");
+  if (!hasRadius)                                            missing.push("service_radius_km");
+  if (!hasText(profile.base_address))                        missing.push("base_address");
+  if (!hasValidNumber(profile.base_lat))                     missing.push("base_lat");
+  if (!hasValidNumber(profile.base_lng))                     missing.push("base_lng");
+  if (!Array.isArray(fleetRows) || fleetRows.length === 0)   missing.push("fleet");
   if (!Array.isArray(driverRows) || driverRows.length === 0) missing.push("driver");
-  if (!hasText(profile.default_currency)) missing.push("default_currency");
+  if (!hasText(profile.default_currency))                    missing.push("default_currency");
+  if (!hasText(profile.vat_number))                          missing.push("vat_number");
 
   const isLiveNow = missing.length === 0;
   const liveEmailAlreadySent = !!resolvedApplication.live_email_sent_at;

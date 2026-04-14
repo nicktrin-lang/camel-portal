@@ -8,7 +8,7 @@ import { FLEET_CATEGORIES } from "@/app/components/portal/fleetCategories";
 
 const MapPicker = dynamic(() => import("../profile/MapPicker"), { ssr: false });
 
-type Step = "location" | "currency" | "fleet" | "drivers" | "golive";
+type Step = "location" | "currency" | "billing" | "fleet" | "drivers" | "golive";
 
 type Profile = {
   company_name: string | null;
@@ -25,6 +25,9 @@ type Profile = {
   base_lng: number | null;
   service_radius_km: number | null;
   default_currency: string | null;
+  legal_company_name: string | null;
+  vat_number: string | null;
+  company_registration_number: string | null;
 };
 
 type AddressResult = {
@@ -44,10 +47,11 @@ type DriverRow = {
 
 const STEPS: { key: Step; label: string; icon: string }[] = [
   { key: "location", label: "Fleet Location", icon: "📍" },
-  { key: "currency", label: "Currency",       icon: "💱" },
-  { key: "fleet",    label: "Car Fleet",      icon: "🚗" },
-  { key: "drivers",  label: "Drivers",        icon: "👤" },
-  { key: "golive",   label: "Go Live",        icon: "🚀" },
+  { key: "currency", label: "Currency",        icon: "💱" },
+  { key: "billing",  label: "Business & Billing", icon: "🧾" },
+  { key: "fleet",    label: "Car Fleet",       icon: "🚗" },
+  { key: "drivers",  label: "Drivers",         icon: "👤" },
+  { key: "golive",   label: "Go Live",         icon: "🚀" },
 ];
 
 function StepNav({ current, completed }: { current: Step; completed: Set<Step> }) {
@@ -98,15 +102,16 @@ function InfoBox({ children }: { children: React.ReactNode }) {
   );
 }
 
-function FieldInput({ label, value, onChange, placeholder, required }: {
+function FieldInput({ label, value, onChange, placeholder, required, hint }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; required?: boolean;
+  placeholder?: string; required?: boolean; hint?: string;
 }) {
   return (
     <div>
       <label className="block text-sm font-semibold text-[#003768] mb-1.5">
         {label}{required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
+      {hint && <p className="text-xs text-slate-400 mb-1.5">{hint}</p>}
       <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         className="w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#0f4f8a] bg-white" />
     </div>
@@ -175,16 +180,13 @@ function AddressSearch({ onSelect }: { onSelect: (r: AddressResult) => void }) {
     <div ref={wrapperRef} className="relative">
       <label className="block text-sm font-semibold text-[#003768] mb-1.5">Search for your address</label>
       <div className="relative">
-        <input
-          value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => { if (results.length) setOpen(true); }}
           placeholder="Start typing your address..."
-          className="w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#0f4f8a] bg-white"
-        />
+          className="w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#0f4f8a] bg-white" />
         {loading && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Searching...</span>}
       </div>
-      <p className="mt-1 text-xs text-slate-400">Or click the map below to drop a pin - fields fill automatically.</p>
+      <p className="mt-1 text-xs text-slate-400">Or click the map below to drop a pin — fields fill automatically.</p>
       {open && results.length > 0 && (
         <div className="absolute z-50 left-0 right-0 mt-1 rounded-2xl border border-black/10 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden">
           {results.map((r, i) => (
@@ -200,35 +202,37 @@ function AddressSearch({ onSelect }: { onSelect: (r: AddressResult) => void }) {
   );
 }
 
+// ── Step: Location ─────────────────────────────────────────────────────────────
+
 function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: () => void }) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [addr1,     setAddr1]     = useState(profile?.base_address1 ?? "");
-  const [addr2,     setAddr2]     = useState(profile?.base_address2 ?? "");
-  const [town,      setTown]      = useState(profile?.base_town ?? "");
-  const [city,      setCity]      = useState(profile?.base_city ?? "");
-  const [province,  setProvince]  = useState(profile?.base_province ?? "");
-  const [postcode,  setPostcode]  = useState(profile?.base_postcode ?? "");
-  const [country,   setCountry]   = useState(profile?.base_country ?? "Spain");
-  const [lat,       setLat]       = useState<number>(profile?.base_lat ?? 39.4699);
-  const [lng,       setLng]       = useState<number>(profile?.base_lng ?? -0.3763);
-  const [radius,    setRadius]    = useState<number>(profile?.service_radius_km ?? 30);
-  const [saving,    setSaving]    = useState(false);
+  const [addr1, setAddr1] = useState(profile?.base_address1 ?? "");
+  const [addr2, setAddr2] = useState(profile?.base_address2 ?? "");
+  const [town, setTown] = useState(profile?.base_town ?? "");
+  const [city, setCity] = useState(profile?.base_city ?? "");
+  const [province, setProvince] = useState(profile?.base_province ?? "");
+  const [postcode, setPostcode] = useState(profile?.base_postcode ?? "");
+  const [country, setCountry] = useState(profile?.base_country ?? "Spain");
+  const [lat, setLat] = useState<number>(profile?.base_lat ?? 39.4699);
+  const [lng, setLng] = useState<number>(profile?.base_lng ?? -0.3763);
+  const [radius, setRadius] = useState<number>(profile?.service_radius_km ?? 30);
+  const [saving, setSaving] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!profile) return;
     if (profile.base_address1) setAddr1(profile.base_address1);
     if (profile.base_address2) setAddr2(profile.base_address2);
-    if (profile.base_town)     setTown(profile.base_town);
-    if (profile.base_city)     setCity(profile.base_city);
+    if (profile.base_town) setTown(profile.base_town);
+    if (profile.base_city) setCity(profile.base_city);
     if (profile.base_province) setProvince(profile.base_province);
     if (profile.base_postcode) setPostcode(profile.base_postcode);
-    if (profile.base_country)  setCountry(profile.base_country);
-    if (profile.base_lat)      setLat(profile.base_lat);
-    if (profile.base_lng)      setLng(profile.base_lng);
+    if (profile.base_country) setCountry(profile.base_country);
+    if (profile.base_lat) setLat(profile.base_lat);
+    if (profile.base_lng) setLng(profile.base_lng);
     if (profile.service_radius_km) setRadius(profile.service_radius_km);
   }, [profile]);
-  const [geocoding, setGeocoding] = useState(false);
-  const [error,     setError]     = useState("");
 
   const fullAddress = [addr1, addr2, town, city, province, postcode, country].filter(Boolean).join(", ");
 
@@ -295,14 +299,14 @@ function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: ()
       <div className="space-y-5">
         <InfoBox>
           <p className="font-semibold mb-1">Why this matters</p>
-          <p>Camel Global uses your fleet base location to match you with customers within your service radius. Only requests within your radius will be sent to you - set this accurately to your depot or office location.</p>
+          <p>Camel Global uses your fleet base location to match you with customers within your service radius. Only requests within your radius will be sent to you.</p>
         </InfoBox>
         {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         <AddressSearch onSelect={applyResult} />
         {geocoding && <div className="rounded-xl border border-[#003768]/10 bg-[#f3f8ff] px-4 py-2 text-sm text-[#003768]">Fetching address...</div>}
         <div>
           <label className="block text-sm font-semibold text-[#003768] mb-1.5">Pin your exact location on the map</label>
-          <p className="text-xs text-slate-400 mb-2">Click anywhere on the map - the address fields below will update automatically.</p>
+          <p className="text-xs text-slate-400 mb-2">Click anywhere on the map — the address fields below will update automatically.</p>
           <div className="rounded-2xl overflow-hidden border border-black/10"><MapPicker lat={lat} lng={lng} onPick={handleMapPick} /></div>
           <p className="mt-1.5 text-xs text-slate-400">GPS: {lat.toFixed(5)}, {lng.toFixed(5)}</p>
         </div>
@@ -320,7 +324,7 @@ function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: ()
           <label className="block text-sm font-semibold text-[#003768] mb-1.5">Coverage: <span className="text-[#ff7a00]">{radius} km</span></label>
           <input type="range" min={5} max={150} step={5} value={radius} onChange={e => setRadius(Number(e.target.value))} className="w-full accent-[#ff7a00]" />
           <div className="flex justify-between text-xs text-slate-400 mt-1"><span>5 km</span><span>Local area</span><span>150 km</span></div>
-          <p className="mt-3 text-sm text-[#003768]">A <strong>{radius} km</strong> radius means you will receive requests from customers within {radius} km of your base. Start with 30 km and expand once established.</p>
+          <p className="mt-3 text-sm text-[#003768]">A <strong>{radius} km</strong> radius means you will receive requests from customers within {radius} km of your base.</p>
         </div>
         <NavButtons onNext={save} saving={saving} nextLabel="Save Location & Continue" />
       </div>
@@ -328,11 +332,13 @@ function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: ()
   );
 }
 
+// ── Step: Currency ─────────────────────────────────────────────────────────────
+
 function StepCurrency({ profile, onDone, onBack }: { profile: Profile | null; onDone: () => void; onBack: () => void }) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [currency, setCurrency] = useState(profile?.default_currency || "EUR");
-  const [saving,   setSaving]   = useState(false);
-  const [error,    setError]    = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const options = [
     { value: "EUR", label: "Euro",          symbol: "€", desc: "Default for Spain and most of Europe" },
@@ -363,7 +369,7 @@ function StepCurrency({ profile, onDone, onBack }: { profile: Profile | null; on
       <div className="space-y-5">
         <InfoBox>
           <p className="font-semibold mb-1">Why this matters</p>
-          <p>All your bids will be submitted in this currency. Customers will see the equivalent in their preferred currency automatically. You can change this later in your profile settings.</p>
+          <p>All your bids will be submitted in this currency. Customers will see the equivalent in their preferred currency automatically.</p>
         </InfoBox>
         {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         <div className="grid gap-3 sm:grid-cols-3">
@@ -387,14 +393,104 @@ function StepCurrency({ profile, onDone, onBack }: { profile: Profile | null; on
   );
 }
 
+// ── Step: Business & Billing (NEW) ─────────────────────────────────────────────
+
+function StepBilling({ profile, onDone, onBack }: { profile: Profile | null; onDone: () => void; onBack: () => void }) {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const [legalName, setLegalName] = useState(profile?.legal_company_name ?? "");
+  const [regNumber, setRegNumber] = useState(profile?.company_registration_number ?? "");
+  const [vatNumber, setVatNumber] = useState(profile?.vat_number ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.legal_company_name) setLegalName(profile.legal_company_name);
+    if (profile.company_registration_number) setRegNumber(profile.company_registration_number);
+    if (profile.vat_number) setVatNumber(profile.vat_number);
+  }, [profile]);
+
+  async function save() {
+    if (!legalName.trim()) { setError("Legal company name is required."); return; }
+    if (!vatNumber.trim()) { setError("VAT number is required. Your account cannot go live without this."); return; }
+    setSaving(true); setError("");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not signed in");
+      const { error: e } = await supabase.from("partner_profiles").upsert({
+        user_id: user.id,
+        legal_company_name: legalName.trim(),
+        company_registration_number: regNumber.trim() || null,
+        vat_number: vatNumber.trim(),
+      }, { onConflict: "user_id" });
+      if (e) throw new Error(e.message);
+      onDone();
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Card title="Business & Billing Details" subtitle="Your legal details are required for invoicing and commission processing.">
+      <div className="space-y-5">
+        <InfoBox>
+          <p className="font-semibold mb-1">Why we need this</p>
+          <p>Camel Global takes a commission from each completed booking. Your VAT number and legal company name are required so we can issue correct cross-border commission invoices. Without a VAT number your account cannot go live.</p>
+        </InfoBox>
+
+        <div className="rounded-2xl border border-[#003768]/10 bg-[#f3f8ff] p-4 text-sm text-[#003768]">
+          <p className="font-semibold mb-1">📋 How commission works</p>
+          <p>Camel Global charges a <strong>20% commission</strong> on the car hire price for each completed booking. Fuel charges are passed through to you in full — we take no commission on fuel. Commission is deducted automatically and you receive the net amount via Stripe payout.</p>
+        </div>
+
+        {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+
+        <div className="space-y-4">
+          <FieldInput
+            label="Legal company name"
+            value={legalName}
+            onChange={setLegalName}
+            placeholder="e.g. Valencia Cars S.L."
+            required
+            hint="Your full registered legal name — this appears on commission invoices."
+          />
+          <FieldInput
+            label="Company registration number"
+            value={regNumber}
+            onChange={setRegNumber}
+            placeholder="e.g. B12345678"
+            hint="Your company registration number from your country of incorporation."
+          />
+          <FieldInput
+            label="VAT number"
+            value={vatNumber}
+            onChange={setVatNumber}
+            placeholder="e.g. ESB12345678"
+            required
+            hint="Required for cross-border invoicing. For Spain this starts with ES. Your account cannot go live without this."
+          />
+        </div>
+
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p className="font-semibold">🔒 Your details are secure</p>
+          <p className="mt-0.5">These details are used solely for commission invoicing and are never shared with customers.</p>
+        </div>
+
+        <NavButtons onBack={onBack} onNext={save} saving={saving} canSkip onSkip={onDone} />
+      </div>
+    </Card>
+  );
+}
+
+// ── Step: Fleet ────────────────────────────────────────────────────────────────
+
 function StepFleet({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [fleet,   setFleet]   = useState<FleetRow[]>([]);
+  const [fleet, setFleet] = useState<FleetRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [adding,  setAdding]  = useState(false);
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState("");
-  const [form,    setForm]    = useState({ category_slug: "", max_passengers: 4, max_suitcases: 2, max_hand_luggage: 2 });
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({ category_slug: "", max_passengers: 4, max_suitcases: 2, max_hand_luggage: 2 });
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -441,7 +537,7 @@ function StepFleet({ onDone, onBack }: { onDone: () => void; onBack: () => void 
       <div className="space-y-5">
         <InfoBox>
           <p className="font-semibold mb-1">Why this matters</p>
-          <p>Customers request specific vehicle types - Standard Saloon, SUV, Minivan etc. You will only receive requests that match the categories you add here. Add all categories you can service to maximise your opportunities.</p>
+          <p>Customers request specific vehicle types. You will only receive requests that match the categories you add here.</p>
         </InfoBox>
         {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         {loading ? <p className="text-slate-500 text-sm">Loading fleet...</p> : (
@@ -471,8 +567,8 @@ function StepFleet({ onDone, onBack }: { onDone: () => void; onBack: () => void 
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {[
-                { key: "max_passengers",   label: "Max passengers" },
-                { key: "max_suitcases",    label: "Max suitcases" },
+                { key: "max_passengers", label: "Max passengers" },
+                { key: "max_suitcases", label: "Max suitcases" },
                 { key: "max_hand_luggage", label: "Hand luggage" },
               ].map(({ key, label }) => (
                 <div key={key}>
@@ -505,17 +601,19 @@ function StepFleet({ onDone, onBack }: { onDone: () => void; onBack: () => void 
   );
 }
 
+// ── Step: Drivers ──────────────────────────────────────────────────────────────
+
 function StepDrivers({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
-  const supabase  = useMemo(() => createBrowserSupabaseClient(), []);
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [drivers, setDrivers] = useState<DriverRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [adding,  setAdding]  = useState(false);
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState("");
-  const [form,    setForm]    = useState({ full_name: "", email: "", phone: "" });
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({ full_name: "", email: "", phone: "" });
 
   async function load() {
-    const res  = await fetch("/api/partner/drivers", { cache: "no-store", credentials: "include" });
+    const res = await fetch("/api/partner/drivers", { cache: "no-store", credentials: "include" });
     const json = await res.json().catch(() => null);
     setDrivers((json?.data || []).filter((d: DriverRow) => d.is_active));
     setLoading(false);
@@ -527,7 +625,7 @@ function StepDrivers({ onDone, onBack }: { onDone: () => void; onBack: () => voi
     if (!form.full_name.trim() || !form.email.trim()) { setError("Name and email are required."); return; }
     setSaving(true); setError("");
     try {
-      const res  = await fetch("/api/partner/drivers", {
+      const res = await fetch("/api/partner/drivers", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -546,7 +644,7 @@ function StepDrivers({ onDone, onBack }: { onDone: () => void; onBack: () => voi
       <div className="space-y-5">
         <InfoBox>
           <p className="font-semibold mb-1">Why this matters</p>
-          <p>Drivers meet customers at collection and return. Each driver needs an account to use the Camel Global driver app - which records fuel levels and confirms collections. Add at least one driver before going live.</p>
+          <p>Drivers meet customers at collection and return. Each driver needs an account to use the Camel Global driver app. Add at least one driver before going live.</p>
         </InfoBox>
         {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         {loading ? <p className="text-slate-500 text-sm">Loading drivers...</p> : (
@@ -567,8 +665,8 @@ function StepDrivers({ onDone, onBack }: { onDone: () => void; onBack: () => voi
           <div className="rounded-2xl border border-[#003768]/10 bg-[#f3f8ff] p-5 space-y-4">
             <h3 className="font-semibold text-[#003768]">Add a driver</h3>
             {[
-              { key: "full_name", label: "Full name",     placeholder: "Juan Garcia",           required: true },
-              { key: "email",     label: "Email address", placeholder: "juan@valenciacars.com",  required: true },
+              { key: "full_name", label: "Full name",     placeholder: "Juan Garcia",          required: true },
+              { key: "email",     label: "Email address", placeholder: "juan@valenciacars.com", required: true },
               { key: "phone",     label: "Phone number",  placeholder: "+34 600 000 000" },
             ].map(({ key, label, placeholder, required }) => (
               <div key={key}>
@@ -602,15 +700,14 @@ function StepDrivers({ onDone, onBack }: { onDone: () => void; onBack: () => voi
   );
 }
 
-// GoLive step fetches its own real counts on mount so skipped steps show correctly
-function StepGoLive({ profile, onBack }: {
-  profile: Profile | null; onBack: () => void;
-}) {
-  const router   = useRouter();
+// ── Step: Go Live ──────────────────────────────────────────────────────────────
+
+function StepGoLive({ profile, onBack }: { profile: Profile | null; onBack: () => void }) {
+  const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [fleetCount,  setFleetCount]  = useState(0);
+  const [fleetCount, setFleetCount] = useState(0);
   const [driverCount, setDriverCount] = useState(0);
-  const [checking,    setChecking]    = useState(true);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     async function check() {
@@ -635,11 +732,13 @@ function StepGoLive({ profile, onBack }: {
   );
 
   const checks = [
-    { label: "Fleet base location set",    done: !!(profile?.base_lat && profile?.base_lng && profile?.base_address1) },
-    { label: "Service radius configured",  done: !!(profile?.service_radius_km) },
-    { label: "Bidding currency selected",  done: !!(profile?.default_currency) },
-    { label: "At least one vehicle added", done: fleetCount > 0 },
-    { label: "At least one driver added",  done: driverCount > 0 },
+    { label: "Fleet base location set",        done: !!(profile?.base_lat && profile?.base_lng && profile?.base_address1) },
+    { label: "Service radius configured",       done: !!(profile?.service_radius_km) },
+    { label: "Bidding currency selected",       done: !!(profile?.default_currency) },
+    { label: "Legal company name provided",     done: !!(profile?.legal_company_name) },
+    { label: "VAT number provided",             done: !!(profile?.vat_number) },
+    { label: "At least one vehicle added",      done: fleetCount > 0 },
+    { label: "At least one driver added",       done: driverCount > 0 },
   ];
   const allDone = checks.every(c => c.done);
   const donePct = Math.round((checks.filter(c => c.done).length / checks.length) * 100);
@@ -675,12 +774,12 @@ function StepGoLive({ profile, onBack }: {
           <div className="rounded-2xl border border-green-200 bg-green-50 p-5 text-center">
             <p className="text-2xl mb-2">🎉</p>
             <p className="font-bold text-green-800 text-lg">You are all set!</p>
-            <p className="text-sm text-green-700 mt-1">Your account is now live! You will start receiving customer booking requests within your service radius immediately.</p>
+            <p className="text-sm text-green-700 mt-1">Your account is now live. You will start receiving customer booking requests immediately.</p>
           </div>
         ) : (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <p className="font-semibold">A few things still to complete</p>
-            <p className="mt-1">You can still go to the dashboard and complete the remaining steps from there.</p>
+            <p className="mt-1">You can complete the remaining steps from your dashboard. Note: a VAT number is required before your account can go live.</p>
           </div>
         )}
         <div className="flex gap-3">
@@ -699,15 +798,17 @@ function StepGoLive({ profile, onBack }: {
   );
 }
 
+// ── Main Page ──────────────────────────────────────────────────────────────────
+
 export default function PartnerOnboardingPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router   = useRouter();
-  const [step,      setStep]      = useState<Step>("location");
+  const router = useRouter();
+  const [step, setStep] = useState<Step>("location");
   const [completed, setCompleted] = useState<Set<Step>>(new Set());
-  const [profile,   setProfile]   = useState<Profile | null>(null);
-  const [loading,   setLoading]   = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const cols = "company_name,contact_name,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,service_radius_km,default_currency";
+  const cols = "company_name,contact_name,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,service_radius_km,default_currency,legal_company_name,vat_number,company_registration_number";
 
   async function refreshProfile(userId: string) {
     const { data } = await supabase.from("partner_profiles").select(cols).eq("user_id", userId).maybeSingle();
@@ -729,6 +830,7 @@ export default function PartnerOnboardingPage() {
       const done = new Set<Step>();
       if (prof?.base_lat && prof?.base_lng && prof?.base_address1) done.add("location");
       if (prof?.default_currency) done.add("currency");
+      if (prof?.legal_company_name && prof?.vat_number) done.add("billing");
       if (fleet && fleet.length > 0) done.add("fleet");
       if ((driversJson?.data || []).filter((d: DriverRow) => d.is_active).length > 0) done.add("drivers");
       setCompleted(done);
@@ -767,14 +869,21 @@ export default function PartnerOnboardingPage() {
         <StepCurrency profile={profile} onDone={async () => {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) await refreshProfile(user.id);
-          complete("currency", "fleet");
+          complete("currency", "billing");
         }} onBack={() => setStep("location")} />
       )}
+      {step === "billing" && (
+        <StepBilling profile={profile} onDone={async () => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) await refreshProfile(user.id);
+          complete("billing", "fleet");
+        }} onBack={() => setStep("currency")} />
+      )}
       {step === "fleet" && (
-        <StepFleet onDone={() => { complete("fleet", "drivers"); }} onBack={() => setStep("currency")} />
+        <StepFleet onDone={() => complete("fleet", "drivers")} onBack={() => setStep("billing")} />
       )}
       {step === "drivers" && (
-        <StepDrivers onDone={() => { complete("drivers", "golive"); }} onBack={() => setStep("fleet")} />
+        <StepDrivers onDone={() => complete("drivers", "golive")} onBack={() => setStep("fleet")} />
       )}
       {step === "golive" && (
         <StepGoLive profile={profile} onBack={() => setStep("drivers")} />
