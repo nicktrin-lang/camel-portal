@@ -372,7 +372,9 @@ export default function PartnerReportsPage() {
     const fuelHeaders = [
       "Job Number", "Legal Company Name", "Company Reg. No.", "VAT / NIF Number",
       "Customer", "Customer Email", "Customer Phone",
-      "Pickup Address", "Dropoff Address", "Pickup At", "Dropoff At",
+      "Pickup Address", "Dropoff Address",
+      "Scheduled Pickup At", "Scheduled Dropoff At",
+      "Actual Pickup Date & Time", "Actual Dropoff Date & Time", "Completed Date",
       "Vehicle", "Driver", "Driver Vehicle", "Currency",
       "Car Hire Price", "Commission Rate (%)", "Commission Amount",
       "Full Fuel Deposit",
@@ -390,6 +392,7 @@ export default function PartnerReportsPage() {
       const usedQ = b.fuel_used_quarters;
       const { rate, amount: commAmt, payout } = calcCommission(b);
       const netPayout = payout + Number(b.fuel_charge ?? 0);
+      const isCompleted = String(b.booking_status || "").toLowerCase() === "completed";
       return [
         b.job_number || "",
         b.partner_legal_company_name || "",
@@ -398,6 +401,9 @@ export default function PartnerReportsPage() {
         b.customer_name || "", b.customer_email || "", b.customer_phone || "",
         b.pickup_address || "", b.dropoff_address || "",
         fmtDate(b.pickup_at), fmtDate(b.dropoff_at),
+        fmtDate(b.pickup_at),   // actual pickup date & time
+        fmtDate(b.dropoff_at),  // actual dropoff date & time
+        isCompleted ? fmtDate(b.created_at) : "", // completed date
         b.vehicle_category_name || "", b.driver_name || "", b.driver_vehicle || "",
         b.currency || "EUR",
         Number(b.car_hire_price ?? 0), rate, commAmt,
@@ -437,17 +443,23 @@ export default function PartnerReportsPage() {
     });
 
     const allHeaders = [
-      "Job Number", "Customer", "Pickup", "Dropoff", "Pickup At",
+      "Job Number", "Customer", "Pickup", "Dropoff",
+      "Scheduled Pickup At", "Actual Pickup Date & Time", "Actual Dropoff Date & Time", "Completed Date",
       "Vehicle", "Driver", "Status", "Currency",
       "Car Hire", "Commission Rate (%)", "Commission Amount",
       "Fuel Charge", "Total Amount", "Your Payout", "Created At",
     ];
     const allRows = filteredBookings.map(b => {
       const { rate, amount: commAmt, payout } = calcCommission(b);
+      const isCompleted = String(b.booking_status || "").toLowerCase() === "completed";
       return [
         b.job_number || "", b.customer_name || "",
         b.pickup_address || "", b.dropoff_address || "",
-        fmtDate(b.pickup_at), b.vehicle_category_name || "",
+        fmtDate(b.pickup_at),
+        fmtDate(b.pickup_at),
+        fmtDate(b.dropoff_at),
+        isCompleted ? fmtDate(b.created_at) : "",
+        b.vehicle_category_name || "",
         b.driver_name || "", b.booking_status || "",
         b.currency || "EUR",
         Number(b.car_hire_price ?? 0),

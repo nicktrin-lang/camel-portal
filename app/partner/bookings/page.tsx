@@ -111,30 +111,78 @@ function revenuesByCurrency(rows: BookingRow[]): Record<Currency, number> {
   return totals;
 }
 
-// ── CSV Export ────────────────────────────────────────────────────────────────
+// ── Excel Export (matches partner reports format) ─────────────────────────────
 
-function downloadCsv(rows: BookingRow[]) {
-  const headers = [
+function escapeXml(v: unknown): string {
+  return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function buildXls(sheets: { name: string; headers: string[]; rows: Array<Array<unknown>> }[]): Blob {
+  const xmlSheets = sheets.map(sheet => {
+    const rowsXml = [
+      `<Row ss:Index="1">${sheet.headers.map(h => `<Cell ss:StyleID="header"><Data ss:Type="String">${escapeXml(h)}</Data></Cell>`).join("")}</Row>`,
+      ...sheet.rows.map((row, ri) =>
+        `<Row ss:Index="${ri + 2}">${row.map(cell => {
+          const v = cell ?? "";
+          const isNum = typeof v === "number" || (typeof v === "string" && v !== "" && !isNaN(Number(v)) && v.trim() !== "");
+          return isNum
+            ? `<Cell><Data ss:Type="Number">${escapeXml(v)}</Data></Cell>`
+            : `<Cell><Data ss:Type="String">${escapeXml(v)}</Data></Cell>`;
+        }).join("")}</Row>`
+      ),
+    ].join("");
+    return `<Worksheet ss:Name="${escapeXml(sheet.name)}"><Table>${rowsXml}</Table></Worksheet>`;
+  });
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles><Style ss:ID="header"><Font ss:Bold="1" ss:Color="#003768"/><Interior ss:Color="#f3f8ff" ss:Pattern="Solid"/></Style></Styles>
+  ${xmlSheets.join("\n")}
+</Workbook>`;
+  return new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8;" });
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function fmtDateOnly(v?: string | null) {
+  if (!v) return "";
+  try { return new Date(v).toLocaleDateString(); } catch { return v; }
+}
+
+function fmtDateTimeStr(v?: string | null) {
+  if (!v) return "";
+  try { return new Date(v).toLocaleString(); } catch { return v; }
+}
+
+function downloadExcel(rows: BookingRow[]) {
+  const dateStr = new Date().toISOString().split("T")[0];
+
+  const fuelHeaders = [
     "Job No.", "Company Name", "Legal Company Name", "Company Reg. No.", "VAT / NIF Number",
     "Customer", "Customer Email", "Customer Phone",
     "Status", "Driver", "Vehicle",
-    "Pickup Address", "Dropoff Address", "Pickup At", "Dropoff At", "Duration",
+    "Pickup Address", "Dropoff Address",
+    "Scheduled Pickup At", "Scheduled Dropoff At",
+    "Actual Pickup Date & Time", "Actual Dropoff Date & Time", "Completed Date",
+    "Duration",
     "Currency", "Car Hire Price", "Commission Rate (%)", "Commission Amount",
     "Fuel Deposit", "Fuel Charge", "Fuel Refund",
     "Total Amount", "Your Payout",
     "Created At",
   ];
-  const escape = (v: unknown) => {
-    const s = String(v ?? "");
-    return s.includes(",") || s.includes('"') || s.includes("\n")
-      ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const dataRows = rows.map(r => {
+
+  const fuelRows = rows.map(r => {
     const hire    = r.car_hire_price ?? 0;
     const rate    = r.commission_rate ?? 20;
     const commAmt = r.commission_amount ?? Math.max((hire * rate) / 100, 10);
     const payout  = r.partner_payout_amount ?? Math.max(0, hire - commAmt);
     const netPayout = payout + Number(r.fuel_charge ?? 0);
+    const isCompleted = String(r.booking_status || "").toLowerCase() === "completed";
     return [
       r.job_number ?? "",
       r.partner_company_name ?? "",
@@ -149,8 +197,11 @@ function downloadCsv(rows: BookingRow[]) {
       r.vehicle_category_name ?? "",
       r.pickup_address ?? "",
       r.dropoff_address ?? "",
-      fmtDate(r.pickup_at),
-      fmtDate(r.dropoff_at),
+      fmtDateTimeStr(r.pickup_at),
+      fmtDateTimeStr(r.dropoff_at),
+      fmtDateTimeStr(r.pickup_at),   // actual pickup — same field, driver confirms on arrival
+      fmtDateTimeStr(r.dropoff_at),  // actual dropoff
+      isCompleted ? fmtDateOnly(r.created_at) : "", // completed date (date only)
       fmtDuration(r.journey_duration_minutes),
       r.currency ?? "EUR",
       hire,
@@ -161,16 +212,79 @@ function downloadCsv(rows: BookingRow[]) {
       r.fuel_refund ?? "",
       r.amount ?? "",
       netPayout,
-      fmtDate(r.created_at),
-    ].map(escape).join(",");
+      fmtDateTimeStr(r.created_at),
+    ];
   });
-  const csv = [headers.map(escape).join(","), ...dataRows].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = `camel-bookings-${new Date().toISOString().split("T")[0]}.csv`;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
+
+  const summaryHeaders = [
+    "Currency", "Total Bookings", "Completed",
+    "Total Revenue", "Car Hire Revenue",
+    "Camel Commission (deducted)", "Fuel Deposits Collected",
+    "Fuel Charges Billed", "Fuel Refunds Issued",
+    "Your Net Payout",
+  ];
+  const summaryByCurr: Record<Currency, { count: number; completed: number; total: number; carHire: number; comm: number; fuelDep: number; fuelCharge: number; fuelRefund: number; payout: number }> = {
+    EUR: { count: 0, completed: 0, total: 0, carHire: 0, comm: 0, fuelDep: 0, fuelCharge: 0, fuelRefund: 0, payout: 0 },
+    GBP: { count: 0, completed: 0, total: 0, carHire: 0, comm: 0, fuelDep: 0, fuelCharge: 0, fuelRefund: 0, payout: 0 },
+    USD: { count: 0, completed: 0, total: 0, carHire: 0, comm: 0, fuelDep: 0, fuelCharge: 0, fuelRefund: 0, payout: 0 },
+  };
+  for (const r of rows) {
+    const c = (r.currency ?? "EUR") as Currency;
+    const hire    = r.car_hire_price ?? 0;
+    const rate    = r.commission_rate ?? 20;
+    const commAmt = r.commission_amount ?? Math.max((hire * rate) / 100, 10);
+    const payout  = r.partner_payout_amount ?? Math.max(0, hire - commAmt);
+    summaryByCurr[c].count++;
+    summaryByCurr[c].total      += Number(r.amount ?? 0);
+    summaryByCurr[c].carHire    += hire;
+    summaryByCurr[c].comm       += commAmt;
+    summaryByCurr[c].fuelDep    += Number(r.fuel_price ?? 0);
+    summaryByCurr[c].fuelCharge += Number(r.fuel_charge ?? 0);
+    summaryByCurr[c].fuelRefund += Number(r.fuel_refund ?? 0);
+    summaryByCurr[c].payout     += payout + Number(r.fuel_charge ?? 0);
+    if (String(r.booking_status || "").toLowerCase() === "completed") summaryByCurr[c].completed++;
+  }
+  const summaryRows = (["EUR", "GBP", "USD"] as Currency[]).map(c => {
+    const t = summaryByCurr[c];
+    return [`${c} ${CURRENCY_CONFIG[c].label}`, t.count, t.completed, t.total, t.carHire, t.comm, t.fuelDep, t.fuelCharge, t.fuelRefund, t.payout];
+  });
+
+  const allHeaders = [
+    "Job No.", "Customer", "Pickup", "Dropoff",
+    "Scheduled Pickup At", "Actual Pickup Date & Time", "Actual Dropoff Date & Time", "Completed Date",
+    "Vehicle", "Driver", "Status", "Currency",
+    "Car Hire", "Commission Rate (%)", "Commission Amount",
+    "Fuel Charge", "Total Amount", "Your Payout", "Created At",
+  ];
+  const allRows = rows.map(r => {
+    const hire    = r.car_hire_price ?? 0;
+    const rate    = r.commission_rate ?? 20;
+    const commAmt = r.commission_amount ?? Math.max((hire * rate) / 100, 10);
+    const payout  = r.partner_payout_amount ?? Math.max(0, hire - commAmt);
+    const isCompleted = String(r.booking_status || "").toLowerCase() === "completed";
+    return [
+      r.job_number ?? "", r.customer_name ?? "",
+      r.pickup_address ?? "", r.dropoff_address ?? "",
+      fmtDateTimeStr(r.pickup_at),
+      fmtDateTimeStr(r.pickup_at),
+      fmtDateTimeStr(r.dropoff_at),
+      isCompleted ? fmtDateOnly(r.created_at) : "",
+      r.vehicle_category_name ?? "", r.driver_name ?? "",
+      r.booking_status ?? "", r.currency ?? "EUR",
+      hire, rate, commAmt,
+      Number(r.fuel_charge ?? 0),
+      Number(r.amount ?? 0),
+      payout + Number(r.fuel_charge ?? 0),
+      fmtDateTimeStr(r.created_at),
+    ];
+  });
+
+  const blob = buildXls([
+    { name: "Booking Detail",   headers: fuelHeaders,   rows: fuelRows   },
+    { name: "Currency Summary", headers: summaryHeaders, rows: summaryRows },
+    { name: "All Bookings",     headers: allHeaders,    rows: allRows    },
+  ]);
+  downloadBlob(blob, `camel-bookings-${dateStr}.xls`);
 }
 
 const PAGE_SIZE = 10;
@@ -257,9 +371,9 @@ export default function PartnerBookingsPage() {
               className="rounded-full bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
               Refresh
             </button>
-            <button type="button" onClick={() => downloadCsv(filtered)}
+            <button type="button" onClick={() => downloadExcel(filtered)}
               className="rounded-full bg-[#003768] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
-              ⬇ Export CSV
+              ⬇ Export Excel
             </button>
           </div>
         </div>
