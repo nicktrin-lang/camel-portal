@@ -73,7 +73,34 @@ function PartnerLoginInner() {
         }
       } catch {}
 
-      // Everyone else goes to dashboard — live status and setup checklist handled there
+      // Check if partner has completed onboarding.
+      // Onboarding is considered complete when fleet location, currency and
+      // VAT number have all been saved. If any are missing, send to onboarding.
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("partner_profiles")
+            .select("base_lat, base_lng, default_currency, vat_number")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          const hasOnboarded = !!(
+            profile?.base_lat &&
+            profile?.base_lng &&
+            profile?.default_currency &&
+            profile?.vat_number
+          );
+
+          if (!hasOnboarded) {
+            router.replace("/partner/onboarding");
+            router.refresh();
+            return;
+          }
+        }
+      } catch {}
+
+      // Onboarding complete — go to dashboard
       router.replace("/partner/dashboard");
       router.refresh();
     } catch (e: any) {
