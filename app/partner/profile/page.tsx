@@ -381,27 +381,37 @@ export default function PartnerProfilePage() {
           </div>
         </SectionCard>
 
-        {/* ── Section 3: Business & Billing ── */}
-        <SectionCard title="Business & Billing" description="Your legal details used for commission invoicing. Required before your account can go live.">
+        {/* ── Section 3: Business & Billing (read-only) ── */}
+        <SectionCard title="Business & Billing" description="Your legal details used for commission invoicing.">
           <div className="rounded-xl border border-[#003768]/10 bg-[#f3f8ff] px-4 py-3 text-sm text-[#003768] mb-5">
-            <p className="font-semibold mb-0.5">💡 Why we need this</p>
-            <p>Camel Global charges a 20% commission (minimum €10) on completed bookings. Your legal name and VAT / NIF number are required to issue correct cross-border commission invoices. Your account cannot go live without a VAT / NIF number.</p>
+            <p className="font-semibold mb-0.5">🔒 These details are managed by Camel Global</p>
+            <p>Your legal company name and VAT / NIF number are used for cross-border commission invoicing and can only be changed by the Camel Global team. If you need to update these details please contact <a href="mailto:support@camel-global.com" className="underline font-semibold">support@camel-global.com</a>.</p>
           </div>
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div className="md:col-span-2">
-              <Field label="Legal company name">
-                <p className="text-xs text-slate-400 mt-0.5 mb-1">Your full registered legal name — appears on commission invoices.</p>
-                <TextInput value={profile.legal_company_name} onChange={v => updateField("legal_company_name", v)} placeholder="e.g. Valencia Cars S.L." />
-              </Field>
+              <p className="text-sm font-medium text-[#003768]">Legal company name</p>
+              <p className="mt-1 rounded-xl border border-black/10 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                {profile.legal_company_name || <span className="text-slate-400 italic">Not set — contact support</span>}
+              </p>
             </div>
-            <Field label="Company registration number">
-              <p className="text-xs text-slate-400 mt-0.5 mb-1">From your country of incorporation.</p>
-              <TextInput value={profile.company_registration_number} onChange={v => updateField("company_registration_number", v)} placeholder="e.g. B12345678" />
-            </Field>
-            <Field label="VAT / NIF Number *">
-              <p className="text-xs text-slate-400 mt-0.5 mb-1">Spanish companies: NIF (e.g. B12345678) becomes ESB12345678 for EU transactions.</p>
-              <TextInput value={profile.vat_number} onChange={v => updateField("vat_number", v)} placeholder="e.g. ESB12345678" />
-            </Field>
+            <div>
+              <p className="text-sm font-medium text-[#003768]">Company registration number</p>
+              <p className="mt-1 rounded-xl border border-black/10 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                {profile.company_registration_number || <span className="text-slate-400 italic">Not set</span>}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[#003768]">VAT / NIF Number</p>
+              <div className="mt-1 flex items-center gap-2">
+                <p className="flex-1 rounded-xl border border-black/10 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  {profile.vat_number || <span className="text-slate-400 italic">Not set — contact support</span>}
+                </p>
+                {profile.vat_number
+                  ? <span className="shrink-0 inline-flex rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">✓</span>
+                  : <span className="shrink-0 inline-flex rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">Required</span>
+                }
+              </div>
+            </div>
           </div>
         </SectionCard>
 

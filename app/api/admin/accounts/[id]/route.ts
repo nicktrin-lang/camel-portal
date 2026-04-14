@@ -68,7 +68,7 @@ export async function GET(
     if (resolvedUserId) {
       const [profileRes, fleetRes, driversRes] = await Promise.all([
         db.from("partner_profiles")
-          .select("id,user_id,role,company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency")
+          .select("id,user_id,role,company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number,commission_rate")
           .eq("user_id", resolvedUserId)
           .maybeSingle(),
         db.from("partner_fleet")
@@ -87,12 +87,30 @@ export async function GET(
       drivers = driversRes.data || [];
     }
 
-    const hasFleetAddress = !!String((profile as any)?.base_address || "").trim();
-    const hasFleet = fleet.length > 0;
-    const isLiveProfile = hasFleetAddress && hasFleet;
-    const liveProfileReason = isLiveProfile ? "" :
-      !hasFleetAddress && !hasFleet ? "Missing fleet address and no fleet added" :
-      !hasFleetAddress ? "Missing fleet address" : "No fleet added";
+    // Full 7-check live status (mirrors refreshPartnerLiveStatus logic)
+    const p = profile as any;
+    const hasBaseAddress  = !!String(p?.base_address || "").trim();
+    const hasBaseLat      = p?.base_lat != null && !isNaN(Number(p.base_lat));
+    const hasBaseLng      = p?.base_lng != null && !isNaN(Number(p.base_lng));
+    const hasRadius       = p?.service_radius_km != null && Number(p.service_radius_km) > 0;
+    const hasFleet        = fleet.length > 0;
+    const hasDrivers      = drivers.length > 0;
+    const hasCurrency     = !!String(p?.default_currency || "").trim();
+    const hasVat          = !!String(p?.vat_number || "").trim();
+
+    const missing: string[] = [];
+    if (!hasBaseAddress) missing.push("Fleet base address");
+    if (!hasBaseLat || !hasBaseLng) missing.push("Fleet GPS coordinates");
+    if (!hasRadius) missing.push("Service radius");
+    if (!hasFleet) missing.push("Active fleet vehicle");
+    if (!hasDrivers) missing.push("Active driver");
+    if (!hasCurrency) missing.push("Billing currency");
+    if (!hasVat) missing.push("VAT / NIF number");
+
+    const isLiveProfile = missing.length === 0;
+    const liveProfileReason = missing.length > 0
+      ? `Missing: ${missing.join(", ")}`
+      : "";
 
     return NextResponse.json({
       application,
