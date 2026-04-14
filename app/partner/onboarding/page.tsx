@@ -439,7 +439,7 @@ function StepBilling({ profile, onDone, onBack }: { profile: Profile | null; onD
 
         <div className="rounded-2xl border border-[#003768]/10 bg-[#f3f8ff] p-4 text-sm text-[#003768]">
           <p className="font-semibold mb-1">📋 How commission works</p>
-          <p>Camel Global charges a <strong>20% commission</strong> on the car hire price for each completed booking. Fuel charges are passed through to you in full — we take no commission on fuel. Commission is deducted automatically and you receive the net amount via Stripe payout.</p>
+          <p>Camel Global charges a <strong>20% commission</strong> on the car hire price for each completed booking, with a <strong>minimum commission of €10 per booking</strong>. Fuel charges are passed through to you in full — we take no commission on fuel. Commission is deducted automatically and you receive the net amount via Stripe payout.</p>
         </div>
 
         {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
@@ -461,12 +461,12 @@ function StepBilling({ profile, onDone, onBack }: { profile: Profile | null; onD
             hint="Your company registration number from your country of incorporation."
           />
           <FieldInput
-            label="VAT number"
+            label="VAT / NIF Number"
             value={vatNumber}
             onChange={setVatNumber}
             placeholder="e.g. ESB12345678"
             required
-            hint="Required for cross-border invoicing. For Spain this starts with ES. Your account cannot go live without this."
+            hint="Your VAT or NIF number for cross-border invoicing. Spanish companies use a NIF (e.g. B12345678), which becomes ESB12345678 for EU transactions. Your account cannot go live without this."
           />
         </div>
 
