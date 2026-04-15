@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email";
+import { rateLimit, getIp } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
+  const ip = getIp(req);
+  const { allowed } = rateLimit(ip, "send-customer-reset-email");
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait 15 minutes before trying again." },
+      { status: 429 }
+    );
+  }
+
   const { email } = await req.json();
 
   if (!email) {
