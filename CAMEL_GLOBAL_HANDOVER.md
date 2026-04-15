@@ -114,22 +114,8 @@ Example: £300 hire, 20% commission (£60), £25 fuel charge → **£265 payout*
 | Customer pays partner (via Camel) | Spanish VAT — partner's responsibility |
 | Camel invoices partner for commission | Reverse charge — no UK VAT added |
 
-Invoice must include: *"VAT reverse charged to customer under Article 44/196 EU VAT Directive"*
-
 ### VAT / NIF Note
 Spanish companies use NIF (e.g. B12345678) = ESB12345678 for EU transactions. Collected during onboarding. Required for live status. Admin can edit if partner contacts Camel Global.
-
-### What Goes on a Camel Commission Invoice
-- Camel company name, address, VAT number
-- Partner legal company name, address, VAT/NIF number
-- Invoice number, date, period (e.g. "June 2025")
-- Line item: "Platform commission on completed bookings — [period]"
-- Number of bookings, total value processed, commission rate, commission amount
-- Currency
-- Reverse charge line: *"VAT reverse charged — Article 44/196 EU VAT Directive"*
-- Total due: £0.00 (already collected via Stripe)
-
-**Invoicing lives in Xero, not in the Camel system.** Camel exports clean data; Xero generates and sends invoices.
 
 ### Platform Settings Table
 Single row in `platform_settings`:
@@ -240,7 +226,7 @@ The following routes bypass auth in `app/partner/layout.tsx` (`isPublicPartnerPa
 - `/partner/application-submitted`
 - `/partner/signup` and `/partner/signup/*`
 
-Note: `/partner/terms` is **not** in the public list — logged-in partners see it with the sidebar. Unauthenticated users are redirected to login (fine — the signup form uses inline PDF download, not the terms page URL).
+Note: `/partner/terms` is **not** in the public list — logged-in partners see it with the sidebar. Unauthenticated users are redirected to login (the signup form uses inline PDF download, not the terms page URL).
 
 ---
 
@@ -282,7 +268,7 @@ git checkout v-stable-partner-terms
 ---
 
 ## What Is Working ✅
-- Customer booking flow
+- Customer booking flow (functional, needs UI overhaul)
 - Partner bid submission and management
 - Driver job portal
 - Admin approval and account management
@@ -313,71 +299,63 @@ git checkout v-stable-partner-terms
 
 ## Session Log
 
-### Chat 9 (Current — Partner T&Cs)
+### Chat 9 (Completed — Partner T&Cs)
 - `app/partner/terms/page.tsx` — full T&Cs page, public route, jsPDF download
 - `app/partner/signup/page.tsx` — T&Cs link triggers inline PDF download, no navigation
-- `app/partner/layout.tsx` — terms page handled correctly (sidebar for logged-in, login redirect for unauthed)
-- `app/partner/account/page.tsx` — T&Cs card in sidebar showing version + date accepted
+- `app/partner/layout.tsx` — terms page handled correctly
+- `app/partner/account/page.tsx` — T&Cs card in sidebar
 - `app/admin/accounts/[id]/page.tsx` — T&Cs card in sidebar
-- `app/api/admin/accounts/[id]/route.ts` — added `terms_accepted_at`, `terms_version` to select
-- `app/api/partner/complete-signup/route.ts` — records `terms_accepted_at` and `terms_version` on signup
+- `app/api/admin/accounts/[id]/route.ts` — added terms fields to select
+- `app/api/partner/complete-signup/route.ts` — records terms acceptance on signup
 - DB migration: `alter table partner_applications add column terms_accepted_at timestamptz, add column terms_version text`
-- jsPDF installed for real PDF downloads across all three download functions
+- jsPDF installed for real PDF downloads
 - Fixed: currency showing "Yes" on approvals Setup Summary before onboarding
 - Stable tag: `v-stable-partner-terms`
 
 ### Chat 8 (Completed — Commission & Payments)
-- `platform_settings` table, commission columns on `partner_profiles` and `partner_bookings`
-- `lib/portal/calculateCommission.ts`
-- Business & Billing onboarding step (step 3)
-- VAT/NIF as 7th live status check
-- Partner login onboarding redirect
-- Partner profile billing — read-only
-- Admin billing — inline edit with warning
-- Admin commission rate override per partner
-- Commission on bid form with live 3-column preview
-- Commission + payout in all reporting pages and Excel exports
-- Actual pickup/dropoff timestamps from `delivery_confirmed_at` / `collection_confirmed_at`
-- Unified table columns across all admin pages
+- Full commission system, billing, reporting, Excel exports
 - Stable tag: `v-stable-commission-reporting`
 
-### Chat 7 (Completed)
-- Fuel flow fixes, driver layout, partner booking detail
-- Stable tag: `v-stable-fuel-flow-fixed`
+### Chats 1–7 (Completed)
+- Core booking flow, fuel, drivers, insurance, reviews, currency, password reset
 
-### Chat 6 (Completed)
-- 6-check live status, dashboard banners, partner login fix, driver portal
-- Stable tag: `v-stable-live-status-checks`
+---
 
-### Chat 5 (Completed)
-- Admin booking detail rebuilt, all three currencies everywhere
-- Stable tag: `v-stable-admin-booking-fixes`
+## Pre-Launch Build Plan
 
-### Chat 4 (Completed)
-- Reset-password pages all three portals, branded emails via Resend
-- Stable tag: `v-stable-password-reset`
+| # | Task | Est. Time | Priority |
+|---|------|-----------|----------|
+| 1 | Security headers (`next.config.ts`) | 30 min | Do now |
+| 2 | RLS audit (Supabase row-level security) | 2–3 hrs | Do now |
+| 3 | Rate limiting on `/api/auth/` routes | 1–2 hrs | Do now |
+| 4 | CAPTCHA at all sign-in points (hCaptcha, free) | 2–3 hrs | Do now |
+| 5 | Cookie acceptance banner (GDPR) | 2–3 hrs | Before launch |
+| 6 | GDPR data deletion — "delete my account" flow | 3–4 hrs | Before launch |
+| 7 | Footer + policy pages (Privacy, Cookie, Terms of Use, About) | 3–4 hrs | Before launch |
+| 8 | Code cleanup (stray files, legacy routes, unused components) | 1 hr | Before launch |
+| 9 | Partner & Admin finance pages | 2–3 hrs | After Stripe |
+| 10 | Stripe Connect integration | 8–10 hrs | Before first payment |
+| 11 | Xero monthly commission endpoint | 3–4 hrs | Before first invoice run |
+| 12 | DAC7 EU platform reporting | 3–4 hrs | Post-launch |
+| 13 | Spanish translation (partner + driver portals, `next-intl`) | 15–20 hrs | Post-launch |
+| 14 | Customer booking site full UI overhaul | 15–20 hrs | Before launch |
 
-### Chat 3 (Completed)
-- USD support, full EUR/GBP/USD revenue summary
-- Stable tag: `v-stable-currency-reporting`
+### Notes on Key Items
 
-### Chats 1–2 (Completed)
-- Project scaffolded, core booking flow, GBP support, live exchange rates
+**GDPR (item 6):** EU law requiring deletion of a user's personal data on request within 30 days. Needs "delete my account" in partner portal, admin delete tool, and process to wipe bookings/profile/application data.
+
+**DAC7 (item 12):** EU law requiring platforms to report partner earnings to tax authorities annually if they exceed €2,000 or 30 transactions. NIF collection already in place. Needs annual report generation per partner.
+
+**Spanish translation (item 13):** Use `next-intl` (free). Extract all UI strings from partner + driver portal pages into `en.json` / `es.json`. Add language toggle to portal header. Initial Spanish via Google Translate, reviewed by native speaker. ~20+ partner pages + 4 driver pages — every string needs touching.
+
+**Customer booking site (item 14):** The `/test-booking` flow is functional but needs a full professional UI overhaul in the style of Uber — clean, minimal, confidence-inspiring. Covers: landing page with hero + how it works, booking request form, request tracking page, bid selection page, active booking page, consistent header/footer. All backend APIs already exist — purely frontend work. Must not break existing booking flow.
 
 ---
 
 ## Payments Build Phases
 
 ### Phase 1 — COMPLETE ✅
-- [x] `platform_settings` table
-- [x] Billing fields on `partner_profiles`
-- [x] Commission fields on `partner_bookings`
-- [x] `calculateCommission.ts`
-- [x] Business & Billing onboarding step
-- [x] VAT/NIF live status check
-- [x] Commission on bid form with live preview
-- [x] Commission in all reporting + Excel exports
-- [x] Admin billing edit + commission rate override
+- [x] Commission system, billing fields, reporting, Excel exports
 
 ### Phase 2 — Stripe Connect (before first real payment)
 - [ ] `lib/stripe.ts` + `app/api/stripe/`
@@ -398,7 +376,6 @@ git checkout v-stable-partner-terms
 
 ### Phase 5 — Embedded Insurance (post-launch)
 - [ ] Approach AXA/Zurich with real booking volume
-- [ ] "Camel Protected" optional tier → default
 
 ---
 
@@ -413,24 +390,6 @@ git checkout v-stable-partner-terms
 
 ---
 
-## Outstanding TODOs
-- [ ] Stripe Connect integration
-- [ ] `/partner/finance` and `/admin/finance` pages
-- [ ] Xero monthly commission data endpoint
-- [ ] Partner Stripe onboarding flow in portal
-- [ ] Terms & Conditions versioned re-acceptance flow (notify partners when T&Cs update)
-- [ ] Security headers in `next.config.ts`
-- [ ] Full RLS audit on all Supabase tables
-- [ ] Rate limiting on `/api/auth/` routes
-- [ ] GDPR data deletion endpoint
-- [ ] DAC7 EU platform reporting
-- [ ] `app/partner/bids/` — no page.tsx, build or remove
-- [ ] `app/api/admin/admin/requests/` — legacy duplicate, remove
-- [ ] Clean up: `main`, `camel-portal/camel-portal/`, `public/Screenshot *.png`
-- [ ] Remove unused `AdminSidebar.tsx` and `PartnerSidebar.tsx`
-
----
-
 ## Useful Commands
 
 ```bash
@@ -442,8 +401,8 @@ git push origin main
 # Full file tree
 find ~/camel-portal -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.next/*' | sort
 
-# Cat a file
-cat ~/camel-portal/app/partner/bookings/page.tsx
+# Cat a file (use backslash escapes for square brackets)
+cat ~/camel-portal/app/admin/accounts/\[id\]/page.tsx
 
 # Create stable tag
 git tag -a v-tag-name -m "description"
@@ -470,4 +429,4 @@ git tag | grep stable
 
 ---
 
-*Last updated: Chat 9 — Partner T&Cs, versioned acceptance, jsPDF downloads, admin T&Cs card*
+*Last updated: Chat 9 — Partner T&Cs complete. Pre-launch build plan added including customer site overhaul.*
