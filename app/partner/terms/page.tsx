@@ -5,8 +5,6 @@ import Link from "next/link";
 
 const VERSION = "2026-04";
 const EFFECTIVE_DATE = "1 April 2026";
-const CAMEL_LEGAL_NAME = "Camel Global Ltd";
-const CAMEL_GOVERNING_LAW = "England and Wales";
 
 type Section = { title: string; clauses: string[] };
 
@@ -146,7 +144,7 @@ const TERMS: Section[] = [
     title: "12. Liability",
     clauses: [
       "Nothing in this Agreement limits or excludes liability for death or personal injury caused by negligence, fraud, or any other liability that cannot be excluded by law.",
-      "Subject to clause 12.1, Camel Global's total aggregate liability to the Partner under or in connection with this Agreement, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, shall not exceed the total commission paid by the Partner to Camel Global in the 3 months immediately preceding the event giving rise to the claim.",
+      "Subject to clause 12.1, Camel Global's total aggregate liability to the Partner under or in connection with this Agreement shall not exceed the total commission paid by the Partner to Camel Global in the 3 months immediately preceding the event giving rise to the claim.",
       "Camel Global shall not be liable for any indirect, consequential, special, or punitive loss or damage, including loss of profit, loss of revenue, loss of business, or loss of data.",
       "Camel Global shall not be liable for any loss or damage arising from: (a) the Partner's failure to comply with these Terms or the Operating Rules; (b) the actions or omissions of the Partner's drivers or employees; (c) any failure or unavailability of third-party services including Stripe, Google Maps, or email providers; or (d) any event outside Camel Global's reasonable control.",
       "The Partner accepts that the Platform is provided 'as is' and that Camel Global makes no warranty that it will be uninterrupted, error-free, or free from viruses or other harmful components.",
@@ -181,158 +179,157 @@ const TERMS: Section[] = [
       "The Partner may not assign or transfer any rights or obligations under this Agreement without the prior written consent of Camel Global.",
       "Camel Global may assign this Agreement or any rights under it to any group company or in connection with a sale or restructuring of its business.",
       "Nothing in this Agreement is intended to confer any benefit on any third party under the Contracts (Rights of Third Parties) Act 1999.",
-      `This Agreement is governed by the laws of ${CAMEL_GOVERNING_LAW}. Each party irrevocably submits to the exclusive jurisdiction of the courts of ${CAMEL_GOVERNING_LAW} in relation to any dispute arising under or in connection with this Agreement.`,
+      "This Agreement is governed by the laws of England and Wales. Each party irrevocably submits to the exclusive jurisdiction of the courts of England and Wales in relation to any dispute arising under or in connection with this Agreement.",
     ],
   },
 ];
 
-function downloadTermsPDF(companyName?: string) {
+async function downloadTermsPDF(companyName?: string) {
+  const { jsPDF } = await import("jspdf");
   const dateStr = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-  const sectionsHtml = TERMS.map(({ title, clauses }) => `
-    <div style="margin-bottom:24px;">
-      <h3 style="color:#003768;font-size:14px;font-weight:700;margin:0 0 8px 0;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">${title}</h3>
-      <ol style="margin:0;padding-left:20px;">
-        ${clauses.map(c => `<li style="font-size:11px;color:#334155;margin-bottom:5px;line-height:1.6;">${c}</li>`).join("")}
-      </ol>
-    </div>
-  `).join("");
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  const usableW = pageW - margin * 2;
+  let y = margin;
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
-  <title>Camel Global — Partner Terms and Conditions</title>
-  <style>@page { margin: 1cm; } @page :first { margin-top: 1cm; } * { box-sizing:border-box; margin:0; padding:0; } body { font-family:Arial,sans-serif; padding:40px; color:#1e293b; background:#fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #003768; padding-bottom:16px; margin-bottom:24px; }
-    .logo { font-size:22px; font-weight:900; color:#003768; letter-spacing:-1px; }
-    .logo span { color:#ff7a00; }
-    .meta { text-align:right; font-size:11px; color:#64748b; }
-    h1 { font-size:20px; color:#003768; font-weight:800; margin-bottom:4px; }
-    h2 { font-size:12px; color:#64748b; font-weight:400; margin-bottom:16px; }
-    .footer { margin-top:32px; padding-top:16px; border-top:1px solid #e2e8f0; font-size:10px; color:#94a3b8; text-align:center; }
-  </style>
-  </head><body>
-  <div class="header">
-    <div>
-      <div class="logo">🐪 Camel <span>Global</span></div>
-      <div style="font-size:11px;color:#64748b;margin-top:4px;">Meet and greet car hire</div>
-    </div>
-    <div class="meta">
-      <div><strong>Partner Terms and Conditions</strong></div>
-      ${companyName ? `<div>Issued to: ${companyName}</div>` : ""}
-      <div>Version: ${VERSION} — Effective: ${EFFECTIVE_DATE}</div>
-      <div>Generated: ${dateStr}</div>
-    </div>
-  </div>
-  <h1>Partner Terms and Conditions</h1>
-  <h2>These Terms govern your use of the Camel Global platform as a partner. By registering and operating as a partner you agree to be bound by these Terms in full.</h2>
-  ${sectionsHtml}
-  <div class="footer">Camel Global Partner Terms and Conditions — Version ${VERSION} — Effective ${EFFECTIVE_DATE} — camelglobal.com</div>
-  </body></html>`;
+  function checkPage(needed = 8) {
+    if (y + needed > pageH - margin) { doc.addPage(); y = margin; }
+  }
 
-  const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `Camel-Global-Partner-Terms-${VERSION}.html`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // Header bar
+  doc.setFillColor(15, 79, 138);
+  doc.rect(0, 0, pageW, 18, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13); doc.setFont("helvetica", "bold");
+  doc.text("CAMEL GLOBAL", margin, 7);
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text("Meet and greet car hire", margin, 12);
+  doc.text("Partner Terms and Conditions", pageW - margin, 7, { align: "right" });
+  doc.text(`Version: ${VERSION} — Effective: ${EFFECTIVE_DATE}`, pageW - margin, 11, { align: "right" });
+  if (companyName) doc.text(`Issued to: ${companyName}`, pageW - margin, 15, { align: "right" });
+  else doc.text(`Generated: ${dateStr}`, pageW - margin, 15, { align: "right" });
+  y = 26;
+
+  // Title
+  doc.setTextColor(0, 55, 104);
+  doc.setFontSize(16); doc.setFont("helvetica", "bold");
+  doc.text("Partner Terms and Conditions", margin, y); y += 7;
+  doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(100, 116, 139);
+  const subtitle = doc.splitTextToSize(
+    "These Terms govern your use of the Camel Global platform as a partner. By registering as a partner you agree to be bound by these Terms in full.",
+    usableW
+  );
+  doc.text(subtitle, margin, y); y += subtitle.length * 4 + 6;
+
+  // Divider
+  doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3);
+  doc.line(margin, y, pageW - margin, y); y += 6;
+
+  // Sections
+  for (const { title, clauses } of TERMS) {
+    checkPage(12);
+    doc.setFillColor(243, 248, 255);
+    doc.roundedRect(margin, y - 4, usableW, 9, 2, 2, "F");
+    doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 55, 104);
+    doc.text(title, margin + 3, y + 2); y += 9;
+
+    clauses.forEach((clause, i) => {
+      checkPage(8);
+      const lines = doc.splitTextToSize(`${i + 1}.  ${clause}`, usableW - 6);
+      doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(51, 65, 85);
+      doc.text(lines, margin + 4, y);
+      y += lines.length * 4.5 + 1.5;
+    });
+    y += 4;
+  }
+
+  // Footer on every page
+  const totalPages = (doc.internal as any).getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3);
+    doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
+    doc.setFontSize(7); doc.setTextColor(148, 163, 184); doc.setFont("helvetica", "normal");
+    doc.text(`Camel Global Partner Terms and Conditions — Version ${VERSION} — Effective ${EFFECTIVE_DATE} — camelglobal.com`, margin, pageH - 6);
+    doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 6, { align: "right" });
+  }
+
+  doc.save(`Camel-Global-Partner-Terms-${VERSION}.pdf`);
 }
 
 export default function PartnerTermsPage() {
   return (
-    <div className="min-h-screen bg-[#f7f9fc]">
-      <header className="fixed inset-x-0 top-0 z-40 h-20 bg-[#0f4f8a] shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
-        <div className="flex h-full items-center justify-between px-6 md:px-12">
-          <Link href="/partner/login">
-            <Image src="/camel-logo.png" alt="Camel Global" width={160} height={54} priority className="h-[48px] w-auto" />
-          </Link>
+    <div className="space-y-6">
+      {/* Header card */}
+      <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-[#003768]">Partner Terms and Conditions</h1>
+            <p className="mt-2 text-slate-500 text-sm">Version {VERSION} — Effective {EFFECTIVE_DATE}</p>
+            <p className="mt-3 text-sm text-slate-600 leading-relaxed max-w-2xl">
+              These Terms govern your use of the Camel Global platform as a partner. Please read them carefully.
+              By registering as a partner and ticking the acceptance checkbox during signup, you agree to be bound
+              by these Terms and the Partner Operating Rules, which are incorporated by reference.
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => downloadTermsPDF()}
-            className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition-colors"
+            className="shrink-0 rounded-full bg-[#003768] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
           >
             ⬇ Download PDF
           </button>
         </div>
-      </header>
 
-      <div className="pt-28 pb-16 px-6 md:px-12 lg:px-20">
-        {/* Header card */}
-        <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)] mb-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-[#003768]">Partner Terms and Conditions</h1>
-              <p className="mt-2 text-slate-500 text-sm">
-                Version {VERSION} — Effective {EFFECTIVE_DATE}
-              </p>
-              <p className="mt-3 text-sm text-slate-600 leading-relaxed max-w-2xl">
-                These Terms govern your use of the Camel Global platform as a partner. Please read them carefully.
-                By registering as a partner and ticking the acceptance checkbox during signup, you agree to be bound
-                by these Terms and the{" "}
-                <a href="#operating-rules-note" className="font-semibold text-[#003768] underline">
-                  Partner Operating Rules
-                </a>
-                , which are incorporated by reference.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => downloadTermsPDF()}
-              className="shrink-0 rounded-full bg-[#003768] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-            >
-              ⬇ Download PDF
-            </button>
-          </div>
-
-          {/* Key points summary */}
-          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {[
-              { icon: "🏪", title: "Camel is a marketplace", body: "We are an intermediary. The hire contract is always between you and the customer." },
-              { icon: "💰", title: "20% commission", body: "On the hire price only. Fuel charges pass through to you at 100%. Minimum €10 per booking." },
-              { icon: "⚖️", title: "England & Wales law", body: "This agreement is governed by English law. Disputes are subject to the courts of England and Wales." },
-            ].map(({ icon, title, body }) => (
-              <div key={title} className="rounded-2xl border border-[#003768]/10 bg-[#f3f8ff] p-4">
-                <div className="text-2xl mb-2">{icon}</div>
-                <p className="font-semibold text-[#003768] text-sm">{title}</p>
-                <p className="text-xs text-slate-600 mt-1">{body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Terms sections */}
-        <div className="space-y-4">
-          {TERMS.map(({ title, clauses }) => (
-            <div key={title} className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-              <h2 className="text-base font-bold text-[#003768] mb-4">{title}</h2>
-              <ol className="space-y-3">
-                {clauses.map((clause, i) => (
-                  <li key={i} className="flex gap-3 text-sm text-slate-700 leading-relaxed">
-                    <span className="shrink-0 font-semibold text-[#003768] w-6">{i + 1}.</span>
-                    <span>{clause}</span>
-                  </li>
-                ))}
-              </ol>
+        {/* Key points */}
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {[
+            { icon: "🏪", title: "Camel is a marketplace", body: "We are an intermediary. The hire contract is always between you and the customer." },
+            { icon: "💰", title: "20% commission", body: "On the hire price only. Fuel charges pass through to you at 100%. Minimum €10 per booking." },
+            { icon: "⚖️", title: "England & Wales law", body: "This agreement is governed by English law. Disputes are subject to the courts of England and Wales." },
+          ].map(({ icon, title, body }) => (
+            <div key={title} className="rounded-2xl border border-[#003768]/10 bg-[#f3f8ff] p-4">
+              <div className="text-2xl mb-2">{icon}</div>
+              <p className="font-semibold text-[#003768] text-sm">{title}</p>
+              <p className="text-xs text-slate-600 mt-1">{body}</p>
             </div>
           ))}
         </div>
+      </div>
 
-        {/* Operating rules note */}
-        <div id="operating-rules-note" className="mt-6 rounded-3xl border border-[#003768]/10 bg-[#f3f8ff] p-6">
-          <h2 className="text-base font-bold text-[#003768]">Partner Operating Rules</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            The Partner Operating Rules are incorporated into this Agreement and have the same legal force as these Terms.
-            They set out the day-to-day operational standards covering bidding, vehicle standards, fuel policy, driver conduct,
-            customer service, and more. You can read and download the Operating Rules from your{" "}
-            <a href="/partner/account" className="font-semibold text-[#003768] underline">partner account page</a>.
-          </p>
-        </div>
+      {/* Terms sections */}
+      <div className="space-y-4">
+        {TERMS.map(({ title, clauses }) => (
+          <div key={title} className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+            <h2 className="text-base font-bold text-[#003768] mb-4">{title}</h2>
+            <ol className="space-y-3">
+              {clauses.map((clause, i) => (
+                <li key={i} className="flex gap-3 text-sm text-slate-700 leading-relaxed">
+                  <span className="shrink-0 font-semibold text-[#003768] w-6">{i + 1}.</span>
+                  <span>{clause}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ))}
+      </div>
 
-        {/* Footer */}
-        <p className="mt-6 text-xs text-slate-400 text-center">
-          Camel Global Partner Terms and Conditions — Version {VERSION} — Effective {EFFECTIVE_DATE} — Subject to change with 14 days' notice.
+      {/* Operating rules note */}
+      <div className="rounded-3xl border border-[#003768]/10 bg-[#f3f8ff] p-6">
+        <h2 className="text-base font-bold text-[#003768]">Partner Operating Rules</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          The Partner Operating Rules are incorporated into this Agreement and have the same legal force as these Terms.
+          They set out the day-to-day operational standards covering bidding, vehicle standards, fuel policy, driver conduct,
+          customer service, and more. You can read and download the Operating Rules from your{" "}
+          <Link href="/partner/account" className="font-semibold text-[#003768] underline">partner account page</Link>.
         </p>
       </div>
+
+      <p className="text-xs text-slate-400 text-center">
+        Camel Global Partner Terms and Conditions — Version {VERSION} — Effective {EFFECTIVE_DATE} — Subject to change with 14 days' notice.
+      </p>
     </div>
   );
 }
