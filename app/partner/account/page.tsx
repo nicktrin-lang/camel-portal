@@ -28,6 +28,8 @@ type AccountProfile = {
 type ApplicationRow = {
   status: string | null;
   created_at: string | null;
+  terms_accepted_at: string | null;
+  terms_version: string | null;
 };
 
 type LiveStatus = {
@@ -50,6 +52,13 @@ function fmtDateTime(value?: string | null) {
   try { return new Date(value).toLocaleString(); } catch { return value; }
 }
 
+function fmtDate(value?: string | null) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  } catch { return value; }
+}
+
 function statusPillClasses(status?: string | null) {
   switch (String(status || "").toLowerCase()) {
     case "approved": return "border-green-200 bg-green-50 text-green-700";
@@ -69,15 +78,15 @@ function currencyLabel(currency?: string | null) {
 }
 
 const MISSING_LABELS: Record<string, { label: string; href: string }> = {
-  service_radius_km: { label: "Service radius not set",            href: "/partner/profile" },
-  base_address:      { label: "Fleet base address missing",        href: "/partner/profile" },
+  service_radius_km: { label: "Service radius not set",                href: "/partner/profile" },
+  base_address:      { label: "Fleet base address missing",            href: "/partner/profile" },
   base_location:     { label: "Fleet base location (map pin) missing", href: "/partner/profile" },
-  base_lat:          { label: "Fleet base location (lat) missing", href: "/partner/profile" },
-  base_lng:          { label: "Fleet base location (lng) missing", href: "/partner/profile" },
-  fleet:             { label: "No active fleet vehicles added",    href: "/partner/fleet" },
-  driver:            { label: "No active drivers added",           href: "/partner/drivers" },
-  default_currency:  { label: "Billing currency not set",         href: "/partner/profile" },
-  vat_number:        { label: "VAT / NIF number not set",         href: "/partner/profile" },
+  base_lat:          { label: "Fleet base location (lat) missing",     href: "/partner/profile" },
+  base_lng:          { label: "Fleet base location (lng) missing",     href: "/partner/profile" },
+  fleet:             { label: "No active fleet vehicles added",        href: "/partner/fleet" },
+  driver:            { label: "No active drivers added",               href: "/partner/drivers" },
+  default_currency:  { label: "Billing currency not set",             href: "/partner/profile" },
+  vat_number:        { label: "VAT / NIF number not set",             href: "/partner/profile" },
 };
 
 // ── Operating Rules ───────────────────────────────────────────────────────────
@@ -276,7 +285,8 @@ export default function PartnerAccountPage() {
               .select("company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number")
               .eq("user_id", user.id).maybeSingle(),
             supabase.from("partner_applications")
-              .select("status,created_at").eq("email", normalizedEmail)
+              .select("status,created_at,terms_accepted_at,terms_version")
+              .eq("email", normalizedEmail)
               .order("created_at", { ascending: false }).limit(1).maybeSingle(),
           ]);
 
@@ -484,6 +494,8 @@ export default function PartnerAccountPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+
+          {/* Account Actions */}
           <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <h2 className="text-xl font-semibold text-[#003768]">Account Actions</h2>
             <div className="mt-5 space-y-3">
@@ -493,6 +505,7 @@ export default function PartnerAccountPage() {
             </div>
           </div>
 
+          {/* Application */}
           <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <h2 className="text-xl font-semibold text-[#003768]">Application</h2>
             <div className="mt-4 space-y-3 text-sm text-slate-700">
@@ -517,15 +530,49 @@ export default function PartnerAccountPage() {
             </div>
           </div>
 
+          {/* Terms & Conditions */}
+          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+            <h2 className="text-xl font-semibold text-[#003768]">Terms & Conditions</h2>
+            <div className="mt-4 space-y-3 text-sm text-slate-700">
+              <div>
+                <span className="text-slate-500">Version accepted</span>
+                <p className="font-medium text-slate-800">
+                  {application?.terms_version ? `v${application.terms_version}` : "—"}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-500">Accepted on</span>
+                <p className="font-medium text-slate-800">
+                  {fmtDate(application?.terms_accepted_at)}
+                </p>
+              </div>
+              {application?.terms_accepted_at && (
+                <div className="rounded-2xl border border-green-200 bg-green-50 p-3 text-xs text-green-700">
+                  ✓ You have accepted the current Partner Terms and Conditions.
+                </div>
+              )}
+              <div className="pt-1">
+                <a
+                  href="/partner/terms"
+                  target="_blank"
+                  className="block rounded-full border border-[#003768] px-5 py-2.5 text-center text-sm font-semibold text-[#003768] hover:bg-[#003768]/5"
+                >
+                  View Current T&Cs
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Links */}
           <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <h2 className="text-xl font-semibold text-[#003768]">Quick Links</h2>
             <div className="mt-4 space-y-2 text-sm">
               {[
-                { label: "View My Bookings", href: "/partner/bookings" },
-                { label: "View My Requests", href: "/partner/requests" },
+                { label: "View My Bookings",  href: "/partner/bookings" },
+                { label: "View My Requests",  href: "/partner/requests" },
                 { label: "Report Management", href: "/partner/reports" },
-                { label: "My Drivers", href: "/partner/drivers" },
-                { label: "My Fleet", href: "/partner/fleet" },
+                { label: "My Drivers",        href: "/partner/drivers" },
+                { label: "My Fleet",          href: "/partner/fleet" },
               ].map(({ label, href }) => (
                 <a key={href} href={href} className="flex items-center justify-between rounded-xl border border-black/10 bg-slate-50 px-4 py-2.5 font-medium text-[#003768] hover:bg-[#f3f8ff] transition-colors">
                   {label}<span className="text-slate-400">→</span>

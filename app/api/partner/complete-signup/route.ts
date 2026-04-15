@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendApplicationReceivedEmail } from "@/lib/email";
 
+const TERMS_VERSION = "2026-04";
+
 type Body = {
   companyName?: string;
   contactName?: string;
@@ -119,21 +121,23 @@ export async function POST(req: Request) {
     const userId = String(createdUser?.user?.id || "").trim();
     if (!userId) return NextResponse.json({ error: "Could not create user account." }, { status: 500 });
 
-    // Insert application
+    // Insert application — record terms acceptance at signup
     const { error: applicationErr } = await db.from("partner_applications").insert({
-      user_id:      userId,
-      company_name: companyName,
-      full_name:    contactName,
+      user_id:            userId,
+      company_name:       companyName,
+      full_name:          contactName,
       email,
       phone,
-      address:      fullBusinessAddress,
+      address:            fullBusinessAddress,
       address1,
-      address2:     address2 || null,
-      province:     province || null,
-      postcode:     postcode || null,
-      country:      country || null,
-      website:      normalizeWebsite(website),
-      status:       "pending",
+      address2:           address2 || null,
+      province:           province || null,
+      postcode:           postcode || null,
+      country:            country || null,
+      website:            normalizeWebsite(website),
+      status:             "pending",
+      terms_accepted_at:  new Date().toISOString(),
+      terms_version:      TERMS_VERSION,
     });
 
     if (applicationErr) {
@@ -143,29 +147,29 @@ export async function POST(req: Request) {
 
     // Upsert profile with both business and fleet addresses
     const { error: profileErr } = await db.from("partner_profiles").upsert({
-      user_id:          userId,
-      company_name:     companyName,
-      contact_name:     contactName,
+      user_id:           userId,
+      company_name:      companyName,
+      contact_name:      contactName,
       phone,
-      address:          fullBusinessAddress,
-      address1:         address1 || null,
-      address2:         address2 || null,
-      province:         province || null,
-      postcode:         postcode || null,
-      country:          country || null,
-      website:          normalizeWebsite(website),
+      address:           fullBusinessAddress,
+      address1:          address1 || null,
+      address2:          address2 || null,
+      province:          province || null,
+      postcode:          postcode || null,
+      country:           country || null,
+      website:           normalizeWebsite(website),
       service_radius_km: 30,
       // Fleet address
-      base_address:     fullBaseAddress || null,
-      base_address1:    baseAddress1 || null,
-      base_address2:    baseAddress2 || null,
-      base_city:        baseCity || null,
-      base_province:    baseProvince || null,
-      base_postcode:    basePostcode || null,
-      base_country:     baseCountry || null,
-      base_lat:         baseLat,
-      base_lng:         baseLng,
-      role:             "partner",
+      base_address:      fullBaseAddress || null,
+      base_address1:     baseAddress1 || null,
+      base_address2:     baseAddress2 || null,
+      base_city:         baseCity || null,
+      base_province:     baseProvince || null,
+      base_postcode:     basePostcode || null,
+      base_country:      baseCountry || null,
+      base_lat:          baseLat,
+      base_lng:          baseLng,
+      role:              "partner",
     }, { onConflict: "user_id" });
 
     if (profileErr) {
