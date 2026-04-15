@@ -43,7 +43,8 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
     pathname === "/partner/reset-password" ||
     pathname === "/partner/application-submitted" ||
     pathname === "/partner/signup" ||
-    pathname.startsWith("/partner/signup/");
+    pathname.startsWith("/partner/signup/") ||
+    pathname === "/partner/terms";
 
   useEffect(() => {
     let mounted = true;

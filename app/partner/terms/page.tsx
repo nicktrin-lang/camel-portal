@@ -257,7 +257,7 @@ export default function PartnerTermsPage() {
         </div>
       </header>
 
-      <div className="pt-28 pb-16 px-6 md:px-12 lg:px-24 max-w-4xl mx-auto">
+      <div className="pt-28 pb-16 px-6 md:px-12 lg:px-20">
         {/* Header card */}
         <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)] mb-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -333,13 +333,6 @@ export default function PartnerTermsPage() {
         <p className="mt-6 text-xs text-slate-400 text-center">
           Camel Global Partner Terms and Conditions — Version {VERSION} — Effective {EFFECTIVE_DATE} — Subject to change with 14 days' notice.
         </p>
-
-        {/* Back link */}
-        <div className="mt-4 text-center">
-          <Link href="/partner/login" className="text-sm font-semibold text-[#003768] hover:underline">
-            ← Back to partner login
-          </Link>
-        </div>
       </div>
     </div>
   );
