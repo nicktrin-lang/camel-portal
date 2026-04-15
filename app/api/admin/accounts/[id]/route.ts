@@ -43,7 +43,7 @@ export async function GET(
 
     const { data: application, error: appErr } = await db
       .from("partner_applications")
-      .select("id,user_id,email,company_name,full_name,phone,address,address1,address2,province,postcode,country,website,status,created_at")
+      .select("id,user_id,email,company_name,full_name,phone,address,address1,address2,province,postcode,country,website,status,created_at,terms_accepted_at,terms_version")
       .eq("id", id)
       .maybeSingle();
 
@@ -87,7 +87,7 @@ export async function GET(
       drivers = driversRes.data || [];
     }
 
-    // Full 7-check live status (mirrors refreshPartnerLiveStatus logic)
+    // Full 7-check live status
     const p = profile as any;
     const hasBaseAddress  = !!String(p?.base_address || "").trim();
     const hasBaseLat      = p?.base_lat != null && !isNaN(Number(p.base_lat));
@@ -108,9 +108,7 @@ export async function GET(
     if (!hasVat) missing.push("VAT / NIF number");
 
     const isLiveProfile = missing.length === 0;
-    const liveProfileReason = missing.length > 0
-      ? `Missing: ${missing.join(", ")}`
-      : "";
+    const liveProfileReason = missing.length > 0 ? `Missing: ${missing.join(", ")}` : "";
 
     return NextResponse.json({
       application,

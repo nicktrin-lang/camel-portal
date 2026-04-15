@@ -25,6 +25,8 @@ type AccountApplication = {
   website?: string | null;
   status: string | null;
   created_at: string | null;
+  terms_accepted_at: string | null;
+  terms_version: string | null;
 };
 
 type AccountProfile = {
@@ -65,6 +67,13 @@ type DriverRow = { id: string; full_name: string; email: string; phone: string |
 function fmtDateTime(iso?: string | null) {
   if (!iso) return "—";
   try { return new Date(iso).toLocaleString(); } catch { return iso ?? "—"; }
+}
+
+function fmtDate(iso?: string | null) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  } catch { return iso ?? "—"; }
 }
 
 function fmtValue(value?: string | number | null) {
@@ -323,7 +332,6 @@ export default function AdminAccountDetailPage() {
                 </div>
               )}
             </div>
-
             {editingBilling ? (
               <div className="space-y-4">
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
@@ -487,12 +495,12 @@ export default function AdminAccountDetailPage() {
           <SectionCard title="Live Profile Check">
             <div className="space-y-3 text-sm">
               {[
-                { label: "Fleet address set",    value: !!profile?.base_address },
-                { label: "Fleet added",          value: fleet.length > 0 },
-                { label: "Drivers added",        value: drivers.length > 0 },
-                { label: "Currency set",         value: !!profile?.default_currency },
-                { label: "VAT / NIF provided",   value: !!profile?.vat_number },
-                { label: "Live profile status",  value: isLiveProfile },
+                { label: "Fleet address set",  value: !!profile?.base_address },
+                { label: "Fleet added",        value: fleet.length > 0 },
+                { label: "Drivers added",      value: drivers.length > 0 },
+                { label: "Currency set",       value: !!profile?.default_currency },
+                { label: "VAT / NIF provided", value: !!profile?.vat_number },
+                { label: "Live profile status", value: isLiveProfile },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-slate-500">{label}</span>
@@ -519,6 +527,33 @@ export default function AdminAccountDetailPage() {
                 </div>
               </div>
               <InfoRow label="Created" value={fmtDateTime(application.created_at)} />
+            </div>
+          </SectionCard>
+
+          {/* Terms & Conditions */}
+          <SectionCard title="Terms & Conditions">
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-slate-500">Version accepted</span>
+                <p className="font-medium text-slate-800">
+                  {application.terms_version ? `v${application.terms_version}` : "—"}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-500">Accepted on</span>
+                <p className="font-medium text-slate-800">
+                  {fmtDate(application.terms_accepted_at)}
+                </p>
+              </div>
+              {application.terms_accepted_at ? (
+                <div className="rounded-2xl border border-green-200 bg-green-50 p-3 text-xs text-green-700">
+                  ✓ Partner accepted T&Cs at signup.
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                  ⚠️ No T&Cs acceptance recorded. Partner signed up before versioned T&Cs were introduced.
+                </div>
+              )}
             </div>
           </SectionCard>
         </div>

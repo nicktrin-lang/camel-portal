@@ -150,7 +150,6 @@ export default function AdminApprovalDetailPage() {
       setFleet(Array.isArray(json?.fleet) ? json.fleet : []);
       setDrivers(Array.isArray(json?.drivers) ? json.drivers : []);
 
-      // Geocode business address for map
       const bizAddr = app?.address || prof?.address || [app?.address1, app?.address2, app?.province, app?.postcode, app?.country].filter(Boolean).join(", ");
       if (bizAddr) {
         try {
@@ -355,13 +354,13 @@ export default function AdminApprovalDetailPage() {
             </div>
           </SectionCard>
 
+          {/* Setup Summary — currency removed as it is set during onboarding, not at application stage */}
           <SectionCard title="Setup Summary">
             <div className="space-y-3 text-sm">
               {[
-                { label: "Fleet location set",  value: !!(profile?.base_lat && profile?.base_lng) },
-                { label: "Currency set",        value: !!profile?.default_currency },
-                { label: "Fleet added",         value: activeFleet.length > 0 },
-                { label: "Drivers added",       value: drivers.length > 0 },
+                { label: "Fleet location set", value: !!(profile?.base_lat && profile?.base_lng) },
+                { label: "Fleet added",        value: activeFleet.length > 0 },
+                { label: "Drivers added",      value: drivers.length > 0 },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-slate-500">{label}</span>
