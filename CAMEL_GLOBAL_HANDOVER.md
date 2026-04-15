@@ -323,22 +323,24 @@ git checkout v-stable-partner-terms
 
 ## Pre-Launch Build Plan
 
-| # | Task | Est. Time | Priority |
-|---|------|-----------|----------|
-| 1 | Security headers (`next.config.ts`) | 30 min | Do now |
-| 2 | RLS audit (Supabase row-level security) | 2–3 hrs | Do now |
-| 3 | Rate limiting on `/api/auth/` routes | 1–2 hrs | Do now |
-| 4 | CAPTCHA at all sign-in points (hCaptcha, free) | 2–3 hrs | Do now |
-| 5 | Cookie acceptance banner (GDPR) | 2–3 hrs | Before launch |
-| 6 | GDPR data deletion — "delete my account" flow | 3–4 hrs | Before launch |
-| 7 | Footer + policy pages (Privacy, Cookie, Terms of Use, About) | 3–4 hrs | Before launch |
-| 8 | Code cleanup (stray files, legacy routes, unused components) | 1 hr | Before launch |
-| 9 | Partner & Admin finance pages | 2–3 hrs | After Stripe |
-| 10 | Stripe Connect integration | 8–10 hrs | Before first payment |
-| 11 | Xero monthly commission endpoint | 3–4 hrs | Before first invoice run |
-| 12 | DAC7 EU platform reporting | 3–4 hrs | Post-launch |
-| 13 | Spanish translation (partner + driver portals, `next-intl`) | 15–20 hrs | Post-launch |
-| 14 | Customer booking site full UI overhaul | 15–20 hrs | Before launch |
+Ordered by quickest first. Items 12–14 deferred to post-launch.
+
+| # | Task | Est. Time | Status |
+|---|------|-----------|--------|
+| 1 | Security headers (`next.config.ts`) | 30 min | ⬜ Todo |
+| 2 | Code cleanup (stray files, legacy routes, unused components) | 1 hr | ⬜ Todo |
+| 3 | Rate limiting on `/api/auth/` routes | 1–2 hrs | ⬜ Todo |
+| 4 | CAPTCHA at all sign-in points (hCaptcha, free) | 2–3 hrs | ⬜ Todo |
+| 5 | Cookie acceptance banner (GDPR) | 2–3 hrs | ⬜ Todo |
+| 6 | Partner & Admin finance pages | 2–3 hrs | ⬜ Todo |
+| 7 | RLS audit (Supabase row-level security) | 2–3 hrs | ⬜ Todo |
+| 8 | GDPR data deletion — "delete my account" flow | 3–4 hrs | ⬜ Todo |
+| 9 | Footer + policy pages (Privacy, Cookie, Terms of Use, About) | 3–4 hrs | ⬜ Todo |
+| 10 | Spanish translation (partner + driver portals, `next-intl`) | 15–20 hrs | ⬜ Todo |
+| 11 | Customer booking site full UI overhaul | 15–20 hrs | ⬜ Todo |
+| 12 | Stripe Connect integration | 8–10 hrs | ⬜ Deferred |
+| 13 | Xero monthly commission endpoint | 3–4 hrs | ⬜ Deferred |
+| 14 | DAC7 EU platform reporting | 3–4 hrs | ⬜ Deferred |
 
 ### Notes on Key Items
 
@@ -429,4 +431,4 @@ git tag | grep stable
 
 ---
 
-*Last updated: Chat 9 — Partner T&Cs complete. Pre-launch build plan added including customer site overhaul.*
+*Last updated: Chat 9 — Partner T&Cs complete. Pre-launch build plan reordered by quickest first. Items 12–14 deferred.*
