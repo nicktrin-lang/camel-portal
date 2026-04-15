@@ -225,40 +225,76 @@ const OPERATING_RULES = [
   },
 ];
 
-function downloadOperatingRulesPDF(companyName: string) {
+async function downloadOperatingRulesPDF(companyName: string) {
+  const { jsPDF } = await import("jspdf");
   const dateStr = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-  const rulesHtml = OPERATING_RULES.map(({ section, rules }) => `
-    <div style="margin-bottom:24px;">
-      <h3 style="color:#003768;font-size:14px;font-weight:700;margin:0 0 8px 0;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">${section}</h3>
-      <ol style="margin:0;padding-left:20px;">
-        ${rules.map(r => `<li style="font-size:11px;color:#334155;margin-bottom:5px;line-height:1.5;">${r}</li>`).join("")}
-      </ol>
-    </div>
-  `).join("");
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Camel Global — Partner Operating Rules</title>
-  <style>@page { margin: 1cm; } @page :first { margin-top: 1cm; } * { box-sizing: border-box; margin: 0; padding: 0; } body { font-family: Arial, sans-serif; padding: 40px; color: #1e293b; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #003768; padding-bottom: 16px; margin-bottom: 24px; }
-  .logo { font-size: 22px; font-weight: 900; color: #003768; letter-spacing: -1px; } .logo span { color: #ff7a00; }
-  .meta { text-align: right; font-size: 11px; color: #64748b; } h1 { font-size: 20px; color: #003768; font-weight: 800; margin-bottom: 4px; }
-  h2 { font-size: 12px; color: #64748b; font-weight: 400; margin-bottom: 16px; }
-  .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }</style>
-  </head><body>
-  <div class="header"><div><div class="logo">🐪 Camel <span>Global</span></div><div style="font-size:11px;color:#64748b;margin-top:4px;">Meet and greet car hire</div></div>
-  <div class="meta"><div><strong>Partner Operating Rules</strong></div><div>Issued to: ${companyName || "Partner"}</div><div>Generated: ${dateStr}</div></div></div>
-  <h1>Partner Operating Rules</h1>
-  <h2>These rules govern the conduct of all partners operating on the Camel Global platform. By operating as a partner you agree to comply with all sections below.</h2>
-  ${rulesHtml}
-  <div class="footer">Camel Global — Partner Operating Rules — Generated ${dateStr} — camelglobal.com</div>
-  </body></html>`;
-  const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `Camel-Global-Partner-Operating-Rules-${dateStr.replace(/ /g, "-")}.html`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  const usableW = pageW - margin * 2;
+  let y = margin;
+
+  function checkPage(needed = 8) {
+    if (y + needed > pageH - margin) { doc.addPage(); y = margin; }
+  }
+
+  // Header bar
+  doc.setFillColor(15, 79, 138);
+  doc.rect(0, 0, pageW, 18, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13); doc.setFont("helvetica", "bold");
+  doc.text("CAMEL GLOBAL", margin, 7);
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text("Meet and greet car hire", margin, 12);
+  doc.setFontSize(8);
+  doc.text(`Partner Operating Rules`, pageW - margin, 7, { align: "right" });
+  doc.text(`Issued to: ${companyName || "Partner"}`, pageW - margin, 11, { align: "right" });
+  doc.text(`Generated: ${dateStr}`, pageW - margin, 15, { align: "right" });
+  y = 26;
+
+  // Title
+  doc.setTextColor(0, 55, 104);
+  doc.setFontSize(16); doc.setFont("helvetica", "bold");
+  doc.text("Partner Operating Rules", margin, y); y += 7;
+  doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(100, 116, 139);
+  const subtitle = doc.splitTextToSize("These rules govern the conduct of all partners operating on the Camel Global platform. By operating as a partner you agree to comply with all sections below.", usableW);
+  doc.text(subtitle, margin, y); y += subtitle.length * 4 + 6;
+
+  // Divider
+  doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3);
+  doc.line(margin, y, pageW - margin, y); y += 6;
+
+  for (const { section, rules } of OPERATING_RULES) {
+    checkPage(12);
+    // Section heading
+    doc.setFillColor(243, 248, 255);
+    doc.roundedRect(margin, y - 4, usableW, 9, 2, 2, "F");
+    doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 55, 104);
+    doc.text(section, margin + 3, y + 2); y += 9;
+
+    rules.forEach((rule, i) => {
+      checkPage(8);
+      const lines = doc.splitTextToSize(`${i + 1}.  ${rule}`, usableW - 6);
+      doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(51, 65, 85);
+      doc.text(lines, margin + 4, y);
+      y += lines.length * 4.5 + 1.5;
+    });
+    y += 4;
+  }
+
+  // Footer on every page
+  const totalPages = (doc.internal as any).getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3);
+    doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
+    doc.setFontSize(7); doc.setTextColor(148, 163, 184); doc.setFont("helvetica", "normal");
+    doc.text(`Camel Global — Partner Operating Rules — Generated ${dateStr} — camelglobal.com`, margin, pageH - 6);
+    doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 6, { align: "right" });
+  }
+
+  doc.save(`Camel-Global-Partner-Operating-Rules-${dateStr.replace(/ /g, "-")}.pdf`);
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
