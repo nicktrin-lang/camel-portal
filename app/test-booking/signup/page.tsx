@@ -17,8 +17,14 @@ export default function TestBookingSignupPage() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaKey,   setCaptchaKey]   = useState(0);
 
   const handleCaptcha = useCallback((t: string) => setCaptchaToken(t), []);
+
+  function resetCaptcha() {
+    setCaptchaToken("");
+    setCaptchaKey(k => k + 1);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +36,7 @@ export default function TestBookingSignupPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: captchaToken }),
       });
-      if (!captchaRes.ok) { setError("CAPTCHA verification failed. Please try again."); setLoading(false); return; }
+      if (!captchaRes.ok) { setError("CAPTCHA verification failed. Please try again."); resetCaptcha(); setLoading(false); return; }
 
       const cleanEmail = email.trim().toLowerCase();
 
@@ -69,6 +75,7 @@ export default function TestBookingSignupPage() {
       router.refresh();
     } catch (e: any) {
       setError(e?.message || "Failed to create customer account.");
+      resetCaptcha();
     } finally {
       setLoading(false);
     }
@@ -112,7 +119,7 @@ export default function TestBookingSignupPage() {
               className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 outline-none focus:border-[#0f4f8a]"
               required />
           </div>
-          <HCaptcha onVerify={handleCaptcha} onExpire={() => setCaptchaToken("")} />
+          <HCaptcha key={captchaKey} onVerify={handleCaptcha} onExpire={() => setCaptchaToken("")} />
           <button type="submit" disabled={loading}
             className="rounded-full bg-[#ff7a00] px-6 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60">
             {loading ? "Creating..." : "Create Customer Account"}
