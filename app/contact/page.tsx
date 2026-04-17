@@ -2,11 +2,6 @@
 
 import { useRef, useState } from "react";
 import HCaptcha from "@/app/components/HCaptcha";
-import type { Metadata } from "next";
-
-// Note: metadata export is ignored in "use client" — for SEO add a separate
-// generateMetadata in a wrapper server component if needed. For now the page
-// title is set via the hero h1 and the layout metadata fallback.
 
 const SUBJECTS = [
   "General enquiry",

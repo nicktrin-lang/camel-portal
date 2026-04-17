@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email";
-import { verifyHcaptchaToken } from "@/lib/hcaptcha";
+import { verifyHCaptcha } from "@/lib/hcaptcha";
 import { rateLimit, getIp } from "@/lib/rateLimit";
 
 const CONTACT_EMAIL = "contact@camel-global.com";
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "CAPTCHA token is required." }, { status: 400 });
   }
 
-  const captchaOk = await verifyHcaptchaToken(captchaToken);
+  const captchaOk = await verifyHCaptcha(captchaToken);
   if (!captchaOk) {
     return NextResponse.json({ error: "CAPTCHA verification failed. Please try again." }, { status: 400 });
   }
