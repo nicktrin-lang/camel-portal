@@ -200,6 +200,7 @@ function PartnerLoginInner() {
                 </div>
               )}
 
+              {reason !== "account_deleted" && (
               <form onSubmit={handleLogin} className="mt-8 space-y-6">
                 <div>
                   <label className="text-sm font-medium text-[#003768]">Email</label>
@@ -223,6 +224,7 @@ function PartnerLoginInner() {
                   {loading ? "Logging in..." : "Log in"}
                 </button>
               </form>
+              )}
               <div className="mt-8 rounded-2xl border-2 border-[#003768]/15 bg-[#f3f8ff] p-6 text-center">
                 <p className="text-base font-semibold text-[#003768]">Want to join the Camel Global system?</p>
                 <p className="mt-1 text-sm text-slate-500">Register your car hire company and start receiving bookings.</p>
