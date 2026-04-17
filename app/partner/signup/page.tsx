@@ -1,259 +1,83 @@
-"use client";
+// PARTIAL DIFF — only the changed parts of app/partner/signup/page.tsx
+// Everything else in the file stays exactly as-is.
 
-import Image from "next/image";
-import Link from "next/link";
-import { Suspense, useCallback, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import { createAuthSupabaseClient } from "@/lib/supabase/auth-client";
+// 1. Add this import at the top of the file with the other imports:
 import HCaptcha from "@/app/components/HCaptcha";
 
-function reasonMessage(reason: string | null) {
-  switch (reason) {
-    case "signed_out": return "You have been signed out.";
-    case "not_signed_in": return "Please sign in to continue.";
-    case "not_authorized": return "You are not authorized to access that page.";
-    default: return "";
-  }
-}
-
-async function safeJson(res: Response): Promise<any> {
-  const text = await res.text();
-  if (!text) return null;
-  try { return JSON.parse(text); } catch { return { _raw: text }; }
-}
-
-function clearStaleSupabaseLocks() {
-  try {
-    Object.keys(localStorage).filter(k => k.includes("sb-") || k.includes("supabase")).forEach(k => localStorage.removeItem(k));
-    Object.keys(sessionStorage).filter(k => k.includes("sb-") || k.includes("supabase")).forEach(k => sessionStorage.removeItem(k));
-  } catch {}
-}
-
-async function verifyCaptcha(token: string): Promise<boolean> {
-  const res = await fetch("/api/auth/verify-captcha", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token }),
-  });
-  return res.ok;
-}
-
-function PartnerLoginInner() {
-  const supabase   = useMemo(() => createBrowserSupabaseClient(), []);
-  const authClient = useMemo(() => createAuthSupabaseClient(), []);
-  const router     = useRouter();
-  const searchParams = useSearchParams();
-
-  const [email,        setEmail]        = useState("");
-  const [password,     setPassword]     = useState("");
-  const [loading,      setLoading]      = useState(false);
-  const [error,        setError]        = useState("");
-  const [mode,         setMode]         = useState<"login" | "forgot">("login");
-  const [resetSent,    setResetSent]    = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetError,   setResetError]   = useState("");
-
-  const [loginToken,  setLoginToken]  = useState("");
-  const [forgotToken, setForgotToken] = useState("");
-  const [loginKey,    setLoginKey]    = useState(0);
-  const [forgotKey,   setForgotKey]   = useState(0);
-
-  const handleLoginToken  = useCallback((t: string) => setLoginToken(t), []);
-  const handleForgotToken = useCallback((t: string) => setForgotToken(t), []);
-
-  function resetLoginCaptcha()  { setLoginToken("");  setLoginKey(k => k + 1); }
-  function resetForgotCaptcha() { setForgotToken(""); setForgotKey(k => k + 1); }
-
-  const reason      = searchParams.get("reason");
-  const infoMessage = reasonMessage(reason);
-
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true); setError("");
-    try {
-      if (!loginToken) { setError("Please complete the CAPTCHA."); setLoading(false); return; }
-      const captchaOk = await verifyCaptcha(loginToken);
-      if (!captchaOk) { setError("CAPTCHA verification failed. Please try again."); resetLoginCaptcha(); setLoading(false); return; }
-
-      clearStaleSupabaseLocks();
-      const signInPromise  = supabase.auth.signInWithPassword({ email: email.trim(), password });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Login timed out. Please try again.")), 30000)
-      );
-      const { error: signInError } = await Promise.race([signInPromise, timeoutPromise]);
-      if (signInError) throw signInError;
-
-      try {
-        const meRes = await fetch("/api/admin/me", { cache: "no-store", credentials: "include" });
-        if (meRes.ok) {
-          const meJson = await safeJson(meRes);
-          const role = meJson?.role || "";
-          if (role === "admin" || role === "super_admin") {
-            router.replace("/admin/approvals");
-            router.refresh();
-            return;
-          }
-        }
-      } catch {}
-
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
-            .from("partner_profiles")
-            .select("base_lat, base_lng, default_currency, vat_number")
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-          const hasOnboarded = !!(
-            profile?.base_lat && profile?.base_lng &&
-            profile?.default_currency && profile?.vat_number
-          );
-
-          if (!hasOnboarded) {
-            router.replace("/partner/onboarding");
-            router.refresh();
-            return;
-          }
-        }
-      } catch {}
-
-      router.replace("/partner/dashboard");
-      router.refresh();
-    } catch (e: any) {
-      setError(e?.message || "Login failed. Please try again.");
-      resetLoginCaptcha();
-      setLoading(false);
-    }
-  }
-
-  async function handleForgotPassword(e: React.FormEvent) {
-    e.preventDefault();
-    setResetLoading(true); setResetError("");
-    try {
-      if (!forgotToken) { setResetError("Please complete the CAPTCHA."); setResetLoading(false); return; }
-      const captchaOk = await verifyCaptcha(forgotToken);
-      if (!captchaOk) { setResetError("CAPTCHA verification failed. Please try again."); resetForgotCaptcha(); setResetLoading(false); return; }
-
-      document.cookie = "resetPortal=partner; domain=.camel-global.com; path=/; max-age=3600";
-      const res  = await fetch("/api/auth/send-reset-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), redirectTo: `${window.location.origin}/partner/reset-password` }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to send reset email.");
-      setResetSent(true);
-    } catch (e: any) {
-      setResetError(e?.message || "Failed to send reset email.");
-      resetForgotCaptcha();
-    } finally {
-      setResetLoading(false);
-    }
-  }
-
+// 2. Replace the Step5 function signature and its internals with this:
+function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaVerify }: {
+  data: FormData;
+  onChange: (k: keyof FormData, v: boolean) => void;
+  onBack: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  error: string;
+  onCaptchaVerify: (token: string) => void;
+}) {
+  const bizAddress   = [data.address1, data.address2, data.city, data.province, data.postcode, data.country].filter(Boolean).join(", ");
+  const fleetAddress = [data.fleetAddress1, data.fleetAddress2, data.fleetCity, data.fleetProvince, data.fleetPostcode, data.fleetCountry].filter(Boolean).join(", ");
+  const rows: [string, string][] = [
+    ["Company",          data.companyName],
+    ["Contact",          data.contactName],
+    ["Email",            data.email],
+    ["Phone",            data.phone],
+    ["Website",          data.website || "—"],
+    ["Business Address", bizAddress],
+    ["Fleet Address",    fleetAddress],
+  ];
   return (
-    <div className="min-h-screen bg-[#f7f9fc]">
-      <header className="fixed inset-x-0 top-0 z-40 h-20 border-b border-black/10 bg-[#0f4f8a] text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
-        <div className="flex h-full items-center px-4 md:px-8">
-          <Link href="/partner/login" className="flex items-center">
-            <Image src="/camel-logo.png" alt="Camel Global logo" width={180} height={60} priority className="h-[52px] w-auto" />
-          </Link>
-        </div>
-      </header>
-
-      <div className="mx-auto flex min-h-screen max-w-7xl justify-center px-4 pt-24 pb-10">
-        <div className="mt-8 w-full max-w-2xl rounded-3xl border border-black/5 bg-white p-10 shadow-[0_18px_45px_rgba(0,0,0,0.10)]">
-          {mode === "login" ? (
-            <>
-              <h1 className="text-4xl font-semibold text-[#003768]">Partner Login</h1>
-              <p className="mt-3 text-lg text-slate-600">Log in to manage your profile and requests.</p>
-              {infoMessage && (
-                <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">{infoMessage}</div>
-              )}
-              {error && (
-                <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {error}
-                  {error.includes("timed out") && (
-                    <button type="button" onClick={() => { try { Object.keys(localStorage).filter(k => k.includes("sb-") || k.includes("supabase")).forEach(k => localStorage.removeItem(k)); } catch {} window.location.reload(); }} className="ml-2 underline font-semibold">
-                      Clear session & retry
-                    </button>
-                  )}
-                </div>
-              )}
-              <form onSubmit={handleLogin} className="mt-8 space-y-6">
-                <div>
-                  <label className="text-sm font-medium text-[#003768]">Email</label>
-                  <input type="email" autoComplete="email" required
-                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 text-black outline-none transition focus:border-[#0f4f8a]"
-                    value={email} onChange={e => setEmail(e.target.value)} />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-[#003768]">Password</label>
-                    <button type="button" onClick={() => { setMode("forgot"); setError(""); setResetSent(false); }}
-                      className="text-xs font-medium text-[#005b9f] hover:underline">Forgot password?</button>
-                  </div>
-                  <input type="password" autoComplete="current-password" required
-                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 text-black outline-none transition focus:border-[#0f4f8a]"
-                    value={password} onChange={e => setPassword(e.target.value)} />
-                </div>
-                <HCaptcha onVerify={handleLoginToken} onExpire={() => setLoginToken("")} />
-                <button type="submit" disabled={loading}
-                  className="w-full rounded-full bg-[#ff7a00] px-6 py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60">
-                  {loading ? "Logging in..." : "Log in"}
-                </button>
-              </form>
-              <p className="mt-8 text-center text-sm text-slate-600">
-                Need an account?{" "}
-                <Link href="/partner/signup" className="font-medium text-[#005b9f] hover:underline">Partner signup</Link>
-              </p>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={() => { setMode("login"); setResetSent(false); setResetError(""); }}
-                className="mb-6 flex items-center gap-2 text-sm font-medium text-[#003768] hover:underline">
-                ← Back to login
-              </button>
-              <h1 className="text-4xl font-semibold text-[#003768]">Reset Password</h1>
-              <p className="mt-3 text-lg text-slate-600">Enter your email and we will send you a reset link.</p>
-              {resetSent ? (
-                <div className="mt-8 rounded-2xl border border-green-200 bg-green-50 p-5 text-sm text-green-700">
-                  <p className="font-semibold">Reset email sent ✓</p>
-                  <p className="mt-1">Check your inbox for a password reset link.</p>
-                  <button type="button" onClick={() => setMode("login")} className="mt-4 text-[#003768] underline font-medium">Back to login</button>
-                </div>
-              ) : (
-                <>
-                  {resetError && <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{resetError}</div>}
-                  <form onSubmit={handleForgotPassword} className="mt-8 space-y-6">
-                    <div>
-                      <label className="text-sm font-medium text-[#003768]">Email address</label>
-                      <input type="email" autoComplete="email" required
-                        className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 text-black outline-none transition focus:border-[#0f4f8a]"
-                        value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" />
-                    </div>
-                    <HCaptcha onVerify={handleForgotToken} onExpire={() => setForgotToken("")} />
-                    <button type="submit" disabled={resetLoading}
-                      className="w-full rounded-full bg-[#ff7a00] px-6 py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60">
-                      {resetLoading ? "Sending..." : "Send reset link"}
-                    </button>
-                  </form>
-                </>
-              )}
-            </>
-          )}
-        </div>
+    <div className="space-y-5">
+      <div><h2 className="text-2xl font-bold text-[#003768]">Review Your Details</h2><p className="mt-1 text-slate-500">Check everything looks correct before submitting.</p></div>
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      <div className="rounded-2xl border border-black/5 bg-slate-50 p-5 space-y-3">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex gap-3 text-sm">
+            <span className="w-32 shrink-0 font-semibold text-slate-500">{label}</span>
+            <span className="text-slate-800">{value}</span>
+          </div>
+        ))}
+      </div>
+      <InfoBox>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" checked={data.agreedToTerms} onChange={e => onChange("agreedToTerms", e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#ff7a00]" />
+          <span className="text-sm text-slate-700">
+            I agree to the{" "}
+            <button type="button" onClick={downloadTermsPDF} className="font-semibold text-[#003768] underline hover:opacity-75">
+              Camel Global Partner Terms & Conditions
+            </button>
+            {" "}and confirm all information is accurate.
+          </span>
+        </label>
+      </InfoBox>
+      <HCaptcha onVerify={onCaptchaVerify} onExpire={() => onCaptchaVerify("")} />
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <p className="font-semibold">What happens next?</p>
+        <p className="mt-1">Your application will be reviewed by our team. You will receive an email confirmation shortly, and we will be in touch once your account has been approved.</p>
+      </div>
+      <div className="flex gap-3">
+        <button type="button" onClick={onBack} className="flex-1 rounded-full border border-black/10 py-4 font-semibold text-[#003768] hover:bg-black/5">Back</button>
+        <button type="button" onClick={onSubmit} disabled={!data.agreedToTerms || submitting}
+          className="flex-[2] rounded-full bg-[#ff7a00] py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(255,122,0,0.3)] hover:opacity-95 disabled:opacity-50">
+          {submitting ? "Submitting..." : "Create my account"}
+        </button>
       </div>
     </div>
   );
 }
 
-export default function PartnerLoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-[#f7f9fc]" />}>
-      <PartnerLoginInner />
-    </Suspense>
-  );
-}
+// 3. In PartnerSignupPage, add captcha token state:
+//    const [captchaToken, setCaptchaToken] = useState("");
+
+// 4. Update the submit() function — add captcha check at the top:
+//    async function submit() {
+//      if (!captchaToken) { setError("Please complete the CAPTCHA."); return; }
+//      const captchaRes = await fetch("/api/auth/verify-captcha", {
+//        method: "POST", headers: { "Content-Type": "application/json" },
+//        body: JSON.stringify({ token: captchaToken }),
+//      });
+//      if (!captchaRes.ok) { setError("CAPTCHA verification failed. Please try again."); return; }
+//      setSubmitting(true); setError("");
+//      ... rest of submit unchanged ...
+
+// 5. Update the Step5 render call to pass onCaptchaVerify:
+//    {step === 5 && <Step5 ... onCaptchaVerify={setCaptchaToken} />}
