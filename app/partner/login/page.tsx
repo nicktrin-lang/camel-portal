@@ -10,10 +10,11 @@ import HCaptcha from "@/app/components/HCaptcha";
 
 function reasonMessage(reason: string | null) {
   switch (reason) {
-    case "signed_out": return "You have been signed out.";
-    case "not_signed_in": return "Please sign in to continue.";
-    case "not_authorized": return "You are not authorized to access that page.";
-    default: return "";
+    case "signed_out":      return { text: "You have been signed out.", type: "info" };
+    case "not_signed_in":   return { text: "Please sign in to continue.", type: "info" };
+    case "not_authorized":  return { text: "You are not authorized to access that page.", type: "info" };
+    case "account_deleted": return { text: "Your account has been deleted. If this was a mistake, please contact support@camel-global.com.", type: "warning" };
+    default:                return null;
   }
 }
 
@@ -65,8 +66,8 @@ function PartnerLoginInner() {
   function resetLoginCaptcha()  { setLoginToken("");  setLoginKey(k => k + 1); }
   function resetForgotCaptcha() { setForgotToken(""); setForgotKey(k => k + 1); }
 
-  const reason      = searchParams.get("reason");
-  const infoMessage = reasonMessage(reason);
+  const reason  = searchParams.get("reason");
+  const notice  = reasonMessage(reason);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -84,6 +85,36 @@ function PartnerLoginInner() {
       const { error: signInError } = await Promise.race([signInPromise, timeoutPromise]);
       if (signInError) throw signInError;
 
+      // Check for soft-deleted account
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("partner_profiles")
+          .select("base_lat, base_lng, default_currency, vat_number, deleted_at")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (profile?.deleted_at) {
+          await supabase.auth.signOut();
+          clearStaleSupabaseLocks();
+          setError("This account has been deleted. Please contact support@camel-global.com if you believe this is an error.");
+          resetLoginCaptcha();
+          setLoading(false);
+          return;
+        }
+
+        const hasOnboarded = !!(
+          profile?.base_lat && profile?.base_lng &&
+          profile?.default_currency && profile?.vat_number
+        );
+
+        if (!hasOnboarded) {
+          router.replace("/partner/onboarding");
+          router.refresh();
+          return;
+        }
+      }
+
       try {
         const meRes = await fetch("/api/admin/me", { cache: "no-store", credentials: "include" });
         if (meRes.ok) {
@@ -91,28 +122,6 @@ function PartnerLoginInner() {
           const role = meJson?.role || "";
           if (role === "admin" || role === "super_admin") {
             router.replace("/admin/approvals");
-            router.refresh();
-            return;
-          }
-        }
-      } catch {}
-
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
-            .from("partner_profiles")
-            .select("base_lat, base_lng, default_currency, vat_number")
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-          const hasOnboarded = !!(
-            profile?.base_lat && profile?.base_lng &&
-            profile?.default_currency && profile?.vat_number
-          );
-
-          if (!hasOnboarded) {
-            router.replace("/partner/onboarding");
             router.refresh();
             return;
           }
@@ -169,9 +178,17 @@ function PartnerLoginInner() {
             <>
               <h1 className="text-4xl font-semibold text-[#003768]">Partner Login</h1>
               <p className="mt-3 text-lg text-slate-600">Log in to manage your profile and requests.</p>
-              {infoMessage && (
-                <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">{infoMessage}</div>
+
+              {notice && (
+                <div className={`mt-8 rounded-2xl border px-4 py-3 text-sm ${
+                  notice.type === "warning"
+                    ? "border-amber-200 bg-amber-50 text-amber-800"
+                    : "border-blue-200 bg-blue-50 text-blue-700"
+                }`}>
+                  {notice.text}
+                </div>
               )}
+
               {error && (
                 <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {error}
@@ -182,6 +199,7 @@ function PartnerLoginInner() {
                   )}
                 </div>
               )}
+
               <form onSubmit={handleLogin} className="mt-8 space-y-6">
                 <div>
                   <label className="text-sm font-medium text-[#003768]">Email</label>

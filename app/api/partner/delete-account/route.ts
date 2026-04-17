@@ -10,13 +10,10 @@ export async function POST() {
     }
     const userId = userData.user.id;
 
-    // Soft delete — stamp deleted_at, take offline
+    // Soft delete — stamp deleted_at
     const { error: updateErr } = await supabase
       .from("partner_profiles")
-      .update({
-        deleted_at: new Date().toISOString(),
-        is_live: false,
-      })
+      .update({ deleted_at: new Date().toISOString() })
       .eq("user_id", userId);
 
     if (updateErr) {
