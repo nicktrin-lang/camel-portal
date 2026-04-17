@@ -205,10 +205,14 @@ function PartnerLoginInner() {
                   {loading ? "Logging in..." : "Log in"}
                 </button>
               </form>
-              <p className="mt-8 text-center text-sm text-slate-600">
-                Need an account?{" "}
-                <Link href="/partner/signup" className="font-medium text-[#005b9f] hover:underline">Partner signup</Link>
-              </p>
+              <div className="mt-8 rounded-2xl border-2 border-[#003768]/15 bg-[#f3f8ff] p-6 text-center">
+                <p className="text-base font-semibold text-[#003768]">Want to join the Camel Global system?</p>
+                <p className="mt-1 text-sm text-slate-500">Register your car hire company and start receiving bookings.</p>
+                <Link href="/partner/signup"
+                  className="mt-4 inline-block w-full rounded-full border-2 border-[#003768] px-6 py-4 text-lg font-bold text-[#003768] hover:bg-[#003768] hover:text-white transition-colors">
+                  Create a Partner Account →
+                </Link>
+              </div>
             </>
           ) : (
             <>
