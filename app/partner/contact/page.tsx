@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import HCaptcha from "@/app/components/HCaptcha";
 
 const SUBJECTS = [
@@ -13,16 +13,16 @@ const SUBJECTS = [
 ];
 
 export default function PartnerContactPage() {
-  const [name, setName]         = useState("");
-  const [company, setCompany]   = useState("");
-  const [email, setEmail]       = useState("");
-  const [subject, setSubject]   = useState("");
-  const [message, setMessage]   = useState("");
+  const [name, setName]       = useState("");
+  const [company, setCompany] = useState("");
+  const [email, setEmail]     = useState("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey]     = useState(0);
-  const [loading, setLoading]   = useState(false);
-  const [success, setSuccess]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
 
   async function handleSubmit() {
     setError(null);
@@ -34,7 +34,6 @@ export default function PartnerContactPage() {
       setError("Please complete the CAPTCHA.");
       return;
     }
-
     setLoading(true);
     try {
       const res = await fetch("/api/contact", {
@@ -99,25 +98,11 @@ export default function PartnerContactPage() {
       <div className="grid gap-6 lg:grid-cols-3">
 
         {/* Info sidebar */}
-        <div className="space-y-4 lg:col-span-1">
+        <div className="lg:col-span-1">
           <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
             <h2 className="mb-4 text-base font-semibold text-[#003768]">Other ways to reach us</h2>
             <div className="space-y-4 text-sm text-[#475569]">
               <div>
-              <label className="mb-1.5 block text-sm font-semibold text-[#003768]">
-                Email address <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="jane@example.com"
-                maxLength={200}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#005b9f] focus:outline-none focus:ring-2 focus:ring-[#005b9f]/20"
-              />
-            </div>
-
-            <div>
                 <p className="font-semibold text-[#003768]">Response time</p>
                 <p>Within one business day</p>
               </div>
@@ -149,6 +134,7 @@ export default function PartnerContactPage() {
               </div>
             )}
 
+            {/* Row 1: Name + Company */}
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-[#003768]">
@@ -176,21 +162,24 @@ export default function PartnerContactPage() {
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#005b9f] focus:outline-none focus:ring-2 focus:ring-[#005b9f]/20"
                 />
               </div>
-              <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-sm font-semibold text-[#003768]">
-                  Email address <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="jane@example.com"
-                  maxLength={200}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#005b9f] focus:outline-none focus:ring-2 focus:ring-[#005b9f]/20"
-                />
-              </div>
             </div>
 
+            {/* Row 2: Email */}
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-[#003768]">
+                Email address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="jane@example.com"
+                maxLength={200}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#005b9f] focus:outline-none focus:ring-2 focus:ring-[#005b9f]/20"
+              />
+            </div>
+
+            {/* Row 3: Subject */}
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-[#003768]">
                 Subject <span className="text-red-500">*</span>
@@ -205,6 +194,7 @@ export default function PartnerContactPage() {
               </select>
             </div>
 
+            {/* Row 4: Message */}
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-[#003768]">
                 Message <span className="text-red-500">*</span>
