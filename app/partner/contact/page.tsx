@@ -13,10 +13,11 @@ const SUBJECTS = [
 ];
 
 export default function PartnerContactPage() {
-  const [name, setName]       = useState("");
-  const [email, setEmail]     = useState("");
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
+  const [name, setName]         = useState("");
+  const [company, setCompany]   = useState("");
+  const [email, setEmail]       = useState("");
+  const [subject, setSubject]   = useState("");
+  const [message, setMessage]   = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey]     = useState(0);
   const [loading, setLoading]   = useState(false);
@@ -25,7 +26,7 @@ export default function PartnerContactPage() {
 
   async function handleSubmit() {
     setError(null);
-    if (!name.trim() || !email.trim() || !subject || !message.trim()) {
+    if (!name.trim() || !company.trim() || !email.trim() || !subject || !message.trim()) {
       setError("Please fill in all fields.");
       return;
     }
@@ -39,7 +40,7 @@ export default function PartnerContactPage() {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, subject, message, captchaToken, source: "partner-portal" }),
+        body: JSON.stringify({ name, company, email, subject, message, captchaToken, source: "partner-portal" }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -71,7 +72,7 @@ export default function PartnerContactPage() {
           type="button"
           onClick={() => {
             setSuccess(false);
-            setName(""); setEmail(""); setSubject(""); setMessage("");
+            setName(""); setCompany(""); setEmail(""); setSubject(""); setMessage("");
             setCaptchaToken(null); setCaptchaKey(k => k + 1);
           }}
           className="rounded-full border border-[#003768] px-6 py-2.5 text-sm font-semibold text-[#003768] hover:bg-[#003768]/5"
@@ -103,12 +104,20 @@ export default function PartnerContactPage() {
             <h2 className="mb-4 text-base font-semibold text-[#003768]">Other ways to reach us</h2>
             <div className="space-y-4 text-sm text-[#475569]">
               <div>
-                <p className="font-semibold text-[#003768]">Email</p>
-                <a href="mailto:contact@camel-global.com" className="text-[#005b9f] hover:underline">
-                  contact@camel-global.com
-                </a>
-              </div>
-              <div>
+              <label className="mb-1.5 block text-sm font-semibold text-[#003768]">
+                Email address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="jane@example.com"
+                maxLength={200}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#005b9f] focus:outline-none focus:ring-2 focus:ring-[#005b9f]/20"
+              />
+            </div>
+
+            <div>
                 <p className="font-semibold text-[#003768]">Response time</p>
                 <p>Within one business day</p>
               </div>
@@ -156,14 +165,14 @@ export default function PartnerContactPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-[#003768]">
-                  Email address <span className="text-red-500">*</span>
+                  Company name <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="jane@example.com"
-                  maxLength={200}
+                  type="text"
+                  value={company}
+                  onChange={e => setCompany(e.target.value)}
+                  placeholder="Acme Car Hire"
+                  maxLength={100}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#005b9f] focus:outline-none focus:ring-2 focus:ring-[#005b9f]/20"
                 />
               </div>

@@ -15,14 +15,15 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { name?: string; email?: string; subject?: string; message?: string; captchaToken?: string; source?: string };
+  let body: { name?: string; company?: string; email?: string; subject?: string; message?: string; captchaToken?: string; source?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { name, email, subject, message, captchaToken, source } = body;
+  const { name, email, subject, message, captchaToken, source, company } = body;
+  const safeCompany = company ? company.trim().slice(0, 100) : null;
 
   if (!name?.trim() || !email?.trim() || !subject?.trim() || !message?.trim()) {
     return NextResponse.json({ error: "All fields are required." }, { status: 400 });
@@ -60,6 +61,7 @@ export async function POST(req: Request) {
           <div style="background:#f8fafc;padding:24px 28px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
             <table style="width:100%;border-collapse:collapse;font-size:14px;">
               <tr><td style="padding:6px 0;color:#64748b;width:100px;">Name</td><td style="padding:6px 0;font-weight:600;">${safeName}</td></tr>
+              ${safeCompany ? `<tr><td style="padding:6px 0;color:#64748b;">Company</td><td style="padding:6px 0;font-weight:600;">${safeCompany}</td></tr>` : ""}
               <tr><td style="padding:6px 0;color:#64748b;">Email</td><td style="padding:6px 0;font-weight:600;"><a href="mailto:${safeEmail}" style="color:#005b9f;">${safeEmail}</a></td></tr>
               <tr><td style="padding:6px 0;color:#64748b;">Subject</td><td style="padding:6px 0;font-weight:600;">${safeSubject}</td></tr>
             </table>
