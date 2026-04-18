@@ -38,17 +38,19 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
   const [role,        setRole]        = useState<PortalRole>("partner");
   const [timedOut,    setTimedOut]    = useState(false);
 
+  // Public routes — bypass auth entirely, render children with no sidebar/topbar.
   const isPublicPartnerPage =
     pathname === "/partner/login" ||
     pathname === "/partner/reset-password" ||
     pathname === "/partner/application-submitted" ||
     pathname === "/partner/signup" ||
     pathname.startsWith("/partner/signup/") ||
-    // Public-facing info pages — accessible by anyone including admins and
-    // unauthenticated users. No auth check should run on these routes.
     pathname === "/partner/terms" ||
     pathname === "/partner/operating-rules" ||
-    pathname === "/partner/contact";
+    pathname === "/partner/contact" ||
+    pathname === "/partner/privacy" ||
+    pathname === "/partner/cookies" ||
+    pathname === "/partner/about";
 
   useEffect(() => {
     let mounted = true;

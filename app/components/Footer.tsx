@@ -65,8 +65,7 @@ function CustomerFooter() {
 }
 
 // ── Partner footer ────────────────────────────────────────────────────────────
-// /partner/* — all links stay within partner portal (no new tabs needed,
-// operating-rules and terms are /partner/* routes rendered inside partner layout)
+// /partner/* — every link stays inside the partner layout, no new tabs
 function PartnerFooter() {
   return (
     <FooterBase>
@@ -75,15 +74,15 @@ function PartnerFooter() {
         <div className="flex flex-wrap gap-10 text-sm">
           <div className="flex flex-col gap-2">
             <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-white/40">Company</span>
-            <Link href="/about" {...NT} className="text-white/80 hover:text-white transition-colors">About Us</Link>
+            <Link href="/partner/about" className="text-white/80 hover:text-white transition-colors">About Us</Link>
             <Link href="/partner/contact" className="text-white/80 hover:text-white transition-colors">Contact</Link>
           </div>
           <div className="flex flex-col gap-2">
             <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-white/40">Legal</span>
             <Link href="/partner/terms" className="text-white/80 hover:text-white transition-colors">Partner Terms</Link>
             <Link href="/partner/operating-rules" className="text-white/80 hover:text-white transition-colors">Operating Agreement</Link>
-            <Link href="/privacy" {...NT} className="text-white/80 hover:text-white transition-colors">Privacy Policy</Link>
-            <Link href="/cookies" {...NT} className="text-white/80 hover:text-white transition-colors">Cookie Policy</Link>
+            <Link href="/partner/privacy" className="text-white/80 hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/partner/cookies" className="text-white/80 hover:text-white transition-colors">Cookie Policy</Link>
           </div>
         </div>
       </div>
