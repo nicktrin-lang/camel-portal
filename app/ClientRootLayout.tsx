@@ -22,16 +22,28 @@ export default function ClientRootLayout({ children }: { children: React.ReactNo
     pathname?.startsWith("/admin") ||
     pathname?.startsWith("/driver");
   const isTestBookingArea = pathname?.startsWith("/test-booking");
-  const showGlobalHeader = !isHomepage && !isPartnerAuthPage && !isPortalAppPage;
 
+  // Customer-facing public pages that should show the customer nav
+  // (Customer Sign Up / Login) rather than the partner nav.
+  const isCustomerPublicPage =
+    pathname === "/about" ||
+    pathname === "/contact" ||
+    pathname === "/privacy" ||
+    pathname === "/cookies" ||
+    pathname === "/terms";
+
+  const showGlobalHeader = !isHomepage && !isPartnerAuthPage && !isPortalAppPage;
   const showCookieBanner = !isPortalAppPage;
+
+  // Show customer nav on /test-booking/* AND on customer public pages
+  const showCustomerNav = isTestBookingArea || isCustomerPublicPage;
 
   const [isPartnerLoggedIn, setIsPartnerLoggedIn] = useState(false);
   const [isCustomerLoggedIn, setIsCustomerLoggedIn] = useState(false);
   const [customerName, setCustomerName] = useState("");
 
   useEffect(() => {
-    if (isTestBookingArea || !showGlobalHeader) return;
+    if (showCustomerNav || !showGlobalHeader) return;
     let mounted = true;
     let unsub: (() => void) | undefined;
     async function check() {
@@ -46,10 +58,10 @@ export default function ClientRootLayout({ children }: { children: React.ReactNo
     }
     check();
     return () => { mounted = false; unsub?.(); };
-  }, [isTestBookingArea, showGlobalHeader]);
+  }, [showCustomerNav, showGlobalHeader]);
 
   useEffect(() => {
-    if (!isTestBookingArea) return;
+    if (!showCustomerNav) return;
     let mounted = true;
     let unsub: (() => void) | undefined;
     async function check() {
@@ -75,7 +87,7 @@ export default function ClientRootLayout({ children }: { children: React.ReactNo
     }
     check();
     return () => { mounted = false; unsub?.(); };
-  }, [isTestBookingArea]);
+  }, [showCustomerNav]);
 
   async function handlePartnerLogout() {
     try {
@@ -109,7 +121,7 @@ export default function ClientRootLayout({ children }: { children: React.ReactNo
                   </Link>
                   <nav className="ml-auto flex items-center gap-4 text-sm font-medium">
                     <Link href="/" className="hover:opacity-90">Home</Link>
-                    {isTestBookingArea ? (
+                    {showCustomerNav ? (
                       <>
                         <CurrencySelector />
                         {isCustomerLoggedIn ? (
