@@ -120,6 +120,7 @@ function AdminFooter() {
           <div className="flex flex-col gap-2">
             <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-white/40">Company</span>
             <Link href="/about" {...NT} className="text-white/80 hover:text-white transition-colors">About Us</Link>
+            <Link href="/contact" {...NT} className="text-white/80 hover:text-white transition-colors">Contact</Link>
           </div>
           <div className="flex flex-col gap-2">
             <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-white/40">Legal</span>
