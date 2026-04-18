@@ -65,37 +65,25 @@ function CustomerFooter() {
 }
 
 // ── Partner footer ────────────────────────────────────────────────────────────
-// /partner/* — all links open in new tab
+// /partner/* — all links stay within partner portal (no new tabs needed,
+// operating-rules and terms are /partner/* routes rendered inside partner layout)
 function PartnerFooter() {
-  async function handleOperatingRules() {
-    const { downloadOperatingRulesPDF } = await import("@/lib/portal/operatingRules");
-    downloadOperatingRulesPDF("Partner");
-  }
-
   return (
     <FooterBase>
       <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
-        <FooterLogo linkProps={NT} />
+        <FooterLogo />
         <div className="flex flex-wrap gap-10 text-sm">
           <div className="flex flex-col gap-2">
             <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-white/40">Company</span>
             <Link href="/about" {...NT} className="text-white/80 hover:text-white transition-colors">About Us</Link>
-            <Link href="/partner/signup" {...NT} className="text-white/80 hover:text-white transition-colors">Become a Partner</Link>
             <Link href="/contact" {...NT} className="text-white/80 hover:text-white transition-colors">Contact</Link>
           </div>
           <div className="flex flex-col gap-2">
             <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-white/40">Legal</span>
-            <Link href="/partner/terms" {...NT} className="text-white/80 hover:text-white transition-colors">Partner Terms</Link>
-            <button type="button" onClick={handleOperatingRules}
-              className="text-left text-white/80 hover:text-white transition-colors">
-              Partner Operating Agreement
-            </button>
+            <Link href="/partner/terms" className="text-white/80 hover:text-white transition-colors">Partner Terms</Link>
+            <Link href="/partner/operating-rules" className="text-white/80 hover:text-white transition-colors">Operating Agreement</Link>
             <Link href="/privacy" {...NT} className="text-white/80 hover:text-white transition-colors">Privacy Policy</Link>
             <Link href="/cookies" {...NT} className="text-white/80 hover:text-white transition-colors">Cookie Policy</Link>
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-white/40">Portals</span>
-            <Link href="/partner/dashboard" {...NT} className="text-white/80 hover:text-white transition-colors">Partner Portal</Link>
           </div>
         </div>
       </div>
