@@ -15,14 +15,14 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { name?: string; email?: string; subject?: string; message?: string; captchaToken?: string };
+  let body: { name?: string; email?: string; subject?: string; message?: string; captchaToken?: string; source?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { name, email, subject, message, captchaToken } = body;
+  const { name, email, subject, message, captchaToken, source } = body;
 
   if (!name?.trim() || !email?.trim() || !subject?.trim() || !message?.trim()) {
     return NextResponse.json({ error: "All fields are required." }, { status: 400 });
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     // Email to Camel Global inbox
     await sendEmail({
       to: CONTACT_EMAIL,
-      subject: `Contact form: ${safeSubject}`,
+      subject: `${source === "partner-portal" ? "[Partner] " : ""}Contact form: ${safeSubject}`,
       html: `
         <div style="font-family:system-ui,-apple-system,Arial;color:#222;line-height:1.6;max-width:600px;">
           <div style="background:#003768;padding:20px 28px;border-radius:12px 12px 0 0;">
