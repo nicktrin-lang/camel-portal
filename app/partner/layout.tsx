@@ -38,13 +38,17 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
   const [role,        setRole]        = useState<PortalRole>("partner");
   const [timedOut,    setTimedOut]    = useState(false);
 
-  // Public routes — bypass auth entirely, render children with no sidebar/topbar.
-  const isPublicPartnerPage =
+  // These pages need NO auth and NO layout — shown to unauthenticated visitors.
+  const isUnauthPublicPage =
     pathname === "/partner/login" ||
     pathname === "/partner/reset-password" ||
     pathname === "/partner/application-submitted" ||
     pathname === "/partner/signup" ||
-    pathname.startsWith("/partner/signup/") ||
+    pathname.startsWith("/partner/signup/");
+
+  // These pages show WITH the partner layout (sidebar + topbar) but must NOT
+  // redirect admins away — admins access these via /admin/* equivalents instead.
+  const isPartnerInfoPage =
     pathname === "/partner/terms" ||
     pathname === "/partner/operating-rules" ||
     pathname === "/partner/contact" ||
@@ -55,7 +59,9 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     let mounted = true;
     async function guard() {
-      if (isPublicPartnerPage) { setLoading(false); return; }
+      // Unauthenticated public pages — skip all checks
+      if (isUnauthPublicPage) { setLoading(false); return; }
+
       setLoading(true);
       try {
         const { data: userData, error: userErr } = await getUserWithTimeout(supabase);
@@ -81,7 +87,14 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
           }
         } catch { nextRole = "partner"; }
         if (!mounted) return;
+
+        // Admins hitting partner info pages get redirected to /admin/* equivalents
         if (nextRole === "admin" || nextRole === "super_admin") {
+          if (isPartnerInfoPage) {
+            const adminEquivalent = pathname.replace("/partner/", "/admin/");
+            router.replace(adminEquivalent);
+            return;
+          }
           router.replace("/admin/approvals");
           return;
         }
@@ -95,11 +108,12 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
     }
     guard();
     return () => { mounted = false; };
-  }, [router, supabase, isPublicPartnerPage]);
+  }, [router, supabase, isUnauthPublicPage, isPartnerInfoPage, pathname]);
 
   useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
-  if (isPublicPartnerPage) return <>{children}</>;
+  // Unauthenticated public pages render with no layout at all
+  if (isUnauthPublicPage) return <>{children}</>;
 
   if (timedOut) {
     return (
@@ -131,6 +145,7 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  // All authenticated pages (including info pages) render with full sidebar + topbar
   return (
     <div className="min-h-screen bg-[#e3f4ff]">
       <PortalTopbar onMenuClick={() => setSidebarOpen(true)} />
