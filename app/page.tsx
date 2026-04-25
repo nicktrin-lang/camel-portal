@@ -53,13 +53,7 @@ export default function PortalHomePage() {
           </Link>
         </div>
 
-        {/* Driver link */}
-        <p className="mt-5 text-sm font-bold text-white/40">
-          Driver?{" "}
-          <Link href="/driver/login" className="text-white/70 underline hover:text-white transition-colors">
-            Driver login →
-          </Link>
-        </p>
+
       </section>
 
       {/* Features strip */}
