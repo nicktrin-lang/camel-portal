@@ -48,14 +48,14 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
     window.location.replace("/driver/login?reason=signed_out");
   }
 
-  // Public pages — black header, no footer
+  // Public pages — constrained header, no footer
   if (isPublic) {
     return (
       <div className="min-h-screen bg-[#f0f0f0]">
-        <header className="fixed inset-x-0 top-0 z-40 h-[76px] bg-black border-b border-white/10">
-          <div className="flex h-full items-center px-4 md:px-8">
+        <header className="fixed inset-x-0 top-0 z-40 bg-black border-b border-white/10">
+          <div className="mx-auto flex max-w-7xl items-center px-6 py-4">
             <Link href="/">
-              <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
+              <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} priority className="h-12 w-auto brightness-0 invert" />
             </Link>
           </div>
         </header>
@@ -78,11 +78,11 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen bg-[#f0f0f0] flex flex-col">
-      {/* Black header matching portal style */}
+      {/* Authenticated header */}
       <header className="fixed inset-x-0 top-0 z-40 h-[76px] bg-black border-b border-white/10 text-white">
         <div className="flex h-full items-center justify-between px-4 md:px-8">
           <Link href="/">
-            <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
+            <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} priority className="h-12 w-auto brightness-0 invert" />
           </Link>
           <div className="flex items-center gap-3">
             {driverName && (
@@ -92,12 +92,6 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
               </div>
             )}
             <span className="border border-white/20 px-3 py-1 text-xs font-black text-white uppercase tracking-widest">Driver</span>
-            <Link
-              href="/"
-              className="bg-[#ff7a00] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 transition-opacity"
-            >
-              Book Now
-            </Link>
             <button
               type="button"
               onClick={handleLogout}
