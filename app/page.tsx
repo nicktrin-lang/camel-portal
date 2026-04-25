@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import { PortalFooter } from "./components/Footer";
 
 export default function PortalHomePage() {
   return (
@@ -64,7 +63,7 @@ export default function PortalHomePage() {
       </section>
 
       {/* Features strip */}
-      <section className="border-t border-white/10 bg-white/5">
+      <section className="border-t border-white/10 bg-white/5 flex-1">
         <div className="mx-auto max-w-7xl px-6 py-10">
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             {[
@@ -81,7 +80,13 @@ export default function PortalHomePage() {
         </div>
       </section>
 
-      <PortalFooter variant="partner" />
+      {/* Minimal copyright bar */}
+      <div className="border-t border-white/10 py-5 px-6">
+        <p className="text-center text-xs font-bold text-white/30">
+          © {new Date().getFullYear()} Camel Global Ltd. All rights reserved.
+        </p>
+      </div>
+
     </div>
   );
 }
