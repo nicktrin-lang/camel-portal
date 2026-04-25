@@ -621,13 +621,10 @@ export default function PartnerSignupPage() {
     <div className="min-h-screen bg-white flex flex-col">
 
       {/* Header — matches PortalTopbar */}
-      <header className="w-full bg-black border-b border-white/10 h-[76px] flex items-center px-4 md:px-8 justify-between">
-        <Link href="/partner/login" className="flex items-center">
-          <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
-        </Link>
-        <div className="flex items-center gap-3">
-          <Link href="/" className="bg-[#ff7a00] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 transition-opacity">
-            Book Now
+      <header className="w-full bg-black border-b border-white/10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <Link href="/">
+            <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} priority className="h-12 w-auto brightness-0 invert" />
           </Link>
           <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
             Partner Login
