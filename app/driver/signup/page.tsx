@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import HCaptcha from "@/app/components/HCaptcha";
-import Footer from "@/app/components/Footer";
 
 export default function DriverSignupPage() {
   const router   = useRouter();
@@ -107,7 +106,6 @@ export default function DriverSignupPage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 }
