@@ -53,9 +53,12 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
     return (
       <div className="min-h-screen bg-[#f0f0f0]">
         <header className="fixed inset-x-0 top-0 z-40 bg-black border-b border-white/10">
-          <div className="mx-auto flex max-w-7xl items-center px-6 py-4">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
             <Link href="/">
-              <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} priority className="h-12 w-auto brightness-0 invert" />
+              <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
+            </Link>
+            <Link href="/" className="text-sm font-bold text-white/60 hover:text-white transition-colors">
+              Partner Portal →
             </Link>
           </div>
         </header>

@@ -622,15 +622,20 @@ export default function PartnerSignupPage() {
 
       {/* Header — matches PortalTopbar */}
       <header className="w-full bg-black border-b border-white/10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/">
-            <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} priority className="h-12 w-auto brightness-0 invert" />
-          </Link>
-          <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
-            Partner Login
-          </Link>
-        </div>
-      </header>
+  <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+    <Link href="/">
+      <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
+    </Link>
+    <div className="flex items-center gap-3">
+      <Link href="/" className="text-sm font-bold text-white/60 hover:text-white transition-colors">
+        Partner Portal →
+      </Link>
+      <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
+        Partner Login
+      </Link>
+    </div>
+  </div>
+</header>
 
       {/* Hero */}
       <div className="w-full bg-black px-6 pb-16 pt-10 text-white">
