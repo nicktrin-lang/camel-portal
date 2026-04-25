@@ -191,16 +191,14 @@ async function downloadTermsPDF() {
   doc.save(`Camel-Global-Partner-Terms-${TERMS_VERSION}.pdf`);
 }
 
-// ── Style constants ───────────────────────────────────────────────────────────
-const inputCls  = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
-const selectCls = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors appearance-none cursor-pointer";
-const labelCls  = "block text-xs font-black uppercase tracking-widest text-black mb-2";
+const inputCls   = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
+const selectCls  = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors appearance-none cursor-pointer";
+const labelCls   = "block text-xs font-black uppercase tracking-widest text-black mb-2";
 const btnPrimary = "w-full bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity";
 const btnSecondary = "flex-1 border border-black/20 py-4 text-base font-black text-black hover:bg-[#f0f0f0] transition-colors";
 
 const STEP_LABELS = ["Your Business", "Business Address", "Fleet Address", "Password", "Review"];
 
-// ── Progress bar ──────────────────────────────────────────────────────────────
 function ProgressBar({ step }: { step: number }) {
   return (
     <div className="mb-10">
@@ -227,7 +225,6 @@ function ProgressBar({ step }: { step: number }) {
   );
 }
 
-// ── Field wrapper ─────────────────────────────────────────────────────────────
 function Field({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
     <div>
@@ -242,7 +239,6 @@ function InfoBox({ children }: { children: React.ReactNode }) {
   return <div className="bg-[#f0f0f0] px-4 py-3 text-sm text-black">{children}</div>;
 }
 
-// ── Address search ────────────────────────────────────────────────────────────
 type Suggestion = {
   display_name: string; lat: string; lon: string;
   address?: { road?: string; house_number?: string; suburb?: string; city?: string; town?: string; village?: string; state?: string; postcode?: string; country?: string };
@@ -258,10 +254,10 @@ function parseSuggestion(s: Suggestion) {
 }
 
 function AddressSearch({ onSelect, placeholder }: { onSelect: (r: ReturnType<typeof parseSuggestion>) => void; placeholder?: string }) {
-  const [query, setQuery]           = useState("");
+  const [query, setQuery]             = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [loading, setLoading]       = useState(false);
-  const [open, setOpen]             = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [open, setOpen]               = useState(false);
   const timer = useRef<NodeJS.Timeout | null>(null);
   function search(q: string) {
     setQuery(q);
@@ -298,7 +294,6 @@ function AddressSearch({ onSelect, placeholder }: { onSelect: (r: ReturnType<typ
   );
 }
 
-// ── Form data ─────────────────────────────────────────────────────────────────
 type FormData = {
   companyName: string; contactName: string; email: string; phone: string; website: string;
   address1: string; address2: string; city: string; province: string; postcode: string; country: string;
@@ -316,7 +311,6 @@ const EMPTY: FormData = {
   fleetLat: null, fleetLng: null, password: "", confirmPassword: "", agreedToTerms: false,
 };
 
-// ── Steps ─────────────────────────────────────────────────────────────────────
 function Step1({ data, onChange, onNext, error }: { data: FormData; onChange: (k: keyof FormData, v: string) => void; onNext: () => void; error: string }) {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   function validate() {
@@ -570,7 +564,6 @@ function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaV
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function PartnerSignupPage() {
   const router = useRouter();
   const [step,         setStep]         = useState(1);
@@ -620,22 +613,17 @@ export default function PartnerSignupPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
 
-      {/* Header — matches PortalTopbar */}
+      {/* Header */}
       <header className="w-full bg-black border-b border-white/10">
-  <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-    <Link href="/">
-      <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
-    </Link>
-    <div className="flex items-center gap-3">
-      <Link href="/" className="text-sm font-bold text-white/60 hover:text-white transition-colors">
-        Partner Portal →
-      </Link>
-      <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
-        Partner Login
-      </Link>
-    </div>
-  </div>
-</header>
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
+          <Link href="/">
+            <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
+          </Link>
+          <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
+            Partner Login
+          </Link>
+        </div>
+      </header>
 
       {/* Hero */}
       <div className="w-full bg-black px-6 pb-16 pt-10 text-white">

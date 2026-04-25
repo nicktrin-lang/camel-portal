@@ -7,19 +7,9 @@ export default function PortalHomePage() {
 
       {/* Header */}
       <header className="w-full bg-black border-b border-white/10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Image
-            src="/camel-logo.png"
-            alt="Camel Global"
-            width={160}
-            height={56}
-            className="h-12 w-auto brightness-0 invert"
-            priority
-          />
-          <Link
-            href="https://camel-global.com"
-            className="text-sm font-bold text-white/60 hover:text-white transition-colors"
-          >
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
+          <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
+          <Link href="https://camel-global.com" className="text-sm font-bold text-white/60 hover:text-white transition-colors">
             Customer Site →
           </Link>
         </div>
@@ -39,16 +29,10 @@ export default function PortalHomePage() {
 
         {/* CTAs */}
         <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-          <Link
-            href="/partner/login"
-            className="bg-[#ff7a00] px-10 py-4 text-base font-black text-white hover:opacity-90 transition-opacity"
-          >
+          <Link href="/partner/login" className="bg-[#ff7a00] px-10 py-4 text-base font-black text-white hover:opacity-90 transition-opacity">
             Partner Login
           </Link>
-          <Link
-            href="/partner/signup"
-            className="border border-white/30 px-10 py-4 text-base font-black text-white hover:bg-white/5 transition-colors"
-          >
+          <Link href="/partner/signup" className="border border-white/30 px-10 py-4 text-base font-black text-white hover:bg-white/5 transition-colors">
             Become a Partner
           </Link>
         </div>

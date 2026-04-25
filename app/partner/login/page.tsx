@@ -152,9 +152,9 @@ function PartnerLoginInner() {
 
       {/* Header */}
       <header className="w-full bg-black border-b border-white/10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
           <Link href="/">
-            <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} priority className="h-12 w-auto brightness-0 invert" />
+            <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
           </Link>
           <Link href="/partner/signup" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
             Become a Partner
@@ -234,7 +234,6 @@ function PartnerLoginInner() {
                   </form>
                 )}
 
-                {/* Become a partner CTA */}
                 <div className="bg-[#f0f0f0] p-5">
                   <p className="text-sm font-black text-black mb-1">Want to join the Camel Global network?</p>
                   <p className="text-xs font-semibold text-black/50 mb-4">Register your car hire company and start receiving bookings.</p>
