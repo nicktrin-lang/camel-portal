@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import HCaptcha from "@/app/components/HCaptcha";
-import Footer from "@/app/components/Footer";
 
 async function verifyCaptcha(token: string): Promise<boolean> {
   const res = await fetch("/api/auth/verify-captcha", {
@@ -182,7 +181,6 @@ export default function DriverLoginPage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   );
 }

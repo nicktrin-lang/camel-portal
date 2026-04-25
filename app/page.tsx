@@ -56,6 +56,15 @@ export default function PortalHomePage() {
 
       </section>
 
+        {/* Driver link */}
+        <p className="mt-5 text-sm font-bold text-white/40">
+          Driver?{" "}
+          <Link href="/driver/login" className="text-white/70 underline hover:text-white transition-colors">
+            Driver login →
+          </Link>
+        </p>
+      </section>
+
       {/* Features strip */}
       <section className="border-t border-white/10 bg-white/5 flex-1">
         <div className="mx-auto max-w-7xl px-6 py-10">
