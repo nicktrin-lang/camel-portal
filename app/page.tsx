@@ -53,9 +53,6 @@ export default function PortalHomePage() {
           </Link>
         </div>
 
-
-      </section>
-
         {/* Driver link */}
         <p className="mt-5 text-sm font-bold text-white/40">
           Driver?{" "}
