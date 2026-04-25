@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 const year = new Date().getFullYear();
 
 // ── Partner / Admin / Driver footer ──────────────────────────────────────────
-function PortalFooter({ variant }: { variant: "partner" | "admin" | "driver" }) {
+export function PortalFooter({ variant }: { variant: "partner" | "admin" | "driver" }) {
   const termsHref = variant === "admin" ? "/admin/terms"           : "/partner/terms";
   const rulesHref = variant === "admin" ? "/admin/operating-rules" : "/partner/operating-rules";
 
@@ -45,8 +45,8 @@ function PortalFooter({ variant }: { variant: "partner" | "admin" | "driver" }) 
 
             <div className="flex flex-col gap-3">
               <p className="text-xs font-black uppercase tracking-widest text-white/40">Platform</p>
-              <Link href="/"              className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Customer Site</Link>
-              <Link href="/partner/login" className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Partner Login</Link>
+              <Link href="https://camel-global.com" className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Customer Site</Link>
+              <Link href="/partner/login"           className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Partner Login</Link>
               {variant === "partner" && (
                 <Link href="/partner/signup" className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Become a Partner</Link>
               )}

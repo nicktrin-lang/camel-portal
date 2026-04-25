@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { PortalFooter } from "./components/Footer";
 
 export default function PortalHomePage() {
   return (
@@ -16,31 +17,29 @@ export default function PortalHomePage() {
             className="h-12 w-auto brightness-0 invert"
             priority
           />
-          <div className="flex items-center gap-3">
-            <Link
-              href="https://camel-global.com"
-              className="text-sm font-bold text-white/60 hover:text-white transition-colors"
-            >
-              Customer Site →
-            </Link>
-          </div>
+          <Link
+            href="https://camel-global.com"
+            className="text-sm font-bold text-white/60 hover:text-white transition-colors"
+          >
+            Customer Site →
+          </Link>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center px-6 py-24 text-center">
-        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-4">
+      <section className="flex flex-col items-center justify-center px-6 py-14 text-center">
+        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-3">
           Camel Global
         </p>
-        <h1 className="text-5xl font-black text-white sm:text-6xl lg:text-7xl leading-none">
+        <h1 className="text-5xl font-black text-white sm:text-6xl leading-none">
           Partner Portal
         </h1>
-        <p className="mt-6 text-lg font-bold text-white/50 max-w-md">
+        <p className="mt-4 text-base font-bold text-white/50 max-w-md">
           Manage your fleet, bookings, drivers and reports. Built for car hire partners across Spain.
         </p>
 
         {/* CTAs */}
-        <div className="mt-12 flex flex-col gap-4 sm:flex-row">
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row">
           <Link
             href="/partner/login"
             className="bg-[#ff7a00] px-10 py-4 text-base font-black text-white hover:opacity-90 transition-opacity"
@@ -56,7 +55,7 @@ export default function PortalHomePage() {
         </div>
 
         {/* Driver link */}
-        <p className="mt-8 text-sm font-bold text-white/40">
+        <p className="mt-5 text-sm font-bold text-white/40">
           Driver?{" "}
           <Link href="/driver/login" className="text-white/70 underline hover:text-white transition-colors">
             Driver login →
@@ -66,12 +65,12 @@ export default function PortalHomePage() {
 
       {/* Features strip */}
       <section className="border-t border-white/10 bg-white/5">
-        <div className="mx-auto max-w-7xl px-6 py-12">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
+        <div className="mx-auto max-w-7xl px-6 py-10">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             {[
               { title: "Manage Bookings", desc: "View all confirmed bookings, assign drivers and record fuel levels." },
               { title: "Fleet & Drivers", desc: "Add vehicles, manage your driver team and keep your profile live." },
-              { title: "Reports", desc: "Full revenue reconciliation with commission and fuel charge breakdowns." },
+              { title: "Reports",         desc: "Full revenue reconciliation with commission and fuel charge breakdowns." },
             ].map(({ title, desc }) => (
               <div key={title} className="border border-white/10 p-6">
                 <h3 className="text-sm font-black uppercase tracking-widest text-[#ff7a00]">{title}</h3>
@@ -82,17 +81,7 @@ export default function PortalHomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-white/10 py-6 px-6">
-        <div className="mx-auto max-w-7xl flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs font-bold text-white/30">© {new Date().getFullYear()} Camel Global Ltd. All rights reserved.</p>
-          <div className="flex gap-6">
-            <Link href="/partner/terms" className="text-xs font-bold text-white/30 hover:text-white transition-colors">Terms</Link>
-            <Link href="/partner/privacy" className="text-xs font-bold text-white/30 hover:text-white transition-colors">Privacy</Link>
-            <Link href="/partner/contact" className="text-xs font-bold text-white/30 hover:text-white transition-colors">Contact</Link>
-          </div>
-        </div>
-      </footer>
+      <PortalFooter variant="partner" />
     </div>
   );
 }
