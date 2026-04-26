@@ -12,12 +12,19 @@ type AccountProfile = {
   address: string | null;
   address1: string | null;
   address2: string | null;
+  city: string | null;
   province: string | null;
   postcode: string | null;
   country: string | null;
   website: string | null;
   service_radius_km: number | null;
   base_address: string | null;
+  base_address1: string | null;
+  base_address2: string | null;
+  base_city: string | null;
+  base_province: string | null;
+  base_postcode: string | null;
+  base_country: string | null;
   base_lat: number | null;
   base_lng: number | null;
   default_currency: string | null;
@@ -40,23 +47,16 @@ function fmtValue(value?: string | number | null) {
   const text = String(value).trim();
   return text ? text : "—";
 }
-
-function fmtStatus(value?: string | null) {
-  return String(value || "—").replaceAll("_", " ");
-}
-
+function fmtStatus(value?: string | null) { return String(value || "—").replaceAll("_", " "); }
 function fmtDateTime(value?: string | null) {
   if (!value) return "—";
   try { return new Date(value).toLocaleString(); } catch { return value; }
 }
-
 function fmtDate(value?: string | null) {
   if (!value) return "—";
-  try {
-    return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-  } catch { return value; }
+  try { return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }); }
+  catch { return value; }
 }
-
 function statusPillClasses(status?: string | null) {
   switch (String(status || "").toLowerCase()) {
     case "approved": return "border-black/20 bg-black text-white";
@@ -65,7 +65,6 @@ function statusPillClasses(status?: string | null) {
     default:         return "border-black/10 bg-white text-black/60";
   }
 }
-
 function currencyLabel(currency?: string | null) {
   switch (String(currency || "").toUpperCase()) {
     case "EUR": return "Euro (€)";
@@ -87,7 +86,6 @@ const MISSING_LABELS: Record<string, { label: string; href: string }> = {
   vat_number:        { label: "VAT / NIF number not set",              href: "/partner/profile" },
 };
 
-// Reusable field display
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -96,8 +94,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
-
-// Reusable section card
 function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="border border-black/5 bg-white p-6">
@@ -110,7 +106,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
 
 export default function PartnerAccountPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router = useRouter();
+  const router   = useRouter();
 
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState<string | null>(null);
@@ -132,7 +128,7 @@ export default function PartnerAccountPage() {
         const [{ data: profileRow, error: profileErr }, { data: applicationRow, error: appErr }] =
           await Promise.all([
             supabase.from("partner_profiles")
-              .select("company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number")
+              .select("company_name,contact_name,phone,address,address1,address2,city,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number")
               .eq("user_id", user.id).maybeSingle(),
             supabase.from("partner_applications")
               .select("status,created_at,terms_accepted_at,terms_version")
@@ -141,7 +137,7 @@ export default function PartnerAccountPage() {
           ]);
 
         if (profileErr) throw new Error(profileErr.message || "Failed to load account.");
-        if (appErr) throw new Error(appErr.message || "Failed to load application.");
+        if (appErr)     throw new Error(appErr.message     || "Failed to load application.");
         if (!mounted) return;
 
         setProfile((profileRow || null) as AccountProfile | null);
@@ -149,13 +145,11 @@ export default function PartnerAccountPage() {
         setEmail(normalizedEmail);
 
         try {
-          const liveRes = await fetch("/api/partner/refresh-live-status", {
-            method: "POST", cache: "no-store", credentials: "include",
-          });
+          const liveRes = await fetch("/api/partner/refresh-live-status", { method: "POST", cache: "no-store", credentials: "include" });
           if (liveRes.ok) {
             const liveJson = await liveRes.json();
             if (mounted) setLiveStatus({
-              isLive: liveJson?.isLiveNow ?? liveJson?.becameLive ?? false,
+              isLive:  liveJson?.isLiveNow ?? liveJson?.becameLive ?? false,
               missing: Array.isArray(liveJson?.missing) ? liveJson.missing : [],
             });
           }
@@ -171,9 +165,12 @@ export default function PartnerAccountPage() {
     return () => { mounted = false; };
   }, [router, supabase]);
 
-  const fullAddress =
-    profile?.address ||
-    [profile?.address1, profile?.address2, profile?.province, profile?.postcode, profile?.country]
+  const fullBizAddress = profile?.address ||
+    [profile?.address1, profile?.address2, profile?.city, profile?.province, profile?.postcode, profile?.country]
+      .filter(Boolean).join(", ") || "—";
+
+  const fullFleetAddress = profile?.base_address ||
+    [profile?.base_address1, profile?.base_address2, profile?.base_city, profile?.base_province, profile?.base_postcode, profile?.base_country]
       .filter(Boolean).join(", ") || "—";
 
   if (loading) return (
@@ -198,9 +195,7 @@ export default function PartnerAccountPage() {
             <p className="text-xs font-black uppercase tracking-widest text-black/40">{label}</p>
             {pill ? (
               <div className="mt-2">
-                <span className={`inline-flex border px-3 py-1 text-xs font-black uppercase tracking-widest capitalize ${statusPillClasses(status)}`}>
-                  {value}
-                </span>
+                <span className={`inline-flex border px-3 py-1 text-xs font-black uppercase tracking-widest capitalize ${statusPillClasses(status)}`}>{value}</span>
               </div>
             ) : (
               <p className="mt-1 text-lg font-black text-black">{value}</p>
@@ -276,8 +271,7 @@ export default function PartnerAccountPage() {
                   <span>{fmtValue(profile?.vat_number)}</span>
                   {profile?.vat_number
                     ? <span className="border border-black/20 px-2 py-0.5 text-xs font-black text-black">✓ Provided</span>
-                    : <span className="border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-black text-red-600">Required</span>
-                  }
+                    : <span className="border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-black text-red-600">Required</span>}
                 </div>
               </Field>
             </div>
@@ -292,15 +286,14 @@ export default function PartnerAccountPage() {
           {/* Business Address */}
           <Section title="Business Address">
             <div className="space-y-4">
-              <Field label="Full Address">{fullAddress}</Field>
+              <Field label="Full Address">{fullBizAddress}</Field>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field label="Address Line 1">{fmtValue(profile?.address1)}</Field>
                 <Field label="Address Line 2">{fmtValue(profile?.address2)}</Field>
+                <Field label="City / Town">{fmtValue(profile?.city)}</Field>
                 <Field label="Province">{fmtValue(profile?.province)}</Field>
                 <Field label="Postcode">{fmtValue(profile?.postcode)}</Field>
-                <div className="md:col-span-2">
-                  <Field label="Country">{fmtValue(profile?.country)}</Field>
-                </div>
+                <Field label="Country">{fmtValue(profile?.country)}</Field>
               </div>
             </div>
           </Section>
@@ -309,10 +302,15 @@ export default function PartnerAccountPage() {
           <Section title="Fleet Base Location">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
-                <Field label="Base Address">{fmtValue(profile?.base_address)}</Field>
+                <Field label="Full Address">{fullFleetAddress}</Field>
               </div>
-              <Field label="Latitude">{profile?.base_lat ?? "—"}</Field>
-              <Field label="Longitude">{profile?.base_lng ?? "—"}</Field>
+              <Field label="Address Line 1">{fmtValue(profile?.base_address1)}</Field>
+              <Field label="Address Line 2">{fmtValue(profile?.base_address2)}</Field>
+              <Field label="City / Town">{fmtValue(profile?.base_city)}</Field>
+              <Field label="Province">{fmtValue(profile?.base_province)}</Field>
+              <Field label="Postcode">{fmtValue(profile?.base_postcode)}</Field>
+              <Field label="Country">{fmtValue(profile?.base_country)}</Field>
+              <Field label="GPS">{profile?.base_lat && profile?.base_lng ? `${profile.base_lat}, ${profile.base_lng}` : "—"}</Field>
               {profile?.service_radius_km && (
                 <div className="md:col-span-2">
                   <Field label="Coverage Radius">{profile.service_radius_km} km — Customer requests within this radius will be sent to you.</Field>
@@ -324,23 +322,14 @@ export default function PartnerAccountPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-
-          {/* Account Actions */}
           <Section title="Account Actions">
             <div className="space-y-3">
-              <a href="/partner/profile" className="block bg-[#ff7a00] px-5 py-3 text-center text-sm font-black text-white hover:opacity-90 transition-opacity">
-                Edit Profile
-              </a>
-              <a href="/partner/fleet" className="block border border-black/20 px-5 py-3 text-center text-sm font-black text-black hover:bg-black/5 transition-colors">
-                Manage Fleet
-              </a>
-              <a href="/partner/drivers" className="block border border-black/20 px-5 py-3 text-center text-sm font-black text-black hover:bg-black/5 transition-colors">
-                Manage Drivers
-              </a>
+              <a href="/partner/profile" className="block bg-[#ff7a00] px-5 py-3 text-center text-sm font-black text-white hover:opacity-90 transition-opacity">Edit Profile</a>
+              <a href="/partner/fleet"   className="block border border-black/20 px-5 py-3 text-center text-sm font-black text-black hover:bg-black/5 transition-colors">Manage Fleet</a>
+              <a href="/partner/drivers" className="block border border-black/20 px-5 py-3 text-center text-sm font-black text-black hover:bg-black/5 transition-colors">Manage Drivers</a>
             </div>
           </Section>
 
-          {/* Application */}
           <Section title="Application">
             <div className="space-y-3 text-sm">
               <Field label="Status">
@@ -362,15 +351,10 @@ export default function PartnerAccountPage() {
             </div>
           </Section>
 
-          {/* Terms & Conditions */}
           <Section title="Terms & Conditions">
             <div className="space-y-3 text-sm">
-              <Field label="Version accepted">
-                {application?.terms_version ? `v${application.terms_version}` : "—"}
-              </Field>
-              <Field label="Accepted on">
-                {fmtDate(application?.terms_accepted_at)}
-              </Field>
+              <Field label="Version accepted">{application?.terms_version ? `v${application.terms_version}` : "—"}</Field>
+              <Field label="Accepted on">{fmtDate(application?.terms_accepted_at)}</Field>
               {application?.terms_accepted_at && (
                 <div className="border border-black/10 bg-[#f0f0f0] p-3 text-xs font-bold text-black/60">
                   ✓ You have accepted the current Partner Terms and Conditions.
@@ -383,7 +367,6 @@ export default function PartnerAccountPage() {
             </div>
           </Section>
 
-          {/* Quick Links */}
           <Section title="Quick Links">
             <div className="space-y-2">
               {[
@@ -410,11 +393,8 @@ export default function PartnerAccountPage() {
             <h2 className="text-2xl font-black text-black">Partner Operating Rules</h2>
             <p className="mt-1 text-xs font-bold text-black/40">These rules govern your conduct as a Camel Global partner. By operating on the platform you agree to comply with all sections below.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => downloadOperatingRulesPDF(profile?.company_name || "Partner")}
-            className="shrink-0 bg-black px-5 py-2.5 text-sm font-black text-white hover:opacity-80 transition-opacity"
-          >
+          <button type="button" onClick={() => downloadOperatingRulesPDF(profile?.company_name || "Partner")}
+            className="shrink-0 bg-black px-5 py-2.5 text-sm font-black text-white hover:opacity-80 transition-opacity">
             ⬇ Download PDF
           </button>
         </div>
