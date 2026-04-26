@@ -39,16 +39,19 @@ export default function MapPickerInner({ lat, lng, onPick }: Props) {
   const defaultLng = lng ?? 23.7275;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-black/10">
+    <div className="overflow-hidden border border-black/10">
       <MapContainer
         center={[defaultLat, defaultLng]}
         zoom={13}
         scrollWheelZoom={true}
         className="h-[360px] w-full"
       >
+        {/* Stadia Maps — Alidade Smooth. Clean, modern, no API key required. */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://stamen.com">Stamen Design</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
+          minZoom={0}
+          maxZoom={20}
         />
         <ClickHandler onPick={onPick} />
         <RecenterMap lat={lat} lng={lng} />

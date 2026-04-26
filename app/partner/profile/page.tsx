@@ -20,8 +20,13 @@ type ProfileState = {
 };
 
 type Suggestion = {
-  display_name: string; lat: number | null; lng: number | null;
+  display_name: string; label?: string; subtitle?: string; type?: string;
+  lat: number | null; lng: number | null;
   address_line1?: string; address_line2?: string; province?: string; postcode?: string; country?: string;
+};
+
+const TYPE_ICON: Record<string, string> = {
+  airport: "✈", hotel: "🏨", food: "🍽", train: "🚆", bus: "🚌", street: "🏠", place: "📍",
 };
 
 function parseCoordinate(value: string | number | null | undefined, kind: "lat" | "lng"): number | null {
@@ -82,16 +87,33 @@ function SectionCard({ title, description, children }: {
   );
 }
 
+// Two-line search result row — matches customer site style
+function SuggestionRow({ item, onClick }: { item: Suggestion; onClick: () => void }) {
+  const icon = TYPE_ICON[item.type || ""] || "📍";
+  const label    = item.label    || item.display_name;
+  const subtitle = item.subtitle || "";
+  return (
+    <button type="button" onClick={onClick}
+      className="block w-full border-b border-black/5 px-4 py-3 text-left hover:bg-[#f0f0f0] last:border-b-0 flex items-start gap-3">
+      <span className="mt-0.5 text-base shrink-0 w-5 text-center">{icon}</span>
+      <span className="flex flex-col min-w-0">
+        <span className="text-sm font-black text-black truncate">{label}</span>
+        {subtitle && <span className="text-xs font-semibold text-black/50 truncate">{subtitle}</span>}
+      </span>
+    </button>
+  );
+}
+
 export default function PartnerProfilePage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router = useRouter();
+  const router   = useRouter();
 
-  const [loading, setLoading]             = useState(true);
-  const [saving, setSaving]               = useState(false);
-  const [saved, setSaved]                 = useState(false);
-  const [error, setError]                 = useState<string | null>(null);
-  const [suggestions, setSuggestions]     = useState<Suggestion[]>([]);
-  const [searching, setSearching]         = useState(false);
+  const [loading,         setLoading]         = useState(true);
+  const [saving,          setSaving]          = useState(false);
+  const [saved,           setSaved]           = useState(false);
+  const [error,           setError]           = useState<string | null>(null);
+  const [suggestions,     setSuggestions]     = useState<Suggestion[]>([]);
+  const [searching,       setSearching]       = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -112,7 +134,7 @@ export default function PartnerProfilePage() {
       try {
         const { data: userData, error: userErr } = await supabase.auth.getUser();
         if (userErr || !userData?.user) { router.replace("/partner/login?reason=not_signed_in"); return; }
-        const user = userData.user;
+        const user  = userData.user;
         const email = (user.email || "").toLowerCase().trim();
 
         const { data: existingProfile } = await supabase
@@ -131,34 +153,34 @@ export default function PartnerProfilePage() {
         }
         if (!mounted) return;
 
-        const country = String(existingProfile?.country ?? (application as any)?.country ?? "");
+        const country       = String(existingProfile?.country ?? (application as any)?.country ?? "");
         const savedCurrency = existingProfile?.default_currency as Currency | null;
 
         setProfile({
-          company_name: String(existingProfile?.company_name ?? (application as any)?.company_name ?? ""),
-          contact_name: String(existingProfile?.contact_name ?? (application as any)?.full_name ?? ""),
-          phone: String(existingProfile?.phone ?? (application as any)?.phone ?? ""),
-          address: String(existingProfile?.address ?? (application as any)?.address ?? ""),
-          address1: String(existingProfile?.address1 ?? (application as any)?.address1 ?? ""),
-          address2: String(existingProfile?.address2 ?? (application as any)?.address2 ?? ""),
-          province: String(existingProfile?.province ?? (application as any)?.province ?? ""),
-          postcode: String(existingProfile?.postcode ?? (application as any)?.postcode ?? ""),
+          company_name:              String(existingProfile?.company_name              ?? (application as any)?.company_name ?? ""),
+          contact_name:              String(existingProfile?.contact_name              ?? (application as any)?.full_name    ?? ""),
+          phone:                     String(existingProfile?.phone                     ?? (application as any)?.phone        ?? ""),
+          address:                   String(existingProfile?.address                   ?? (application as any)?.address      ?? ""),
+          address1:                  String(existingProfile?.address1                  ?? (application as any)?.address1     ?? ""),
+          address2:                  String(existingProfile?.address2                  ?? (application as any)?.address2     ?? ""),
+          province:                  String(existingProfile?.province                  ?? (application as any)?.province     ?? ""),
+          postcode:                  String(existingProfile?.postcode                  ?? (application as any)?.postcode     ?? ""),
           country,
-          website: String(existingProfile?.website ?? (application as any)?.website ?? ""),
-          service_radius_km: String(existingProfile?.service_radius_km ?? "30"),
-          base_address: String(existingProfile?.base_address ?? ""),
-          base_address1: String((existingProfile as any)?.base_address1 ?? ""),
-          base_address2: String((existingProfile as any)?.base_address2 ?? ""),
-          base_province: String((existingProfile as any)?.base_province ?? ""),
-          base_postcode: String((existingProfile as any)?.base_postcode ?? ""),
-          base_country: String((existingProfile as any)?.base_country ?? ""),
-          base_lat: existingProfile?.base_lat != null ? String(existingProfile.base_lat) : "",
-          base_lng: existingProfile?.base_lng != null ? String(existingProfile.base_lng) : "",
-          search_address: String(existingProfile?.base_address ?? ""),
-          default_currency: savedCurrency ?? (country ? inferCurrencyFromCountry(country) : "EUR"),
-          same_as_business: false,
-          legal_company_name: String((existingProfile as any)?.legal_company_name ?? ""),
-          vat_number: String((existingProfile as any)?.vat_number ?? ""),
+          website:                   String(existingProfile?.website                   ?? (application as any)?.website      ?? ""),
+          service_radius_km:         String(existingProfile?.service_radius_km         ?? "30"),
+          base_address:              String(existingProfile?.base_address              ?? ""),
+          base_address1:             String((existingProfile as any)?.base_address1    ?? ""),
+          base_address2:             String((existingProfile as any)?.base_address2    ?? ""),
+          base_province:             String((existingProfile as any)?.base_province    ?? ""),
+          base_postcode:             String((existingProfile as any)?.base_postcode    ?? ""),
+          base_country:              String((existingProfile as any)?.base_country     ?? ""),
+          base_lat:                  existingProfile?.base_lat != null ? String(existingProfile.base_lat) : "",
+          base_lng:                  existingProfile?.base_lng != null ? String(existingProfile.base_lng) : "",
+          search_address:            String(existingProfile?.base_address              ?? ""),
+          default_currency:          savedCurrency ?? (country ? inferCurrencyFromCountry(country) : "EUR"),
+          same_as_business:          false,
+          legal_company_name:        String((existingProfile as any)?.legal_company_name        ?? ""),
+          vat_number:                String((existingProfile as any)?.vat_number                ?? ""),
           company_registration_number: String((existingProfile as any)?.company_registration_number ?? ""),
         });
       } catch (e: any) {
@@ -185,15 +207,15 @@ export default function PartnerProfilePage() {
   function applyAddressParts(item: Suggestion) {
     setProfile(prev => ({
       ...prev,
-      search_address: item.display_name || prev.search_address,
-      base_address:   item.display_name || prev.base_address,
-      base_lat:       item.lat !== null ? String(item.lat) : prev.base_lat,
-      base_lng:       item.lng !== null ? String(item.lng) : prev.base_lng,
-      base_address1:  item.address_line1 || prev.base_address1,
-      base_address2:  item.address_line2 || prev.base_address2,
-      base_province:  item.province      || prev.base_province,
-      base_postcode:  item.postcode      || prev.base_postcode,
-      base_country:   item.country       || prev.base_country,
+      search_address:   item.display_name   || prev.search_address,
+      base_address:     item.display_name   || prev.base_address,
+      base_lat:         item.lat !== null   ? String(item.lat) : prev.base_lat,
+      base_lng:         item.lng !== null   ? String(item.lng) : prev.base_lng,
+      base_address1:    item.address_line1  || prev.base_address1,
+      base_address2:    item.address_line2  || prev.base_address2,
+      base_province:    item.province       || prev.base_province,
+      base_postcode:    item.postcode       || prev.base_postcode,
+      base_country:     item.country        || prev.base_country,
       default_currency: item.country ? inferCurrencyFromCountry(item.country) : prev.default_currency,
     }));
   }
@@ -219,11 +241,10 @@ export default function PartnerProfilePage() {
     setSuggestions([]); setShowSuggestions(false);
   }
 
-  // Debounced as-you-type search
   function handleSearchChange(q: string) {
     updateField("search_address", q);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (q.length < 3) { setSuggestions([]); setShowSuggestions(false); return; }
+    if (q.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
     searchTimer.current = setTimeout(() => runSearch(q), 350);
   }
 
@@ -241,7 +262,6 @@ export default function PartnerProfilePage() {
     finally { setSearching(false); }
   }
 
-  // Manual search button still works
   async function searchAddress() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     await runSearch(profile.search_address.trim());
@@ -283,31 +303,31 @@ export default function PartnerProfilePage() {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData?.user) throw new Error("Not signed in.");
       const userId = userData.user.id;
-      const lat = parseCoordinate(profile.base_lat, "lat");
-      const lng = parseCoordinate(profile.base_lng, "lng");
+      const lat    = parseCoordinate(profile.base_lat, "lat");
+      const lng    = parseCoordinate(profile.base_lng, "lng");
       if (lat === null || lng === null) throw new Error("Base latitude and longitude must be valid numbers.");
       const radius = Number(profile.service_radius_km);
       if (!Number.isFinite(radius) || radius <= 0) throw new Error("Service radius must be a valid number.");
 
       const { error: upsertErr } = await supabase.from("partner_profiles").upsert({
-        user_id: userId,
-        company_name: profile.company_name.trim() || null,
-        contact_name: profile.contact_name.trim() || null,
-        phone: profile.phone.trim() || null,
-        address: profile.address.trim() || null,
-        address1: profile.address1.trim() || null,
-        address2: profile.address2.trim() || null,
-        province: profile.province.trim() || null,
-        postcode: profile.postcode.trim() || null,
-        country: profile.country.trim() || null,
-        website: profile.website.trim() || null,
-        service_radius_km: radius,
-        base_address: profile.base_address.trim() || profile.search_address.trim() || null,
-        base_lat: lat,
-        base_lng: lng,
-        default_currency: profile.default_currency,
-        legal_company_name: profile.legal_company_name.trim() || null,
-        vat_number: profile.vat_number.trim() || null,
+        user_id:                     userId,
+        company_name:                profile.company_name.trim()                || null,
+        contact_name:                profile.contact_name.trim()                || null,
+        phone:                       profile.phone.trim()                       || null,
+        address:                     profile.address.trim()                     || null,
+        address1:                    profile.address1.trim()                    || null,
+        address2:                    profile.address2.trim()                    || null,
+        province:                    profile.province.trim()                    || null,
+        postcode:                    profile.postcode.trim()                    || null,
+        country:                     profile.country.trim()                     || null,
+        website:                     profile.website.trim()                     || null,
+        service_radius_km:           radius,
+        base_address:                profile.base_address.trim() || profile.search_address.trim() || null,
+        base_lat:                    lat,
+        base_lng:                    lng,
+        default_currency:            profile.default_currency,
+        legal_company_name:          profile.legal_company_name.trim()          || null,
+        vat_number:                  profile.vat_number.trim()                  || null,
         company_registration_number: profile.company_registration_number.trim() || null,
       }, { onConflict: "user_id" });
 
@@ -355,14 +375,12 @@ export default function PartnerProfilePage() {
             <Field label="Billing currency">
               <p className="mt-1 mb-2 text-xs font-semibold text-black/50">The currency your bids and bookings will be quoted in.</p>
               <div className="flex gap-2">
-                {(["EUR", "GBP", "USD"] as Currency[]).map(c => (
+                {(["GBP", "EUR", "USD"] as Currency[]).map(c => (
                   <button key={c} type="button" onClick={() => updateField("default_currency", c)}
                     className={`flex-1 px-3 py-3 text-sm font-black transition-all ${
-                      profile.default_currency === c
-                        ? "bg-[#ff7a00] text-white"
-                        : "bg-[#f0f0f0] text-black hover:bg-[#e8e8e8]"
+                      profile.default_currency === c ? "bg-[#ff7a00] text-white" : "bg-[#f0f0f0] text-black hover:bg-[#e8e8e8]"
                     }`}>
-                    {c === "EUR" ? "€ Euro" : c === "GBP" ? "£ GBP" : "$ USD"}
+                    {c === "GBP" ? "£ GBP" : c === "EUR" ? "€ Euro" : "$ USD"}
                   </button>
                 ))}
               </div>
@@ -397,8 +415,7 @@ export default function PartnerProfilePage() {
                 </p>
                 {profile.vat_number
                   ? <span className="shrink-0 border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-black text-green-700">✓</span>
-                  : <span className="shrink-0 border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-black text-red-600">Required</span>
-                }
+                  : <span className="shrink-0 border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-black text-red-600">Required</span>}
               </div>
             </div>
           </div>
@@ -432,6 +449,7 @@ export default function PartnerProfilePage() {
               <p className="text-xs font-semibold text-black/50">Tick to copy your business address as the fleet base address</p>
             </div>
           </label>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <Field label="Fleet base full address">
@@ -443,12 +461,16 @@ export default function PartnerProfilePage() {
             <Field label="Address line 2"><TextInput value={profile.base_address2} onChange={v => setProfile(prev => ({ ...prev, base_address2: v, base_address: [prev.base_address1, v, prev.base_province, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. Unit 3" /></Field>
             <Field label="Province / Region"><TextInput value={profile.base_province} onChange={v => setProfile(prev => ({ ...prev, base_province: v, base_address: [prev.base_address1, prev.base_address2, v, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. Comunitat Valenciana" /></Field>
             <Field label="Postcode"><TextInput value={profile.base_postcode} onChange={v => setProfile(prev => ({ ...prev, base_postcode: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, v, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. 46001" /></Field>
-            <div className="md:col-span-2"><Field label="Country"><TextInput value={profile.base_country} onChange={v => setProfile(prev => ({ ...prev, base_country: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, prev.base_postcode, v].filter(Boolean).join(", ") }))} placeholder="e.g. Spain" /></Field></div>
+            <div className="md:col-span-2">
+              <Field label="Country"><TextInput value={profile.base_country} onChange={v => setProfile(prev => ({ ...prev, base_country: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, prev.base_postcode, v].filter(Boolean).join(", ") }))} placeholder="e.g. Spain" /></Field>
+            </div>
           </div>
 
+          {/* GPS + Search */}
           <div className="mt-5 bg-[#f0f0f0] p-4">
             <p className="text-xs font-black uppercase tracking-widest text-black mb-1">📍 GPS Coordinates — Service Radius Centre Point</p>
             <p className="text-xs font-semibold text-black/50 mb-3">These coordinates determine the centre of your service radius. Use search, GPS or click the map to set them.</p>
+
             <div className="flex flex-wrap gap-3 mb-3">
               <button type="button" onClick={useCurrentLocation}
                 className="border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#e8e8e8] transition-colors">
@@ -456,7 +478,7 @@ export default function PartnerProfilePage() {
               </button>
             </div>
 
-            {/* Search — as you type with debounce */}
+            {/* Photon-powered search — as-you-type with two-line dropdown */}
             <div className="relative">
               <div className="flex gap-2">
                 <input
@@ -477,10 +499,7 @@ export default function PartnerProfilePage() {
               {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute z-20 left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden">
                   {suggestions.map((item, idx) => (
-                    <button key={`${item.display_name}-${idx}`} type="button" onClick={() => pickSuggestion(item)}
-                      className="block w-full border-b border-black/5 px-4 py-3 text-left text-sm font-medium text-black hover:bg-[#f0f0f0] last:border-b-0">
-                      {item.display_name}
-                    </button>
+                    <SuggestionRow key={`${item.display_name}-${idx}`} item={item} onClick={() => pickSuggestion(item)} />
                   ))}
                 </div>
               )}
@@ -492,7 +511,7 @@ export default function PartnerProfilePage() {
             </div>
           </div>
 
-          <div className="mt-4 border border-black/10">
+          <div className="mt-4">
             <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
           </div>
           <p className="mt-2 text-xs font-semibold text-black/50">💡 Click the map to move the pin and update your GPS coordinates and address.</p>
