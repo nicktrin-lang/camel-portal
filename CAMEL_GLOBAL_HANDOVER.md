@@ -87,17 +87,17 @@ git push origin main
 | `lib/currency.ts` | All currency utilities — EUR, GBP, USD formatting + conversion |
 | `lib/useCurrency.ts` | React hook — currency state, live rates, fmt helpers |
 | `app/components/HCaptcha.tsx` | Reusable hCaptcha React widget |
-| `app/components/Footer.tsx` | Portal footer — black theme, partner/admin/driver variants |
+| `app/components/Footer.tsx` | Portal footer — black theme, partner/admin/driver variants, exported as PortalFooter |
 | `app/components/portal/PortalTopbar.tsx` | Partner/admin header — black, h-[76px], inverted logo |
 | `app/components/portal/PortalSidebar.tsx` | Partner/admin sidebar — black, orange active state |
 
 ### Key Libraries & Files — Customer (`~/camel-customer`)
 | File | Purpose |
 |------|---------|
-| `lib/supabase-customer/browser.ts` | Supabase browser client (customers) |
-| `lib/supabase-customer/server.ts` | Supabase server client (customers) |
-| `lib/supabase/server.ts` | Also present — used by some test-booking API routes |
-| `lib/supabase/auth-client.ts` | Auth client — used by reset-password pages |
+| `lib/supabase-customer/browser.ts` | Supabase browser client (customers) — uses createClient with hardcoded fallback |
+| `lib/supabase-customer/server.ts` | Supabase server client (customers) — hardcoded fallback URL |
+| `lib/supabase/server.ts` | Also present — used by test-booking API routes |
+| `lib/supabase/auth-client.ts` | Auth client — used by reset-password pages, hardcoded fallback |
 | `lib/portal/calculateFuelCharge.ts` | Copied — used by customer booking API |
 | `lib/portal/syncBookingStatuses.ts` | Copied — used by customer booking API |
 | `lib/currency.ts` | Currency utilities |
@@ -122,6 +122,16 @@ All internal API routes stay at `/api/test-booking/*` — do not rename these.
 
 ---
 
+## Supabase Projects
+| Project | URL | Used by |
+|---------|-----|---------|
+| `camel-global` | `https://guhcavvpuveiovspzxmg.supabase.co` | Portal + Customer (both) |
+| `camel-customers` | `https://hkolxykbjtrzwiwkwpzv.supabase.co` | Legacy — no longer used |
+
+**IMPORTANT:** Both the portal and customer site now use the same Supabase project (`guhcavvpuveiovspzxmg`). The `camel-customers` project is legacy and unused. All customer env vars point to the same project as the portal.
+
+---
+
 ## Branding System
 
 ### Customer Site — Black / Grey / White / Orange
@@ -135,11 +145,12 @@ All internal API routes stay at `/api/test-booking/*` — do not rename these.
 - **Footer:** Black, "Ready to book?" CTA at top
 
 ### Partner / Admin / Driver Portals — Same Black Theme
-- **Header (`PortalTopbar`):** Black, `h-[76px]`, inverted logo, orange "Book Now", square "Logout"
+- **Pre-auth headers** (login, signup, portal homepage): Black, `max-w-7xl`, `px-4 py-2.5`, logo `h-16` — matches customer site exactly
+- **Authenticated headers:** Black, `h-[76px]`, inverted logo, no "Book Now" button
 - **Sidebar (`PortalSidebar`):** Black background, white/10 border, orange active nav item
-- **Footer:** Black background, white text
+- **Footer:** Black background, white text — only shown when authenticated, never on pre-auth pages
 - **No blue (`#003768`), no rounded corners, no shadows** anywhere in portal UI
-- **Portal homepage** (`portal.camel-global.com`): Black hero, "Partner Portal" heading, Partner Login + Become a Partner CTAs, Driver login link
+- **Portal homepage** (`portal.camel-global.com`): Black hero, "Partner Portal" heading, Partner Login + Become a Partner + Driver login CTAs, minimal copyright bar only (no footer)
 
 ---
 
@@ -192,7 +203,7 @@ GA scripts injected server-side in each repo's `app/layout.tsx` using raw `<scri
 
 ### Portal (`camel-portal-live`)
 ```
-NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_URL          → https://guhcavvpuveiovspzxmg.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_HCAPTCHA_SITE_KEY
@@ -202,19 +213,24 @@ EMAIL_FROM
 CRON_SECRET
 CAMEL_ADMIN_EMAILS
 PORTAL_BASE_URL
-NEXT_PUBLIC_SITE_URL  → https://portal.camel-global.com
+NEXT_PUBLIC_SITE_URL              → https://portal.camel-global.com
 ```
 
 ### Customer (`camel-customer-live`)
 ```
-NEXT_PUBLIC_CUSTOMER_SUPABASE_URL
-NEXT_PUBLIC_CUSTOMER_SUPABASE_ANON_KEY
-CUSTOMER_SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_CUSTOMER_SUPABASE_URL      → https://guhcavvpuveiovspzxmg.supabase.co (same as portal)
+NEXT_PUBLIC_CUSTOMER_SUPABASE_ANON_KEY → same anon key as portal
+CUSTOMER_SUPABASE_SERVICE_ROLE_KEY     → same service role key as portal
+NEXT_PUBLIC_SUPABASE_URL               → https://guhcavvpuveiovspzxmg.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY          → same anon key as portal
+SUPABASE_SERVICE_ROLE_KEY              → same service role key as portal
 NEXT_PUBLIC_HCAPTCHA_SITE_KEY
 HCAPTCHA_SECRET_KEY
 RESEND_API_KEY
-NEXT_PUBLIC_SITE_URL  → https://camel-global.com
+NEXT_PUBLIC_SITE_URL                   → https://camel-global.com
 ```
+
+**Note:** Customer site needs both sets of vars because `lib/supabase/server.ts` (used by API routes) reads the non-prefixed vars, while `lib/supabase-customer/` reads the CUSTOMER_ prefixed vars. Both point to the same Supabase project.
 
 ---
 
@@ -225,21 +241,23 @@ NEXT_PUBLIC_SITE_URL  → https://camel-global.com
 |-----|-------------|
 | `v-stable-repo-split` | Stable after repo split — portal only, all 4 domains live |
 | `v-stable-partner-branding` | Full portal rebrand — black/orange/grey theme |
+| `v-stable-chat18` | Chat 18 — header standardisation, footer fixes, Supabase env fix |
 
 ### Customer (`~/camel-customer`)
 | Tag | Description |
 |-----|-------------|
 | `v-stable-repo-split` | Stable after repo split — customer only, all 4 domains live |
+| `v-stable-chat18` | Chat 18 — Supabase env fixed, bookings working, browser client fixed |
 
 ### Rollback
 ```bash
 # Portal
 cd ~/camel-portal
-git checkout v-stable-repo-split
+git checkout v-stable-chat18
 
 # Customer
 cd ~/camel-customer
-git checkout v-stable-repo-split
+git checkout v-stable-chat18
 ```
 
 ---
@@ -268,34 +286,44 @@ git checkout v-stable-repo-split
 - **4 domains live and correctly routed**
 - **Google Analytics working on all 4 domains**
 - **New portal homepage at portal.camel-global.com**
+- **Customer bookings page working — 73 bookings visible**
+- **All Supabase env vars correctly set in both Vercel projects**
+- **Standardised headers across all pre-auth pages**
 
 ---
 
 ## Session Log
 
+### Chat 18 (Completed)
+**Header standardisation, footer fixes, Supabase env fix**
+- Portal homepage: tightened spacing, removed full footer, minimal copyright bar only, driver login link added
+- Fixed double footer bug — `ClientRootLayout` no longer renders footer, each layout manages its own
+- Removed footer from all pre-auth pages (partner login, signup, driver login, driver layout)
+- Standardised all pre-auth headers to match customer site: `h-16` logo, `px-4 py-2.5`, `max-w-7xl`
+- Removed "Book Now" from partner login, signup and driver pre-auth headers
+- `PortalFooter` exported from `Footer.tsx` for use on authenticated pages only
+- Fixed customer site Supabase env vars — both `CUSTOMER_` and non-prefixed vars now set in Vercel
+- Fixed `lib/supabase-customer/browser.ts` to use `createClient` (not `createBrowserClient`) with hardcoded fallbacks
+- Fixed `lib/supabase-customer/server.ts` and `lib/supabase/auth-client.ts` with hardcoded fallbacks
+- Customer bookings restored — 73 bookings reassigned to correct user ID via SQL update
+- Local `camel-customer/.env.local` corrected to point at portal Supabase project
+- Stable tag `v-stable-chat18` created on both repos
+
 ### Chat 17 (Completed)
 **Repo split — customer site separated from portal**
 - Split `camel-portal` into two repos: `camel-portal` (portal) + `camel-customer` (customer)
 - Two Vercel projects: `camel-portal-live` + `camel-customer-live`
-- 4 domains correctly routed: `portal.camel-global.com`, `test-portal.camel-global.com`, `camel-global.com`, `test.camel-global.com`
-- Deleted `camel-portal-backup` Vercel project
-- Archived `camel-global-website` GitHub repo
-- Renamed `camel-coming-soon` → `camel-customer` GitHub repo
-- GA tracking per domain correctly configured with correct measurement IDs
-- New portal homepage built — black hero, Partner Login + Become a Partner CTAs
-- Admin portal rebrand completed: accounts, approvals, bookings, requests, reviews, reports, users pages
+- 4 domains correctly routed
+- GA tracking per domain correctly configured
+- New portal homepage built
+- Admin portal rebrand completed
 - Stable tag `v-stable-repo-split` created on both repos
 
 ### Chat 16 (Completed)
 **Portal rebrand — black/orange/grey theme**
 - PortalTopbar, PortalSidebar, Footer, partner login, signup, terms, operating rules rebranded
-- Partner dashboard, onboarding, account, requests, bookings, reports, drivers, fleet, reviews, settings, contact rebranded
-- Admin accounts, approvals, bookings, requests, reviews, reports, users rebranded
-- Driver login, signup rebranded
-- Footer: all portal footers black, single PortalFooter component with variant prop
-- Info pages publicly accessible without auth
-- Double footer bug fixed
-- ClientRootLayout simplified
+- All partner, admin, driver pages rebranded
+- Double footer bug fixed, ClientRootLayout simplified
 
 ### Chats 1–15 (Completed)
 - Core booking flow, fuel, drivers, insurance, reviews, currency, password reset, commission, T&Cs, security, GDPR, footer, policy pages, maps, full customer UI overhaul, guest booking flow
@@ -330,12 +358,12 @@ git checkout v-stable-repo-split
 - [ ] Update registered address in privacy/terms pages (currently placeholder)
 - [ ] Create `contact@camel-global.com` mailbox
 - [ ] Create `press@camel-global.com` mailbox
-- [ ] Build portal homepage further (currently minimal — Partner Login, Become a Partner, Driver Login)
-- [ ] Continue admin portal pages rebrand if any remaining
+- [ ] Build portal homepage further (currently minimal)
 - [ ] Driver portal rebrand (jobs page)
 - [ ] Stripe Connect integration (Phase 2)
 - [ ] Spanish translation (Item 10)
-- [ ] Point `camel-global.com` naked domain to customer site (currently redirects to www — verify this is correct)
+- [ ] Point `camel-global.com` naked domain to customer site (verify redirect is correct)
+- [ ] Delete or archive legacy `camel-customers` Supabase project (`hkolxykbjtrzwiwkwpzv`) once confirmed unused
 
 ---
 
@@ -372,4 +400,4 @@ cd ~/camel-customer && vercel --prod
 
 ---
 
-*Last updated: Chat 17 — Repo split complete. camel-portal (portal only) + camel-customer (customer only). 4 domains live. GA working. New portal homepage. Admin portal fully rebranded.*
+*Last updated: Chat 18 — Header standardisation, footer fixes, Supabase env vars fixed, customer bookings restored.*
