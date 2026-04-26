@@ -11,42 +11,17 @@ const MapPicker = dynamic(() => import("./MapPicker"), { ssr: false });
 type Currency = "EUR" | "GBP" | "USD";
 
 type ProfileState = {
-  company_name: string;
-  contact_name: string;
-  phone: string;
-  address: string;
-  address1: string;
-  address2: string;
-  province: string;
-  postcode: string;
-  country: string;
-  website: string;
-  service_radius_km: string;
-  base_address: string;
-  base_address1: string;
-  base_address2: string;
-  base_province: string;
-  base_postcode: string;
-  base_country: string;
-  base_lat: string;
-  base_lng: string;
-  search_address: string;
-  default_currency: Currency;
-  same_as_business: boolean;
-  legal_company_name: string;
-  vat_number: string;
-  company_registration_number: string;
+  company_name: string; contact_name: string; phone: string; address: string;
+  address1: string; address2: string; province: string; postcode: string; country: string;
+  website: string; service_radius_km: string; base_address: string;
+  base_address1: string; base_address2: string; base_province: string; base_postcode: string; base_country: string;
+  base_lat: string; base_lng: string; search_address: string; default_currency: Currency;
+  same_as_business: boolean; legal_company_name: string; vat_number: string; company_registration_number: string;
 };
 
 type Suggestion = {
-  display_name: string;
-  lat: number | null;
-  lng: number | null;
-  address_line1?: string;
-  address_line2?: string;
-  province?: string;
-  postcode?: string;
-  country?: string;
+  display_name: string; lat: number | null; lng: number | null;
+  address_line1?: string; address_line2?: string; province?: string; postcode?: string; country?: string;
 };
 
 function parseCoordinate(value: string | number | null | undefined, kind: "lat" | "lng"): number | null {
@@ -77,13 +52,11 @@ function inferCurrencyFromCountry(country: string): Currency {
   return "EUR";
 }
 
+const inputCls = "mt-1 w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
+const labelCls = "text-xs font-black uppercase tracking-widest text-black";
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="text-sm font-medium text-[#003768]">{label}</label>
-      {children}
-    </div>
-  );
+  return <div><label className={labelCls}>{label}</label>{children}</div>;
 }
 
 function TextInput({ value, onChange, placeholder, type = "text" }: {
@@ -91,8 +64,7 @@ function TextInput({ value, onChange, placeholder, type = "text" }: {
 }) {
   return (
     <input type={type} value={value} onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="mt-1 w-full rounded-xl border border-black/10 p-3 text-black outline-none focus:border-[#0f4f8a]" />
+      placeholder={placeholder} className={inputCls} />
   );
 }
 
@@ -100,12 +72,12 @@ function SectionCard({ title, description, children }: {
   title: string; description?: string; children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] md:p-8">
-      <div className="border-b border-black/5 pb-4 mb-6">
-        <h2 className="text-xl font-semibold text-[#003768]">{title}</h2>
-        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+    <div className="bg-white border border-black/10">
+      <div className="border-b border-black/10 px-6 py-5 md:px-8">
+        <h2 className="text-base font-black uppercase tracking-widest text-black">{title}</h2>
+        {description && <p className="mt-1 text-sm font-semibold text-black/50">{description}</p>}
       </div>
-      {children}
+      <div className="px-6 py-6 md:px-8">{children}</div>
     </div>
   );
 }
@@ -114,12 +86,12 @@ export default function PartnerProfilePage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [loading, setLoading]             = useState(true);
+  const [saving, setSaving]               = useState(false);
+  const [saved, setSaved]                 = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
+  const [suggestions, setSuggestions]     = useState<Suggestion[]>([]);
+  const [searching, setSearching]         = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [profile, setProfile] = useState<ProfileState>({
@@ -128,8 +100,7 @@ export default function PartnerProfilePage() {
     website: "", service_radius_km: "30", base_address: "",
     base_address1: "", base_address2: "", base_province: "", base_postcode: "", base_country: "",
     base_lat: "", base_lng: "", search_address: "", default_currency: "EUR",
-    same_as_business: false,
-    legal_company_name: "", vat_number: "", company_registration_number: "",
+    same_as_business: false, legal_company_name: "", vat_number: "", company_registration_number: "",
   });
 
   useEffect(() => {
@@ -154,9 +125,8 @@ export default function PartnerProfilePage() {
 
         const status = String((application as any)?.status || "").toLowerCase();
         if (application && status && status !== "approved" && status !== "live") {
-          throw new Error("Your account is not approved yet, so profile cannot be created.");
+          throw new Error("Your account is not approved yet.");
         }
-
         if (!mounted) return;
 
         const country = String(existingProfile?.country ?? (application as any)?.country ?? "");
@@ -205,9 +175,7 @@ export default function PartnerProfilePage() {
     setSaved(false);
     setProfile(prev => {
       const next = { ...prev, [key]: value };
-      if (key === "country" && typeof value === "string") {
-        next.default_currency = inferCurrencyFromCountry(value);
-      }
+      if (key === "country" && typeof value === "string") next.default_currency = inferCurrencyFromCountry(value);
       return next;
     });
   }
@@ -334,21 +302,21 @@ export default function PartnerProfilePage() {
   const lng = parseCoordinate(profile.base_lng, "lng");
 
   if (loading) return (
-    <div className="rounded-3xl border border-black/5 bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-      <p className="text-slate-600">Loading…</p>
+    <div className="border border-black/10 bg-white p-8">
+      <p className="text-sm font-semibold text-black/50">Loading…</p>
     </div>
   );
 
   return (
-    <div className="space-y-6">
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-      {saved && <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">✓ Profile saved successfully.</div>}
+    <div className="space-y-4">
+      {error && <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+      {saved && <div className="border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">✓ Profile saved successfully.</div>}
 
-      <form onSubmit={handleSave} className="space-y-6">
+      <form onSubmit={handleSave} className="space-y-4">
 
-        {/* ── Section 1: Company Information ── */}
+        {/* Company Information */}
         <SectionCard title="Company Information" description="Your basic company details shown to customers when you win a bid.">
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field label="Company name"><TextInput value={profile.company_name} onChange={v => updateField("company_name", v)} placeholder="e.g. Valencia Cars" /></Field>
             <Field label="Contact name"><TextInput value={profile.contact_name} onChange={v => updateField("contact_name", v)} placeholder="e.g. Nick Smith" /></Field>
             <Field label="Phone"><TextInput value={profile.phone} onChange={v => updateField("phone", v)} placeholder="+34 600 000 000" /></Field>
@@ -356,23 +324,23 @@ export default function PartnerProfilePage() {
           </div>
         </SectionCard>
 
-        {/* ── Section 2: Service Settings ── */}
+        {/* Service Settings */}
         <SectionCard title="Service Settings" description="Control your service radius and the currency you bid in.">
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field label="Service radius (km)">
-              <p className="mt-0.5 mb-1 text-xs text-slate-500">Customer requests within this distance from your base will be sent to you.</p>
+              <p className="mt-1 mb-2 text-xs font-semibold text-black/50">Customer requests within this distance from your base will be sent to you.</p>
               <TextInput type="number" value={profile.service_radius_km} onChange={v => updateField("service_radius_km", v)} placeholder="30" />
             </Field>
             <Field label="Billing currency">
-              <p className="mt-0.5 mb-2 text-xs text-slate-500">The currency your bids and bookings will be quoted in.</p>
+              <p className="mt-1 mb-2 text-xs font-semibold text-black/50">The currency your bids and bookings will be quoted in.</p>
               <div className="flex gap-2">
                 {(["EUR", "GBP", "USD"] as Currency[]).map(c => (
                   <button key={c} type="button" onClick={() => updateField("default_currency", c)}
-                    className={["flex-1 rounded-xl border px-3 py-3 text-sm font-bold transition-all",
+                    className={`flex-1 px-3 py-3 text-sm font-black transition-all ${
                       profile.default_currency === c
-                        ? "border-[#003768] bg-[#003768] text-white shadow-[0_4px_12px_rgba(0,55,104,0.3)]"
-                        : "border-black/10 bg-white text-slate-700 hover:border-[#003768]/40"
-                    ].join(" ")}>
+                        ? "bg-[#ff7a00] text-white"
+                        : "bg-[#f0f0f0] text-black hover:bg-[#e8e8e8]"
+                    }`}>
                     {c === "EUR" ? "€ Euro" : c === "GBP" ? "£ GBP" : "$ USD"}
                   </button>
                 ))}
@@ -381,82 +349,72 @@ export default function PartnerProfilePage() {
           </div>
         </SectionCard>
 
-        {/* ── Section 3: Business & Billing (read-only) ── */}
+        {/* Business & Billing */}
         <SectionCard title="Business & Billing" description="Your legal details used for commission invoicing.">
-          <div className="rounded-xl border border-[#003768]/10 bg-[#f3f8ff] px-4 py-3 text-sm text-[#003768] mb-5">
-            <p className="font-semibold mb-0.5">🔒 These details are managed by Camel Global</p>
-            <p>Your legal company name and VAT / NIF number are used for cross-border commission invoicing and can only be changed by the Camel Global team. If you need to update these details please contact <a href="mailto:support@camel-global.com" className="underline font-semibold">support@camel-global.com</a>.</p>
+          <div className="bg-[#f0f0f0] px-4 py-3 text-sm text-black mb-5">
+            <p className="font-black mb-0.5">🔒 These details are managed by Camel Global</p>
+            <p className="font-semibold text-black/60">Your legal company name and VAT / NIF number are used for cross-border commission invoicing and can only be changed by the Camel Global team. If you need to update these details please contact <a href="mailto:support@camel-global.com" className="underline font-black text-black">support@camel-global.com</a>.</p>
           </div>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
-              <p className="text-sm font-medium text-[#003768]">Legal company name</p>
-              <p className="mt-1 rounded-xl border border-black/10 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                {profile.legal_company_name || <span className="text-slate-400 italic">Not set — contact support</span>}
+              <p className={labelCls}>Legal company name</p>
+              <p className="mt-1 border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black">
+                {profile.legal_company_name || <span className="text-black/40 italic">Not set — contact support</span>}
               </p>
             </div>
             <div>
-              <p className="text-sm font-medium text-[#003768]">Company registration number</p>
-              <p className="mt-1 rounded-xl border border-black/10 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                {profile.company_registration_number || <span className="text-slate-400 italic">Not set</span>}
+              <p className={labelCls}>Company registration number</p>
+              <p className="mt-1 border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black">
+                {profile.company_registration_number || <span className="text-black/40 italic">Not set</span>}
               </p>
             </div>
             <div>
-              <p className="text-sm font-medium text-[#003768]">VAT / NIF Number</p>
+              <p className={labelCls}>VAT / NIF Number</p>
               <div className="mt-1 flex items-center gap-2">
-                <p className="flex-1 rounded-xl border border-black/10 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                  {profile.vat_number || <span className="text-slate-400 italic">Not set — contact support</span>}
+                <p className="flex-1 border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black">
+                  {profile.vat_number || <span className="text-black/40 italic">Not set — contact support</span>}
                 </p>
                 {profile.vat_number
-                  ? <span className="shrink-0 inline-flex rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">✓</span>
-                  : <span className="shrink-0 inline-flex rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">Required</span>
+                  ? <span className="shrink-0 border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-black text-green-700">✓</span>
+                  : <span className="shrink-0 border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-black text-red-600">Required</span>
                 }
               </div>
             </div>
           </div>
         </SectionCard>
 
-        {/* ── Section 4: Business Address ── */}
+        {/* Business Address */}
         <SectionCard title="Business Address" description="Your registered company address for correspondence and records.">
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <Field label="Full address (auto-filled)">
-                <p className="mt-0.5 mb-1 text-xs text-slate-500">Combined address — updated automatically from the fields below.</p>
+                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">Combined address — updated automatically from the fields below.</p>
                 <TextInput value={profile.address} onChange={v => updateField("address", v)} placeholder="Full address" />
               </Field>
             </div>
-            <Field label="Address line 1">
-              <TextInput value={profile.address1} onChange={v => setProfile(prev => ({ ...prev, address1: v, address: [v, prev.address2, prev.province, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Calle Mayor 12" />
-            </Field>
-            <Field label="Address line 2">
-              <TextInput value={profile.address2} onChange={v => setProfile(prev => ({ ...prev, address2: v, address: [prev.address1, v, prev.province, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Floor 2, Office A" />
-            </Field>
-            <Field label="Province / Region">
-              <TextInput value={profile.province} onChange={v => setProfile(prev => ({ ...prev, province: v, address: [prev.address1, prev.address2, v, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Comunitat Valenciana" />
-            </Field>
-            <Field label="Postcode">
-              <TextInput value={profile.postcode} onChange={v => setProfile(prev => ({ ...prev, postcode: v, address: [prev.address1, prev.address2, prev.province, v, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. 46001" />
-            </Field>
+            <Field label="Address line 1"><TextInput value={profile.address1} onChange={v => setProfile(prev => ({ ...prev, address1: v, address: [v, prev.address2, prev.province, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Calle Mayor 12" /></Field>
+            <Field label="Address line 2"><TextInput value={profile.address2} onChange={v => setProfile(prev => ({ ...prev, address2: v, address: [prev.address1, v, prev.province, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Floor 2, Office A" /></Field>
+            <Field label="Province / Region"><TextInput value={profile.province} onChange={v => setProfile(prev => ({ ...prev, province: v, address: [prev.address1, prev.address2, v, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Comunitat Valenciana" /></Field>
+            <Field label="Postcode"><TextInput value={profile.postcode} onChange={v => setProfile(prev => ({ ...prev, postcode: v, address: [prev.address1, prev.address2, prev.province, v, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. 46001" /></Field>
             <div className="md:col-span-2">
-              <Field label="Country">
-                <TextInput value={profile.country} onChange={v => setProfile(prev => ({ ...prev, country: v, address: [prev.address1, prev.address2, prev.province, prev.postcode, v].filter(Boolean).join(", "), default_currency: inferCurrencyFromCountry(v) }))} placeholder="e.g. España" />
-              </Field>
+              <Field label="Country"><TextInput value={profile.country} onChange={v => setProfile(prev => ({ ...prev, country: v, address: [prev.address1, prev.address2, prev.province, prev.postcode, v].filter(Boolean).join(", "), default_currency: inferCurrencyFromCountry(v) }))} placeholder="e.g. Spain" /></Field>
             </div>
           </div>
         </SectionCard>
 
-        {/* ── Section 5: Car Fleet Base Location ── */}
+        {/* Car Fleet Base Location */}
         <SectionCard title="Car Fleet Base Location" description="Where your vehicles are dispatched from. The coordinates set here control your service radius.">
-          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-[#003768]/20 bg-[#f3f8ff] px-4 py-3 mb-6">
-            <input type="checkbox" checked={profile.same_as_business} onChange={e => toggleSameAsBusiness(e.target.checked)} className="h-4 w-4 accent-[#003768]" />
+          <label className="flex cursor-pointer items-center gap-3 bg-[#f0f0f0] px-4 py-3 mb-5">
+            <input type="checkbox" checked={profile.same_as_business} onChange={e => toggleSameAsBusiness(e.target.checked)} className="h-4 w-4" />
             <div>
-              <span className="text-sm font-semibold text-[#003768]">Same as business address</span>
-              <p className="text-xs text-slate-500">Tick to copy your business address as the fleet base address</p>
+              <span className="text-sm font-black text-black">Same as business address</span>
+              <p className="text-xs font-semibold text-black/50">Tick to copy your business address as the fleet base address</p>
             </div>
           </label>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <Field label="Fleet base full address">
-                <p className="mt-0.5 mb-1 text-xs text-slate-500">Combined — auto-fills from the fields below, search or map.</p>
+                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">Combined — auto-fills from the fields below, search or map.</p>
                 <TextInput value={profile.base_address} onChange={v => updateField("base_address", v)} />
               </Field>
             </div>
@@ -464,13 +422,17 @@ export default function PartnerProfilePage() {
             <Field label="Address line 2"><TextInput value={profile.base_address2} onChange={v => setProfile(prev => ({ ...prev, base_address2: v, base_address: [prev.base_address1, v, prev.base_province, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. Unit 3" /></Field>
             <Field label="Province / Region"><TextInput value={profile.base_province} onChange={v => setProfile(prev => ({ ...prev, base_province: v, base_address: [prev.base_address1, prev.base_address2, v, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. Comunitat Valenciana" /></Field>
             <Field label="Postcode"><TextInput value={profile.base_postcode} onChange={v => setProfile(prev => ({ ...prev, base_postcode: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, v, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. 46001" /></Field>
-            <div className="md:col-span-2"><Field label="Country"><TextInput value={profile.base_country} onChange={v => setProfile(prev => ({ ...prev, base_country: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, prev.base_postcode, v].filter(Boolean).join(", ") }))} placeholder="e.g. España" /></Field></div>
+            <div className="md:col-span-2"><Field label="Country"><TextInput value={profile.base_country} onChange={v => setProfile(prev => ({ ...prev, base_country: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, prev.base_postcode, v].filter(Boolean).join(", ") }))} placeholder="e.g. Spain" /></Field></div>
           </div>
-          <div className="mt-6 rounded-2xl border border-[#003768]/10 bg-[#f3f8ff] p-4">
-            <p className="text-sm font-semibold text-[#003768] mb-1">📍 GPS Coordinates — Service Radius Centre Point</p>
-            <p className="text-xs text-slate-500 mb-3">These coordinates determine the centre of your service radius. Use search, GPS or click the map to set them.</p>
+
+          <div className="mt-5 bg-[#f0f0f0] p-4">
+            <p className="text-xs font-black uppercase tracking-widest text-black mb-1">📍 GPS Coordinates — Service Radius Centre Point</p>
+            <p className="text-xs font-semibold text-black/50 mb-3">These coordinates determine the centre of your service radius. Use search, GPS or click the map to set them.</p>
             <div className="flex flex-wrap gap-3 mb-3">
-              <button type="button" onClick={useCurrentLocation} className="rounded-full border border-[#003768]/20 bg-white px-5 py-2 text-sm font-semibold text-[#003768] hover:bg-[#003768]/5">Use my current location</button>
+              <button type="button" onClick={useCurrentLocation}
+                className="border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#e8e8e8] transition-colors">
+                Use my current location
+              </button>
             </div>
             <div className="flex gap-2">
               <input type="text" value={profile.search_address}
@@ -478,16 +440,17 @@ export default function PartnerProfilePage() {
                 onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); searchAddress(); } }}
                 placeholder="Search to set GPS pin location…"
-                className="flex-1 rounded-xl border border-black/10 p-3 text-black outline-none focus:border-[#0f4f8a]" />
-              <button type="button" onClick={searchAddress} className="rounded-xl bg-[#ff7a00] px-5 py-2 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95">
+                className="flex-1 border border-black/10 bg-white px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#f0f0f0] transition-colors" />
+              <button type="button" onClick={searchAddress}
+                className="bg-[#ff7a00] px-5 py-2 text-sm font-black text-white hover:opacity-90 transition-opacity">
                 {searching ? "Searching…" : "Search"}
               </button>
             </div>
             {showSuggestions && suggestions.length > 0 && (
-              <div className="mt-2 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg">
+              <div className="mt-1 border border-black/10 bg-white">
                 {suggestions.map((item, idx) => (
                   <button key={`${item.display_name}-${idx}`} type="button" onClick={() => pickSuggestion(item)}
-                    className="block w-full border-b border-black/5 px-4 py-3 text-left text-sm text-gray-800 hover:bg-[#f3f8ff] last:border-b-0">
+                    className="block w-full border-b border-black/5 px-4 py-3 text-left text-sm font-medium text-black hover:bg-[#f0f0f0] last:border-b-0">
                     {item.display_name}
                   </button>
                 ))}
@@ -498,17 +461,19 @@ export default function PartnerProfilePage() {
               <Field label="Longitude"><TextInput value={profile.base_lng} onChange={v => updateField("base_lng", v)} placeholder="e.g. 0.112" /></Field>
             </div>
           </div>
-          <div className="mt-4 overflow-hidden rounded-2xl border border-black/10">
+
+          <div className="mt-4 border border-black/10">
             <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
           </div>
-          <p className="mt-2 text-xs text-slate-500">💡 Click the map to move the pin and update your GPS coordinates.</p>
+          <p className="mt-2 text-xs font-semibold text-black/50">💡 Click the map to move the pin and update your GPS coordinates.</p>
         </SectionCard>
 
         <div className="flex items-center gap-4">
-          <button type="submit" disabled={saving} className="rounded-full bg-[#ff7a00] px-8 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60">
+          <button type="submit" disabled={saving}
+            className="bg-[#ff7a00] px-8 py-4 text-sm font-black text-white hover:opacity-90 disabled:opacity-60 transition-opacity">
             {saving ? "Saving…" : "Save changes"}
           </button>
-          {saved && <p className="text-sm font-medium text-green-600">✓ Saved successfully</p>}
+          {saved && <p className="text-sm font-black text-green-600">✓ Saved successfully</p>}
         </div>
       </form>
     </div>
