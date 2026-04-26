@@ -128,7 +128,7 @@ export default function PartnerProfilePage() {
   const [profile, setProfile] = useState<ProfileState>({
     company_name: "", contact_name: "", phone: "", address: "",
     address1: "", address2: "", province: "", postcode: "", country: "",
-    website: "", service_radius_km: "30", base_address: "",
+    city: "", website: "", service_radius_km: "30", base_address: "",
     base_address1: "", base_address2: "", base_city: "", base_province: "", base_postcode: "", base_country: "",
     base_lat: "", base_lng: "", search_address: "", default_currency: "EUR",
     same_as_business: false, legal_company_name: "", vat_number: "", company_registration_number: "",
