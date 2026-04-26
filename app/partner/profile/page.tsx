@@ -437,7 +437,7 @@ export default function PartnerProfilePage() {
         <SectionCard title="Business & Billing" description="Your legal details used for commission invoicing.">
           <div className="bg-[#f0f0f0] px-4 py-3 text-sm text-black mb-5">
             <p className="font-black mb-0.5">🔒 These details are managed by Camel Global</p>
-            <p className="font-semibold text-black/60">Your legal company name and VAT / NIF number are used for cross-border commission invoicing and can only be changed by the Camel Global team. Contact <a href="mailto:support@camel-global.com" className="underline font-black text-black">support@camel-global.com</a>.</p>
+            <p className="font-semibold text-black/60">Your legal company name and VAT / NIF number are used for cross-border commission invoicing and can only be changed by the Camel Global team. If you need to update these details please use our <a href="/partner/contact" className="underline font-black text-black">contact form</a>.</p>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
