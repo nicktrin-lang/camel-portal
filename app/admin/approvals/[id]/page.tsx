@@ -13,14 +13,15 @@ type PartnerApplication = {
   id: string; user_id: string | null; email: string | null;
   company_name: string | null; full_name: string | null; phone: string | null;
   address: string | null; address1?: string | null; address2?: string | null;
-  province?: string | null; postcode?: string | null; country?: string | null;
+  city?: string | null; province?: string | null; postcode?: string | null; country?: string | null;
   website?: string | null; status: AppStatus; created_at: string | null;
 };
 
 type PartnerProfile = {
   id?: string; user_id: string | null; company_name: string | null;
   contact_name: string | null; phone: string | null; address: string | null;
-  address1?: string | null; address2?: string | null; province?: string | null;
+  address1?: string | null; address2?: string | null;
+  city?: string | null; province?: string | null;
   postcode?: string | null; country?: string | null; website: string | null;
   service_radius_km: number | null; base_address: string | null;
   base_address1?: string | null; base_address2?: string | null;
@@ -192,22 +193,25 @@ export default function AdminApprovalDetailPage() {
           {/* Company Details */}
           <Section title="Company Details">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <InfoRow label="Contact Name"    value={application.full_name || profile?.contact_name} />
-              <InfoRow label="Email"           value={application.email} />
-              <InfoRow label="Phone"           value={application.phone || profile?.phone} />
-              <InfoRow label="Website"         value={application.website || profile?.website} />
-              <InfoRow label="Service Radius"  value={profile?.service_radius_km ? `${profile.service_radius_km} km` : null} />
+              <InfoRow label="Contact Name"     value={application.full_name || profile?.contact_name} />
+              <InfoRow label="Email"            value={application.email} />
+              <InfoRow label="Phone"            value={application.phone || profile?.phone} />
+              <InfoRow label="Website"          value={application.website || profile?.website} />
+              <InfoRow label="Service Radius"   value={profile?.service_radius_km ? `${profile.service_radius_km} km` : null} />
               <InfoRow label="Bidding Currency" value={profile?.default_currency} />
-              <InfoRow label="Applied"         value={fmtDateTime(application.created_at)} />
+              <InfoRow label="Applied"          value={fmtDateTime(application.created_at)} />
             </div>
           </Section>
 
           {/* Business Address */}
           <Section title="Business Address">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="md:col-span-2"><InfoRow label="Full Address" value={businessAddress} /></div>
+              <div className="md:col-span-2">
+                <InfoRow label="Full Address" value={businessAddress} />
+              </div>
               <InfoRow label="Address Line 1" value={application.address1 || profile?.address1} />
               <InfoRow label="Address Line 2" value={application.address2 || profile?.address2} />
+              <InfoRow label="City / Town"    value={application.city    || profile?.city} />
               <InfoRow label="Province"       value={application.province || profile?.province} />
               <InfoRow label="Postcode"       value={application.postcode || profile?.postcode} />
               <InfoRow label="Country"        value={application.country  || profile?.country} />
@@ -222,11 +226,12 @@ export default function AdminApprovalDetailPage() {
           {/* Fleet Base Location */}
           <Section title="Fleet Base Location">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-5">
-              <div className="md:col-span-2"><InfoRow label="Full Address" value={profile?.base_address} /></div>
+              <div className="md:col-span-2">
+                <InfoRow label="Full Address" value={profile?.base_address} />
+              </div>
               <InfoRow label="Address Line 1" value={profile?.base_address1} />
               <InfoRow label="Address Line 2" value={profile?.base_address2} />
-              <InfoRow label="Town"           value={profile?.base_town} />
-              <InfoRow label="City"           value={profile?.base_city} />
+              <InfoRow label="City / Town"    value={profile?.base_city || profile?.base_town} />
               <InfoRow label="Province"       value={profile?.base_province} />
               <InfoRow label="Postcode"       value={profile?.base_postcode} />
               <InfoRow label="Country"        value={profile?.base_country} />
