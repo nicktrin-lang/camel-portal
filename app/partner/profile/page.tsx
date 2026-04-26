@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { triggerPartnerLiveRefresh } from "@/lib/portal/triggerPartnerLiveRefresh";
+import { CITIES, citiesByCountry, type CityEntry } from "@/lib/cities";
 
 const MapPicker = dynamic(() => import("./MapPicker"), { ssr: false });
 
@@ -67,15 +68,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function TextInput({ value, onChange, placeholder, type = "text" }: {
   value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
 }) {
-  return (
-    <input type={type} value={value} onChange={e => onChange(e.target.value)}
-      placeholder={placeholder} className={inputCls} />
-  );
+  return <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={inputCls} />;
 }
 
-function SectionCard({ title, description, children }: {
-  title: string; description?: string; children: React.ReactNode;
-}) {
+function SectionCard({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-black/10">
       <div className="border-b border-black/10 px-6 py-5 md:px-8">
@@ -87,18 +83,17 @@ function SectionCard({ title, description, children }: {
   );
 }
 
-// Two-line search result row — matches customer site style
 function SuggestionRow({ item, onClick }: { item: Suggestion; onClick: () => void }) {
-  const icon = TYPE_ICON[item.type || ""] || "📍";
+  const icon     = TYPE_ICON[item.type || ""] || "📍";
   const label    = item.label    || item.display_name;
   const subtitle = item.subtitle || "";
   return (
     <button type="button" onClick={onClick}
-      className="block w-full border-b border-black/5 px-4 py-3 text-left hover:bg-[#f0f0f0] last:border-b-0 flex items-start gap-3">
-      <span className="mt-0.5 text-base shrink-0 w-5 text-center">{icon}</span>
-      <span className="flex flex-col min-w-0">
-        <span className="text-sm font-black text-black truncate">{label}</span>
-        {subtitle && <span className="text-xs font-semibold text-black/50 truncate">{subtitle}</span>}
+      className="flex w-full items-start gap-3 border-b border-black/5 px-4 py-3 text-left hover:bg-[#f0f0f0] last:border-b-0">
+      <span className="mt-0.5 w-5 shrink-0 text-center text-base">{icon}</span>
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-sm font-black text-black">{label}</span>
+        {subtitle && <span className="truncate text-xs font-semibold text-black/50">{subtitle}</span>}
       </span>
     </button>
   );
@@ -115,6 +110,10 @@ export default function PartnerProfilePage() {
   const [suggestions,     setSuggestions]     = useState<Suggestion[]>([]);
   const [searching,       setSearching]       = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // City/country selector for search bias
+  const [searchCity, setSearchCity] = useState<CityEntry>(CITIES[0]);
+  const grouped = citiesByCountry();
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -148,39 +147,37 @@ export default function PartnerProfilePage() {
           .eq("email", email).order("created_at", { ascending: false }).limit(1).maybeSingle();
 
         const status = String((application as any)?.status || "").toLowerCase();
-        if (application && status && status !== "approved" && status !== "live") {
-          throw new Error("Your account is not approved yet.");
-        }
+        if (application && status && status !== "approved" && status !== "live") throw new Error("Your account is not approved yet.");
         if (!mounted) return;
 
         const country       = String(existingProfile?.country ?? (application as any)?.country ?? "");
         const savedCurrency = existingProfile?.default_currency as Currency | null;
 
         setProfile({
-          company_name:              String(existingProfile?.company_name              ?? (application as any)?.company_name ?? ""),
-          contact_name:              String(existingProfile?.contact_name              ?? (application as any)?.full_name    ?? ""),
-          phone:                     String(existingProfile?.phone                     ?? (application as any)?.phone        ?? ""),
-          address:                   String(existingProfile?.address                   ?? (application as any)?.address      ?? ""),
-          address1:                  String(existingProfile?.address1                  ?? (application as any)?.address1     ?? ""),
-          address2:                  String(existingProfile?.address2                  ?? (application as any)?.address2     ?? ""),
-          province:                  String(existingProfile?.province                  ?? (application as any)?.province     ?? ""),
-          postcode:                  String(existingProfile?.postcode                  ?? (application as any)?.postcode     ?? ""),
+          company_name:                String(existingProfile?.company_name                        ?? (application as any)?.company_name ?? ""),
+          contact_name:                String(existingProfile?.contact_name                        ?? (application as any)?.full_name    ?? ""),
+          phone:                       String(existingProfile?.phone                               ?? (application as any)?.phone        ?? ""),
+          address:                     String(existingProfile?.address                             ?? (application as any)?.address      ?? ""),
+          address1:                    String(existingProfile?.address1                            ?? (application as any)?.address1     ?? ""),
+          address2:                    String(existingProfile?.address2                            ?? (application as any)?.address2     ?? ""),
+          province:                    String(existingProfile?.province                            ?? (application as any)?.province     ?? ""),
+          postcode:                    String(existingProfile?.postcode                            ?? (application as any)?.postcode     ?? ""),
           country,
-          website:                   String(existingProfile?.website                   ?? (application as any)?.website      ?? ""),
-          service_radius_km:         String(existingProfile?.service_radius_km         ?? "30"),
-          base_address:              String(existingProfile?.base_address              ?? ""),
-          base_address1:             String((existingProfile as any)?.base_address1    ?? ""),
-          base_address2:             String((existingProfile as any)?.base_address2    ?? ""),
-          base_province:             String((existingProfile as any)?.base_province    ?? ""),
-          base_postcode:             String((existingProfile as any)?.base_postcode    ?? ""),
-          base_country:              String((existingProfile as any)?.base_country     ?? ""),
-          base_lat:                  existingProfile?.base_lat != null ? String(existingProfile.base_lat) : "",
-          base_lng:                  existingProfile?.base_lng != null ? String(existingProfile.base_lng) : "",
-          search_address:            String(existingProfile?.base_address              ?? ""),
-          default_currency:          savedCurrency ?? (country ? inferCurrencyFromCountry(country) : "EUR"),
-          same_as_business:          false,
-          legal_company_name:        String((existingProfile as any)?.legal_company_name        ?? ""),
-          vat_number:                String((existingProfile as any)?.vat_number                ?? ""),
+          website:                     String(existingProfile?.website                             ?? (application as any)?.website      ?? ""),
+          service_radius_km:           String(existingProfile?.service_radius_km                  ?? "30"),
+          base_address:                String(existingProfile?.base_address                        ?? ""),
+          base_address1:               String((existingProfile as any)?.base_address1              ?? ""),
+          base_address2:               String((existingProfile as any)?.base_address2              ?? ""),
+          base_province:               String((existingProfile as any)?.base_province              ?? ""),
+          base_postcode:               String((existingProfile as any)?.base_postcode              ?? ""),
+          base_country:                String((existingProfile as any)?.base_country               ?? ""),
+          base_lat:                    existingProfile?.base_lat != null ? String(existingProfile.base_lat) : "",
+          base_lng:                    existingProfile?.base_lng != null ? String(existingProfile.base_lng) : "",
+          search_address:              String(existingProfile?.base_address                        ?? ""),
+          default_currency:            savedCurrency ?? (country ? inferCurrencyFromCountry(country) : "EUR"),
+          same_as_business:            false,
+          legal_company_name:          String((existingProfile as any)?.legal_company_name         ?? ""),
+          vat_number:                  String((existingProfile as any)?.vat_number                 ?? ""),
           company_registration_number: String((existingProfile as any)?.company_registration_number ?? ""),
         });
       } catch (e: any) {
@@ -207,15 +204,15 @@ export default function PartnerProfilePage() {
   function applyAddressParts(item: Suggestion) {
     setProfile(prev => ({
       ...prev,
-      search_address:   item.display_name   || prev.search_address,
-      base_address:     item.display_name   || prev.base_address,
-      base_lat:         item.lat !== null   ? String(item.lat) : prev.base_lat,
-      base_lng:         item.lng !== null   ? String(item.lng) : prev.base_lng,
-      base_address1:    item.address_line1  || prev.base_address1,
-      base_address2:    item.address_line2  || prev.base_address2,
-      base_province:    item.province       || prev.base_province,
-      base_postcode:    item.postcode       || prev.base_postcode,
-      base_country:     item.country        || prev.base_country,
+      search_address:   item.display_name  || prev.search_address,
+      base_address:     item.display_name  || prev.base_address,
+      base_lat:         item.lat !== null  ? String(item.lat) : prev.base_lat,
+      base_lng:         item.lng !== null  ? String(item.lng) : prev.base_lng,
+      base_address1:    item.address_line1 || prev.base_address1,
+      base_address2:    item.address_line2 || prev.base_address2,
+      base_province:    item.province      || prev.base_province,
+      base_postcode:    item.postcode      || prev.base_postcode,
+      base_country:     item.country       || prev.base_country,
       default_currency: item.country ? inferCurrencyFromCountry(item.country) : prev.default_currency,
     }));
   }
@@ -251,20 +248,17 @@ export default function PartnerProfilePage() {
   async function runSearch(q: string) {
     setSearching(true); setError(null);
     try {
-      const res  = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+      // Pass city bias coords to geocode API
+      const url = `/api/geocode?q=${encodeURIComponent(q)}&biasLat=${searchCity.lat}&biasLng=${searchCity.lng}`;
+      const res  = await fetch(url, { cache: "no-store" });
       const json = await safeJson(res);
       if (!res.ok) throw new Error(json?.error || "Search failed.");
       const results = Array.isArray(json?.results) ? json.results as Suggestion[] : [];
       setSuggestions(results);
       setShowSuggestions(results.length > 0);
-      if (!results.length) setError("No results found for that address.");
+      if (!results.length) setError("No results found — try a different search or move the map pin.");
     } catch (e: any) { setError(e?.message || "Search failed."); }
     finally { setSearching(false); }
-  }
-
-  async function searchAddress() {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    await runSearch(profile.search_address.trim());
   }
 
   async function handleMapPick(lat: number, lng: number) {
@@ -290,8 +284,11 @@ export default function PartnerProfilePage() {
     setError(null); setSaved(false);
     if (!navigator.geolocation) { setError("Geolocation not supported."); return; }
     navigator.geolocation.getCurrentPosition(
-      async pos => { await handleMapPick(pos.coords.latitude, pos.coords.longitude); },
-      err => { setError(err.message || "Could not get location."); },
+      async pos => {
+        // Also update the city bias to match current location
+        await handleMapPick(pos.coords.latitude, pos.coords.longitude);
+      },
+      err => setError(err.message || "Could not get location."),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }
@@ -377,9 +374,7 @@ export default function PartnerProfilePage() {
               <div className="flex gap-2">
                 {(["GBP", "EUR", "USD"] as Currency[]).map(c => (
                   <button key={c} type="button" onClick={() => updateField("default_currency", c)}
-                    className={`flex-1 px-3 py-3 text-sm font-black transition-all ${
-                      profile.default_currency === c ? "bg-[#ff7a00] text-white" : "bg-[#f0f0f0] text-black hover:bg-[#e8e8e8]"
-                    }`}>
+                    className={`flex-1 px-3 py-3 text-sm font-black transition-all ${profile.default_currency === c ? "bg-[#ff7a00] text-white" : "bg-[#f0f0f0] text-black hover:bg-[#e8e8e8]"}`}>
                     {c === "GBP" ? "£ GBP" : c === "EUR" ? "€ Euro" : "$ USD"}
                   </button>
                 ))}
@@ -392,7 +387,7 @@ export default function PartnerProfilePage() {
         <SectionCard title="Business & Billing" description="Your legal details used for commission invoicing.">
           <div className="bg-[#f0f0f0] px-4 py-3 text-sm text-black mb-5">
             <p className="font-black mb-0.5">🔒 These details are managed by Camel Global</p>
-            <p className="font-semibold text-black/60">Your legal company name and VAT / NIF number are used for cross-border commission invoicing and can only be changed by the Camel Global team. If you need to update these details please contact <a href="mailto:support@camel-global.com" className="underline font-black text-black">support@camel-global.com</a>.</p>
+            <p className="font-semibold text-black/60">Your legal company name and VAT / NIF number are used for cross-border commission invoicing and can only be changed by the Camel Global team. Contact <a href="mailto:support@camel-global.com" className="underline font-black text-black">support@camel-global.com</a>.</p>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
@@ -442,6 +437,7 @@ export default function PartnerProfilePage() {
 
         {/* Car Fleet Base Location */}
         <SectionCard title="Car Fleet Base Location" description="Where your vehicles are dispatched from. The coordinates set here control your service radius.">
+
           <label className="flex cursor-pointer items-center gap-3 bg-[#f0f0f0] px-4 py-3 mb-5">
             <input type="checkbox" checked={profile.same_as_business} onChange={e => toggleSameAsBusiness(e.target.checked)} className="h-4 w-4" />
             <div>
@@ -453,7 +449,7 @@ export default function PartnerProfilePage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <Field label="Fleet base full address">
-                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">Combined — auto-fills from the fields below, search or map.</p>
+                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">Combined — auto-fills from fields below, search or map.</p>
                 <TextInput value={profile.base_address} onChange={v => updateField("base_address", v)} />
               </Field>
             </div>
@@ -469,32 +465,53 @@ export default function PartnerProfilePage() {
           {/* GPS + Search */}
           <div className="mt-5 bg-[#f0f0f0] p-4">
             <p className="text-xs font-black uppercase tracking-widest text-black mb-1">📍 GPS Coordinates — Service Radius Centre Point</p>
-            <p className="text-xs font-semibold text-black/50 mb-3">These coordinates determine the centre of your service radius. Use search, GPS or click the map to set them.</p>
+            <p className="text-xs font-semibold text-black/50 mb-4">Use your current location, search by city, or click the map to set the centre of your service radius.</p>
 
-            <div className="flex flex-wrap gap-3 mb-3">
-              <button type="button" onClick={useCurrentLocation}
-                className="border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#e8e8e8] transition-colors">
-                Use my current location
-              </button>
+            {/* Use my current location */}
+            <button type="button" onClick={useCurrentLocation}
+              className="mb-4 border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#e8e8e8] transition-colors">
+              📍 Use my current location
+            </button>
+
+            {/* City/country selector bar — same style as customer homepage */}
+            <div className="bg-black px-4 py-3 flex flex-wrap items-center gap-3 mb-3">
+              <span className="text-xs font-black uppercase tracking-widest text-white">Searching near</span>
+              <select
+                value={`${searchCity.country}|${searchCity.city}`}
+                onChange={e => {
+                  const [country, city] = e.target.value.split("|");
+                  const found = CITIES.find(c => c.country === country && c.city === city);
+                  if (found) { setSearchCity(found); setSuggestions([]); setShowSuggestions(false); }
+                }}
+                className="bg-[#ff7a00] text-white font-black text-sm px-3 py-1.5 outline-none cursor-pointer appearance-none"
+              >
+                {Object.entries(grouped).map(([country, cities]) => (
+                  <optgroup key={country} label={country}>
+                    {cities.map(c => (
+                      <option key={c.city} value={`${c.country}|${c.city}`}>
+                        {c.city}, {c.country}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <span className="text-xs font-black text-white">Change to bias search to a different city</span>
             </div>
 
-            {/* Photon-powered search — as-you-type with two-line dropdown */}
+            {/* As-you-type search with Photon two-line dropdown */}
             <div className="relative">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={profile.search_address}
-                  onChange={e => handleSearchChange(e.target.value)}
-                  onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); searchAddress(); } }}
-                  placeholder="Type to search for an address…"
-                  className="flex-1 border border-black/10 bg-white px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#f0f0f0] transition-colors"
-                />
-                <button type="button" onClick={searchAddress}
-                  className="bg-[#ff7a00] px-5 py-2 text-sm font-black text-white hover:opacity-90 transition-opacity">
-                  {searching ? "Searching…" : "Search"}
-                </button>
-              </div>
+              <input
+                type="text"
+                value={profile.search_address}
+                onChange={e => handleSearchChange(e.target.value)}
+                onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
+                onKeyDown={e => { if (e.key === "Enter") e.preventDefault(); }}
+                placeholder={`Type to search in ${searchCity.city}…`}
+                className="w-full border border-black/10 bg-white px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#f0f0f0] transition-colors"
+              />
+              {searching && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-black/30">Searching…</span>
+              )}
 
               {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute z-20 left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden">
