@@ -617,7 +617,7 @@ export default function PartnerProfilePage() {
               />
               {searching && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-black/30">Searching…</span>}
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-20 left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden">
+                <div className="absolute left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden" style={{ zIndex: 10000 }}>
                   {suggestions.map((item, idx) => (
                     <SuggestionRow key={`${item.display_name}-${idx}`} item={item} onClick={() => pickSuggestion(item)} />
                   ))}
