@@ -4,16 +4,30 @@
 
 import { NextResponse } from "next/server";
 
-// ── Shared address part normaliser (used by reverse result) ───────────────────
+// ── Nominatim reverse geocode normaliser ─────────────────────────────────────
 function normalizeFromNominatim(address: any) {
   const house    = String(address?.house_number || "").trim();
   const road     = String(address?.road || address?.pedestrian || address?.footway || "").trim();
   const suburb   = String(address?.suburb || address?.neighbourhood || address?.city_district || address?.quarter || "").trim();
+  const city     = String(address?.city || address?.town || address?.village || "").trim();
   const province = String(address?.state || address?.county || address?.region || "").trim();
   const postcode = String(address?.postcode || "").trim();
   const country  = String(address?.country || "").trim();
   const address_line1 = [house, road].filter(Boolean).join(" ").trim() || road;
-  return { address_line1, address_line2: suburb, province, postcode, country };
+  return { address_line1, address_line2: suburb, city, province, postcode, country };
+}
+
+// ── Photon OSM value → type string ───────────────────────────────────────────
+function resolveType(props: any): string {
+  const val = String(props?.osm_value || "").toLowerCase();
+  const key = String(props?.osm_key   || "").toLowerCase();
+  if (["aerodrome", "airport"].includes(val))                     return "airport";
+  if (["hotel", "motel", "hostel", "guest_house"].includes(val))  return "hotel";
+  if (["restaurant", "cafe", "bar", "fast_food"].includes(val))   return "food";
+  if (["train_station", "station", "halt"].includes(val))         return "train";
+  if (["bus_station", "bus_stop"].includes(val))                   return "bus";
+  if (key === "highway" || val === "residential")                  return "street";
+  return "place";
 }
 
 // ── Photon result formatter ───────────────────────────────────────────────────
@@ -29,18 +43,25 @@ function formatPhotonResult(f: any) {
   const city     = String(props?.city || props?.town || props?.village || "").trim();
   const country  = String(props?.country || "").trim();
 
-  const label    = name || [street, housenr].filter(Boolean).join(" ") || "";
+  const streetAddr = [street, housenr].filter(Boolean).join(" ");
+
+  // label = POI name if present, otherwise street address
+  const label    = name || streetAddr || "";
   const subtitle = [district, city, country].filter(Boolean).join(", ");
   if (!label) return null;
 
   return {
     display_name:  subtitle ? `${label}, ${subtitle}` : label,
-    lat:           Number(coords[1]),
-    lng:           Number(coords[0]),
-    address_line1: [street, housenr].filter(Boolean).join(" "),
-    address_line2: district,
-    province:      String(props?.state || props?.county || ""),
-    postcode:      String(props?.postcode || ""),
+    label,          // POI name or street — line 1 in dropdown, used for address filling
+    subtitle,       // district, city, country — line 2 in dropdown
+    type:           resolveType(props),
+    lat:            Number(coords[1]),
+    lng:            Number(coords[0]),
+    city,           // explicit city for form filling
+    address_line1:  streetAddr,
+    address_line2:  district,
+    province:       String(props?.state || props?.county || ""),
+    postcode:       String(props?.postcode || ""),
     country,
   };
 }
@@ -73,7 +94,6 @@ export async function GET(req: Request) {
     // ── Forward search (Photon) ──────────────────────────────────────────────
     if (!q) return NextResponse.json({ error: "Missing query" }, { status: 400 });
 
-    // Accept optional bias coords from the caller (partner profile passes these)
     const biasLat = (searchParams.get("biasLat") || "").trim();
     const biasLng = (searchParams.get("biasLng") || "").trim();
 
