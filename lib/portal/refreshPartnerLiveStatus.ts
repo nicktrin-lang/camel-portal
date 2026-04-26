@@ -20,27 +20,25 @@ function hasValidNumber(value: unknown) {
 
 export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshResult> {
   const cleanUserId = String(userId || "").trim();
-
   if (!cleanUserId) throw new Error("Missing userId");
 
   const db = createServiceRoleSupabaseClient();
 
   const { data: profile, error: profileErr } = await db
     .from("partner_profiles")
-    .select(`user_id, service_radius_km, base_address, base_lat, base_lng, default_currency, vat_number`)
+    .select("user_id, service_radius_km, base_address, base_lat, base_lng, default_currency, vat_number")
     .eq("user_id", cleanUserId)
     .maybeSingle();
 
   if (profileErr) throw new Error(profileErr.message);
-  if (!profile) throw new Error("Partner profile not found.");
+  if (!profile)   throw new Error("Partner profile not found.");
 
-  const { data: fleetRows, error: fleetErr } = await db
+  const { data: fleetRows,  error: fleetErr  } = await db
     .from("partner_fleet")
     .select("id")
     .eq("user_id", cleanUserId)
     .eq("is_active", true)
     .limit(1);
-
   if (fleetErr) throw new Error(fleetErr.message);
 
   const { data: driverRows, error: driverErr } = await db
@@ -49,7 +47,6 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
     .eq("partner_user_id", cleanUserId)
     .eq("is_active", true)
     .limit(1);
-
   if (driverErr) throw new Error(driverErr.message);
 
   const { data: application, error: applicationErr } = await db
@@ -59,7 +56,6 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-
   if (applicationErr) throw new Error(applicationErr.message);
 
   let resolvedApplication = application || null;
@@ -67,26 +63,23 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
   if (!resolvedApplication) {
     const { data: authUser, error: authErr } = await db.auth.admin.getUserById(cleanUserId);
     if (authErr) throw new Error(authErr.message);
-
     const authEmail = String(authUser?.user?.email || "").trim().toLowerCase();
     if (!authEmail) throw new Error("Partner application not found.");
-
-    const { data: fallbackApplication, error: fallbackErr } = await db
+    const { data: fallbackApp, error: fallbackErr } = await db
       .from("partner_applications")
       .select("id, email, status, user_id, live_email_sent_at")
       .eq("email", authEmail)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-
     if (fallbackErr) throw new Error(fallbackErr.message);
-    resolvedApplication = fallbackApplication || null;
+    resolvedApplication = fallbackApp || null;
   }
 
   if (!resolvedApplication) throw new Error("Partner application not found.");
 
+  // ── 7 live checks ────────────────────────────────────────────────────────
   const missing: string[] = [];
-
   const hasRadius = profile.service_radius_km !== null &&
     profile.service_radius_km !== undefined &&
     Number(profile.service_radius_km) > 0;
@@ -95,33 +88,49 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
   if (!hasText(profile.base_address))                        missing.push("base_address");
   if (!hasValidNumber(profile.base_lat))                     missing.push("base_lat");
   if (!hasValidNumber(profile.base_lng))                     missing.push("base_lng");
-  if (!Array.isArray(fleetRows) || fleetRows.length === 0)   missing.push("fleet");
+  if (!Array.isArray(fleetRows)  || fleetRows.length === 0)  missing.push("fleet");
   if (!Array.isArray(driverRows) || driverRows.length === 0) missing.push("driver");
   if (!hasText(profile.default_currency))                    missing.push("default_currency");
   if (!hasText(profile.vat_number))                          missing.push("vat_number");
 
-  const isLiveNow = missing.length === 0;
+  const isLiveNow          = missing.length === 0;
   const liveEmailAlreadySent = !!resolvedApplication.live_email_sent_at;
 
+  // Not live — return early, no email
   if (!isLiveNow) {
     return { ok: true, userId: cleanUserId, isLiveNow: false, becameLive: false, alreadyLive: liveEmailAlreadySent, missing };
   }
 
+  // Already sent — return early, no email
   if (liveEmailAlreadySent) {
     return { ok: true, userId: cleanUserId, isLiveNow: true, becameLive: false, alreadyLive: true, missing: [] };
   }
 
-  const partnerEmail = String(resolvedApplication.email || "").trim().toLowerCase();
-  if (!partnerEmail) throw new Error("Partner email not found.");
-
-  await sendAccountLiveEmail(partnerEmail);
-
+  // ── First time going live — stamp DB FIRST, then send email ──────────────
+  // Stamping first means even if the email call fails or this function is
+  // called concurrently, the email will never be sent twice.
   const { error: updateErr } = await db
     .from("partner_applications")
-    .update({ user_id: cleanUserId, status: "live", live_email_sent_at: new Date().toISOString() })
-    .eq("id", resolvedApplication.id);
+    .update({
+      user_id:             cleanUserId,
+      status:              "live",
+      live_email_sent_at:  new Date().toISOString(),
+    })
+    .eq("id", resolvedApplication.id)
+    .is("live_email_sent_at", null); // extra safety — only update if still null
 
   if (updateErr) throw new Error(updateErr.message);
+
+  // Send email after DB is committed
+  const partnerEmail = String(resolvedApplication.email || "").trim().toLowerCase();
+  if (partnerEmail) {
+    try {
+      await sendAccountLiveEmail(partnerEmail);
+    } catch (emailErr) {
+      // Email failed but DB is already stamped — won't retry, log only
+      console.error("Live email send failed (DB already stamped):", emailErr);
+    }
+  }
 
   return { ok: true, userId: cleanUserId, isLiveNow: true, becameLive: true, alreadyLive: false, missing: [] };
 }
