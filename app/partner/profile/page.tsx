@@ -111,11 +111,19 @@ export default function PartnerProfilePage() {
   const [searching,       setSearching]       = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // City/country selector for search bias
-  const [searchCity, setSearchCity] = useState<CityEntry>(CITIES[0]);
+  // City/country selector — shared bias for both address searches
+  const [searchCity,    setSearchCity]    = useState<CityEntry>(CITIES[0]);
   const grouped = citiesByCountry();
 
+  // Fleet base search
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Business address search
+  const [bizQuery,       setBizQuery]       = useState("");
+  const [bizSuggestions, setBizSuggestions] = useState<Suggestion[]>([]);
+  const [bizSearching,   setBizSearching]   = useState(false);
+  const [bizShowSug,     setBizShowSug]     = useState(false);
+  const bizTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [profile, setProfile] = useState<ProfileState>({
     company_name: "", contact_name: "", phone: "", address: "",
@@ -238,7 +246,49 @@ export default function PartnerProfilePage() {
     setSuggestions([]); setShowSuggestions(false);
   }
 
-  function handleSearchChange(q: string) {
+  // Business address search
+  function handleBizSearchChange(q: string) {
+    setBizQuery(q);
+    if (bizTimer.current) clearTimeout(bizTimer.current);
+    if (q.length < 2) { setBizSuggestions([]); setBizShowSug(false); return; }
+    bizTimer.current = setTimeout(() => runBizSearch(q), 350);
+  }
+
+  async function runBizSearch(q: string) {
+    setBizSearching(true); setError(null);
+    try {
+      const url  = `/api/geocode?q=${encodeURIComponent(q)}&biasLat=${searchCity.lat}&biasLng=${searchCity.lng}`;
+      const res  = await fetch(url, { cache: "no-store" });
+      const json = await safeJson(res);
+      if (!res.ok) throw new Error(json?.error || "Search failed.");
+      const results = Array.isArray(json?.results) ? json.results as Suggestion[] : [];
+      setBizSuggestions(results);
+      setBizShowSug(results.length > 0);
+    } catch (e: any) { setError(e?.message || "Search failed."); }
+    finally { setBizSearching(false); }
+  }
+
+  function pickBizSuggestion(item: Suggestion) {
+    setSaved(false); setError(null);
+    const addr1    = item.address_line1 || "";
+    const addr2    = item.address_line2 || "";
+    const province = item.province      || "";
+    const postcode = item.postcode      || "";
+    const country  = item.country       || "";
+    setProfile(prev => ({
+      ...prev,
+      address:  item.display_name || prev.address,
+      address1: addr1    || prev.address1,
+      address2: addr2    || prev.address2,
+      province: province || prev.province,
+      postcode: postcode || prev.postcode,
+      country:  country  || prev.country,
+      default_currency: country ? inferCurrencyFromCountry(country) : prev.default_currency,
+    }));
+    setBizQuery(""); setBizSuggestions([]); setBizShowSug(false);
+  }
+
+  function handleFleetSearchChange(q: string) {
     updateField("search_address", q);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     if (q.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
@@ -418,10 +468,56 @@ export default function PartnerProfilePage() {
 
         {/* Business Address */}
         <SectionCard title="Business Address" description="Your registered company address for correspondence and records.">
+
+          {/* City selector — shared with fleet search */}
+          <div className="bg-black px-4 py-3 flex flex-wrap items-center gap-3 mb-4">
+            <span className="text-xs font-black uppercase tracking-widest text-white">Searching near</span>
+            <select
+              value={`${searchCity.country}|${searchCity.city}`}
+              onChange={e => {
+                const [country, city] = e.target.value.split("|");
+                const found = CITIES.find(c => c.country === country && c.city === city);
+                if (found) { setSearchCity(found); setBizSuggestions([]); setSuggestions([]); }
+              }}
+              className="bg-[#ff7a00] text-white font-black text-sm px-3 py-1.5 outline-none cursor-pointer appearance-none"
+            >
+              {Object.entries(grouped).map(([country, cities]) => (
+                <optgroup key={country} label={country}>
+                  {cities.map(c => (
+                    <option key={c.city} value={`${c.country}|${c.city}`}>{c.city}, {c.country}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <span className="text-xs font-black text-white">Change to search a different city</span>
+          </div>
+
+          {/* Business address search */}
+          <div className="relative mb-5">
+            <p className={labelCls}>Search your business address</p>
+            <p className="mt-0.5 mb-2 text-xs font-semibold text-black/50">Type to search — selecting a result auto-fills the fields below.</p>
+            <input
+              type="text"
+              value={bizQuery}
+              onChange={e => handleBizSearchChange(e.target.value)}
+              onFocus={() => { if (bizSuggestions.length) setBizShowSug(true); }}
+              placeholder={`Search in ${searchCity.city}…`}
+              className="w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors"
+            />
+            {bizSearching && <span className="absolute right-4 top-[60px] text-xs font-semibold text-black/30">Searching…</span>}
+            {bizShowSug && bizSuggestions.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden">
+                {bizSuggestions.map((item, idx) => (
+                  <SuggestionRow key={`biz-${item.display_name}-${idx}`} item={item} onClick={() => pickBizSuggestion(item)} />
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <Field label="Full address (auto-filled)">
-                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">Combined address — updated automatically from the fields below.</p>
+                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">Combined — updated from search or fields below.</p>
                 <TextInput value={profile.address} onChange={v => updateField("address", v)} placeholder="Full address" />
               </Field>
             </div>
@@ -503,7 +599,7 @@ export default function PartnerProfilePage() {
               <input
                 type="text"
                 value={profile.search_address}
-                onChange={e => handleSearchChange(e.target.value)}
+                onChange={e => handleFleetSearchChange(e.target.value)}
                 onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
                 onKeyDown={e => { if (e.key === "Enter") e.preventDefault(); }}
                 placeholder={`Type to search in ${searchCity.city}…`}

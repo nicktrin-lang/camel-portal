@@ -34,11 +34,13 @@ export default function MapPickerInner({ lat, lng, onPick }: Props) {
   return (
     <div className="border border-black/10 overflow-hidden">
       <MapContainer center={[defaultLat, defaultLng]} zoom={13} scrollWheelZoom className="h-[360px] w-full">
+        {/* CartoDB Positron — free, no API key, clean modern style */}
         <TileLayer
-          attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
           minZoom={0}
-          maxZoom={20}
+          maxZoom={19}
         />
         <ClickHandler onPick={onPick} />
         <RecenterMap lat={lat} lng={lng} />
