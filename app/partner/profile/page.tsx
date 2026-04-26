@@ -534,6 +534,7 @@ export default function PartnerProfilePage() {
         {/* Car Fleet Base Location */}
         <SectionCard title="Car Fleet Base Location" description="Where your vehicles are dispatched from. The coordinates set here control your service radius.">
 
+          {/* 1 — Same as business */}
           <label className="flex cursor-pointer items-center gap-3 bg-[#f0f0f0] px-4 py-3 mb-5">
             <input type="checkbox" checked={profile.same_as_business} onChange={e => toggleSameAsBusiness(e.target.checked)} className="h-4 w-4" />
             <div>
@@ -542,34 +543,16 @@ export default function PartnerProfilePage() {
             </div>
           </label>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <Field label="Fleet base full address">
-                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">Combined — auto-fills from fields below, search or map.</p>
-                <TextInput value={profile.base_address} onChange={v => updateField("base_address", v)} />
-              </Field>
-            </div>
-            <Field label="Address line 1"><TextInput value={profile.base_address1} onChange={v => setProfile(prev => ({ ...prev, base_address1: v, base_address: [v, prev.base_address2, prev.base_province, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. Carrer de la Marina 5" /></Field>
-            <Field label="Address line 2"><TextInput value={profile.base_address2} onChange={v => setProfile(prev => ({ ...prev, base_address2: v, base_address: [prev.base_address1, v, prev.base_province, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. Unit 3" /></Field>
-            <Field label="Province / Region"><TextInput value={profile.base_province} onChange={v => setProfile(prev => ({ ...prev, base_province: v, base_address: [prev.base_address1, prev.base_address2, v, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. Comunitat Valenciana" /></Field>
-            <Field label="Postcode"><TextInput value={profile.base_postcode} onChange={v => setProfile(prev => ({ ...prev, base_postcode: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, v, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. 46001" /></Field>
-            <div className="md:col-span-2">
-              <Field label="Country"><TextInput value={profile.base_country} onChange={v => setProfile(prev => ({ ...prev, base_country: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, prev.base_postcode, v].filter(Boolean).join(", ") }))} placeholder="e.g. Spain" /></Field>
-            </div>
-          </div>
+          {/* 2 — Location tools: GPS + city selector + search */}
+          <div className="bg-[#f0f0f0] p-4 mb-4">
+            <p className="text-xs font-black uppercase tracking-widest text-black mb-1">📍 Set Fleet Base Location</p>
+            <p className="text-xs font-semibold text-black/50 mb-4">Use your current location, search, or click the map below to set your base.</p>
 
-          {/* GPS + Search */}
-          <div className="mt-5 bg-[#f0f0f0] p-4">
-            <p className="text-xs font-black uppercase tracking-widest text-black mb-1">📍 GPS Coordinates — Service Radius Centre Point</p>
-            <p className="text-xs font-semibold text-black/50 mb-4">Use your current location, search by city, or click the map to set the centre of your service radius.</p>
-
-            {/* Use my current location */}
             <button type="button" onClick={useCurrentLocation}
               className="mb-4 border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#e8e8e8] transition-colors">
               📍 Use my current location
             </button>
 
-            {/* City/country selector bar — same style as customer homepage */}
             <div className="bg-black px-4 py-3 flex flex-wrap items-center gap-3 mb-3">
               <span className="text-xs font-black uppercase tracking-widest text-white">Searching near</span>
               <select
@@ -584,9 +567,7 @@ export default function PartnerProfilePage() {
                 {Object.entries(grouped).map(([country, cities]) => (
                   <optgroup key={country} label={country}>
                     {cities.map(c => (
-                      <option key={c.city} value={`${c.country}|${c.city}`}>
-                        {c.city}, {c.country}
-                      </option>
+                      <option key={c.city} value={`${c.country}|${c.city}`}>{c.city}, {c.country}</option>
                     ))}
                   </optgroup>
                 ))}
@@ -594,7 +575,6 @@ export default function PartnerProfilePage() {
               <span className="text-xs font-black text-white">Change to bias search to a different city</span>
             </div>
 
-            {/* As-you-type search with Photon two-line dropdown */}
             <div className="relative">
               <input
                 type="text"
@@ -605,10 +585,7 @@ export default function PartnerProfilePage() {
                 placeholder={`Type to search in ${searchCity.city}…`}
                 className="w-full border border-black/10 bg-white px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#f0f0f0] transition-colors"
               />
-              {searching && (
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-black/30">Searching…</span>
-              )}
-
+              {searching && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-black/30">Searching…</span>}
               {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute z-20 left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden">
                   {suggestions.map((item, idx) => (
@@ -617,17 +594,34 @@ export default function PartnerProfilePage() {
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-4">
+          {/* 3 — Map */}
+          <div className="mb-4">
+            <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
+            <p className="mt-2 text-xs font-semibold text-black/50">💡 Click the map to move the pin and update your GPS coordinates and address.</p>
+          </div>
+
+          {/* 4 — Auto-filled address fields */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <Field label="Fleet base full address (auto-filled)">
+                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">Populated automatically from search, GPS or map click. Edit manually if needed.</p>
+                <TextInput value={profile.base_address} onChange={v => updateField("base_address", v)} />
+              </Field>
+            </div>
+            <Field label="Address line 1"><TextInput value={profile.base_address1} onChange={v => setProfile(prev => ({ ...prev, base_address1: v, base_address: [v, prev.base_address2, prev.base_province, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. Carrer de la Marina 5" /></Field>
+            <Field label="Address line 2"><TextInput value={profile.base_address2} onChange={v => setProfile(prev => ({ ...prev, base_address2: v, base_address: [prev.base_address1, v, prev.base_province, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. Unit 3" /></Field>
+            <Field label="Province / Region"><TextInput value={profile.base_province} onChange={v => setProfile(prev => ({ ...prev, base_province: v, base_address: [prev.base_address1, prev.base_address2, v, prev.base_postcode, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. Comunitat Valenciana" /></Field>
+            <Field label="Postcode"><TextInput value={profile.base_postcode} onChange={v => setProfile(prev => ({ ...prev, base_postcode: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, v, prev.base_country].filter(Boolean).join(", ") }))} placeholder="e.g. 46001" /></Field>
+            <div className="md:col-span-2">
+              <Field label="Country"><TextInput value={profile.base_country} onChange={v => setProfile(prev => ({ ...prev, base_country: v, base_address: [prev.base_address1, prev.base_address2, prev.base_province, prev.base_postcode, v].filter(Boolean).join(", ") }))} placeholder="e.g. Spain" /></Field>
+            </div>
+            <div className="md:col-span-2 grid grid-cols-2 gap-4">
               <Field label="Latitude"><TextInput value={profile.base_lat} onChange={v => updateField("base_lat", v)} placeholder="e.g. 38.842" /></Field>
               <Field label="Longitude"><TextInput value={profile.base_lng} onChange={v => updateField("base_lng", v)} placeholder="e.g. 0.112" /></Field>
             </div>
           </div>
-
-          <div className="mt-4">
-            <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
-          </div>
-          <p className="mt-2 text-xs font-semibold text-black/50">💡 Click the map to move the pin and update your GPS coordinates and address.</p>
         </SectionCard>
 
         <div className="flex items-center gap-4">
