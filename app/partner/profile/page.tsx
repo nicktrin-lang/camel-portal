@@ -14,8 +14,8 @@ type Currency = "EUR" | "GBP" | "USD";
 type ProfileState = {
   company_name: string; contact_name: string; phone: string; address: string;
   address1: string; address2: string; province: string; postcode: string; country: string;
-  website: string; service_radius_km: string; base_address: string;
-  base_address1: string; base_address2: string; base_province: string; base_postcode: string; base_country: string;
+  city: string; website: string; service_radius_km: string; base_address: string;
+  base_address1: string; base_address2: string; base_city: string; base_province: string; base_postcode: string; base_country: string;
   base_lat: string; base_lng: string; search_address: string; default_currency: Currency;
   same_as_business: boolean; legal_company_name: string; vat_number: string; company_registration_number: string;
 };
@@ -129,7 +129,7 @@ export default function PartnerProfilePage() {
     company_name: "", contact_name: "", phone: "", address: "",
     address1: "", address2: "", province: "", postcode: "", country: "",
     website: "", service_radius_km: "30", base_address: "",
-    base_address1: "", base_address2: "", base_province: "", base_postcode: "", base_country: "",
+    base_address1: "", base_address2: "", base_city: "", base_province: "", base_postcode: "", base_country: "",
     base_lat: "", base_lng: "", search_address: "", default_currency: "EUR",
     same_as_business: false, legal_company_name: "", vat_number: "", company_registration_number: "",
   });
@@ -146,7 +146,7 @@ export default function PartnerProfilePage() {
 
         const { data: existingProfile } = await supabase
           .from("partner_profiles")
-          .select("company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number")
+          .select("company_name,contact_name,phone,address,address1,address2,city,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number")
           .eq("user_id", user.id).maybeSingle();
 
         const { data: application } = await supabase
@@ -168,6 +168,7 @@ export default function PartnerProfilePage() {
           address:                     String(existingProfile?.address                             ?? (application as any)?.address      ?? ""),
           address1:                    String(existingProfile?.address1                            ?? (application as any)?.address1     ?? ""),
           address2:                    String(existingProfile?.address2                            ?? (application as any)?.address2     ?? ""),
+          city:                        String((existingProfile as any)?.city                       ?? (application as any)?.city         ?? ""),
           province:                    String(existingProfile?.province                            ?? (application as any)?.province     ?? ""),
           postcode:                    String(existingProfile?.postcode                            ?? (application as any)?.postcode     ?? ""),
           country,
@@ -176,6 +177,7 @@ export default function PartnerProfilePage() {
           base_address:                String(existingProfile?.base_address                        ?? ""),
           base_address1:               String((existingProfile as any)?.base_address1              ?? ""),
           base_address2:               String((existingProfile as any)?.base_address2              ?? ""),
+          base_city:                   String((existingProfile as any)?.base_city                  ?? ""),
           base_province:               String((existingProfile as any)?.base_province              ?? ""),
           base_postcode:               String((existingProfile as any)?.base_postcode              ?? ""),
           base_country:                String((existingProfile as any)?.base_country               ?? ""),
@@ -281,7 +283,8 @@ export default function PartnerProfilePage() {
       ...prev,
       address:  item.display_name || prev.address,
       address1: addr1    || prev.address1,
-      address2: city     || prev.address2,
+      address2: String((item as any).address_line2 || "") || prev.address2,
+      city:     String((item as any).city || "")          || prev.city,
       province: province || prev.province,
       postcode: postcode || prev.postcode,
       country:  country  || prev.country,
@@ -366,6 +369,7 @@ export default function PartnerProfilePage() {
         address:                     profile.address.trim()                     || null,
         address1:                    profile.address1.trim()                    || null,
         address2:                    profile.address2.trim()                    || null,
+        city:                        profile.city.trim()                        || null,
         province:                    profile.province.trim()                    || null,
         postcode:                    profile.postcode.trim()                    || null,
         country:                     profile.country.trim()                     || null,
@@ -553,12 +557,13 @@ export default function PartnerProfilePage() {
                 <TextInput value={profile.address} onChange={v => updateField("address", v)} placeholder="Full address" />
               </Field>
             </div>
-            <Field label="Address line 1"><TextInput value={profile.address1} onChange={v => setProfile(prev => ({ ...prev, address1: v, address: [v, prev.address2, prev.province, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Calle Mayor 12" /></Field>
-            <Field label="Address line 2"><TextInput value={profile.address2} onChange={v => setProfile(prev => ({ ...prev, address2: v, address: [prev.address1, v, prev.province, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Floor 2, Office A" /></Field>
-            <Field label="Province / Region"><TextInput value={profile.province} onChange={v => setProfile(prev => ({ ...prev, province: v, address: [prev.address1, prev.address2, v, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Comunitat Valenciana" /></Field>
-            <Field label="Postcode"><TextInput value={profile.postcode} onChange={v => setProfile(prev => ({ ...prev, postcode: v, address: [prev.address1, prev.address2, prev.province, v, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. 46001" /></Field>
+            <Field label="Address line 1"><TextInput value={profile.address1} onChange={v => setProfile(prev => ({ ...prev, address1: v, address: [v, prev.address2, prev.city, prev.province, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Calle Mayor 12" /></Field>
+            <Field label="Address line 2"><TextInput value={profile.address2} onChange={v => setProfile(prev => ({ ...prev, address2: v, address: [prev.address1, v, prev.city, prev.province, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Floor 2, Office A" /></Field>
+            <Field label="City / Town"><TextInput value={profile.city} onChange={v => setProfile(prev => ({ ...prev, city: v, address: [prev.address1, prev.address2, v, prev.province, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Valencia" /></Field>
+            <Field label="Province / Region"><TextInput value={profile.province} onChange={v => setProfile(prev => ({ ...prev, province: v, address: [prev.address1, prev.address2, prev.city, v, prev.postcode, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. Comunitat Valenciana" /></Field>
+            <Field label="Postcode"><TextInput value={profile.postcode} onChange={v => setProfile(prev => ({ ...prev, postcode: v, address: [prev.address1, prev.address2, prev.city, prev.province, v, prev.country].filter(Boolean).join(", ") }))} placeholder="e.g. 46001" /></Field>
             <div className="md:col-span-2">
-              <Field label="Country"><TextInput value={profile.country} onChange={v => setProfile(prev => ({ ...prev, country: v, address: [prev.address1, prev.address2, prev.province, prev.postcode, v].filter(Boolean).join(", "), default_currency: inferCurrencyFromCountry(v) }))} placeholder="e.g. Spain" /></Field>
+              <Field label="Country"><TextInput value={profile.country} onChange={v => setProfile(prev => ({ ...prev, country: v, address: [prev.address1, prev.address2, prev.city, prev.province, prev.postcode, v].filter(Boolean).join(", "), default_currency: inferCurrencyFromCountry(v) }))} placeholder="e.g. Spain" /></Field>
             </div>
           </div>
         </SectionCard>
