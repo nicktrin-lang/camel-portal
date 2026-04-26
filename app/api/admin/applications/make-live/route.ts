@@ -50,14 +50,7 @@ export async function POST(req: Request) {
 
     const { data: application, error: applicationErr } = await db
       .from("partner_applications")
-      .select(`
-        id,
-        email,
-        status,
-        user_id,
-        company_name,
-        full_name
-      `)
+      .select(`id, email, status, user_id, company_name, full_name, live_email_sent_at`)
       .eq("id", applicationId)
       .maybeSingle();
 
@@ -83,32 +76,31 @@ export async function POST(req: Request) {
 
     if (currentStatus === "live") {
       return NextResponse.json(
-        {
-          ok: true,
-          alreadyLive: true,
-          message: "Account is already live.",
-        },
+        { ok: true, alreadyLive: true, message: "Account is already live." },
         { status: 200 }
       );
     }
 
+    // Stamp live_email_sent_at at the same time as status update so that
+    // refreshPartnerLiveStatus never fires a duplicate email.
     const { error: updateErr } = await db
       .from("partner_applications")
-      .update({ status: "live" })
+      .update({ status: "live", live_email_sent_at: new Date().toISOString() })
       .eq("id", applicationId);
 
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 400 });
     }
 
+    // Only send the email if it hasn't already been sent.
     const partnerEmail = String(application.email || "").trim().toLowerCase();
+    const alreadySent  = !!application.live_email_sent_at;
 
-    if (partnerEmail) {
+    if (partnerEmail && !alreadySent) {
       try {
         await sendAccountLiveEmail(partnerEmail);
       } catch (emailErr: any) {
         console.error("❌ Failed to send account live email:", emailErr?.message || emailErr);
-
         return NextResponse.json(
           {
             ok: true,
@@ -122,10 +114,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(
-      {
-        ok: true,
-        message: "Partner account marked live and email sent.",
-      },
+      { ok: true, message: "Partner account marked live and email sent." },
       { status: 200 }
     );
   } catch (e: any) {
