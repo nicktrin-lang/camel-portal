@@ -36,6 +36,7 @@ type RequestRow = {
   pickup_at: string; dropoff_at: string | null;
   journey_duration_minutes: number | null; passengers: number;
   suitcases: number; hand_luggage: number;
+  sport_equipment: string | null;
   vehicle_category_slug: string | null; vehicle_category_name: string | null;
   notes: string | null; status: string; created_at: string;
   expires_at: string | null; matched_status: string | null;
@@ -61,6 +62,19 @@ function formatDuration(m?: number | null) {
   if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60), mins = m % 60;
   return mins ? `${h}h ${mins}m` : `${h}h`;
+}
+
+function sportEquipmentLabel(v: string | null): string {
+  if (!v || v === "none") return "None";
+  const map: Record<string, string> = {
+    golf_single: "Golf clubs — 1 bag", golf_two: "Golf clubs — 2 bags",
+    golf_three: "Golf clubs — 3 bags", golf_four: "Golf clubs — 4+ bags",
+    skis_pair: "Skis / snowboard — 1 set", skis_two: "Skis / snowboard — 2 sets",
+    skis_three: "Skis / snowboard — 3+ sets",
+    bikes_one: "Bikes — 1", bikes_two: "Bikes — 2", bikes_three: "Bikes — 3+",
+    other: "Other large equipment",
+  };
+  return map[v] || v;
 }
 
 function getTimeRemaining(expiresAt?: string | null) {
@@ -275,6 +289,7 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
             <Field label="Passengers">{request.passengers}</Field>
             <Field label="Suitcases">{request.suitcases}</Field>
             <Field label="Hand luggage">{request.hand_luggage}</Field>
+            <Field label="Sport equipment">{sportEquipmentLabel(request.sport_equipment)}</Field>
             <Field label="Vehicle">{request.vehicle_category_name || "—"}</Field>
             <Field label="Notes">{request.notes || "—"}</Field>
             <Field label="Created">{fmtDateTime(request.created_at)}</Field>
@@ -286,7 +301,6 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
         <div className="border border-black/5 bg-white p-6">
           <h2 className="text-lg font-black text-black mb-4">Bid Outcome</h2>
 
-          {/* Status banners */}
           {(expired || request.status === "expired") && (
             <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm font-bold text-black/60 mb-4">This request has expired.</div>
           )}
@@ -303,7 +317,6 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
             <div className="border border-[#ff7a00]/30 bg-[#ff7a00]/5 p-4 text-sm font-black text-[#ff7a00] mb-4">Bid submitted — awaiting customer decision.</div>
           )}
 
-          {/* Existing bid summary */}
           {existingBid && (
             <div className="space-y-3 mb-4">
               <Field label="Bid status"><span className="capitalize">{existingBid.status.replaceAll("_", " ")}</span></Field>
@@ -326,23 +339,18 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
             </div>
           )}
 
-          {/* No fleet warning */}
           {!existingBid && data.fleetOptions.length === 0 && (
             <div className="border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-700">No compatible vehicles found in your fleet for this request.</div>
           )}
 
-          {/* Bid form */}
           {!existingBid && data.fleetOptions.length > 0 && (
             <form onSubmit={submitBid} className="space-y-5">
-
-              {/* Currency badge */}
               <div className="inline-flex items-center gap-2 border border-black/20 bg-[#f0f0f0] px-3 py-1.5 text-sm font-black text-black">
                 <span>{symbol}</span>
                 Bidding in {currencyLabel}
                 <Link href="/partner/profile" className="ml-1 text-xs font-black text-black/40 underline hover:text-black">Change in profile</Link>
               </div>
 
-              {/* Commission info */}
               <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm">
                 <p className="font-black text-black mb-1">💰 Commission on this booking</p>
                 <p className="font-bold text-black/60">
