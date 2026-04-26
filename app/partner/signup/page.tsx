@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import HCaptcha from "@/app/components/HCaptcha";
+import { CITIES, citiesByCountry, type CityEntry } from "@/lib/cities";
 
 const TERMS_VERSION = "2026-04";
 const TERMS_EFFECTIVE = "1 April 2026";
@@ -54,7 +55,7 @@ const TERMS_SECTIONS = [
     "Camel Global will use reasonable endeavours to make the Platform available 24 hours a day, 7 days a week, subject to planned maintenance and events outside our control.",
     "Camel Global will process Bookings, payments, and notifications in accordance with the functionality described in the Platform.",
     "Camel Global will notify Partners of new customer requests within their service radius in a timely manner.",
-    "Camel Global will provide Partner support via support@camel-global.com and will use reasonable endeavours to respond to enquiries within 2 business days.",
+    "Camel Global will provide Partner support via the contact form and will use reasonable endeavours to respond to enquiries within 2 business days.",
     "Camel Global will give Partners at least 14 days' written notice of any material changes to these Terms or the Operating Rules.",
     "Camel Global does not guarantee any minimum volume of Bookings or revenue to any Partner.",
   ]},
@@ -116,7 +117,7 @@ const TERMS_SECTIONS = [
     "Camel Global may suspend a Partner account immediately for a serious customer complaint, breach of standards, failure to fulfil a Booking, or misrepresentation.",
     "Following suspension, the Partner will be notified by email and given 5 business days to respond.",
     "Camel Global may permanently terminate this Agreement for repeated breaches or a single serious violation.",
-    "The Partner may terminate by providing 30 days' written notice to support@camel-global.com, provided no active Bookings remain.",
+    "The Partner may terminate by providing 30 days' written notice via the contact form, provided no active Bookings remain.",
     "On termination, Platform access is revoked, outstanding amounts become immediately payable, and Customer data must be deleted within 30 days.",
   ]},
   { title: "14. Amendments", clauses: [
@@ -142,48 +143,38 @@ async function downloadTermsPDF() {
   const margin = 15;
   const usableW = pageW - margin * 2;
   let y = margin;
-  function checkPage(needed = 8) {
-    if (y + needed > pageH - margin) { doc.addPage(); y = margin; }
-  }
-  doc.setFillColor(15, 79, 138);
-  doc.rect(0, 0, pageW, 18, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13); doc.setFont("helvetica", "bold");
-  doc.text("CAMEL GLOBAL", margin, 7);
-  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  function checkPage(needed = 8) { if (y + needed > pageH - margin) { doc.addPage(); y = margin; } }
+  doc.setFillColor(15, 79, 138); doc.rect(0, 0, pageW, 18, "F");
+  doc.setTextColor(255, 255, 255); doc.setFontSize(13); doc.setFont("helvetica", "bold");
+  doc.text("CAMEL GLOBAL", margin, 7); doc.setFontSize(8); doc.setFont("helvetica", "normal");
   doc.text("Meet and greet car hire", margin, 12);
   doc.text("Partner Terms and Conditions", pageW - margin, 7, { align: "right" });
   doc.text(`Version: ${TERMS_VERSION} — Effective: ${TERMS_EFFECTIVE}`, pageW - margin, 11, { align: "right" });
   doc.text(`Generated: ${dateStr}`, pageW - margin, 15, { align: "right" });
   y = 26;
-  doc.setTextColor(0, 55, 104);
-  doc.setFontSize(16); doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 55, 104); doc.setFontSize(16); doc.setFont("helvetica", "bold");
   doc.text("Partner Terms and Conditions", margin, y); y += 7;
   doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(100, 116, 139);
   const subtitle = doc.splitTextToSize("These Terms govern your use of the Camel Global platform as a partner. By registering as a partner you agree to be bound by these Terms in full.", usableW);
   doc.text(subtitle, margin, y); y += subtitle.length * 4 + 6;
-  doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3);
-  doc.line(margin, y, pageW - margin, y); y += 6;
+  doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3); doc.line(margin, y, pageW - margin, y); y += 6;
   for (const { title, clauses } of TERMS_SECTIONS) {
     checkPage(12);
-    doc.setFillColor(243, 248, 255);
-    doc.roundedRect(margin, y - 4, usableW, 9, 2, 2, "F");
+    doc.setFillColor(243, 248, 255); doc.roundedRect(margin, y - 4, usableW, 9, 2, 2, "F");
     doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 55, 104);
     doc.text(title, margin + 3, y + 2); y += 9;
     clauses.forEach((clause, i) => {
       checkPage(8);
       const lines = doc.splitTextToSize(`${i + 1}.  ${clause}`, usableW - 6);
       doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(51, 65, 85);
-      doc.text(lines, margin + 4, y);
-      y += lines.length * 4.5 + 1.5;
+      doc.text(lines, margin + 4, y); y += lines.length * 4.5 + 1.5;
     });
     y += 4;
   }
   const totalPages = (doc.internal as any).getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
-    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3);
-    doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
+    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3); doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
     doc.setFontSize(7); doc.setTextColor(148, 163, 184); doc.setFont("helvetica", "normal");
     doc.text(`Camel Global Partner Terms and Conditions — Version ${TERMS_VERSION} — camelglobal.com`, margin, pageH - 6);
     doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 6, { align: "right" });
@@ -191,21 +182,50 @@ async function downloadTermsPDF() {
   doc.save(`Camel-Global-Partner-Terms-${TERMS_VERSION}.pdf`);
 }
 
-const inputCls   = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
-const selectCls  = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors appearance-none cursor-pointer";
-const labelCls   = "block text-xs font-black uppercase tracking-widest text-black mb-2";
-const btnPrimary = "w-full bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity";
+// ── Shared styles ─────────────────────────────────────────────────────────────
+const inputCls     = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
+const selectCls    = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors appearance-none cursor-pointer";
+const labelCls     = "block text-xs font-black uppercase tracking-widest text-black mb-2";
+const btnPrimary   = "w-full bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity";
 const btnSecondary = "flex-1 border border-black/20 py-4 text-base font-black text-black hover:bg-[#f0f0f0] transition-colors";
 
 const STEP_LABELS = ["Your Business", "Business Address", "Fleet Address", "Password", "Review"];
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+type PhotonResult = {
+  display_name: string; label?: string; subtitle?: string; type?: string;
+  lat: number | null; lng: number | null;
+  address_line1?: string; address_line2?: string; province?: string; postcode?: string; country?: string;
+};
+
+const TYPE_ICON: Record<string, string> = {
+  airport: "✈", hotel: "🏨", food: "🍽", train: "🚆", bus: "🚌", street: "🏠", place: "📍",
+};
+
+type FormData = {
+  companyName: string; contactName: string; email: string; phone: string; website: string;
+  address1: string; address2: string; city: string; province: string; postcode: string; country: string;
+  addressLat: number | null; addressLng: number | null;
+  fleetAddress1: string; fleetAddress2: string; fleetCity: string; fleetProvince: string;
+  fleetPostcode: string; fleetCountry: string; fleetLat: number | null; fleetLng: number | null;
+  password: string; confirmPassword: string; agreedToTerms: boolean;
+};
+
+const EMPTY: FormData = {
+  companyName: "", contactName: "", email: "", phone: "", website: "",
+  address1: "", address2: "", city: "", province: "", postcode: "", country: "Spain",
+  addressLat: null, addressLng: null,
+  fleetAddress1: "", fleetAddress2: "", fleetCity: "", fleetProvince: "", fleetPostcode: "", fleetCountry: "Spain",
+  fleetLat: null, fleetLng: null, password: "", confirmPassword: "", agreedToTerms: false,
+};
+
+// ── Progress bar ──────────────────────────────────────────────────────────────
 function ProgressBar({ step }: { step: number }) {
   return (
     <div className="mb-10">
       <div className="flex items-center">
         {STEP_LABELS.map((label, i) => {
-          const done = i + 1 < step;
-          const active = i + 1 === step;
+          const done = i + 1 < step, active = i + 1 === step;
           return (
             <div key={label} className={`flex items-center ${i < STEP_LABELS.length - 1 ? "flex-1" : ""}`}>
               <div className="flex flex-col items-center">
@@ -214,9 +234,7 @@ function ProgressBar({ step }: { step: number }) {
                 </div>
                 <span className={`mt-1.5 text-xs font-black uppercase tracking-wide whitespace-nowrap ${active ? "text-[#ff7a00]" : done ? "text-green-600" : "text-black/30"}`}>{label}</span>
               </div>
-              {i < STEP_LABELS.length - 1 && (
-                <div className={`h-1 flex-1 mx-2 mb-5 transition-colors ${done ? "bg-green-500" : "bg-[#f0f0f0]"}`} />
-              )}
+              {i < STEP_LABELS.length - 1 && <div className={`h-1 flex-1 mx-2 mb-5 transition-colors ${done ? "bg-green-500" : "bg-[#f0f0f0]"}`} />}
             </div>
           );
         })}
@@ -235,82 +253,132 @@ function Field({ label, required, error, children }: { label: string; required?:
   );
 }
 
-function InfoBox({ children }: { children: React.ReactNode }) {
-  return <div className="bg-[#f0f0f0] px-4 py-3 text-sm text-black">{children}</div>;
-}
-
-type Suggestion = {
-  display_name: string; lat: string; lon: string;
-  address?: { road?: string; house_number?: string; suburb?: string; city?: string; town?: string; village?: string; state?: string; postcode?: string; country?: string };
-};
-
-const COUNTRIES = ["Spain","United Kingdom","Gibraltar","Ireland","Portugal","France","Italy","Germany","Netherlands","Belgium","United States","Canada","Australia","Other"];
-
-function parseSuggestion(s: Suggestion) {
-  const a = s.address ?? {};
-  const road = [a.house_number, a.road].filter(Boolean).join(" ");
-  const area = a.suburb || a.city || a.town || a.village || "";
-  return { address1: road || s.display_name.split(",")[0] || "", address2: area, province: a.state || "", postcode: a.postcode || "", country: a.country || "", lat: parseFloat(s.lat), lng: parseFloat(s.lon), display: s.display_name };
-}
-
-function AddressSearch({ onSelect, placeholder }: { onSelect: (r: ReturnType<typeof parseSuggestion>) => void; placeholder?: string }) {
-  const [query, setQuery]             = useState("");
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [loading, setLoading]         = useState(false);
-  const [open, setOpen]               = useState(false);
-  const timer = useRef<NodeJS.Timeout | null>(null);
-  function search(q: string) {
-    setQuery(q);
-    if (timer.current) clearTimeout(timer.current);
-    if (!q.trim() || q.length < 3) { setSuggestions([]); setOpen(false); return; }
-    timer.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`, { headers: { "Accept-Language": "en" } });
-        const data = await res.json();
-        setSuggestions(data); setOpen(true);
-      } catch { setSuggestions([]); } finally { setLoading(false); }
-    }, 400);
-  }
-  function select(s: Suggestion) {
-    const parsed = parseSuggestion(s);
-    setQuery(parsed.display); setSuggestions([]); setOpen(false); onSelect(parsed);
-  }
+// ── Photon address search widget (reused for biz + fleet) ─────────────────────
+function PhotonSearch({
+  city, onCityChange, query, onQueryChange, results, onSelect, searching, placeholder,
+}: {
+  city: CityEntry; onCityChange: (c: CityEntry) => void;
+  query: string; onQueryChange: (q: string) => void;
+  results: PhotonResult[]; onSelect: (r: PhotonResult) => void;
+  searching: boolean; placeholder?: string;
+}) {
+  const grouped = citiesByCountry();
   return (
-    <div className="relative">
-      <div className="relative">
-        <input value={query} onChange={e => search(e.target.value)} placeholder={placeholder ?? "Search for your address..."}
-          className={inputCls} onFocus={() => suggestions.length > 0 && setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} />
-        {loading && <div className="absolute right-3 top-1/2 -translate-y-1/2"><div className="h-4 w-4 animate-spin border-2 border-black border-t-transparent" /></div>}
+    <div className="space-y-3">
+      {/* Use my current location */}
+      <div className="flex gap-2 flex-wrap">
+        <button type="button"
+          onClick={async () => {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(async pos => {
+              try {
+                const res  = await fetch(`/api/geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`, { cache: "no-store" });
+                const json = await res.json().catch(() => null);
+                if (json?.display_name) {
+                  onSelect({
+                    display_name:  String(json.display_name),
+                    label:         String(json.address_line1 || json.display_name),
+                    subtitle:      [json.address_line2, json.city, json.country].filter(Boolean).join(", "),
+                    lat:           pos.coords.latitude,
+                    lng:           pos.coords.longitude,
+                    address_line1: String(json.address_line1 || ""),
+                    address_line2: String(json.address_line2 || ""),
+                    province:      String(json.province      || ""),
+                    postcode:      String(json.postcode      || ""),
+                    country:       String(json.country       || ""),
+                  });
+                }
+              } catch {}
+            }, () => {}, { enableHighAccuracy: true, timeout: 10000 });
+          }}
+          className="border border-black/20 bg-[#f0f0f0] px-4 py-2 text-xs font-black text-black hover:bg-[#e8e8e8] transition-colors">
+          📍 Use my current location
+        </button>
       </div>
-      {open && suggestions.length > 0 && (
-        <div className="absolute z-50 mt-0.5 w-full bg-white border border-black/10 shadow-lg">
-          {suggestions.map((s, i) => (
-            <button key={i} type="button" className="w-full px-4 py-3 text-left text-sm font-medium text-black hover:bg-[#f0f0f0] border-b border-black/5 last:border-0" onMouseDown={() => select(s)}>{s.display_name}</button>
+
+      {/* City selector */}
+      <div className="bg-black px-4 py-3 flex flex-wrap items-center gap-3">
+        <span className="text-xs font-black uppercase tracking-widest text-white">Searching near</span>
+        <select
+          value={`${city.country}|${city.city}`}
+          onChange={e => {
+            const [country, c] = e.target.value.split("|");
+            const found = CITIES.find(x => x.country === country && x.city === c);
+            if (found) onCityChange(found);
+          }}
+          className="bg-[#ff7a00] text-white font-black text-sm px-3 py-1.5 outline-none cursor-pointer appearance-none"
+        >
+          {Object.entries(grouped).map(([country, cities]) => (
+            <optgroup key={country} label={country}>
+              {cities.map(c => (
+                <option key={c.city} value={`${c.country}|${c.city}`}>{c.city}, {c.country}</option>
+              ))}
+            </optgroup>
           ))}
-        </div>
-      )}
+        </select>
+        <span className="text-xs font-black text-white">Change if your address is elsewhere</span>
+      </div>
+
+      {/* Search input */}
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          onChange={e => onQueryChange(e.target.value)}
+          placeholder={placeholder || `Search in ${city.city}…`}
+          className={inputCls}
+        />
+        {searching && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-black/30">Searching…</span>}
+        {results.length > 0 && (
+          <div className="absolute z-50 left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden">
+            {results.map((r, i) => {
+              const icon = TYPE_ICON[r.type || ""] || "📍";
+              return (
+                <button key={i} type="button" onClick={() => onSelect(r)}
+                  className="flex w-full items-start gap-3 border-b border-black/5 px-4 py-3 text-left hover:bg-[#f0f0f0] last:border-b-0">
+                  <span className="mt-0.5 w-5 shrink-0 text-center text-base">{icon}</span>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-sm font-black text-black">{r.label || r.display_name}</span>
+                    {r.subtitle && <span className="truncate text-xs font-semibold text-black/50">{r.subtitle}</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-type FormData = {
-  companyName: string; contactName: string; email: string; phone: string; website: string;
-  address1: string; address2: string; city: string; province: string; postcode: string; country: string;
-  addressLat: number | null; addressLng: number | null;
-  fleetAddress1: string; fleetAddress2: string; fleetCity: string; fleetProvince: string; fleetPostcode: string; fleetCountry: string;
-  fleetLat: number | null; fleetLng: number | null;
-  password: string; confirmPassword: string; agreedToTerms: boolean;
-};
+// ── Shared Photon search hook ─────────────────────────────────────────────────
+function usePhotonSearch(city: CityEntry) {
+  const [query,     setQueryRaw]   = useState("");
+  const [results,   setResults]    = useState<PhotonResult[]>([]);
+  const [searching, setSearching]  = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-const EMPTY: FormData = {
-  companyName: "", contactName: "", email: "", phone: "", website: "",
-  address1: "", address2: "", city: "", province: "", postcode: "", country: "Spain",
-  addressLat: null, addressLng: null,
-  fleetAddress1: "", fleetAddress2: "", fleetCity: "", fleetProvince: "", fleetPostcode: "", fleetCountry: "Spain",
-  fleetLat: null, fleetLng: null, password: "", confirmPassword: "", agreedToTerms: false,
-};
+  function setQuery(q: string) {
+    setQueryRaw(q);
+    if (timer.current) clearTimeout(timer.current);
+    if (q.length < 2) { setResults([]); return; }
+    timer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res  = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&biasLat=${city.lat}&biasLng=${city.lng}`, { cache: "no-store" });
+        const json = await res.json().catch(() => null);
+        setResults(Array.isArray(json?.results) ? json.results : []);
+      } catch { setResults([]); }
+      finally { setSearching(false); }
+    }, 350);
+  }
 
+  function clear() { setQueryRaw(""); setResults([]); }
+
+  return { query, setQuery, results, setResults, searching, clear };
+}
+
+// ── Step 1 ────────────────────────────────────────────────────────────────────
 function Step1({ data, onChange, onNext, error }: { data: FormData; onChange: (k: keyof FormData, v: string) => void; onNext: () => void; error: string }) {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   function validate() {
@@ -343,22 +411,35 @@ function Step1({ data, onChange, onNext, error }: { data: FormData; onChange: (k
   );
 }
 
+// ── Step 2 — Business Address ─────────────────────────────────────────────────
 function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (k: keyof FormData, v: string | number | null) => void; onNext: () => void; onBack: () => void }) {
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
-  const [searchDone, setSearchDone] = useState(false);
-  function handleSelect(r: ReturnType<typeof parseSuggestion>) {
-    onChange("address1", r.address1); onChange("address2", r.address2); onChange("city", r.address2 || "");
-    onChange("province", r.province); onChange("postcode", r.postcode); onChange("country", r.country || "Spain");
-    onChange("addressLat", r.lat); onChange("addressLng", r.lng); setSearchDone(true);
+  const [errors,  setErrors]  = useState<Partial<Record<keyof FormData, string>>>({});
+  const [city,    setCity]    = useState<CityEntry>(CITIES[0]);
+  const [selected, setSelected] = useState(false);
+  const search = usePhotonSearch(city);
+
+  function handleSelect(r: PhotonResult) {
+    onChange("address1", r.address_line1 || r.label || "");
+    onChange("address2", r.address_line2 || "");
+    onChange("city",     r.subtitle?.split(",")[0]?.trim() || "");
+    onChange("province", r.province  || "");
+    onChange("postcode", r.postcode  || "");
+    onChange("country",  r.country   || "Spain");
+    onChange("addressLat", r.lat);
+    onChange("addressLng", r.lng);
+    search.clear();
+    setSelected(true);
   }
+
   function validate() {
     const e: Partial<Record<keyof FormData, string>> = {};
     if (!data.address1.trim()) e.address1 = "Address line 1 is required";
-    if (!data.province.trim()) e.province = "Province is required";
-    if (!data.postcode.trim()) e.postcode = "Postcode is required";
-    if (!data.country.trim()) e.country = "Country is required";
+    if (!data.province.trim()) e.province  = "Province is required";
+    if (!data.postcode.trim()) e.postcode  = "Postcode is required";
+    if (!data.country.trim())  e.country   = "Country is required";
     setErrors(e); return Object.keys(e).length === 0;
   }
+
   return (
     <div className="space-y-5">
       <div>
@@ -366,11 +447,16 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         <h2 className="text-3xl font-black text-black">Business Address</h2>
         <p className="mt-1 text-sm font-semibold text-black/50">Your registered company address for correspondence and records.</p>
       </div>
-      <InfoBox>
-        <p className="font-black text-xs uppercase tracking-widest mb-2">Search your address</p>
-        <AddressSearch onSelect={handleSelect} placeholder="e.g. Calle Mayor 12, Valencia..." />
-        {searchDone && <p className="mt-2 text-xs font-semibold text-green-700">Address found — check fields below and correct if needed</p>}
-      </InfoBox>
+
+      <PhotonSearch
+        city={city} onCityChange={c => { setCity(c); search.clear(); }}
+        query={search.query} onQueryChange={search.setQuery}
+        results={search.results} onSelect={handleSelect}
+        searching={search.searching}
+        placeholder={`Search your business address in ${city.city}…`}
+      />
+      {selected && <p className="text-xs font-semibold text-green-700">✓ Address found — check fields below and correct if needed</p>}
+
       <div className="space-y-4">
         <Field label="Address line 1" required error={errors.address1}><input value={data.address1} onChange={e => onChange("address1", e.target.value)} placeholder="Street name and number" className={inputCls} /></Field>
         <Field label="Address line 2"><input value={data.address2} onChange={e => onChange("address2", e.target.value)} placeholder="Apartment, unit, floor (optional)" className={inputCls} /></Field>
@@ -380,13 +466,10 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Postcode" required error={errors.postcode}><input value={data.postcode} onChange={e => onChange("postcode", e.target.value)} placeholder="46001" className={inputCls} /></Field>
-          <Field label="Country" required error={errors.country}>
-            <select value={data.country} onChange={e => onChange("country", e.target.value)} className={selectCls}>
-              {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
+          <Field label="Country" required error={errors.country}><input value={data.country} onChange={e => onChange("country", e.target.value)} placeholder="Spain" className={inputCls} /></Field>
         </div>
       </div>
+
       <div className="flex gap-3">
         <button type="button" onClick={onBack} className={btnSecondary}>← Back</button>
         <button type="button" onClick={() => validate() && onNext()} className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 transition-opacity">Continue to Fleet Address →</button>
@@ -395,29 +478,44 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
   );
 }
 
+// ── Step 3 — Fleet Address ────────────────────────────────────────────────────
 function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (k: keyof FormData, v: string | number | null | boolean) => void; onNext: () => void; onBack: () => void }) {
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
-  const [searchDone, setSearchDone] = useState(false);
+  const [errors,         setErrors]         = useState<Partial<Record<keyof FormData, string>>>({});
+  const [city,           setCity]           = useState<CityEntry>(CITIES[0]);
+  const [selected,       setSelected]       = useState(false);
   const [sameAsBusiness, setSameAsBusiness] = useState(false);
+  const search = usePhotonSearch(city);
+
   function handleSameAsBusiness(checked: boolean) {
     setSameAsBusiness(checked);
     if (checked) {
-      onChange("fleetAddress1", data.address1); onChange("fleetAddress2", data.address2); onChange("fleetCity", data.city);
-      onChange("fleetProvince", data.province); onChange("fleetPostcode", data.postcode); onChange("fleetCountry", data.country);
-      onChange("fleetLat", data.addressLat); onChange("fleetLng", data.addressLng);
+      onChange("fleetAddress1", data.address1); onChange("fleetAddress2", data.address2);
+      onChange("fleetCity",     data.city);     onChange("fleetProvince", data.province);
+      onChange("fleetPostcode", data.postcode); onChange("fleetCountry",  data.country);
+      onChange("fleetLat",      data.addressLat); onChange("fleetLng",    data.addressLng);
     }
   }
-  function handleSelect(r: ReturnType<typeof parseSuggestion>) {
-    onChange("fleetAddress1", r.address1); onChange("fleetAddress2", r.address2); onChange("fleetCity", r.address2 || "");
-    onChange("fleetProvince", r.province); onChange("fleetPostcode", r.postcode); onChange("fleetCountry", r.country || "Spain");
-    onChange("fleetLat", r.lat); onChange("fleetLng", r.lng); setSearchDone(true);
+
+  function handleSelect(r: PhotonResult) {
+    onChange("fleetAddress1", r.address_line1 || r.label || "");
+    onChange("fleetAddress2", r.address_line2 || "");
+    onChange("fleetCity",     r.subtitle?.split(",")[0]?.trim() || "");
+    onChange("fleetProvince", r.province  || "");
+    onChange("fleetPostcode", r.postcode  || "");
+    onChange("fleetCountry",  r.country   || "Spain");
+    onChange("fleetLat",      r.lat);
+    onChange("fleetLng",      r.lng);
+    search.clear();
+    setSelected(true);
   }
+
   function validate() {
     const e: Partial<Record<keyof FormData, string>> = {};
     if (!data.fleetAddress1.trim()) e.fleetAddress1 = "Address line 1 is required";
-    if (!data.fleetCountry.trim()) e.fleetCountry = "Country is required";
+    if (!data.fleetCountry.trim())  e.fleetCountry  = "Country is required";
     setErrors(e); return Object.keys(e).length === 0;
   }
+
   return (
     <div className="space-y-5">
       <div>
@@ -425,6 +523,8 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         <h2 className="text-3xl font-black text-black">Fleet Base Address</h2>
         <p className="mt-1 text-sm font-semibold text-black/50">Where your vehicles are based. Used to match you with nearby customers.</p>
       </div>
+
+      {/* Same as business */}
       <label className="flex items-center gap-3 cursor-pointer bg-[#f0f0f0] px-4 py-3">
         <input type="checkbox" checked={sameAsBusiness} onChange={e => handleSameAsBusiness(e.target.checked)} className="h-4 w-4" />
         <div>
@@ -432,13 +532,20 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
           <p className="text-xs font-semibold text-black/50">Tick if your fleet is based at your registered business address</p>
         </div>
       </label>
+
       {!sameAsBusiness && (
-        <InfoBox>
-          <p className="font-black text-xs uppercase tracking-widest mb-2">Search your fleet address</p>
-          <AddressSearch onSelect={handleSelect} placeholder="e.g. Cami del Coscollar, Manises..." />
-          {searchDone && <p className="mt-2 text-xs font-semibold text-green-700">Address found — check fields below and correct if needed</p>}
-        </InfoBox>
+        <>
+          <PhotonSearch
+            city={city} onCityChange={c => { setCity(c); search.clear(); }}
+            query={search.query} onQueryChange={search.setQuery}
+            results={search.results} onSelect={handleSelect}
+            searching={search.searching}
+            placeholder={`Search your fleet address in ${city.city}…`}
+          />
+          {selected && <p className="text-xs font-semibold text-green-700">✓ Address found — check fields below and correct if needed</p>}
+        </>
       )}
+
       <div className="space-y-4">
         <Field label="Address line 1" required error={errors.fleetAddress1}><input value={data.fleetAddress1} onChange={e => onChange("fleetAddress1", e.target.value)} placeholder="Street name and number" className={inputCls} /></Field>
         <Field label="Address line 2"><input value={data.fleetAddress2} onChange={e => onChange("fleetAddress2", e.target.value)} placeholder="Unit, depot, yard (optional)" className={inputCls} /></Field>
@@ -448,13 +555,10 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Postcode"><input value={data.fleetPostcode} onChange={e => onChange("fleetPostcode", e.target.value)} placeholder="46001" className={inputCls} /></Field>
-          <Field label="Country" required error={errors.fleetCountry}>
-            <select value={data.fleetCountry} onChange={e => onChange("fleetCountry", e.target.value)} className={selectCls}>
-              {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
+          <Field label="Country" required error={errors.fleetCountry}><input value={data.fleetCountry} onChange={e => onChange("fleetCountry", e.target.value)} placeholder="Spain" className={inputCls} /></Field>
         </div>
       </div>
+
       <div className="flex gap-3">
         <button type="button" onClick={onBack} className={btnSecondary}>← Back</button>
         <button type="button" onClick={() => validate() && onNext()} className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 transition-opacity">Continue to Password →</button>
@@ -463,6 +567,7 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
   );
 }
 
+// ── Step 4 ────────────────────────────────────────────────────────────────────
 function Step4({ data, onChange, onNext, onBack }: { data: FormData; onChange: (k: keyof FormData, v: string) => void; onNext: () => void; onBack: () => void }) {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [showPw, setShowPw] = useState(false);
@@ -487,7 +592,7 @@ function Step4({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         </div>
         {data.password.length > 0 && (
           <div className="mt-2 flex gap-1 items-center">
-            {[1,2,3].map(i => (<div key={i} className={`h-1.5 flex-1 transition-colors ${i <= strength ? strength === 1 ? "bg-red-400" : strength === 2 ? "bg-yellow-400" : "bg-green-500" : "bg-[#f0f0f0]"}`} />))}
+            {[1,2,3].map(i => <div key={i} className={`h-1.5 flex-1 transition-colors ${i <= strength ? strength === 1 ? "bg-red-400" : strength === 2 ? "bg-yellow-400" : "bg-green-500" : "bg-[#f0f0f0]"}`} />)}
             <span className="text-xs font-black ml-2 text-black/40">{strength === 1 ? "Weak" : strength === 2 ? "Good" : "Strong"}</span>
           </div>
         )}
@@ -504,6 +609,7 @@ function Step4({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
   );
 }
 
+// ── Step 5 ────────────────────────────────────────────────────────────────────
 function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaVerify, captchaKey }: {
   data: FormData; onChange: (k: keyof FormData, v: boolean) => void; onBack: () => void;
   onSubmit: () => void; submitting: boolean; error: string;
@@ -541,9 +647,7 @@ function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaV
           <input type="checkbox" checked={data.agreedToTerms} onChange={e => onChange("agreedToTerms", e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="text-sm font-semibold text-black">
             I agree to the{" "}
-            <button type="button" onClick={downloadTermsPDF} className="font-black text-black underline hover:opacity-70">
-              Camel Global Partner Terms & Conditions
-            </button>
+            <button type="button" onClick={downloadTermsPDF} className="font-black text-black underline hover:opacity-70">Camel Global Partner Terms & Conditions</button>
             {" "}and confirm all information is accurate.
           </span>
         </label>
@@ -564,6 +668,7 @@ function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaV
   );
 }
 
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function PartnerSignupPage() {
   const router = useRouter();
   const [step,         setStep]         = useState(1);
@@ -612,31 +717,19 @@ export default function PartnerSignupPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-
-      {/* Header */}
       <header className="w-full bg-black border-b border-white/10">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
-          <Link href="/">
-            <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
-          </Link>
-          <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
-            Partner Login
-          </Link>
+          <Link href="/"><Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" /></Link>
+          <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">Partner Login</Link>
         </div>
       </header>
-
-      {/* Hero */}
       <div className="w-full bg-black px-6 pb-16 pt-10 text-white">
         <div className="mx-auto max-w-2xl">
           <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">Become a Partner</p>
           <h1 className="text-4xl font-black text-white md:text-5xl">Join Camel Global.</h1>
-          <p className="mt-3 text-base font-semibold text-white/70">
-            Apply to list your car hire company on the platform. It takes less than 5 minutes.
-          </p>
+          <p className="mt-3 text-base font-semibold text-white/70">Apply to list your car hire company on the platform. It takes less than 5 minutes.</p>
         </div>
       </div>
-
-      {/* Form area */}
       <div className="w-full bg-[#f0f0f0] px-6 py-10 flex-1">
         <div className="mx-auto max-w-2xl">
           <div className="bg-white p-8">
@@ -653,7 +746,6 @@ export default function PartnerSignupPage() {
           </p>
         </div>
       </div>
-
     </div>
   );
 }
