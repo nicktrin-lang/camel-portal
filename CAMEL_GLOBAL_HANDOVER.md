@@ -87,6 +87,7 @@ git push origin main
 | `lib/currency.ts` | All currency utilities — EUR, GBP, USD formatting + conversion |
 | `lib/useCurrency.ts` | React hook — currency state, live rates, fmt helpers |
 | `app/components/HCaptcha.tsx` | Reusable hCaptcha React widget |
+| `app/components/GoogleAnalytics.tsx` | GA4 SPA pageview tracker — fires on every route change |
 | `app/components/Footer.tsx` | Portal footer — black theme, partner/admin/driver variants, exported as PortalFooter |
 | `app/components/portal/PortalTopbar.tsx` | Partner/admin header — black, h-[76px], inverted logo |
 | `app/components/portal/PortalSidebar.tsx` | Partner/admin sidebar — black, orange active state |
@@ -104,10 +105,11 @@ git push origin main
 | `lib/useCurrency.ts` | Currency hook |
 | `lib/rateLimit.ts` | Rate limiter |
 | `lib/hcaptcha.ts` | hCaptcha verification |
+| `app/components/GoogleAnalytics.tsx` | GA4 SPA pageview tracker — fires on every route change, domain-aware |
 | `app/components/portal/fleetCategories.tsx` | Copied — used by customer booking pages |
 | `app/partner/profile/MapPicker.tsx` | Copied — used by customer /book page |
 | `app/partner/profile/MapPickerInner.tsx` | Copied — inner map component |
-| `app/components/Footer.tsx` | Customer footer — black, "Ready to book?" CTA |
+| `app/components/Footer.tsx` | Customer footer — black, "Ready to book?" CTA, Become a Partner links to portal |
 | `app/components/CookieBanner.tsx` | GDPR cookie consent banner |
 | `app/components/CustomerMap.tsx` | Customer map component |
 | `app/components/HCaptcha.tsx` | hCaptcha widget |
@@ -142,7 +144,7 @@ All internal API routes stay at `/api/test-booking/*` — do not rename these.
 - **Form areas:** `bg-[#f0f0f0]` with white cards, square edges (no rounded corners)
 - **Inputs:** `bg-[#f0f0f0]`, labels `text-xs font-black uppercase tracking-widest`
 - **Buttons:** Square, orange `bg-[#ff7a00]`, `font-black`
-- **Footer:** Black, "Ready to book?" CTA at top
+- **Footer:** Black, "Ready to book?" CTA at top, "Become a Partner" links to `portal.camel-global.com/partner/signup`
 
 ### Partner / Admin / Driver Portals — Same Black Theme
 - **Pre-auth headers** (login, signup, portal homepage): Black, `max-w-7xl`, `px-4 py-2.5`, logo `h-16` — matches customer site exactly
@@ -162,7 +164,13 @@ All internal API routes stay at `/api/test-booking/*` — do not rename these.
 | `test.camel-global.com` | `G-G90QB28J12` | Camel Customer Test Site |
 | `portal.camel-global.com` / `test-portal.camel-global.com` | `G-YCZMDQJDM7` | Camel Portal Site |
 
-GA scripts injected server-side in each repo's `app/layout.tsx` using raw `<script>` tags in `<head>`.
+### GA4 Implementation
+- GA4 init script injected **before** the async GTM script in `app/layout.tsx` (both repos)
+- `app/components/GoogleAnalytics.tsx` fires `gtag('config', ...)` on every client-side route change
+- `GoogleAnalyticsPageView` rendered in `ClientRootLayout` in both repos
+- CSP `connect-src` includes `region1.analytics.google.com` and `region1.google-analytics.com` (required for GA4 hits)
+- Cross-domain measurement enabled in GA4: portal property linked to `camel-global.com`
+- **All 3 properties confirmed working with real-time data flowing**
 
 ---
 
@@ -192,7 +200,7 @@ GA scripts injected server-side in each repo's `app/layout.tsx` using raw `<scri
 
 ## Security
 - CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy in `next.config.ts` (both repos)
-- CSP includes: googletagmanager, google-analytics, OpenStreetMap, unpkg, hCaptcha, Supabase, Google Maps, frankfurter
+- CSP `connect-src` includes: googletagmanager, google-analytics, analytics.google.com, region1.analytics.google.com, region1.google-analytics.com, stats.g.doubleclick.net, OpenStreetMap, unpkg, hCaptcha, Supabase, Google Maps, frankfurter
 - Rate limiting: 3 req / 15 min per IP
 - hCaptcha on all login, signup, forgot password, contact forms
 - **Portal and customer site are fully separated** — different repos, different Vercel projects, different origins
@@ -242,22 +250,24 @@ NEXT_PUBLIC_SITE_URL                   → https://camel-global.com
 | `v-stable-repo-split` | Stable after repo split — portal only, all 4 domains live |
 | `v-stable-partner-branding` | Full portal rebrand — black/orange/grey theme |
 | `v-stable-chat18` | Chat 18 — header standardisation, footer fixes, Supabase env fix |
+| `v-stable-chat19` | Chat 19 — GA4 fully working, CSP fixed, footer link fixed |
 
 ### Customer (`~/camel-customer`)
 | Tag | Description |
 |-----|-------------|
 | `v-stable-repo-split` | Stable after repo split — customer only, all 4 domains live |
 | `v-stable-chat18` | Chat 18 — Supabase env fixed, bookings working, browser client fixed |
+| `v-stable-chat19` | Chat 19 — GA4 fully working, CSP fixed, footer link fixed |
 
 ### Rollback
 ```bash
 # Portal
 cd ~/camel-portal
-git checkout v-stable-chat18
+git checkout v-stable-chat19
 
 # Customer
 cd ~/camel-customer
-git checkout v-stable-chat18
+git checkout v-stable-chat19
 ```
 
 ---
@@ -284,15 +294,28 @@ git checkout v-stable-chat18
 - **Full portal rebrand — black/orange/grey, square UI, no blue anywhere**
 - **Repo split complete — customer and portal fully separated**
 - **4 domains live and correctly routed**
-- **Google Analytics working on all 4 domains**
+- **Google Analytics working on all 3 properties — real-time data flowing**
 - **New portal homepage at portal.camel-global.com**
 - **Customer bookings page working — 73 bookings visible**
 - **All Supabase env vars correctly set in both Vercel projects**
 - **Standardised headers across all pre-auth pages**
+- **Footer "Become a Partner" correctly links to portal**
 
 ---
 
 ## Session Log
+
+### Chat 19 (Completed)
+**GA4 fixed, footer link fixed, CSP updated**
+- Fixed "Become a Partner" footer link in customer site — now correctly points to `portal.camel-global.com/partner/signup`
+- Removed `PortalFooter` from customer `Footer.tsx` — customer site has no portal routes
+- Fixed GA4 not firing on SPA navigation — added `GoogleAnalytics.tsx` component to both repos
+- `GoogleAnalyticsPageView` added to `ClientRootLayout` in both repos
+- Fixed GA4 init script order in `layout.tsx` — inline script now before async GTM script
+- Fixed CSP `connect-src` — added `region1.analytics.google.com` and `region1.google-analytics.com` to both `next.config.ts` files
+- Cross-domain measurement enabled in GA4 portal property for `camel-global.com`
+- GA4 confirmed working on all 3 properties with real-time data flowing
+- Stable tag `v-stable-chat19` created on both repos
 
 ### Chat 18 (Completed)
 **Header standardisation, footer fixes, Supabase env fix**
@@ -303,25 +326,20 @@ git checkout v-stable-chat18
 - Removed "Book Now" from partner login, signup and driver pre-auth headers
 - `PortalFooter` exported from `Footer.tsx` for use on authenticated pages only
 - Fixed customer site Supabase env vars — both `CUSTOMER_` and non-prefixed vars now set in Vercel
-- Fixed `lib/supabase-customer/browser.ts` to use `createClient` (not `createBrowserClient`) with hardcoded fallbacks
-- Fixed `lib/supabase-customer/server.ts` and `lib/supabase/auth-client.ts` with hardcoded fallbacks
+- Fixed `lib/supabase-customer/browser.ts` to use `createClient` with hardcoded fallbacks
 - Customer bookings restored — 73 bookings reassigned to correct user ID via SQL update
 - Local `camel-customer/.env.local` corrected to point at portal Supabase project
 - Stable tag `v-stable-chat18` created on both repos
 
 ### Chat 17 (Completed)
 **Repo split — customer site separated from portal**
-- Split `camel-portal` into two repos: `camel-portal` (portal) + `camel-customer` (customer)
-- Two Vercel projects: `camel-portal-live` + `camel-customer-live`
-- 4 domains correctly routed
+- Split into two repos, two Vercel projects, 4 domains correctly routed
 - GA tracking per domain correctly configured
-- New portal homepage built
-- Admin portal rebrand completed
+- New portal homepage built, admin portal rebrand completed
 - Stable tag `v-stable-repo-split` created on both repos
 
 ### Chat 16 (Completed)
 **Portal rebrand — black/orange/grey theme**
-- PortalTopbar, PortalSidebar, Footer, partner login, signup, terms, operating rules rebranded
 - All partner, admin, driver pages rebranded
 - Double footer bug fixed, ClientRootLayout simplified
 
@@ -347,6 +365,7 @@ git checkout v-stable-chat18
 | 11 | Customer booking site full UI overhaul | ✅ Done |
 | 11b | Partner/admin/driver portal rebrand | ✅ Done |
 | 11c | Repo split — customer / portal separation | ✅ Done |
+| 11d | Google Analytics — all 3 properties working | ✅ Done |
 | 12 | Stripe Connect integration | ⬜ Deferred |
 | 13 | Xero monthly commission endpoint | ⬜ Deferred |
 | 14 | DAC7 EU platform reporting | ⬜ Deferred |
@@ -400,4 +419,4 @@ cd ~/camel-customer && vercel --prod
 
 ---
 
-*Last updated: Chat 18 — Header standardisation, footer fixes, Supabase env vars fixed, customer bookings restored.*
+*Last updated: Chat 19 — GA4 fully working on all 3 properties. CSP fixed. Footer link fixed. Stable tag v-stable-chat19 created.*
