@@ -419,14 +419,12 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
   const search = usePhotonSearch(city);
 
   function handleSelect(r: PhotonResult) {
-    // If it's a named POI (hotel, airport etc), prepend name to address line 1
-    const street   = r.address_line1 || "";
-    const poiName  = (r.label && r.label !== street) ? r.label : "";
-    const addr1    = poiName ? `${poiName}${street ? `, ${street}` : ""}` : (street || r.display_name.split(",")[0]);
-    const cityVal  = r.city || r.subtitle?.split(",")[0]?.trim() || "";
+    const street  = r.address_line1 || "";
+    const poi     = r.label && r.label !== street ? r.label : "";
+    const addr1   = poi ? `${poi}${street ? `, ${street}` : ""}` : (street || r.display_name.split(",")[0]);
     onChange("address1",   addr1);
     onChange("address2",   r.address_line2 || "");
-    onChange("city",       cityVal);
+    onChange("city",       r.city || "");
     onChange("province",   r.province || "");
     onChange("postcode",   r.postcode  || "");
     onChange("country",    r.country   || "Spain");
@@ -502,13 +500,12 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
   }
 
   function handleSelect(r: PhotonResult) {
-    const street   = r.address_line1 || "";
-    const poiName  = (r.label && r.label !== street) ? r.label : "";
-    const addr1    = poiName ? `${poiName}${street ? `, ${street}` : ""}` : (street || r.display_name.split(",")[0]);
-    const cityVal  = r.city || r.subtitle?.split(",")[0]?.trim() || "";
+    const street  = r.address_line1 || "";
+    const poi     = r.label && r.label !== street ? r.label : "";
+    const addr1   = poi ? `${poi}${street ? `, ${street}` : ""}` : (street || r.display_name.split(",")[0]);
     onChange("fleetAddress1", addr1);
     onChange("fleetAddress2", r.address_line2 || "");
-    onChange("fleetCity",     cityVal);
+    onChange("fleetCity",     r.city || "");
     onChange("fleetProvince", r.province || "");
     onChange("fleetPostcode", r.postcode  || "");
     onChange("fleetCountry",  r.country   || "Spain");
