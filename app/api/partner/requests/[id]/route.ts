@@ -45,7 +45,7 @@ export async function GET(
         id, job_number, customer_name, customer_email, customer_phone,
         pickup_address, dropoff_address, pickup_at, dropoff_at,
         journey_duration_minutes, passengers, suitcases, hand_luggage,
-        vehicle_category_slug, vehicle_category_name, notes,
+        sport_equipment, vehicle_category_slug, vehicle_category_name, notes,
         status, created_at, expires_at
       `)
       .eq("id", id)
