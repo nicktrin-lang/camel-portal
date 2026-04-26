@@ -27,7 +27,7 @@ export async function GET(
 
     const { data: application, error: appErr } = await db
       .from("partner_applications")
-      .select("id,user_id,email,company_name,full_name,phone,address,address1,address2,province,postcode,country,website,status,created_at")
+      .select("id,user_id,email,company_name,full_name,phone,address,address1,address2,city,province,postcode,country,website,status,created_at")
       .eq("id", id).maybeSingle();
     if (appErr) return NextResponse.json({ error: appErr.message }, { status: 400 });
     if (!application) return NextResponse.json({ error: "Partner application not found" }, { status: 404 });
@@ -49,7 +49,7 @@ export async function GET(
     if (resolvedUserId) {
       const [profileRes, fleetRes, driversRes] = await Promise.all([
         db.from("partner_profiles")
-          .select("id,user_id,company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency")
+          .select("id,user_id,company_name,contact_name,phone,address,address1,address2,city,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency")
           .eq("user_id", resolvedUserId).maybeSingle(),
         db.from("partner_fleet")
           .select("id,category_slug,category_name,max_passengers,max_suitcases,max_hand_luggage,service_level,notes,is_active,created_at")
