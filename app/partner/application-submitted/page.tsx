@@ -5,53 +5,46 @@ import Link from "next/link";
 
 export default function PartnerApplicationSubmittedPage() {
   return (
-    <div className="min-h-screen bg-[#f7f9fc]">
-      <header className="fixed inset-x-0 top-0 z-40 h-20 border-b border-black/10 bg-[#0f4f8a] text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
-        <div className="flex h-full items-center justify-between px-4 md:px-8">
-          <Link href="/partner/application-submitted" className="flex items-center">
-            <Image
-              src="/camel-logo.png"
-              alt="Camel Global logo"
-              width={180}
-              height={60}
-              priority
-              className="h-[52px] w-auto"
-            />
-          </Link>
+    <div className="min-h-screen bg-black text-white flex flex-col">
 
-          <Link
-            href="/partner/login"
-            className="rounded-full bg-[#ff7a00] px-5 py-2 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-          >
-            Login
+      {/* Header */}
+      <header className="w-full bg-black border-b border-white/10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
+          <Link href="/">
+            <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
+          </Link>
+          <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
+            Partner Login
           </Link>
         </div>
       </header>
 
-      <div className="mx-auto flex min-h-screen max-w-7xl items-start justify-center px-4 pb-10 pt-32">
-        <div className="w-full max-w-2xl rounded-3xl border border-black/5 bg-white p-8 text-center shadow-[0_18px_45px_rgba(0,0,0,0.10)] md:p-12">
-          <h1 className="text-3xl font-semibold text-[#003768] md:text-4xl">
-            Thank you for your application
+      {/* Content */}
+      <div className="flex flex-1 items-center justify-center px-6 py-20">
+        <div className="w-full max-w-lg text-center">
+          <div className="mb-6 text-5xl">✓</div>
+          <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-4">Application Received</p>
+          <h1 className="text-4xl font-black text-white md:text-5xl">
+            Thank you for applying.
           </h1>
-
-          <p className="mt-6 text-lg leading-8 text-slate-600">
-            Your partner application has been received successfully.
+          <p className="mt-6 text-base font-semibold text-white/60 leading-relaxed">
+            Your partner application has been received successfully. Our team will review your details and you will hear from us by email within 48 hours.
           </p>
-
-          <p className="mt-4 text-lg leading-8 text-slate-600">
-            You will hear from us by email in the next 48 hours.
-          </p>
-
           <div className="mt-10">
-            <Link
-              href="/partner/login"
-              className="inline-flex rounded-full bg-[#ff7a00] px-8 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95"
-            >
-              Go to Login
+            <Link href="/partner/login" className="inline-block bg-[#ff7a00] px-10 py-4 text-base font-black text-white hover:opacity-90 transition-opacity">
+              Go to Login →
             </Link>
           </div>
         </div>
       </div>
+
+      {/* Copyright */}
+      <div className="border-t border-white/10 py-5 px-6">
+        <p className="text-center text-xs font-bold text-white/30">
+          © {new Date().getFullYear()} Camel Global Ltd. All rights reserved.
+        </p>
+      </div>
+
     </div>
   );
 }
