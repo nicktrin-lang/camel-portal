@@ -270,16 +270,18 @@ export default function PartnerProfilePage() {
 
   function pickBizSuggestion(item: Suggestion) {
     setSaved(false); setError(null);
-    const addr1    = item.address_line1 || "";
-    const addr2    = item.address_line2 || "";
-    const province = item.province      || "";
-    const postcode = item.postcode      || "";
-    const country  = item.country       || "";
+    const street  = item.address_line1 || "";
+    const poiName = (item.label && item.label !== street) ? item.label : "";
+    const addr1   = poiName ? `${poiName}${street ? `, ${street}` : ""}` : (street || item.display_name.split(",")[0]);
+    const city    = (item as any).city || item.address_line2 || "";
+    const province = item.province || "";
+    const postcode = item.postcode || "";
+    const country  = item.country  || "";
     setProfile(prev => ({
       ...prev,
       address:  item.display_name || prev.address,
       address1: addr1    || prev.address1,
-      address2: addr2    || prev.address2,
+      address2: city     || prev.address2,
       province: province || prev.province,
       postcode: postcode || prev.postcode,
       country:  country  || prev.country,

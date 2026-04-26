@@ -194,7 +194,7 @@ const STEP_LABELS = ["Your Business", "Business Address", "Fleet Address", "Pass
 // ── Types ─────────────────────────────────────────────────────────────────────
 type PhotonResult = {
   display_name: string; label?: string; subtitle?: string; type?: string;
-  lat: number | null; lng: number | null;
+  lat: number | null; lng: number | null; city?: string;
   address_line1?: string; address_line2?: string; province?: string; postcode?: string; country?: string;
 };
 
@@ -419,12 +419,17 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
   const search = usePhotonSearch(city);
 
   function handleSelect(r: PhotonResult) {
-    onChange("address1", r.address_line1 || r.label || "");
-    onChange("address2", r.address_line2 || "");
-    onChange("city",     r.subtitle?.split(",")[0]?.trim() || "");
-    onChange("province", r.province  || "");
-    onChange("postcode", r.postcode  || "");
-    onChange("country",  r.country   || "Spain");
+    // If it's a named POI (hotel, airport etc), prepend name to address line 1
+    const street   = r.address_line1 || "";
+    const poiName  = (r.label && r.label !== street) ? r.label : "";
+    const addr1    = poiName ? `${poiName}${street ? `, ${street}` : ""}` : (street || r.display_name.split(",")[0]);
+    const cityVal  = r.city || r.subtitle?.split(",")[0]?.trim() || "";
+    onChange("address1",   addr1);
+    onChange("address2",   r.address_line2 || "");
+    onChange("city",       cityVal);
+    onChange("province",   r.province || "");
+    onChange("postcode",   r.postcode  || "");
+    onChange("country",    r.country   || "Spain");
     onChange("addressLat", r.lat);
     onChange("addressLng", r.lng);
     search.clear();
@@ -497,10 +502,14 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
   }
 
   function handleSelect(r: PhotonResult) {
-    onChange("fleetAddress1", r.address_line1 || r.label || "");
+    const street   = r.address_line1 || "";
+    const poiName  = (r.label && r.label !== street) ? r.label : "";
+    const addr1    = poiName ? `${poiName}${street ? `, ${street}` : ""}` : (street || r.display_name.split(",")[0]);
+    const cityVal  = r.city || r.subtitle?.split(",")[0]?.trim() || "";
+    onChange("fleetAddress1", addr1);
     onChange("fleetAddress2", r.address_line2 || "");
-    onChange("fleetCity",     r.subtitle?.split(",")[0]?.trim() || "");
-    onChange("fleetProvince", r.province  || "");
+    onChange("fleetCity",     cityVal);
+    onChange("fleetProvince", r.province || "");
     onChange("fleetPostcode", r.postcode  || "");
     onChange("fleetCountry",  r.country   || "Spain");
     onChange("fleetLat",      r.lat);
