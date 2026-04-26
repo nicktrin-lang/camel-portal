@@ -1,5 +1,7 @@
 "use client";
 
+import GoogleAnalyticsPageView from "@/app/components/GoogleAnalytics";
+
 export default function ClientRootLayout({
   children,
   fontClass,
@@ -7,5 +9,10 @@ export default function ClientRootLayout({
   children: React.ReactNode;
   fontClass?: string;
 }) {
-  return <main className="flex-1">{children}</main>;
+  return (
+    <>
+      <GoogleAnalyticsPageView />
+      <main className="flex-1">{children}</main>
+    </>
+  );
 }
