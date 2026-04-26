@@ -103,6 +103,25 @@ function revenuesByCurrency(rows: BookingRow[]): Record<Currency, number> {
   return totals;
 }
 
+// ── Net payout totals per currency (hire - commission + fuel_charge) ──────────
+function payoutsByCurrency(rows: BookingRow[]): Record<Currency, number> {
+  const totals: Record<Currency, number> = { EUR: 0, GBP: 0, USD: 0 };
+  for (const r of rows) {
+    const curr: Currency = (r.currency as Currency) ?? "EUR";
+    const hire    = Number(r.car_hire_price ?? 0);
+    const rate    = r.commission_rate ?? 20;
+    const commAmt = r.commission_amount != null
+      ? Number(r.commission_amount)
+      : Math.max((hire * rate) / 100, 10);
+    const payout  = r.partner_payout_amount != null
+      ? Number(r.partner_payout_amount)
+      : Math.max(0, hire - commAmt);
+    const netPayout = payout + Number(r.fuel_charge ?? 0);
+    if (isFinite(netPayout)) totals[curr] += netPayout;
+  }
+  return totals;
+}
+
 // ── Excel Export ──────────────────────────────────────────────────────────────
 function escapeXml(v: unknown): string {
   return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -204,9 +223,10 @@ export default function PartnerBookingsPage() {
       .map(norm).join(" ").includes(q);
   }), [rows, filter, q, dateFrom, dateTo]);
 
-  const visible  = filtered.slice(0, visibleCount);
-  const hasMore  = filtered.length > visibleCount;
-  const revenues = revenuesByCurrency(filtered);
+  const visible   = filtered.slice(0, visibleCount);
+  const hasMore   = filtered.length > visibleCount;
+  const revenues  = revenuesByCurrency(filtered);
+  const payouts   = payoutsByCurrency(filtered);
   const completed = filtered.filter(r => r.booking_status === "completed").length;
   const active    = filtered.filter(r => ["confirmed","driver_assigned","en_route","arrived","collected","returned"].includes(r.booking_status ?? "")).length;
 
@@ -255,9 +275,9 @@ export default function PartnerBookingsPage() {
       {/* Stats cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
         {[
-          { label: "Total Bookings", value: filtered.length,  color: "text-black" },
-          { label: "Active",         value: active,            color: "text-[#ff7a00]" },
-          { label: "Completed",      value: completed,         color: "text-black" },
+          { label: "Total Bookings", value: filtered.length, color: "text-black" },
+          { label: "Active",         value: active,           color: "text-[#ff7a00]" },
+          { label: "Completed",      value: completed,        color: "text-black" },
         ].map(({ label, value, color }) => (
           <div key={label} className="border border-black/5 bg-white p-5">
             <p className="text-xs font-black uppercase tracking-widest text-black/40">{label}</p>
@@ -265,12 +285,12 @@ export default function PartnerBookingsPage() {
           </div>
         ))}
         {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
-          const amt = revenues[curr];
-          const { locale, label } = CURRENCY_CONFIG[curr];
+          const amt = payouts[curr as Currency];
+          const { locale, label } = CURRENCY_CONFIG[curr as Currency];
           const formatted = new Intl.NumberFormat(locale, { style: "currency", currency: curr, maximumFractionDigits: 2 }).format(amt);
           return (
             <div key={curr} className="border border-black/5 bg-white p-5">
-              <p className="text-xs font-black uppercase tracking-widest text-black/40">Revenue ({label})</p>
+              <p className="text-xs font-black uppercase tracking-widest text-black/40">Your Payout ({label})</p>
               <p className={`mt-2 text-2xl font-black ${amt > 0 ? "text-black" : "text-black/20"}`}>{formatted}</p>
             </div>
           );
@@ -281,12 +301,12 @@ export default function PartnerBookingsPage() {
       {Object.values(revenues).filter(v => v > 0).length > 1 && (
         <div className="border border-black/5 bg-white p-6">
           <h2 className="text-lg font-black text-black">Revenue by Currency</h2>
-          <p className="mt-0.5 text-xs font-bold text-black/40">Breakdown of bookings and revenue per currency for reconciliation.</p>
+          <p className="mt-0.5 text-xs font-bold text-black/40">Breakdown of bookings and payout per currency for reconciliation.</p>
           <div className="mt-4 overflow-x-auto border border-black/10">
             <table className="min-w-full text-sm">
               <thead className="bg-black text-white text-left">
                 <tr>
-                  {["Currency","Bookings","Completed","Total Revenue","Avg per Booking"].map(h => (
+                  {["Currency","Bookings","Completed","Gross Revenue","Your Payout"].map(h => (
                     <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-widest">{h}</th>
                   ))}
                 </tr>
@@ -295,9 +315,9 @@ export default function PartnerBookingsPage() {
                 {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
                   const currRows = filtered.filter(r => (r.currency ?? "EUR") === curr);
                   if (currRows.length === 0) return null;
-                  const total = revenues[curr];
+                  const gross     = revenues[curr];
+                  const payout    = payouts[curr];
                   const completedCount = currRows.filter(r => r.booking_status === "completed").length;
-                  const avg = currRows.length > 0 ? total / currRows.length : 0;
                   const { locale, label } = CURRENCY_CONFIG[curr];
                   const fmtC = (n: number) => new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(n);
                   return (
@@ -305,8 +325,8 @@ export default function PartnerBookingsPage() {
                       <td className="px-4 py-3 font-black text-black">{label}</td>
                       <td className="px-4 py-3 font-bold text-black/70">{currRows.length}</td>
                       <td className="px-4 py-3 font-bold text-black/70">{completedCount}</td>
-                      <td className="px-4 py-3 font-black text-black">{fmtC(total)}</td>
-                      <td className="px-4 py-3 font-bold text-black/70">{fmtC(avg)}</td>
+                      <td className="px-4 py-3 font-bold text-black/50">{fmtC(gross)}</td>
+                      <td className="px-4 py-3 font-black text-black">{fmtC(payout)}</td>
                     </tr>
                   );
                 })}
