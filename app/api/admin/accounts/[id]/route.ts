@@ -43,7 +43,7 @@ export async function GET(
 
     const { data: application, error: appErr } = await db
       .from("partner_applications")
-      .select("id,user_id,email,company_name,full_name,phone,address,address1,address2,province,postcode,country,website,status,created_at,terms_accepted_at,terms_version")
+      .select("id,user_id,email,company_name,full_name,phone,address,address1,address2,city,province,postcode,country,website,status,created_at,terms_accepted_at,terms_version")
       .eq("id", id)
       .maybeSingle();
 
@@ -68,7 +68,7 @@ export async function GET(
     if (resolvedUserId) {
       const [profileRes, fleetRes, driversRes] = await Promise.all([
         db.from("partner_profiles")
-          .select("id,user_id,role,company_name,contact_name,phone,address,address1,address2,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number,commission_rate")
+          .select("id,user_id,role,company_name,contact_name,phone,address,address1,address2,city,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number,commission_rate")
           .eq("user_id", resolvedUserId)
           .maybeSingle(),
         db.from("partner_fleet")
@@ -99,16 +99,13 @@ export async function GET(
     const hasVat          = !!String(p?.vat_number || "").trim();
 
     const missing: string[] = [];
-    if (!hasBaseAddress) missing.push("Fleet base address");
+    if (!hasBaseAddress)        missing.push("Fleet base address");
     if (!hasBaseLat || !hasBaseLng) missing.push("Fleet GPS coordinates");
-    if (!hasRadius) missing.push("Service radius");
-    if (!hasFleet) missing.push("Active fleet vehicle");
-    if (!hasDrivers) missing.push("Active driver");
-    if (!hasCurrency) missing.push("Billing currency");
-    if (!hasVat) missing.push("VAT / NIF number");
-
-    const isLiveProfile = missing.length === 0;
-    const liveProfileReason = missing.length > 0 ? `Missing: ${missing.join(", ")}` : "";
+    if (!hasRadius)             missing.push("Service radius");
+    if (!hasFleet)              missing.push("Active fleet vehicle");
+    if (!hasDrivers)            missing.push("Active driver");
+    if (!hasCurrency)           missing.push("Billing currency");
+    if (!hasVat)                missing.push("VAT / NIF number");
 
     return NextResponse.json({
       application,
@@ -116,8 +113,8 @@ export async function GET(
       fleet,
       fleet_count: fleet.length,
       drivers,
-      is_live_profile: isLiveProfile,
-      live_profile_reason: liveProfileReason,
+      is_live_profile: missing.length === 0,
+      live_profile_reason: missing.length > 0 ? `Missing: ${missing.join(", ")}` : "",
     }, { status: 200 });
 
   } catch (e: any) {

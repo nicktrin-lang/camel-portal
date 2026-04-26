@@ -12,7 +12,7 @@ type AppStatus = "pending" | "approved" | "rejected";
 type AccountApplication = {
   id: string; user_id: string | null; email: string | null;
   company_name: string | null; full_name: string | null; phone: string | null;
-  address: string | null; address1?: string | null; address2?: string | null;
+  address: string | null; address1?: string | null; address2?: string | null; city?: string | null;
   province?: string | null; postcode?: string | null; country?: string | null;
   website?: string | null; status: string | null; created_at: string | null;
   terms_accepted_at: string | null; terms_version: string | null;
@@ -21,7 +21,7 @@ type AccountApplication = {
 type AccountProfile = {
   id: string; user_id: string | null; role?: string | null;
   company_name: string | null; contact_name: string | null; phone: string | null;
-  address: string | null; address1?: string | null; address2?: string | null;
+  address: string | null; address1?: string | null; address2?: string | null; city?: string | null;
   province?: string | null; postcode?: string | null; country?: string | null;
   website: string | null; service_radius_km: number | null;
   base_address: string | null; base_address1?: string | null; base_address2?: string | null;
@@ -197,7 +197,7 @@ export default function AdminAccountDetailPage() {
   const displayContact  = profile?.contact_name  || application?.full_name    || "—";
   const displayPhone    = profile?.phone         || application?.phone        || "—";
   const displayWebsite  = profile?.website       || application?.website      || "—";
-  const businessAddress = profile?.address       || application?.address      || "—";
+  const businessAddress = profile?.address || application?.address || [profile?.address1 || application?.address1, profile?.address2 || application?.address2, profile?.city || application?.city, profile?.province || application?.province, profile?.postcode || application?.postcode, profile?.country || application?.country].filter(Boolean).join(", ") || "—";
 
   if (loading) return (
     <div className="border border-black/5 bg-white p-6">
@@ -321,6 +321,7 @@ export default function AdminAccountDetailPage() {
               <div className="md:col-span-2"><InfoRow label="Full Address" value={businessAddress} /></div>
               <InfoRow label="Address Line 1" value={profile?.address1 || application?.address1} />
               <InfoRow label="Address Line 2" value={profile?.address2 || application?.address2} />
+              <InfoRow label="City / Town"    value={profile?.city    || application?.city} />
               <InfoRow label="Province"       value={profile?.province || application?.province} />
               <InfoRow label="Postcode"       value={profile?.postcode || application?.postcode} />
               <InfoRow label="Country"        value={profile?.country  || application?.country} />
