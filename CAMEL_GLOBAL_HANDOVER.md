@@ -79,13 +79,14 @@ git push origin main
 | `lib/portal/calculateFuelCharge.ts` | Fuel charge calculation logic |
 | `lib/portal/calculateCommission.ts` | Commission — 20% of hire price, min €10 floor |
 | `lib/portal/syncBookingStatuses.ts` | Booking status sync logic |
-| `lib/portal/refreshPartnerLiveStatus.ts` | Core live status — checks all 7 requirements |
+| `lib/portal/refreshPartnerLiveStatus.ts` | Core live status — checks all 7 requirements, guards live email with `live_email_sent_at` |
 | `lib/portal/triggerPartnerLiveRefresh.ts` | Triggers the live status refresh |
 | `lib/portal/operatingRules.ts` | Shared OPERATING_RULES data + downloadOperatingRulesPDF() |
 | `lib/rateLimit.ts` | In-memory rate limiter — 3 req / 15 min per IP |
 | `lib/hcaptcha.ts` | Server-side hCaptcha token verification |
 | `lib/currency.ts` | All currency utilities — EUR, GBP, USD formatting + conversion |
 | `lib/useCurrency.ts` | React hook — currency state, live rates, fmt helpers |
+| `app/api/geocode/route.ts` | Nominatim geocode + reverse geocode — used by partner profile map search |
 | `app/components/HCaptcha.tsx` | Reusable hCaptcha React widget |
 | `app/components/GoogleAnalytics.tsx` | GA4 SPA pageview tracker — fires on every route change |
 | `app/components/Footer.tsx` | Portal footer — black theme, partner/admin/driver variants, exported as PortalFooter |
@@ -192,6 +193,21 @@ All internal API routes stay at `/api/test-booking/*` — do not rename these.
 
 ---
 
+## Duplicate Email Guard
+- `partner_applications.live_email_sent_at` is stamped atomically when admin clicks Make Live
+- `refreshPartnerLiveStatus` checks this field before sending — will never send a second email
+- Both paths (`make-live/route.ts` and `refreshPartnerLiveStatus.ts`) are guarded
+
+---
+
+## Partner Profile — Fleet Base / Service Radius
+- Fleet base address and service radius centre point are **the same thing** (`base_lat` / `base_lng`)
+- Three ways to set: type to search (debounced, as-you-type), Use my current location, click the map
+- All three methods call `/api/geocode` (reverse or forward) and fill all address fields
+- `/api/geocode/route.ts` exists in **both** repos (portal added in Chat 20)
+
+---
+
 ## GDPR — Account Deletion
 - Soft delete — stamps `deleted_at`, retains all booking/financial data
 - `partner_profiles.deleted_at`, `customer_profiles.deleted_at`
@@ -251,6 +267,7 @@ NEXT_PUBLIC_SITE_URL                   → https://camel-global.com
 | `v-stable-partner-branding` | Full portal rebrand — black/orange/grey theme |
 | `v-stable-chat18` | Chat 18 — header standardisation, footer fixes, Supabase env fix |
 | `v-stable-chat19` | Chat 19 — GA4 fully working, CSP fixed, footer link fixed |
+| `v-stable-chat20` | Chat 20 — 5 bug fixes, geocode API added, duplicate email fixed |
 
 ### Customer (`~/camel-customer`)
 | Tag | Description |
@@ -258,16 +275,17 @@ NEXT_PUBLIC_SITE_URL                   → https://camel-global.com
 | `v-stable-repo-split` | Stable after repo split — customer only, all 4 domains live |
 | `v-stable-chat18` | Chat 18 — Supabase env fixed, bookings working, browser client fixed |
 | `v-stable-chat19` | Chat 19 — GA4 fully working, CSP fixed, footer link fixed |
+| `v-stable-chat20` | Chat 20 — map picker address fix |
 
 ### Rollback
 ```bash
 # Portal
 cd ~/camel-portal
-git checkout v-stable-chat19
+git checkout v-stable-chat20
 
 # Customer
 cd ~/camel-customer
-git checkout v-stable-chat19
+git checkout v-stable-chat20
 ```
 
 ---
@@ -300,10 +318,30 @@ git checkout v-stable-chat19
 - **All Supabase env vars correctly set in both Vercel projects**
 - **Standardised headers across all pre-auth pages**
 - **Footer "Become a Partner" correctly links to portal**
+- **Partner bookings stats show net payout not gross revenue**
+- **Duplicate live email bug fixed — stamped atomically on make-live**
+- **Map picker on /book shows full address not raw coordinates**
+- **Partner profile address search working — as-you-type, map click, GPS all fill address fields**
+- **Insurance documents card readable in all confirmation states**
 
 ---
 
 ## Session Log
+
+### Chat 20 (Completed)
+**5 bug fixes — bookings, emails, maps, insurance**
+
+1. **Partner bookings revenue stats** — header cards now show net payout (hire − commission + fuel charge) per currency, not gross. Currency breakdown table updated to show both Gross Revenue and Your Payout columns. `payoutsByCurrency()` function added to `app/partner/bookings/page.tsx`.
+
+2. **Duplicate live email** — `make-live/route.ts` now stamps `live_email_sent_at` atomically with `status: "live"` in a single update. `refreshPartnerLiveStatus` already guards on this field so duplicate emails are now impossible.
+
+3. **Insurance documents card** — amber background with white text replaced. Card is now `bg-white` with dark text when pending. Only goes dark (`bg-[#1a1a1a]`) when both driver and customer have confirmed. Inner boxes and status banner all readable in every state. Fixed in `app/partner/bookings/[id]/page.tsx`.
+
+4. **Partner profile address search** — `/api/geocode/route.ts` was missing from the portal (existed only in customer repo). Added. Also added as-you-type debounced search (350ms) to the GPS search input in `app/partner/profile/page.tsx`. Map click and current location both reverse geocode and fill all address fields. Fleet base address and service radius centre point are confirmed as the same thing.
+
+5. **Customer map picker** — `/api/maps/reverse` returns `{ display_name, ... }` at top level (no `data` wrapper). `reverseLookup()` in `app/book/page.tsx` was reading `json?.data?.display_name` — always undefined — so raw coordinates were inserted. Fixed to `json?.display_name`.
+
+- Stable tag `v-stable-chat20` created on both repos
 
 ### Chat 19 (Completed)
 **GA4 fixed, footer link fixed, CSP updated**
@@ -419,4 +457,4 @@ cd ~/camel-customer && vercel --prod
 
 ---
 
-*Last updated: Chat 19 — GA4 fully working on all 3 properties. CSP fixed. Footer link fixed. Stable tag v-stable-chat19 created.*
+*Last updated: Chat 20 — 5 bug fixes. Duplicate email fixed. Map picker fixed. Partner profile search fixed. Insurance card readable. Bookings stats show net payout. Stable tag v-stable-chat20 created on both repos.*
