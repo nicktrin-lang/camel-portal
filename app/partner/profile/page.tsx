@@ -495,7 +495,7 @@ export default function PartnerProfilePage() {
           </div>
 
           {/* Use my current location for business address */}
-          <button type="button" onClick={async () => {
+          <button type="button"           onClick={async () => {
             setError(null);
             if (!navigator.geolocation) { setError("Geolocation not supported."); return; }
             navigator.geolocation.getCurrentPosition(async pos => {
@@ -504,7 +504,7 @@ export default function PartnerProfilePage() {
                 const json = await safeJson(res);
                 if (!res.ok) throw new Error(json?.error || "Failed to get address.");
                 const addr1    = String(json?.address_line1 || "");
-                const addr2    = String(json?.address_line2 || "");
+                const city     = String(json?.city          || "");
                 const province = String(json?.province      || "");
                 const postcode = String(json?.postcode      || "");
                 const country  = String(json?.country       || "");
@@ -512,7 +512,7 @@ export default function PartnerProfilePage() {
                   ...prev,
                   address:  String(json?.display_name || prev.address),
                   address1: addr1    || prev.address1,
-                  address2: addr2    || prev.address2,
+                  address2: city     || prev.address2,
                   province: province || prev.province,
                   postcode: postcode || prev.postcode,
                   country:  country  || prev.country,

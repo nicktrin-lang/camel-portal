@@ -281,6 +281,7 @@ function PhotonSearch({
                     subtitle:      [json.address_line2, json.city, json.country].filter(Boolean).join(", "),
                     lat:           pos.coords.latitude,
                     lng:           pos.coords.longitude,
+                    city:          String(json.city          || ""),
                     address_line1: String(json.address_line1 || ""),
                     address_line2: String(json.address_line2 || ""),
                     province:      String(json.province      || ""),
@@ -316,7 +317,7 @@ function PhotonSearch({
             </optgroup>
           ))}
         </select>
-        <span className="text-xs font-black text-white">Change if your address is elsewhere</span>
+
       </div>
 
       {/* Search input */}
