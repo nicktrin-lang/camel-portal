@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { triggerPartnerLiveRefresh } from "@/lib/portal/triggerPartnerLiveRefresh";
@@ -94,6 +94,8 @@ export default function PartnerProfilePage() {
   const [searching, setSearching]         = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [profile, setProfile] = useState<ProfileState>({
     company_name: "", contact_name: "", phone: "", address: "",
     address1: "", address2: "", province: "", postcode: "", country: "",
@@ -184,14 +186,14 @@ export default function PartnerProfilePage() {
     setProfile(prev => ({
       ...prev,
       search_address: item.display_name || prev.search_address,
-      base_address: item.display_name || prev.base_address,
-      base_lat: item.lat !== null ? String(item.lat) : prev.base_lat,
-      base_lng: item.lng !== null ? String(item.lng) : prev.base_lng,
-      base_address1: item.address_line1 || prev.base_address1,
-      base_address2: item.address_line2 || prev.base_address2,
-      base_province: item.province || prev.base_province,
-      base_postcode: item.postcode || prev.base_postcode,
-      base_country: item.country || prev.base_country,
+      base_address:   item.display_name || prev.base_address,
+      base_lat:       item.lat !== null ? String(item.lat) : prev.base_lat,
+      base_lng:       item.lng !== null ? String(item.lng) : prev.base_lng,
+      base_address1:  item.address_line1 || prev.base_address1,
+      base_address2:  item.address_line2 || prev.base_address2,
+      base_province:  item.province      || prev.base_province,
+      base_postcode:  item.postcode      || prev.base_postcode,
+      base_country:   item.country       || prev.base_country,
       default_currency: item.country ? inferCurrencyFromCountry(item.country) : prev.default_currency,
     }));
   }
@@ -217,14 +219,50 @@ export default function PartnerProfilePage() {
     setSuggestions([]); setShowSuggestions(false);
   }
 
+  // Debounced as-you-type search
+  function handleSearchChange(q: string) {
+    updateField("search_address", q);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (q.length < 3) { setSuggestions([]); setShowSuggestions(false); return; }
+    searchTimer.current = setTimeout(() => runSearch(q), 350);
+  }
+
+  async function runSearch(q: string) {
+    setSearching(true); setError(null);
+    try {
+      const res  = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+      const json = await safeJson(res);
+      if (!res.ok) throw new Error(json?.error || "Search failed.");
+      const results = Array.isArray(json?.results) ? json.results as Suggestion[] : [];
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+      if (!results.length) setError("No results found for that address.");
+    } catch (e: any) { setError(e?.message || "Search failed."); }
+    finally { setSearching(false); }
+  }
+
+  // Manual search button still works
+  async function searchAddress() {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    await runSearch(profile.search_address.trim());
+  }
+
   async function handleMapPick(lat: number, lng: number) {
     setSaved(false); setError(null);
     setProfile(prev => ({ ...prev, base_lat: String(lat), base_lng: String(lng) }));
     try {
-      const res = await fetch(`/api/geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`, { cache: "no-store" });
+      const res  = await fetch(`/api/geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`, { cache: "no-store" });
       const json = await safeJson(res);
       if (!res.ok) throw new Error(json?.error || "Failed to get address.");
-      applyAddressParts({ display_name: String(json?.display_name || ""), lat, lng, address_line1: String(json?.address_line1 || ""), address_line2: String(json?.address_line2 || ""), province: String(json?.province || ""), postcode: String(json?.postcode || ""), country: String(json?.country || "") });
+      applyAddressParts({
+        display_name:  String(json?.display_name  || ""),
+        lat, lng,
+        address_line1: String(json?.address_line1 || ""),
+        address_line2: String(json?.address_line2 || ""),
+        province:      String(json?.province      || ""),
+        postcode:      String(json?.postcode      || ""),
+        country:       String(json?.country       || ""),
+      });
     } catch (e: any) { setError(e?.message || "Failed to get address."); }
   }
 
@@ -236,23 +274,6 @@ export default function PartnerProfilePage() {
       err => { setError(err.message || "Could not get location."); },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
-  }
-
-  async function searchAddress() {
-    setError(null); setSaved(false);
-    const q = profile.search_address.trim();
-    if (!q) { setError("Enter an address to search."); return; }
-    setSearching(true);
-    try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { cache: "no-store" });
-      const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || "Search failed.");
-      const results = Array.isArray(json?.results) ? json.results as Suggestion[] : [];
-      if (!results.length) { setSuggestions([]); setShowSuggestions(false); throw new Error("No suggestions found."); }
-      setSuggestions(results); setShowSuggestions(true);
-      if (results.length === 1) pickSuggestion(results[0]);
-    } catch (e: any) { setError(e?.message || "Search failed."); }
-    finally { setSearching(false); }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -434,28 +455,37 @@ export default function PartnerProfilePage() {
                 Use my current location
               </button>
             </div>
-            <div className="flex gap-2">
-              <input type="text" value={profile.search_address}
-                onChange={e => { updateField("search_address", e.target.value); setShowSuggestions(true); }}
-                onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
-                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); searchAddress(); } }}
-                placeholder="Search to set GPS pin location…"
-                className="flex-1 border border-black/10 bg-white px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#f0f0f0] transition-colors" />
-              <button type="button" onClick={searchAddress}
-                className="bg-[#ff7a00] px-5 py-2 text-sm font-black text-white hover:opacity-90 transition-opacity">
-                {searching ? "Searching…" : "Search"}
-              </button>
-            </div>
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="mt-1 border border-black/10 bg-white">
-                {suggestions.map((item, idx) => (
-                  <button key={`${item.display_name}-${idx}`} type="button" onClick={() => pickSuggestion(item)}
-                    className="block w-full border-b border-black/5 px-4 py-3 text-left text-sm font-medium text-black hover:bg-[#f0f0f0] last:border-b-0">
-                    {item.display_name}
-                  </button>
-                ))}
+
+            {/* Search — as you type with debounce */}
+            <div className="relative">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={profile.search_address}
+                  onChange={e => handleSearchChange(e.target.value)}
+                  onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); searchAddress(); } }}
+                  placeholder="Type to search for an address…"
+                  className="flex-1 border border-black/10 bg-white px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#f0f0f0] transition-colors"
+                />
+                <button type="button" onClick={searchAddress}
+                  className="bg-[#ff7a00] px-5 py-2 text-sm font-black text-white hover:opacity-90 transition-opacity">
+                  {searching ? "Searching…" : "Search"}
+                </button>
               </div>
-            )}
+
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-20 left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden">
+                  {suggestions.map((item, idx) => (
+                    <button key={`${item.display_name}-${idx}`} type="button" onClick={() => pickSuggestion(item)}
+                      className="block w-full border-b border-black/5 px-4 py-3 text-left text-sm font-medium text-black hover:bg-[#f0f0f0] last:border-b-0">
+                      {item.display_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="mt-4 grid grid-cols-2 gap-4">
               <Field label="Latitude"><TextInput value={profile.base_lat} onChange={v => updateField("base_lat", v)} placeholder="e.g. 38.842" /></Field>
               <Field label="Longitude"><TextInput value={profile.base_lng} onChange={v => updateField("base_lng", v)} placeholder="e.g. 0.112" /></Field>
@@ -465,7 +495,7 @@ export default function PartnerProfilePage() {
           <div className="mt-4 border border-black/10">
             <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
           </div>
-          <p className="mt-2 text-xs font-semibold text-black/50">💡 Click the map to move the pin and update your GPS coordinates.</p>
+          <p className="mt-2 text-xs font-semibold text-black/50">💡 Click the map to move the pin and update your GPS coordinates and address.</p>
         </SectionCard>
 
         <div className="flex items-center gap-4">
