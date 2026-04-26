@@ -492,6 +492,36 @@ export default function PartnerProfilePage() {
             <span className="text-xs font-black text-white">Change to search a different city</span>
           </div>
 
+          {/* Use my current location for business address */}
+          <button type="button" onClick={async () => {
+            setError(null);
+            if (!navigator.geolocation) { setError("Geolocation not supported."); return; }
+            navigator.geolocation.getCurrentPosition(async pos => {
+              try {
+                const res  = await fetch(`/api/geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`, { cache: "no-store" });
+                const json = await safeJson(res);
+                if (!res.ok) throw new Error(json?.error || "Failed to get address.");
+                const addr1    = String(json?.address_line1 || "");
+                const addr2    = String(json?.address_line2 || "");
+                const province = String(json?.province      || "");
+                const postcode = String(json?.postcode      || "");
+                const country  = String(json?.country       || "");
+                setProfile(prev => ({
+                  ...prev,
+                  address:  String(json?.display_name || prev.address),
+                  address1: addr1    || prev.address1,
+                  address2: addr2    || prev.address2,
+                  province: province || prev.province,
+                  postcode: postcode || prev.postcode,
+                  country:  country  || prev.country,
+                  default_currency: country ? inferCurrencyFromCountry(country) : prev.default_currency,
+                }));
+              } catch (e: any) { setError(e?.message || "Failed to get address."); }
+            }, err => setError(err.message || "Could not get location."), { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+          }} className="mb-4 border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#e8e8e8] transition-colors">
+            📍 Use my current location
+          </button>
+
           {/* Business address search */}
           <div className="relative mb-5">
             <p className={labelCls}>Search your business address</p>
