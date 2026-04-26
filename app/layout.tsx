@@ -18,23 +18,17 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-function getGaId(host: string): string {
-  // All portal domains use the portal GA property
-  return "G-YCZMDQJDM7";
-}
+const GA_ID = "G-YCZMDQJDM7";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const headerStore = await headers();
-  const host = headerStore.get("host") || "";
-  const gaId = getGaId(host);
-
   return (
     <html lang="en">
       <head>
-        <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`} />
+        {/* GA4 — initialise dataLayer before the async script loads */}
         <script dangerouslySetInnerHTML={{
-          __html: `window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=gtag;gtag('js',new Date());gtag('config','${gaId}');`,
+          __html: `window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=gtag;gtag('js',new Date());gtag('config','${GA_ID}',{send_page_view:true});`,
         }} />
+        <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} />
       </head>
       <body className={`${font.variable} min-h-screen flex flex-col bg-[#f0f0f0]`}>
         <ClientRootLayout fontClass={font.variable}>
