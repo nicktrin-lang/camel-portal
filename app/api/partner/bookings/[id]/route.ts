@@ -39,6 +39,9 @@ export async function GET(
         fuel_used_quarters,
         fuel_charge,
         fuel_refund,
+        commission_rate,
+        commission_amount,
+        partner_payout_amount,
         notes,
         created_at,
         job_number,
@@ -105,7 +108,7 @@ export async function GET(
           id, job_number, customer_name, customer_email, customer_phone,
           pickup_address, dropoff_address, pickup_at, dropoff_at,
           journey_duration_minutes, passengers, suitcases, hand_luggage,
-          vehicle_category_name, notes, status, created_at
+          sport_equipment, vehicle_category_name, notes, status, created_at
         `)
         .eq("id", bookingRow.request_id)
         .maybeSingle();

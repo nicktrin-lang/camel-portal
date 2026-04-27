@@ -26,6 +26,7 @@ type BookingRow = {
   driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
   fuel_price: number | null; car_hire_price: number | null;
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
+  commission_rate: number | null; commission_amount: number | null; partner_payout_amount: number | null;
   currency: Currency;
   collection_confirmed_by_driver?: boolean | null; collection_confirmed_by_driver_at?: string | null;
   collection_fuel_level_driver?: string | null;
@@ -184,7 +185,6 @@ function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
         Driver confirms handover at delivery. Customer confirms receipt. Both must agree.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
-        {/* Driver box */}
         <div className={`border p-4 ${driverConfirmed && bothConfirmed ? "border-white/10 bg-white/5" : "border-black/10 bg-[#f0f0f0]"}`}>
           <p className={`text-xs font-black uppercase tracking-widest ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>Driver</p>
           {driverConfirmed
@@ -194,7 +194,6 @@ function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
               </>
             : <p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
         </div>
-        {/* Customer box */}
         <div className={`border p-4 ${customerConfirmed && bothConfirmed ? "border-white/10 bg-white/5" : "border-black/10 bg-[#f0f0f0]"}`}>
           <p className={`text-xs font-black uppercase tracking-widest ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>Customer</p>
           {customerConfirmed
@@ -224,20 +223,20 @@ function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
 
 // ── Booking Summary card ──────────────────────────────────────────────────────
 function BookingSummaryCard({ booking, rates, isLive }: { booking: BookingRow; rates: Rates; isLive: boolean }) {
-  const stored: Currency   = booking.currency ?? "EUR";
+  const stored: Currency    = booking.currency ?? "EUR";
   const secondary: Currency = stored === "USD" ? "EUR" : stored === "GBP" ? "EUR" : "GBP";
   const tertiary: Currency  = stored === "EUR" ? "USD" : stored === "GBP" ? "USD" : "GBP";
-  const carHireAmt  = Number(booking.car_hire_price || 0);
-  const fullTankAmt = Number(booking.fuel_price || 0);
-  const totalAmt    = Number(booking.amount || 0);
-  const fuelCharge  = booking.fuel_charge ?? null;
-  const fuelRefund  = booking.fuel_refund ?? null;
-  const perQtrAmt   = fullTankAmt / 4;
+  const carHireAmt   = Number(booking.car_hire_price || 0);
+  const fullTankAmt  = Number(booking.fuel_price || 0);
+  const totalAmt     = Number(booking.amount || 0);
+  const fuelCharge   = booking.fuel_charge ?? null;
+  const fuelRefund   = booking.fuel_refund ?? null;
+  const perQtrAmt    = fullTankAmt / 4;
   const usedQuarters = booking.fuel_used_quarters ?? null;
   const collFuel = normalizeFuel(booking.collection_fuel_level_partner) || normalizeFuel(booking.collection_fuel_level_driver) || normalizeFuel(booking.collection_fuel_level_customer);
   const retFuel  = normalizeFuel(booking.return_fuel_level_partner) || normalizeFuel(booking.return_fuel_level_driver) || normalizeFuel(booking.return_fuel_level_customer);
-  const primary = (v: number) => fmtCurr(v, stored);
-  const sec     = (v: number) => { const inEur = toEur(v, stored, rates); return `(${fmtCurr(fromEur(inEur, secondary, rates), secondary)} · ${fmtCurr(fromEur(inEur, tertiary, rates), tertiary)})`; };
+  const primary  = (v: number) => fmtCurr(v, stored);
+  const sec      = (v: number) => { const inEur = toEur(v, stored, rates); return `(${fmtCurr(fromEur(inEur, secondary, rates), secondary)} · ${fmtCurr(fromEur(inEur, tertiary, rates), tertiary)})`; };
   const rateBadge = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
 
   return (
@@ -302,17 +301,17 @@ function FuelStageCard({ title, booking, stage, fuelValue, onFuelChange, confirm
   notes: string; onNotesChange: (v: string) => void;
   onSave: () => void; saving: boolean; locked: boolean;
 }) {
-  const isC              = stage === "collection";
-  const driverConfirmed  = isC ? !!booking.collection_confirmed_by_driver  : !!booking.return_confirmed_by_driver;
-  const driverFuel       = isC ? booking.collection_fuel_level_driver       : booking.return_fuel_level_driver;
-  const driverAt         = isC ? booking.collection_confirmed_by_driver_at  : booking.return_confirmed_by_driver_at;
+  const isC               = stage === "collection";
+  const driverConfirmed   = isC ? !!booking.collection_confirmed_by_driver  : !!booking.return_confirmed_by_driver;
+  const driverFuel        = isC ? booking.collection_fuel_level_driver       : booking.return_fuel_level_driver;
+  const driverAt          = isC ? booking.collection_confirmed_by_driver_at  : booking.return_confirmed_by_driver_at;
   const customerConfirmed = isC ? !!booking.collection_confirmed_by_customer : !!booking.return_confirmed_by_customer;
-  const customerFuel     = isC ? booking.collection_fuel_level_customer     : booking.return_fuel_level_customer;
-  const customerAt       = isC ? booking.collection_confirmed_by_customer_at : booking.return_confirmed_by_customer_at;
-  const customerNotes    = isC ? booking.collection_customer_notes          : booking.return_customer_notes;
-  const savedPartnerFuel = isC ? booking.collection_fuel_level_partner      : booking.return_fuel_level_partner;
-  const savedPartnerAt   = isC ? booking.collection_confirmed_by_partner_at : booking.return_confirmed_by_partner_at;
-  const hasOverride      = !!savedPartnerFuel && savedPartnerFuel !== driverFuel;
+  const customerFuel      = isC ? booking.collection_fuel_level_customer     : booking.return_fuel_level_customer;
+  const customerAt        = isC ? booking.collection_confirmed_by_customer_at : booking.return_confirmed_by_customer_at;
+  const customerNotes     = isC ? booking.collection_customer_notes          : booking.return_customer_notes;
+  const savedPartnerFuel  = isC ? booking.collection_fuel_level_partner      : booking.return_fuel_level_partner;
+  const savedPartnerAt    = isC ? booking.collection_confirmed_by_partner_at : booking.return_confirmed_by_partner_at;
+  const hasOverride       = !!savedPartnerFuel && savedPartnerFuel !== driverFuel;
 
   return (
     <div className={`border p-6 ${locked ? "border-[#1a1a1a] bg-[#1a1a1a] text-white" : "border-black/5 bg-white"}`}>
@@ -512,6 +511,12 @@ export default function PartnerBookingDetailPage() {
   const returnLocked     = isLocked({ driverOrPartnerFuel: retEffective, customerConfirmed: bk.return_confirmed_by_customer, customerFuel: bk.return_fuel_level_customer });
   const rateBadgeText    = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
 
+  // Commission display — use stamped values if available, otherwise calculate from rate
+  const commissionRate   = bk.commission_rate ?? 20;
+  const carHire          = Number(bk.car_hire_price || 0);
+  const commissionAmount = bk.commission_amount ?? Math.max((carHire * commissionRate) / 100, 10);
+  const partnerPayout    = bk.partner_payout_amount ?? Math.max(0, carHire - commissionAmount);
+
   return (
     <div className="space-y-6">
       {error && <div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
@@ -536,6 +541,14 @@ export default function PartnerBookingDetailPage() {
             <Field label="Job No.">{bk.job_number ?? req?.job_number ?? "—"}</Field>
             <Field label="Status">{statusLabel(bk.booking_status)}</Field>
             <Field label="Total"><Amt amount={bk.amount} stored={stored} rates={rates} /></Field>
+            <Field label="Car Hire"><Amt amount={bk.car_hire_price} stored={stored} rates={rates} /></Field>
+            <Field label="Commission">
+              <span className="text-amber-700">− {fmtCurr(commissionAmount, stored)}</span>
+              <span className="ml-2 text-xs font-bold text-black/40">{commissionRate}% Camel commission</span>
+            </Field>
+            <Field label="Your Payout (excl. fuel)">
+              <span className="font-black text-black">{fmtCurr(partnerPayout, stored)}</span>
+            </Field>
             <Field label="Created">{fmt(bk.created_at)}</Field>
             <Field label="Driver">{drivers.find(d => d.id === bk.assigned_driver_id)?.full_name || bk.driver_name || "—"}</Field>
             <Field label="Driver assigned">{fmt(bk.driver_assigned_at)}</Field>
