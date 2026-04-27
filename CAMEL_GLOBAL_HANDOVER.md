@@ -76,7 +76,7 @@ git push origin main
 | `lib/supabase/server.ts` | Supabase server client |
 | `lib/cities.ts` | Shared city list for Photon search bias — used by signup, profile, customer site |
 | `lib/portal/calculateFuelCharge.ts` | Fuel charge calculation logic |
-| `lib/portal/calculateCommission.ts` | Commission — 20% of hire price, min €10 floor |
+| `lib/portal/calculateCommission.ts` | Commission calculation — rate % of hire price, min €10 floor. Used by both repos |
 | `lib/portal/syncBookingStatuses.ts` | Booking status sync logic |
 | `lib/portal/refreshPartnerLiveStatus.ts` | Core live status — checks all 7 requirements, stamps DB before email, `.is(null)` guard |
 | `lib/portal/triggerPartnerLiveRefresh.ts` | Triggers the live status refresh |
@@ -101,6 +101,7 @@ git push origin main
 | `lib/supabase/auth-client.ts` | Auth client — used by reset-password pages |
 | `lib/cities.ts` | Shared city list — copy of portal version, used by homepage + /book |
 | `lib/portal/calculateFuelCharge.ts` | Copied — used by customer booking API |
+| `lib/portal/calculateCommission.ts` | Copied — used by customer bid acceptance route |
 | `lib/portal/syncBookingStatuses.ts` | Copied — used by customer booking API |
 | `lib/currency.ts` | Currency utilities |
 | `lib/useCurrency.ts` | Currency hook |
@@ -147,7 +148,7 @@ All internal API routes stay at `/api/test-booking/*` — do not rename these.
 
 ---
 
-## Database — Key Columns Added in Chat 20 (Address)
+## Database — Key Columns
 
 ### `partner_profiles`
 | Column | Purpose |
@@ -158,13 +159,22 @@ All internal API routes stay at `/api/test-booking/*` — do not rename these.
 | `base_address1` | Fleet base address line 1 |
 | `base_address2` | Fleet base address line 2 |
 | `base_city` | Fleet base city / town |
+| `commission_rate` | Partner-level commission override (null = use platform default 20%) |
+
+### `partner_bookings`
+| Column | Purpose |
+|--------|---------|
+| `commission_rate` | Rate stamped at acceptance time — never recalculated from profile after this |
+| `commission_amount` | Calculated commission amount in booking currency |
+| `partner_payout_amount` | Hire price minus commission — does not include fuel |
+| `car_hire_price` | Hire price at time of bid |
+| `fuel_price` | Full tank deposit at time of bid |
+| `currency` | Currency of the booking |
 
 ### `partner_applications`
 | Column | Purpose |
 |--------|---------|
 | `city` | Business city / town |
-
-All columns added via SQL: `ALTER TABLE ... ADD COLUMN IF NOT EXISTS city text` etc.
 
 ---
 
@@ -195,8 +205,11 @@ All columns added via SQL: `ALTER TABLE ... ADD COLUMN IF NOT EXISTS city text` 
 
 ## Commission & Payments Model
 - Partner = supplier, issues VAT invoice to customer
-- Camel = intermediary, earns 20% commission (min €10 floor), invoices partner
-- Fuel charges pass through 100% to partner
+- Camel = intermediary, earns commission (default 20%, min €10 floor), invoices partner
+- Commission rate is set per-partner in admin — stored on `partner_profiles.commission_rate`
+- Rate is stamped on each booking at acceptance time and never changes after that
+- Fuel charges pass through 100% to partner — no commission on fuel
+- Historical bookings with null `commission_rate` display as 20% (the original platform default)
 
 ---
 
@@ -292,22 +305,24 @@ NEXT_PUBLIC_SITE_URL                   → https://camel-global.com
 |-----|-------------|
 | `v-stable-chat20` | Chat 20 — 5 bug fixes, geocode API, duplicate email fixed |
 | `v-stable-chat21` | Chat 21 — Photon search, city fields, address overhaul, duplicate email hardened |
+| `v-stable-chat22` | Chat 22 — Commission rate system fully fixed |
 
 ### Customer (`~/camel-customer`)
 | Tag | Description |
 |-----|-------------|
 | `v-stable-chat20` | Chat 20 — map picker address fix |
 | `v-stable-chat21` | Chat 21 — Photon search, city selector, /book removed as form |
+| `v-stable-chat22` | Chat 22 — Commission stamp on customer bid acceptance, calculateCommission copied |
 
 ### Rollback
 ```bash
 # Portal
 cd ~/camel-portal
-git checkout v-stable-chat21
+git checkout v-stable-chat22
 
 # Customer
 cd ~/camel-customer
-git checkout v-stable-chat21
+git checkout v-stable-chat22
 ```
 
 ---
@@ -319,7 +334,11 @@ git checkout v-stable-chat21
 - Driver job portal
 - Admin approval and account management
 - Full EUR / GBP / USD currency support (order: GBP, EUR, USD everywhere)
-- Full commission system — 20% default, min €10
+- Full commission system — adjustable per partner, default 20%, min €10
+- Commission rate stamped on every booking at acceptance time (both admin and customer accept routes)
+- Commission rate shown on partner account page, bid page, booking detail, bookings list, reports
+- Historical bookings with null commission_rate display correctly as 20%
+- Admin can set per-partner commission rate — saves via service role API, persists correctly
 - Fuel level recording, charge/refund calculation
 - Email notifications + password reset on all portals
 - Live status system — 7 checks, duplicate email permanently fixed
@@ -327,41 +346,54 @@ git checkout v-stable-chat21
 - Driver portal — independent header, auto-refresh
 - Insurance handover — all three portals
 - Partner review system — ratings, replies, admin moderation
-- Partner T&Cs — full legal document, versioned acceptance, PDF download
-- Partner Operating Rules — web page + PDF download
+- Partner T&Cs — full legal document, versioned acceptance, PDF download (commission wording updated)
+- Partner Operating Rules — web page + PDF download (commission wording updated)
 - Security headers, rate limiting, hCaptcha on all forms
 - Customer profile RLS, cookie consent banner, GDPR soft delete
-- **Photon address search across all address inputs — homepage, /book, partner signup, partner profile**
-- **City/country selector with location bias on all address searches**
-- **CartoDB Positron map tiles — no API key, clean modern style**
-- **City / Town field in all address sections — profile, account, admin approvals, admin accounts**
-- **Partner profile loads and saves all address fields correctly**
-- **Partner signup steps 2 & 3 — Photon search with city selector + GPS button**
-- **Admin approvals and accounts — full address display including city**
-- **Duplicate live email — DB stamped before send, .is(null) guard, safe from concurrent calls**
+- Photon address search across all address inputs
+- City/country selector with location bias on all address searches
+- CartoDB Positron map tiles — no API key, clean modern style
+- City / Town field in all address sections
+- Partner profile loads and saves all address fields correctly
+- Admin approvals and accounts — full address display including city
+- Duplicate live email — DB stamped before send, .is(null) guard, safe from concurrent calls
 
 ---
 
 ## Session Log
 
+### Chat 22 (Completed)
+**Commission rate system — full fix**
+
+1. **Admin commission save** — was silently failing due to RLS blocking browser client cross-user updates. Fixed by adding `PATCH` handler to `app/api/admin/accounts/[id]/route.ts` using service role. Admin page `saveCommissionRate()` now calls this API instead of browser Supabase client directly.
+
+2. **Bid acceptance not stamping commission (admin route)** — `app/api/admin/bids/accept/route.ts` now fetches partner's `commission_rate` from profile, calculates using `calculateCommission()`, and stamps `commission_rate`, `commission_amount`, `partner_payout_amount`, `car_hire_price`, `fuel_price`, `currency` on the booking row.
+
+3. **Bid acceptance not stamping commission (customer route)** — `camel-customer/app/api/test-booking/bids/accept/route.ts` had the same gap. Fixed identically. `lib/portal/calculateCommission.ts` copied to `camel-customer` repo.
+
+4. **Historical bookings showing wrong rate** — `app/api/partner/bookings/route.ts` was filling null `commission_rate` with the current profile rate, so changing a partner's rate changed all their history. Fixed to pass null through — frontend defaults null to 20%.
+
+5. **Booking detail page** — `app/api/partner/bookings/[id]/route.ts` now selects `commission_rate`, `commission_amount`, `partner_payout_amount`. Detail page shows Car Hire, Commission (with % label), and Your Payout (excl. fuel) fields.
+
+6. **Partner account page** — now fetches and displays current commission rate in a dedicated "Camel Commission Rate" section with orange highlight if reduced below 20%.
+
+7. **T&Cs and Operating Rules** — commission wording updated from "20% fixed" to "standard 20%, may be reduced by agreement with Camel Global".
+
+8. **Job 1000089** — manually corrected in DB via SQL (commission_rate=10, commission_amount=20, partner_payout_amount=180) as it was created before the fix deployed.
+
+- Stable tag `v-stable-chat22` created on both repos
+
 ### Chat 21 (Completed)
 **Address search overhaul, city fields, booking flow simplification**
 
-1. **Photon address search** — replaced Nominatim with Photon across all address inputs. Returns clean POI names (hotels, airports), proper city, location bias. `lib/cities.ts` created with 30+ cities worldwide grouped by country.
-
-2. **City selector** — black bar with orange dropdown added to: customer homepage, partner signup steps 2 & 3, partner profile (business + fleet). Bias passed to Photon. Results weighted to selected city but not hard-blocked.
-
-3. **Booking flow simplified** — `/book` page removed as a form. Homepage widget handles all input including collapsible notes. `/book` is now a pure auto-submit spinner. Flow: homepage → login if needed → spinner → `/bookings/[id]`.
-
-4. **CartoDB Positron map tiles** — replaced Stadia Maps (required paid API key). Free, no auth, clean modern grey style. CSP updated.
-
-5. **City column** — `city` added to `partner_profiles` and `partner_applications` via SQL migration. All select queries, upserts, and display pages updated. Existing records backfilled manually.
-
-6. **Full address fields** — `address1`, `address2`, `base_address1`, `base_address2`, `base_city` etc added to DB and wired through profile page, account page, admin approvals, admin accounts. City/Town field visible everywhere.
-
-7. **Duplicate live email hardened** — DB stamped before email sent, `.is(null)` guard added so concurrent calls can never double-send regardless of how many pages trigger refresh.
-
-8. **Currency order** — GBP / EUR / USD order applied consistently to `CurrencySelector` and partner billing currency buttons.
+1. **Photon address search** — replaced Nominatim with Photon across all address inputs.
+2. **City selector** — black bar with orange dropdown added to homepage, signup, profile.
+3. **Booking flow simplified** — `/book` is now a pure auto-submit spinner.
+4. **CartoDB Positron map tiles** — replaced Stadia Maps.
+5. **City column** — added to `partner_profiles` and `partner_applications`.
+6. **Full address fields** — wired through all pages.
+7. **Duplicate live email hardened** — `.is(null)` guard added.
+8. **Currency order** — GBP / EUR / USD applied consistently.
 
 - Stable tag `v-stable-chat21` created on both repos
 
@@ -371,7 +403,7 @@ git checkout v-stable-chat21
 2. Duplicate live email — `make-live/route.ts` stamps `live_email_sent_at` atomically
 3. Insurance documents card — readable in all states
 4. Partner profile address search — geocode API added to portal, as-you-type debounce
-5. Customer map picker — `reverseLookup()` fixed to read `json?.display_name` not `json?.data?.display_name`
+5. Customer map picker — `reverseLookup()` fixed
 - Stable tag `v-stable-chat20` created on both repos
 
 ### Chats 18–19 (Completed)
@@ -445,4 +477,4 @@ cd ~/camel-customer && vercel --prod
 
 ---
 
-*Last updated: Chat 21 — Photon address search, city fields, booking flow simplified, CartoDB maps, duplicate email hardened. Stable tag v-stable-chat21 on both repos.*
+*Last updated: Chat 22 — Commission rate system fully fixed. Per-partner rates, stamped on bookings at acceptance, shown on account/booking pages. Stable tag v-stable-chat22 on both repos.*
