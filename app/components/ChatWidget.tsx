@@ -11,9 +11,10 @@ const SUGGESTIONS = [
   "How do I cancel a booking?",
 ];
 
+// Split text on phone-number-like sequences and make them WhatsApp links
 function renderText(text: string) {
-  // Detect phone numbers and make WhatsApp links
-  const parts = text.split(/(\+?[\d\s\-()]{9,15})/g);
+  const phoneRe = /(\+?[\d ()[\]-]{9,15})/g;
+  const parts = text.split(phoneRe);
   return parts.map((part, i) => {
     const digits = part.replace(/\D/g, "");
     if (digits.length >= 9 && digits.length <= 15 && /\d/.test(part) && part.trim().length > 0) {
@@ -37,24 +38,24 @@ export default function ChatWidget({
   apiPath?: string;
   transcriptApiPath?: string;
 }) {
-  const [open, setOpen]       = useState(false);
-  const [msgs, setMsgs]       = useState<Msg[]>([]);
-  const [input, setInput]     = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-  const [unread, setUnread]   = useState(0);
-  const [ended, setEnded]     = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [open, setOpen]             = useState(false);
+  const [msgs, setMsgs]             = useState<Msg[]>([]);
+  const [input, setInput]           = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+  const [unread, setUnread]         = useState(0);
+  const [ended, setEnded]           = useState(false);
+  const [emailSent, setEmailSent]   = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
 
-  // Drag state
-  const [pos, setPos]         = useState<{ x: number; y: number } | null>(null);
-  const dragging              = useRef(false);
-  const dragOffset            = useRef({ x: 0, y: 0 });
-  const bubbleRef             = useRef<HTMLButtonElement>(null);
-  const panelRef              = useRef<HTMLDivElement>(null);
-  const bottomRef             = useRef<HTMLDivElement>(null);
-  const inputRef              = useRef<HTMLTextAreaElement>(null);
+  // Drag state — position stored as distance from bottom-right corner
+  const [pos, setPos]       = useState<{ x: number; y: number } | null>(null);
+  const dragging            = useRef(false);
+  const didDrag             = useRef(false);
+  const dragOffset          = useRef({ x: 0, y: 0 });
+  const bubbleRef           = useRef<HTMLButtonElement>(null);
+  const bottomRef           = useRef<HTMLDivElement>(null);
+  const inputRef            = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (open) { setUnread(0); setTimeout(() => inputRef.current?.focus(), 100); }
@@ -64,9 +65,9 @@ export default function ChatWidget({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
 
-  // Drag handlers — move both bubble and panel together
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     dragging.current = true;
+    didDrag.current = false;
     const rect = bubbleRef.current!.getBoundingClientRect();
     dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     e.preventDefault();
@@ -75,10 +76,10 @@ export default function ChatWidget({
   useEffect(() => {
     function onMove(e: MouseEvent) {
       if (!dragging.current) return;
-      setPos({
-        x: window.innerWidth  - (e.clientX - dragOffset.current.x) - 56,
-        y: window.innerHeight - (e.clientY - dragOffset.current.y) - 56,
-      });
+      didDrag.current = true;
+      const x = window.innerWidth  - (e.clientX - dragOffset.current.x) - 56;
+      const y = window.innerHeight - (e.clientY - dragOffset.current.y) - 56;
+      setPos({ x: Math.max(8, x), y: Math.max(8, y) });
     }
     function onUp() { dragging.current = false; }
     window.addEventListener("mousemove", onMove);
@@ -86,8 +87,8 @@ export default function ChatWidget({
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
   }, []);
 
-  const right  = pos ? `${Math.max(8, pos.x)}px`  : "24px";
-  const bottom = pos ? `${Math.max(8, pos.y)}px`  : "24px";
+  const right  = pos ? `${pos.x}px` : "24px";
+  const bottom = pos ? `${pos.y}px` : "24px";
 
   async function send(text: string) {
     const content = text.trim();
@@ -95,8 +96,7 @@ export default function ChatWidget({
     setInput("");
     setError(null);
 
-    const userMsg: Msg = { role: "user", content };
-    const newMsgs: Msg[] = [...msgs, userMsg];
+    const newMsgs: Msg[] = [...msgs, { role: "user", content }];
     setMsgs(newMsgs);
     setLoading(true);
 
@@ -118,8 +118,7 @@ export default function ChatWidget({
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let assistantText = "";
-      const withAssistant: Msg[] = [...newMsgs, { role: "assistant", content: "" }];
-      setMsgs(withAssistant);
+      setMsgs(m => [...m, { role: "assistant", content: "" }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -144,12 +143,6 @@ export default function ChatWidget({
   async function endChat() {
     if (msgs.length === 0) { setOpen(false); return; }
     setEnded(true);
-    // Auto-send transcript
-    await sendTranscript();
-  }
-
-  async function sendTranscript() {
-    if (msgs.length === 0 || emailSent || sendingEmail) return;
     setSendingEmail(true);
     try {
       const token = await getToken();
@@ -160,7 +153,7 @@ export default function ChatWidget({
         body: JSON.stringify({ messages: msgs }),
       });
       setEmailSent(true);
-    } catch { /* silent — transcript email is best-effort */ }
+    } catch { /* best effort */ }
     finally { setSendingEmail(false); }
   }
 
@@ -172,6 +165,11 @@ export default function ChatWidget({
     setMsgs([]); setEnded(false); setEmailSent(false); setError(null);
   }
 
+  function handleBubbleClick() {
+    if (didDrag.current) { didDrag.current = false; return; }
+    setOpen(o => !o);
+  }
+
   const isEmpty = msgs.length === 0;
 
   return (
@@ -181,7 +179,7 @@ export default function ChatWidget({
         ref={bubbleRef}
         type="button"
         onMouseDown={onMouseDown}
-        onClick={() => !dragging.current && setOpen(o => !o)}
+        onClick={handleBubbleClick}
         style={{ right, bottom }}
         className="fixed z-[9999] flex h-14 w-14 items-center justify-center bg-[#ff7a00] text-white shadow-lg hover:opacity-90 transition-opacity cursor-grab active:cursor-grabbing select-none"
         aria-label="Open help chat"
@@ -205,111 +203,105 @@ export default function ChatWidget({
       {/* Chat panel */}
       {open && (
         <div
-          ref={panelRef}
           style={{ right, bottom: `calc(${bottom} + 64px)`, height: "520px" }}
-          className="fixed z-[9998] flex flex-col w-[360px] max-w-[calc(100vw-24px)] bg-white shadow-2xl border border-black/10">
+          className="fixed z-[9998] flex flex-col w-[360px] max-w-[calc(100vw-24px)] bg-white shadow-2xl border border-black/10"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between bg-black px-4 py-3 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center bg-[#ff7a00]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-black text-white leading-none">Camel Help</p>
+                <p className="text-xs text-white/50 mt-0.5">AI assistant · usually instant</p>
+              </div>
+            </div>
+            {!ended && msgs.length > 0 && (
+              <button type="button" onClick={endChat}
+                className="text-xs font-bold text-white/50 hover:text-white border border-white/20 px-2 py-1 transition-colors">
+                End chat
+              </button>
+            )}
+          </div>
 
-            {/* Header */}
-            <div className="flex items-center justify-between bg-black px-4 py-3 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center bg-[#ff7a00]">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                  </svg>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            {isEmpty && !ended && (
+              <div className="space-y-3">
+                <div className="bg-[#f0f0f0] px-4 py-3 text-sm font-semibold text-black max-w-[85%]">
+                  👋 Hi! I&apos;m Camel Help. I can answer questions about your bookings, driver details, fuel deposits, and more. How can I help?
                 </div>
-                <div>
-                  <p className="text-sm font-black text-white leading-none">Camel Help</p>
-                  <p className="text-xs text-white/50 mt-0.5">AI assistant · usually instant</p>
+                <div className="space-y-2 pt-1">
+                  {SUGGESTIONS.map(s => (
+                    <button key={s} type="button" onClick={() => send(s)}
+                      className="block w-full text-left border border-black/10 px-3 py-2 text-xs font-bold text-black hover:bg-[#f0f0f0] transition-colors">
+                      {s}
+                    </button>
+                  ))}
                 </div>
               </div>
-              {!ended && msgs.length > 0 && (
-                <button type="button" onClick={endChat}
-                  className="text-xs font-bold text-white/50 hover:text-white border border-white/20 px-2 py-1 transition-colors">
-                  End chat
-                </button>
-              )}
-            </div>
+            )}
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-              {isEmpty && !ended && (
-                <div className="space-y-3">
-                  <div className="bg-[#f0f0f0] px-4 py-3 text-sm font-semibold text-black max-w-[85%]">
-                    👋 Hi! I'm Camel Help. I can answer questions about your bookings, driver details, fuel deposits, and more. How can I help?
-                  </div>
-                  <div className="space-y-2 pt-1">
-                    {SUGGESTIONS.map(s => (
-                      <button key={s} type="button" onClick={() => send(s)}
-                        className="block w-full text-left border border-black/10 px-3 py-2 text-xs font-bold text-black hover:bg-[#f0f0f0] transition-colors">
-                        {s}
-                      </button>
-                    ))}
-                  </div>
+            {msgs.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[85%] px-4 py-3 text-sm leading-relaxed ${
+                  m.role === "user"
+                    ? "bg-[#ff7a00] text-white font-semibold"
+                    : "bg-[#f0f0f0] text-black font-medium"
+                }`}>
+                  {m.role === "assistant" ? (
+                    m.content === "" && loading && i === msgs.length - 1
+                      ? <span className="inline-block w-2 h-4 bg-black/40 animate-pulse" />
+                      : renderText(m.content)
+                  ) : m.content}
                 </div>
-              )}
+              </div>
+            ))}
 
-              {msgs.map((m, i) => (
-                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] px-4 py-3 text-sm leading-relaxed ${
-                    m.role === "user"
-                      ? "bg-[#ff7a00] text-white font-semibold"
-                      : "bg-[#f0f0f0] text-black font-medium"
-                  }`}>
-                    {m.role === "assistant" ? (
-                      m.content === "" && loading && i === msgs.length - 1
-                        ? <span className="inline-block w-2 h-4 bg-black/40 animate-pulse" />
-                        : renderText(m.content)
-                    ) : m.content}
-                  </div>
+            {ended && (
+              <div className="space-y-3 pt-2">
+                <div className="bg-[#f0f0f0] px-4 py-3 text-sm font-semibold text-black">
+                  {sendingEmail ? "Sending transcript…" : emailSent ? "✅ Chat ended. A transcript has been emailed to you." : "Chat ended."}
                 </div>
-              ))}
-
-              {ended && (
-                <div className="space-y-3 pt-2">
-                  <div className="bg-[#f0f0f0] px-4 py-3 text-sm font-semibold text-black">
-                    {emailSent
-                      ? "✅ Chat ended. A transcript has been emailed to you."
-                      : sendingEmail
-                      ? "Sending transcript…"
-                      : "Chat ended."}
-                  </div>
-                  <button type="button" onClick={startNew}
-                    className="w-full bg-[#ff7a00] py-3 text-sm font-black text-white hover:opacity-90 transition-opacity">
-                    Start new chat
-                  </button>
-                </div>
-              )}
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{error}</div>
-              )}
-              <div ref={bottomRef} />
-            </div>
-
-            {/* Input */}
-            {!ended && (
-              <div className="border-t border-black/10 p-3 shrink-0 flex gap-2">
-                <textarea
-                  ref={inputRef}
-                  rows={1}
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={onKey}
-                  disabled={loading}
-                  placeholder="Type a message…"
-                  className="flex-1 resize-none bg-[#f0f0f0] px-3 py-2.5 text-sm font-medium text-black outline-none placeholder:text-black/30 disabled:opacity-50"
-                  style={{ maxHeight: "80px" }}
-                />
-                <button type="button" onClick={() => send(input)}
-                  disabled={loading || !input.trim()}
-                  className="shrink-0 bg-[#ff7a00] px-4 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
-                  {loading
-                    ? <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    : "→"}
+                <button type="button" onClick={startNew}
+                  className="w-full bg-[#ff7a00] py-3 text-sm font-black text-white hover:opacity-90 transition-opacity">
+                  Start new chat
                 </button>
               </div>
             )}
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{error}</div>
+            )}
+            <div ref={bottomRef} />
           </div>
+
+          {/* Input */}
+          {!ended && (
+            <div className="border-t border-black/10 p-3 shrink-0 flex gap-2">
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={onKey}
+                disabled={loading}
+                placeholder="Type a message…"
+                className="flex-1 resize-none bg-[#f0f0f0] px-3 py-2.5 text-sm font-medium text-black outline-none placeholder:text-black/30 disabled:opacity-50"
+                style={{ maxHeight: "80px" }}
+              />
+              <button type="button" onClick={() => send(input)}
+                disabled={loading || !input.trim()}
+                className="shrink-0 bg-[#ff7a00] px-4 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
+                {loading
+                  ? <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : "→"}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </>
