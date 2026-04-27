@@ -16,8 +16,8 @@ const securityHeaders = [
       // CartoDB Positron tiles — free, no API key
       "img-src 'self' data: blob: https://maps.googleapis.com https://maps.gstatic.com https://*.supabase.co https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://unpkg.com https://www.google-analytics.com https://www.googletagmanager.com",
       "frame-src https://hcaptcha.com https://*.hcaptcha.com",
-      // Photon (komoot) for address search + CartoDB for map tiles
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://maps.googleapis.com https://api.frankfurter.app https://hcaptcha.com https://*.hcaptcha.com https://va.vercel-scripts.com https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://photon.komoot.io https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://www.googletagmanager.com https://region1.analytics.google.com https://region1.google-analytics.com",
+      // Photon (komoot) for address search + CartoDB for map tiles + Anthropic for AI chat
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://maps.googleapis.com https://api.frankfurter.app https://hcaptcha.com https://*.hcaptcha.com https://va.vercel-scripts.com https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://photon.komoot.io https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://www.googletagmanager.com https://region1.analytics.google.com https://region1.google-analytics.com https://api.anthropic.com",
       "worker-src 'self' blob:",
     ].join("; "),
   },
