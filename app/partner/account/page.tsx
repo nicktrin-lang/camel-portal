@@ -31,6 +31,7 @@ type AccountProfile = {
   legal_company_name: string | null;
   vat_number: string | null;
   company_registration_number: string | null;
+  commission_rate: number | null;
 };
 
 type ApplicationRow = {
@@ -128,7 +129,7 @@ export default function PartnerAccountPage() {
         const [{ data: profileRow, error: profileErr }, { data: applicationRow, error: appErr }] =
           await Promise.all([
             supabase.from("partner_profiles")
-              .select("company_name,contact_name,phone,address,address1,address2,city,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number")
+              .select("company_name,contact_name,phone,address,address1,address2,city,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number,commission_rate")
               .eq("user_id", user.id).maybeSingle(),
             supabase.from("partner_applications")
               .select("status,created_at,terms_accepted_at,terms_version")
@@ -172,6 +173,8 @@ export default function PartnerAccountPage() {
   const fullFleetAddress = profile?.base_address ||
     [profile?.base_address1, profile?.base_address2, profile?.base_city, profile?.base_province, profile?.base_postcode, profile?.base_country]
       .filter(Boolean).join(", ") || "—";
+
+  const commissionRate = profile?.commission_rate ?? 20;
 
   if (loading) return (
     <div className="border border-black/5 bg-white p-8">
@@ -256,6 +259,24 @@ export default function PartnerAccountPage() {
               <Field label="Website">{fmtValue(profile?.website)}</Field>
               <Field label="Billing Currency">{currencyLabel(profile?.default_currency)}</Field>
               <Field label="Service Radius">{profile?.service_radius_km ? `${profile.service_radius_km} km` : "—"}</Field>
+            </div>
+          </Section>
+
+          {/* Commission Rate */}
+          <Section title="Camel Commission Rate" subtitle="The rate applied to your car hire price on each completed booking.">
+            <div className="flex items-center gap-4">
+              <div className="border border-black/10 bg-[#f0f0f0] px-6 py-4">
+                <p className="text-xs font-black uppercase tracking-widest text-black/40">Your current rate</p>
+                <p className="mt-1 text-3xl font-black text-black">{commissionRate}%</p>
+              </div>
+              <div className="text-sm font-bold text-black/50 space-y-1">
+                <p>Applied to the <strong className="text-black">car hire price only</strong>.</p>
+                <p>Fuel charges pass through to you at <strong className="text-black">100%</strong>.</p>
+                <p>Minimum commission of <strong className="text-black">€10</strong> per booking always applies.</p>
+                {commissionRate < 20 && (
+                  <p className="text-[#ff7a00] font-black">✓ You have a reduced rate by agreement with Camel Global.</p>
+                )}
+              </div>
             </div>
           </Section>
 

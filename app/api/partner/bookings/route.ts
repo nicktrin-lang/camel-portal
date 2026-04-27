@@ -109,7 +109,7 @@ export async function GET() {
     if (partnerUserIds.length > 0) {
       const { data: profileRows, error: profileErr } = await db
         .from("partner_profiles")
-        .select("user_id, company_name, phone, legal_company_name, vat_number, company_registration_number, commission_rate")
+        .select("user_id, company_name, phone, legal_company_name, vat_number, company_registration_number")
         .in("user_id", partnerUserIds);
       if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 400 });
       profileMap = new Map((profileRows || []).map((r: any) => [String(r.user_id), r]));
@@ -131,7 +131,10 @@ export async function GET() {
         fuel_used_quarters: booking.fuel_used_quarters ?? null,
         fuel_charge: booking.fuel_charge ?? null,
         fuel_refund: booking.fuel_refund ?? null,
-        commission_rate: booking.commission_rate ?? partnerProfile?.commission_rate ?? 20,
+        // Use only the rate stamped on the booking at acceptance time.
+        // null = booking pre-dates commission stamping → frontend defaults to 20% (the historical rate).
+        // Never fall back to the current profile rate or historical bookings show the wrong %.
+        commission_rate: booking.commission_rate ?? null,
         commission_amount: booking.commission_amount ?? null,
         partner_payout_amount: booking.partner_payout_amount ?? null,
         notes: booking.notes,
