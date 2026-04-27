@@ -82,21 +82,29 @@ const TERMS: Section[] = [
       "Camel Global reserves the right to remove bids that appear inaccurate, incomplete, or in breach of these Terms.",
     ],
   },
-  {
-    title: "7. Commission and Payments",
-    clauses: [
-      "Camel Global charges a commission on the Hire Price of each completed Booking. The default commission rate is 20% of the Hire Price, subject to a minimum commission of €10 (or currency equivalent) per Booking.",
-      "Fuel Charges are passed through to the Partner in full. Camel Global does not charge commission on Fuel Charges.",
-      "The Partner's payout for each Booking is calculated as: (Hire Price minus Commission) plus Fuel Charge.",
-      "Commission rates may be adjusted for individual Partners by agreement with Camel Global.",
-      "Payments will be processed via Stripe Connect. The Partner must complete Stripe Express onboarding to receive payouts.",
-      "Camel Global will deduct commission automatically at the point of payment. Partners receive their net payout directly to their Stripe account.",
-      "Camel Global will issue commission invoices to Partners on a monthly basis with reverse charge treatment under Article 44/196 of the EU VAT Directive where applicable.",
-      "The Partner is solely responsible for accounting for and paying all taxes on income received through the Platform.",
-      "In the event of a Customer refund dispute, the financial liability rests with the Partner.",
-      "All fuel refunds owed to Customers must be processed within 5 business days of Booking completion.",
-    ],
-  },
+
+// In TERMS array — replace the "7. Commission and Payments" section clauses:
+{
+  title: "7. Commission and Payments",
+  clauses: [
+    "Camel Global charges a commission on the Hire Price of each completed Booking. The standard commission rate is 20% of the Hire Price, subject to a minimum commission of €10 (or currency equivalent) per Booking. Commission rates may be reduced for individual Partners by agreement with Camel Global — the rate applicable to your account is shown on your bid submission page and in your account.",
+    "Fuel Charges are passed through to the Partner in full. Camel Global does not charge commission on Fuel Charges.",
+    "The Partner's payout for each Booking is calculated as: (Hire Price minus Commission) plus Fuel Charge.",
+    "Payments will be processed via Stripe Connect. The Partner must complete Stripe Express onboarding to receive payouts.",
+    "Camel Global will deduct commission automatically at the point of payment. Partners receive their net payout directly to their Stripe account.",
+    "Camel Global will issue commission invoices to Partners on a monthly basis with reverse charge treatment under Article 44/196 of the EU VAT Directive where applicable.",
+    "The Partner is solely responsible for accounting for and paying all taxes on income received through the Platform.",
+    "In the event of a Customer refund dispute, the financial liability rests with the Partner.",
+    "All fuel refunds owed to Customers must be processed within 5 business days of Booking completion.",
+  ],
+},
+
+// In the summary cards array — replace the commission card:
+{
+  icon: "💰",
+  title: "Commission from 20%",
+  body: "Standard rate is 20% on the hire price only. Fuel charges pass through to you at 100%. Minimum €10 per booking. Reduced rates available by agreement.",
+},
   {
     title: "8. VAT and Tax",
     clauses: [
