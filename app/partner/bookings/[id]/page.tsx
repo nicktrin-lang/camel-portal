@@ -28,8 +28,8 @@ type BookingRow = {
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
   commission_rate: number | null; commission_amount: number | null; partner_payout_amount: number | null;
   currency: Currency;
-  cancelled_by?: string | null; cancelled_at?: string | null;
-  cancellation_reason?: string | null; refund_status?: string | null;
+  cancelled_by: string | null; cancelled_at: string | null;
+  cancellation_reason: string | null; refund_status: string | null;
   collection_confirmed_by_driver?: boolean | null; collection_confirmed_by_driver_at?: string | null;
   collection_fuel_level_driver?: string | null;
   return_confirmed_by_driver?: boolean | null; return_confirmed_by_driver_at?: string | null;
@@ -68,100 +68,91 @@ const inputCls = "w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm f
 const labelCls = "text-xs font-black uppercase tracking-widest text-black";
 
 function fmtCurr(amount: number, curr: Currency): string {
-  return new Intl.NumberFormat(CURRENCY_META[curr].locale, { style: "currency", currency: curr }).format(amount);
+  return new Intl.NumberFormat(CURRENCY_META[curr].locale,{style:"currency",currency:curr}).format(amount);
 }
 function toEur(amount: number, stored: Currency, rates: Rates): number {
-  if (stored === "EUR") return amount;
-  if (stored === "GBP") return Math.round((amount / rates.GBP) * 100) / 100;
-  return Math.round((amount / rates.USD) * 100) / 100;
+  if (stored==="EUR") return amount;
+  if (stored==="GBP") return Math.round((amount/rates.GBP)*100)/100;
+  return Math.round((amount/rates.USD)*100)/100;
 }
 function fromEur(amountEur: number, target: Currency, rates: Rates): number {
-  if (target === "EUR") return amountEur;
-  if (target === "GBP") return Math.round(amountEur * rates.GBP * 100) / 100;
-  return Math.round(amountEur * rates.USD * 100) / 100;
+  if (target==="EUR") return amountEur;
+  if (target==="GBP") return Math.round(amountEur*rates.GBP*100)/100;
+  return Math.round(amountEur*rates.USD*100)/100;
 }
-function Amt({ amount, stored, rates }: { amount: number | null | undefined; stored: Currency; rates: Rates }) {
-  if (amount == null || isNaN(amount)) return <span>—</span>;
-  const sec1: Currency = stored === "USD" ? "EUR" : stored === "GBP" ? "EUR" : "GBP";
-  const sec2: Currency = stored === "EUR" ? "USD" : stored === "GBP" ? "USD" : "GBP";
-  const inEur = toEur(amount, stored, rates);
+function Amt({ amount, stored, rates }: { amount:number|null|undefined; stored:Currency; rates:Rates }) {
+  if (amount==null||isNaN(amount)) return <span>—</span>;
+  const sec1: Currency = stored==="USD"?"EUR":stored==="GBP"?"EUR":"GBP";
+  const sec2: Currency = stored==="EUR"?"USD":stored==="GBP"?"USD":"GBP";
+  const inEur = toEur(amount,stored,rates);
   return (
     <span>
-      {fmtCurr(amount, stored)}{" "}
+      {fmtCurr(amount,stored)}{" "}
       <span className="opacity-60 text-[0.85em] font-normal">
-        ({fmtCurr(fromEur(inEur, sec1, rates), sec1)} · {fmtCurr(fromEur(inEur, sec2, rates), sec2)})
+        ({fmtCurr(fromEur(inEur,sec1,rates),sec1)} · {fmtCurr(fromEur(inEur,sec2,rates),sec2)})
       </span>
     </span>
   );
 }
 
-function normalizeFuel(v: unknown): string | null {
+function normalizeFuel(v: unknown): string|null {
   if (!v) return null;
-  const s = String(v).toLowerCase().trim();
-  if (s === "empty") return "empty";
-  if (s === "quarter") return "quarter";
-  if (s === "half") return "half";
-  if (s === "three_quarter" || s === "3/4") return "3/4";
-  if (s === "full") return "full";
-  return null;
+  const s=String(v).toLowerCase().trim();
+  if (s==="empty") return "empty"; if (s==="quarter") return "quarter";
+  if (s==="half") return "half"; if (s==="three_quarter"||s==="3/4") return "3/4";
+  if (s==="full") return "full"; return null;
 }
 function fuelLabel(v: unknown): string {
-  switch (normalizeFuel(v)) {
-    case "empty":   return "Empty";
-    case "quarter": return "¼ Tank";
-    case "half":    return "½ Tank";
-    case "3/4":     return "¾ Tank";
-    case "full":    return "Full Tank";
-    default:        return "—";
+  switch(normalizeFuel(v)) {
+    case "empty": return "Empty"; case "quarter": return "¼ Tank";
+    case "half": return "½ Tank"; case "3/4": return "¾ Tank";
+    case "full": return "Full Tank"; default: return "—";
   }
 }
-const FUEL_BARS: Record<string, number> = { empty: 0, quarter: 1, half: 2, "3/4": 3, full: 4 };
+const FUEL_BARS: Record<string,number> = { empty:0, quarter:1, half:2, "3/4":3, full:4 };
 function FuelBar({ level }: { level: unknown }) {
-  const n = normalizeFuel(level);
-  const filled = n ? (FUEL_BARS[n] ?? 0) : 0;
+  const n=normalizeFuel(level); const filled=n?(FUEL_BARS[n]??0):0;
   return (
     <div className="flex gap-1 mt-1">
-      {[0,1,2,3].map(i => (
-        <div key={i} className={["h-2.5 flex-1", i < filled ? filled >= 3 ? "bg-green-500" : filled === 2 ? "bg-yellow-400" : "bg-red-400" : "bg-black/10"].join(" ")} />
+      {[0,1,2,3].map(i=>(
+        <div key={i} className={["h-2.5 flex-1",i<filled?filled>=3?"bg-green-500":filled===2?"bg-yellow-400":"bg-red-400":"bg-black/10"].join(" ")}/>
       ))}
     </div>
   );
 }
-function fmt(v?: string | null) { if (!v) return "—"; try { return new Date(v).toLocaleString(); } catch { return v; } }
-function fmtDuration(m?: number | null) {
+function fmt(v?: string|null) { if (!v) return "—"; try { return new Date(v).toLocaleString(); } catch { return v; } }
+function fmtDuration(m?: number|null) {
   if (!m) return "—";
-  if (m >= 1440) return `${Math.ceil(m/1440)} day${Math.ceil(m/1440)===1?"":"s"}`;
-  if (m < 60) return `${m} min`;
-  const h = Math.floor(m/60), mins = m%60;
-  return mins ? `${h}h ${mins}m` : `${h}h`;
+  if (m>=1440) return `${Math.ceil(m/1440)} day${Math.ceil(m/1440)===1?"":"s"}`;
+  if (m<60) return `${m} min`;
+  const h=Math.floor(m/60),mins=m%60; return mins?`${h}h ${mins}m`:`${h}h`;
 }
-function statusLabel(s?: string | null) {
-  switch (String(s||"").toLowerCase()) {
+function statusLabel(s?: string|null) {
+  switch(String(s||"").toLowerCase()) {
     case "confirmed": case "driver_assigned": case "en_route": case "arrived": return "Awaiting delivery";
     case "collected": case "returned": return "On Hire";
-    case "completed": return "Completed";
-    case "cancelled": return "Cancelled";
+    case "completed": return "Completed"; case "cancelled": return "Cancelled";
     default: return String(s||"—").replaceAll("_"," ");
   }
 }
-function sportEquipmentLabel(v: string | null): string {
-  if (!v || v === "none") return "None";
-  const map: Record<string, string> = {
-    golf_single:"Golf clubs — 1 bag", golf_two:"Golf clubs — 2 bags", golf_three:"Golf clubs — 3 bags", golf_four:"Golf clubs — 4+ bags",
-    skis_pair:"Skis / snowboard — 1 set", skis_two:"Skis / snowboard — 2 sets", skis_three:"Skis / snowboard — 3+ sets",
-    bikes_one:"Bikes — 1", bikes_two:"Bikes — 2", bikes_three:"Bikes — 3+", other:"Other large equipment",
+function sportEquipmentLabel(v: string|null): string {
+  if (!v||v==="none") return "None";
+  const map: Record<string,string> = {
+    golf_single:"Golf clubs — 1 bag",golf_two:"Golf clubs — 2 bags",golf_three:"Golf clubs — 3 bags",golf_four:"Golf clubs — 4+ bags",
+    skis_pair:"Skis / snowboard — 1 set",skis_two:"Skis / snowboard — 2 sets",skis_three:"Skis / snowboard — 3+ sets",
+    bikes_one:"Bikes — 1",bikes_two:"Bikes — 2",bikes_three:"Bikes — 3+",other:"Other large equipment",
   };
-  return map[v] || v;
+  return map[v]||v;
 }
-function effectiveFuel(driverFuel: unknown, partnerFuel: unknown): string | null {
-  return normalizeFuel(partnerFuel) || normalizeFuel(driverFuel);
+function effectiveFuel(driverFuel: unknown, partnerFuel: unknown): string|null {
+  return normalizeFuel(partnerFuel)||normalizeFuel(driverFuel);
 }
-function isLocked(opts: { driverOrPartnerFuel: string | null; customerConfirmed: boolean | null | undefined; customerFuel: string | null | undefined }): boolean {
-  return !!opts.driverOrPartnerFuel && !!opts.customerConfirmed && normalizeFuel(opts.customerFuel) === opts.driverOrPartnerFuel;
+function isLocked(opts: { driverOrPartnerFuel:string|null; customerConfirmed:boolean|null|undefined; customerFuel:string|null|undefined }): boolean {
+  return !!opts.driverOrPartnerFuel&&!!opts.customerConfirmed&&normalizeFuel(opts.customerFuel)===opts.driverOrPartnerFuel;
 }
-const QUARTER_LABELS: Record<number, string> = { 0:"Empty", 1:"¼ Tank", 2:"½ Tank", 3:"¾ Tank", 4:"Full Tank" };
+const QUARTER_LABELS: Record<number,string> = { 0:"Empty",1:"¼ Tank",2:"½ Tank",3:"¾ Tank",4:"Full Tank" };
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label:string; children:React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs font-black uppercase tracking-widest text-black/40">{label}</span>
@@ -170,52 +161,177 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
-  const driverConfirmed   = !!booking.insurance_docs_confirmed_by_driver;
-  const customerConfirmed = !!booking.insurance_docs_confirmed_by_customer;
-  const bothConfirmed     = driverConfirmed && customerConfirmed;
+// ── Cancellation Financial Summary ────────────────────────────────────────────
+function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
+  const stored = bk.currency;
+  const carHire    = Number(bk.car_hire_price||0);
+  const fuel       = Number(bk.fuel_price||0);
+  const commRate   = bk.commission_rate??20;
+  const commAmt    = bk.commission_amount!=null ? Number(bk.commission_amount) : Math.max((carHire*commRate)/100,10);
+  const basePayout = bk.partner_payout_amount!=null ? Number(bk.partner_payout_amount) : Math.max(0,carHire-commAmt);
+  const isFull     = bk.refund_status==="full";
+  const isPartial  = bk.refund_status==="partial";
+
+  // What the customer gets back
+  const customerCarHireRefund = isFull ? carHire : 0;
+  const customerFuelRefund    = fuel; // fuel always refunded on cancellation
+  const customerTotalRefund   = customerCarHireRefund+customerFuelRefund;
+
+  // What the partner keeps
+  const partnerKeepsCarHire = isPartial ? carHire : 0;
+  const partnerKeepsComm    = isPartial ? commAmt : 0;
+  const partnerNetPayout    = isPartial ? basePayout : 0;
+
+  const cancelledByLabel = bk.cancelled_by==="customer" ? "Customer" : bk.cancelled_by==="partner" ? "Partner" : "Camel Global Admin";
+
   return (
-    <div className={`border p-6 ${bothConfirmed ? "border-[#1a1a1a] bg-[#1a1a1a]" : "border-black/10 bg-white"}`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">📄</span>
-          <h3 className={`text-base font-black ${bothConfirmed ? "text-white" : "text-black"}`}>Insurance Documents</h3>
-        </div>
-        {bothConfirmed && <span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Confirmed</span>}
+    <div className="border border-red-200 bg-red-50 p-6 space-y-4">
+      <div>
+        <p className="text-base font-black text-red-800">❌ Booking Cancelled</p>
+        <p className="text-sm font-semibold text-red-600 mt-1">Cancelled by: <strong>{cancelledByLabel}</strong> on {fmt(bk.cancelled_at)}</p>
+        {bk.cancellation_reason&&<p className="text-sm font-semibold text-red-600">Reason: {bk.cancellation_reason}</p>}
+        <p className="text-sm font-semibold text-red-600 mt-1">
+          Refund type: <strong>{isFull?"Full refund":isPartial?"Partial refund (within 48hrs of pickup)":"No refund"}</strong>
+        </p>
       </div>
-      <p className={`text-xs font-bold mb-4 ${bothConfirmed ? "text-white/50" : "text-black/50"}`}>Driver confirms handover at delivery. Customer confirms receipt. Both must agree.</p>
+
+      {/* Original booking amounts */}
+      <div className="bg-white border border-red-100 p-4">
+        <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-3">Original Booking Amounts</p>
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="font-semibold text-black/60">Car hire</span>
+            <span className="font-black text-black">{fmtCurr(carHire,stored)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="font-semibold text-black/60">Commission ({commRate}%)</span>
+            <span className="font-black text-amber-700">− {fmtCurr(commAmt,stored)}</span>
+          </div>
+          <div className="flex justify-between text-sm border-t border-black/10 pt-2">
+            <span className="font-semibold text-black/60">Your payout (excl. fuel)</span>
+            <span className="font-black text-black">{fmtCurr(basePayout,stored)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="font-semibold text-black/60">Full tank deposit</span>
+            <span className="font-black text-black">{fmtCurr(fuel,stored)}</span>
+          </div>
+          <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2">
+            <span className="text-black/60">Total collected from customer</span>
+            <span className="text-black">{fmtCurr(carHire+fuel,stored)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* After cancellation */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className={`border p-4 ${driverConfirmed && bothConfirmed ? "border-white/10 bg-white/5" : "border-black/10 bg-[#f0f0f0]"}`}>
-          <p className={`text-xs font-black uppercase tracking-widest ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>Driver</p>
-          {driverConfirmed ? <><p className={`mt-1 font-black ${bothConfirmed ? "text-white" : "text-black"}`}>✓ Handed over</p><p className={`mt-0.5 text-xs ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>{fmt(booking.insurance_docs_confirmed_by_driver_at)}</p></> : <p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
+        <div className="bg-white border border-red-200 p-4">
+          <p className="text-xs font-black uppercase tracking-widest text-red-700 mb-3">Customer Refund</p>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="font-semibold text-black/60">Car hire refund</span>
+              <span className={`font-black ${customerCarHireRefund>0?"text-green-700":"text-red-500"}`}>
+                {customerCarHireRefund>0?fmtCurr(customerCarHireRefund,stored):"Not refunded"}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="font-semibold text-black/60">Fuel deposit refund</span>
+              <span className="font-black text-green-700">{fmtCurr(customerFuelRefund,stored)}</span>
+            </div>
+            <div className="flex justify-between text-sm font-black border-t border-red-100 pt-2">
+              <span className="text-red-800">Total refund to customer</span>
+              <span className="text-red-800">{fmtCurr(customerTotalRefund,stored)}</span>
+            </div>
+          </div>
         </div>
-        <div className={`border p-4 ${customerConfirmed && bothConfirmed ? "border-white/10 bg-white/5" : "border-black/10 bg-[#f0f0f0]"}`}>
-          <p className={`text-xs font-black uppercase tracking-widest ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>Customer</p>
-          {customerConfirmed ? <><p className={`mt-1 font-black ${bothConfirmed ? "text-white" : "text-black"}`}>✓ Received</p><p className={`mt-0.5 text-xs ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>{fmt(booking.insurance_docs_confirmed_by_customer_at)}</p></> : <p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
+
+        <div className={`p-4 border ${isPartial?"bg-amber-50 border-amber-200":"bg-white border-red-200"}`}>
+          <p className="text-xs font-black uppercase tracking-widest text-black/60 mb-3">Your Financial Position</p>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="font-semibold text-black/60">Car hire you keep</span>
+              <span className={`font-black ${partnerKeepsCarHire>0?"text-black":"text-red-500"}`}>
+                {partnerKeepsCarHire>0?fmtCurr(partnerKeepsCarHire,stored):"None"}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="font-semibold text-black/60">Commission payable</span>
+              <span className={`font-black ${partnerKeepsComm>0?"text-amber-700":"text-black/30"}`}>
+                {partnerKeepsComm>0?`− ${fmtCurr(partnerKeepsComm,stored)}`:"None"}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="font-semibold text-black/60">Fuel deposit (returned to customer)</span>
+              <span className="font-black text-black/40">— {fmtCurr(fuel,stored)}</span>
+            </div>
+            <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2">
+              <span className="text-black">Your net payout</span>
+              <span className={partnerNetPayout>0?"text-green-700":"text-red-600"}>
+                {partnerNetPayout>0?fmtCurr(partnerNetPayout,stored):`${fmtCurr(0,stored)} — no payout`}
+              </span>
+            </div>
+          </div>
+          {isPartial&&(
+            <p className="mt-3 text-xs font-bold text-amber-700 bg-amber-100 px-3 py-2">
+              ⚠ Customer cancelled within 48hrs of pickup — you retain the car hire fee minus commission.
+            </p>
+          )}
+          {isFull&&(
+            <p className="mt-3 text-xs font-bold text-red-700 bg-red-100 px-3 py-2">
+              Full refund issued — no payout due to you for this booking.
+            </p>
+          )}
         </div>
-      </div>
-      <div className={`mt-4 border p-3 text-sm font-bold ${bothConfirmed ? "border-[#ff7a00]/30 bg-[#ff7a00]/10 text-[#ff7a00]" : "border-black/10 bg-[#f0f0f0] text-black/60"}`}>
-        {bothConfirmed ? "✓ Both driver and customer confirm insurance documents were handed over at delivery." : !driverConfirmed && !customerConfirmed ? "Awaiting confirmation from driver and customer." : !driverConfirmed ? "Awaiting driver confirmation." : "Awaiting customer confirmation."}
       </div>
     </div>
   );
 }
 
-function BookingSummaryCard({ booking, rates, isLive }: { booking: BookingRow; rates: Rates; isLive: boolean }) {
-  const stored: Currency    = booking.currency ?? "EUR";
-  const secondary: Currency = stored === "USD" ? "EUR" : stored === "GBP" ? "EUR" : "GBP";
-  const tertiary: Currency  = stored === "EUR" ? "USD" : stored === "GBP" ? "USD" : "GBP";
-  const carHireAmt   = Number(booking.car_hire_price || 0);
-  const fullTankAmt  = Number(booking.fuel_price || 0);
-  const totalAmt     = Number(booking.amount || 0);
-  const fuelCharge   = booking.fuel_charge ?? null;
-  const fuelRefund   = booking.fuel_refund ?? null;
-  const perQtrAmt    = fullTankAmt / 4;
-  const usedQuarters = booking.fuel_used_quarters ?? null;
-  const collFuel = normalizeFuel(booking.collection_fuel_level_partner) || normalizeFuel(booking.collection_fuel_level_driver) || normalizeFuel(booking.collection_fuel_level_customer);
-  const retFuel  = normalizeFuel(booking.return_fuel_level_partner) || normalizeFuel(booking.return_fuel_level_driver) || normalizeFuel(booking.return_fuel_level_customer);
-  const primary  = (v: number) => fmtCurr(v, stored);
-  const sec      = (v: number) => { const inEur = toEur(v, stored, rates); return `(${fmtCurr(fromEur(inEur, secondary, rates), secondary)} · ${fmtCurr(fromEur(inEur, tertiary, rates), tertiary)})`; };
+function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
+  const driverConfirmed   = !!booking.insurance_docs_confirmed_by_driver;
+  const customerConfirmed = !!booking.insurance_docs_confirmed_by_customer;
+  const bothConfirmed     = driverConfirmed&&customerConfirmed;
+  return (
+    <div className={`border p-6 ${bothConfirmed?"border-[#1a1a1a] bg-[#1a1a1a]":"border-black/10 bg-white"}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">📄</span>
+          <h3 className={`text-base font-black ${bothConfirmed?"text-white":"text-black"}`}>Insurance Documents</h3>
+        </div>
+        {bothConfirmed&&<span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Confirmed</span>}
+      </div>
+      <p className={`text-xs font-bold mb-4 ${bothConfirmed?"text-white/50":"text-black/50"}`}>Driver confirms handover at delivery. Customer confirms receipt. Both must agree.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className={`border p-4 ${driverConfirmed&&bothConfirmed?"border-white/10 bg-white/5":"border-black/10 bg-[#f0f0f0]"}`}>
+          <p className={`text-xs font-black uppercase tracking-widest ${bothConfirmed?"text-white/40":"text-black/40"}`}>Driver</p>
+          {driverConfirmed?<><p className={`mt-1 font-black ${bothConfirmed?"text-white":"text-black"}`}>✓ Handed over</p><p className={`mt-0.5 text-xs ${bothConfirmed?"text-white/40":"text-black/40"}`}>{fmt(booking.insurance_docs_confirmed_by_driver_at)}</p></>:<p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
+        </div>
+        <div className={`border p-4 ${customerConfirmed&&bothConfirmed?"border-white/10 bg-white/5":"border-black/10 bg-[#f0f0f0]"}`}>
+          <p className={`text-xs font-black uppercase tracking-widest ${bothConfirmed?"text-white/40":"text-black/40"}`}>Customer</p>
+          {customerConfirmed?<><p className={`mt-1 font-black ${bothConfirmed?"text-white":"text-black"}`}>✓ Received</p><p className={`mt-0.5 text-xs ${bothConfirmed?"text-white/40":"text-black/40"}`}>{fmt(booking.insurance_docs_confirmed_by_customer_at)}</p></>:<p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
+        </div>
+      </div>
+      <div className={`mt-4 border p-3 text-sm font-bold ${bothConfirmed?"border-[#ff7a00]/30 bg-[#ff7a00]/10 text-[#ff7a00]":"border-black/10 bg-[#f0f0f0] text-black/60"}`}>
+        {bothConfirmed?"✓ Both driver and customer confirm insurance documents were handed over at delivery.":!driverConfirmed&&!customerConfirmed?"Awaiting confirmation from driver and customer.":!driverConfirmed?"Awaiting driver confirmation.":"Awaiting customer confirmation."}
+      </div>
+    </div>
+  );
+}
+
+function BookingSummaryCard({ booking, rates, isLive }: { booking:BookingRow; rates:Rates; isLive:boolean }) {
+  const stored: Currency    = booking.currency??"EUR";
+  const secondary: Currency = stored==="USD"?"EUR":stored==="GBP"?"EUR":"GBP";
+  const tertiary: Currency  = stored==="EUR"?"USD":stored==="GBP"?"USD":"GBP";
+  const carHireAmt  = Number(booking.car_hire_price||0);
+  const fullTankAmt = Number(booking.fuel_price||0);
+  const totalAmt    = Number(booking.amount||0);
+  const fuelCharge  = booking.fuel_charge??null;
+  const fuelRefund  = booking.fuel_refund??null;
+  const perQtrAmt   = fullTankAmt/4;
+  const usedQuarters = booking.fuel_used_quarters??null;
+  const collFuel = normalizeFuel(booking.collection_fuel_level_partner)||normalizeFuel(booking.collection_fuel_level_driver)||normalizeFuel(booking.collection_fuel_level_customer);
+  const retFuel  = normalizeFuel(booking.return_fuel_level_partner)||normalizeFuel(booking.return_fuel_level_driver)||normalizeFuel(booking.return_fuel_level_customer);
+  const primary = (v:number)=>fmtCurr(v,stored);
+  const sec = (v:number)=>{ const inEur=toEur(v,stored,rates); return `(${fmtCurr(fromEur(inEur,secondary,rates),secondary)} · ${fmtCurr(fromEur(inEur,tertiary,rates),tertiary)})`; };
   const rateBadge = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
   return (
     <div className="bg-[#1a1a1a] p-8 text-white">
@@ -232,12 +348,7 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking: BookingRow; r
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-4">
-        {[
-          { label:"Delivery fuel", value:fuelLabel(collFuel), bar:collFuel },
-          { label:"Collection fuel", value:fuelLabel(retFuel), bar:retFuel },
-          { label:"Fuel used", value:usedQuarters!==null?(QUARTER_LABELS[usedQuarters]??`${usedQuarters}/4`):"—", bar:null },
-          { label:"Per quarter", value:primary(perQtrAmt), bar:null },
-        ].map(({label,value,bar})=>(
+        {[{label:"Delivery fuel",value:fuelLabel(collFuel),bar:collFuel},{label:"Collection fuel",value:fuelLabel(retFuel),bar:retFuel},{label:"Fuel used",value:usedQuarters!==null?(QUARTER_LABELS[usedQuarters]??`${usedQuarters}/4`):"—",bar:null},{label:"Per quarter",value:primary(perQtrAmt),bar:null}].map(({label,value,bar})=>(
           <div key={label} className="bg-white/10 p-4"><p className="text-xs font-black uppercase tracking-widest text-white/50">{label}</p><p className="mt-1 text-lg font-black">{value}</p>{bar&&<FuelBar level={bar}/>}</div>
         ))}
       </div>
@@ -252,11 +363,11 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking: BookingRow; r
   );
 }
 
-function FuelStageCard({ title, booking, stage, fuelValue, onFuelChange, confirmed, onConfirmedChange, notes, onNotesChange, onSave, saving, locked }: {
-  title: string; booking: BookingRow; stage: "collection"|"return";
-  fuelValue: FuelLevel; onFuelChange:(v:FuelLevel)=>void;
-  confirmed: boolean; onConfirmedChange:(v:boolean)=>void;
-  notes: string; onNotesChange:(v:string)=>void;
+function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,onConfirmedChange,notes,onNotesChange,onSave,saving,locked }: {
+  title:string; booking:BookingRow; stage:"collection"|"return";
+  fuelValue:FuelLevel; onFuelChange:(v:FuelLevel)=>void;
+  confirmed:boolean; onConfirmedChange:(v:boolean)=>void;
+  notes:string; onNotesChange:(v:string)=>void;
   onSave:()=>void; saving:boolean; locked:boolean;
 }) {
   const isC               = stage==="collection";
@@ -319,7 +430,7 @@ function FuelStageCard({ title, booking, stage, fuelValue, onFuelChange, confirm
 
 export default function PartnerBookingDetailPage() {
   const params    = useParams<{ id: string }>();
-  const bookingId = String(params?.id || "");
+  const bookingId = String(params?.id||"");
 
   const [loading,        setLoading]        = useState(true);
   const [savingSection,  setSavingSection]  = useState<"details"|"collection"|"return"|null>(null);
@@ -328,7 +439,7 @@ export default function PartnerBookingDetailPage() {
   const [ok,             setOk]             = useState<string|null>(null);
   const [data,           setData]           = useState<BookingApiResponse|null>(null);
   const [drivers,        setDrivers]        = useState<DriverRow[]>([]);
-  const [rates,          setRates]          = useState<Rates>({ GBP: 0.85, USD: 1.08 });
+  const [rates,          setRates]          = useState<Rates>({ GBP:0.85, USD:1.08 });
   const [rateIsLive,     setRateIsLive]     = useState(false);
   const [selectedDriverId, setSelectedDriverId] = useState("");
   const [driverName,       setDriverName]       = useState("");
@@ -346,7 +457,7 @@ export default function PartnerBookingDetailPage() {
   const [cancelling,     setCancelling]     = useState(false);
 
   function hydrateForm(d: BookingApiResponse) {
-    const b = d.booking;
+    const b=d.booking;
     setDriverName(b.driver_name||""); setDriverPhone(b.driver_phone||"");
     setDriverVehicle(b.driver_vehicle||""); setDriverNotes(b.driver_notes||"");
     setSelectedDriverId(b.assigned_driver_id||"");
@@ -358,11 +469,11 @@ export default function PartnerBookingDetailPage() {
     setReturnNotes(b.return_partner_notes||"");
   }
 
-  async function loadBooking(showSpinner=false, hydrate=false) {
+  async function loadBooking(showSpinner=false,hydrate=false) {
     if (!bookingId) { setLoading(false); setError("Missing booking ID."); return; }
     if (showSpinner) setLoading(true);
     try {
-      const res  = await fetch(`/api/partner/bookings/${bookingId}`, { cache:"no-store", credentials:"include" });
+      const res  = await fetch(`/api/partner/bookings/${bookingId}`,{cache:"no-store",credentials:"include"});
       const json = await res.json().catch(()=>null);
       if (!res.ok) throw new Error(json?.error||"Failed to load booking.");
       setData(json); if (hydrate) hydrateForm(json);
@@ -373,7 +484,7 @@ export default function PartnerBookingDetailPage() {
   async function loadDrivers() {
     setLoadingDrivers(true);
     try {
-      const res  = await fetch("/api/partner/drivers", { cache:"no-store", credentials:"include" });
+      const res  = await fetch("/api/partner/drivers",{cache:"no-store",credentials:"include"});
       const json = await res.json().catch(()=>null);
       if (res.ok) setDrivers((json?.data||[]).filter((d:DriverRow)=>d.is_active));
     } catch { setDrivers([]); }
@@ -382,33 +493,29 @@ export default function PartnerBookingDetailPage() {
 
   async function loadRates() {
     try {
-      const res  = await fetch("/api/currency/rate", { cache:"no-store" });
+      const res  = await fetch("/api/currency/rate",{cache:"no-store"});
       const json = await res.json().catch(()=>null);
-      if (json?.rates) { setRates({ GBP:Number(json.rates.GBP)||0.85, USD:Number(json.rates.USD)||1.08 }); setRateIsLive(!!json.live); }
+      if (json?.rates) { setRates({GBP:Number(json.rates.GBP)||0.85,USD:Number(json.rates.USD)||1.08}); setRateIsLive(!!json.live); }
     } catch {}
   }
 
-  useEffect(() => { loadBooking(true,true); loadDrivers(); loadRates(); }, [bookingId]);
-  useEffect(() => {
+  useEffect(()=>{ loadBooking(true,true); loadDrivers(); loadRates(); },[bookingId]);
+  useEffect(()=>{
     if (!bookingId) return;
-    const t = setInterval(()=>loadBooking(false,false), 10000);
-    return ()=>clearInterval(t);
-  }, [bookingId]);
+    const t=setInterval(()=>loadBooking(false,false),10000); return ()=>clearInterval(t);
+  },[bookingId]);
 
   function handleDriverSelect(id: string) {
     setSelectedDriverId(id); if (!id) return;
-    const d = drivers.find(d=>d.id===id);
+    const d=drivers.find(d=>d.id===id);
     if (d) { setDriverName(d.full_name||""); setDriverPhone(d.phone||""); }
   }
 
   async function saveDetails(e: React.FormEvent) {
     e.preventDefault(); setSavingSection("details"); setError(null); setOk(null);
     try {
-      const res = await fetch(`/api/partner/bookings/${bookingId}/update`, {
-        method:"POST", credentials:"include", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ booking_status:data?.booking.booking_status, assigned_driver_id:selectedDriverId||null, driver_name:driverName, driver_phone:driverPhone, driver_vehicle:driverVehicle, driver_notes:driverNotes, collection_fuel_level_partner:data?.booking.collection_fuel_level_partner, collection_confirmed_by_partner:data?.booking.collection_confirmed_by_partner, collection_partner_notes:data?.booking.collection_partner_notes, return_fuel_level_partner:data?.booking.return_fuel_level_partner, return_confirmed_by_partner:data?.booking.return_confirmed_by_partner, return_partner_notes:data?.booking.return_partner_notes }),
-      });
-      const json = await res.json().catch(()=>null);
+      const res=await fetch(`/api/partner/bookings/${bookingId}/update`,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({booking_status:data?.booking.booking_status,assigned_driver_id:selectedDriverId||null,driver_name:driverName,driver_phone:driverPhone,driver_vehicle:driverVehicle,driver_notes:driverNotes,collection_fuel_level_partner:data?.booking.collection_fuel_level_partner,collection_confirmed_by_partner:data?.booking.collection_confirmed_by_partner,collection_partner_notes:data?.booking.collection_partner_notes,return_fuel_level_partner:data?.booking.return_fuel_level_partner,return_confirmed_by_partner:data?.booking.return_confirmed_by_partner,return_partner_notes:data?.booking.return_partner_notes})});
+      const json=await res.json().catch(()=>null);
       if (!res.ok) throw new Error(json?.error||"Failed to update.");
       setOk("Driver details saved."); await loadBooking(false,false);
     } catch(e:any) { setError(e?.message||"Failed to update."); }
@@ -418,12 +525,9 @@ export default function PartnerBookingDetailPage() {
   async function saveFuelSection(section:"collection"|"return") {
     setSavingSection(section); setError(null); setOk(null);
     try {
-      const isC = section==="collection";
-      const res = await fetch(`/api/partner/bookings/${bookingId}/update`, {
-        method:"POST", credentials:"include", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ booking_status:data?.booking.booking_status, assigned_driver_id:data?.booking.assigned_driver_id, driver_name:data?.booking.driver_name, driver_phone:data?.booking.driver_phone, driver_vehicle:data?.booking.driver_vehicle, driver_notes:data?.booking.driver_notes, collection_fuel_level_partner:isC?collectionFuel:data?.booking.collection_fuel_level_partner, collection_confirmed_by_partner:isC?collectionConfirmed:data?.booking.collection_confirmed_by_partner, collection_partner_notes:isC?collectionNotes:data?.booking.collection_partner_notes, return_fuel_level_partner:!isC?returnFuel:data?.booking.return_fuel_level_partner, return_confirmed_by_partner:!isC?returnConfirmed:data?.booking.return_confirmed_by_partner, return_partner_notes:!isC?returnNotes:data?.booking.return_partner_notes }),
-      });
-      const json = await res.json().catch(()=>null);
+      const isC=section==="collection";
+      const res=await fetch(`/api/partner/bookings/${bookingId}/update`,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({booking_status:data?.booking.booking_status,assigned_driver_id:data?.booking.assigned_driver_id,driver_name:data?.booking.driver_name,driver_phone:data?.booking.driver_phone,driver_vehicle:data?.booking.driver_vehicle,driver_notes:data?.booking.driver_notes,collection_fuel_level_partner:isC?collectionFuel:data?.booking.collection_fuel_level_partner,collection_confirmed_by_partner:isC?collectionConfirmed:data?.booking.collection_confirmed_by_partner,collection_partner_notes:isC?collectionNotes:data?.booking.collection_partner_notes,return_fuel_level_partner:!isC?returnFuel:data?.booking.return_fuel_level_partner,return_confirmed_by_partner:!isC?returnConfirmed:data?.booking.return_confirmed_by_partner,return_partner_notes:!isC?returnNotes:data?.booking.return_partner_notes})});
+      const json=await res.json().catch(()=>null);
       if (!res.ok) throw new Error(json?.error||"Failed to update.");
       setOk(`${section==="collection"?"Delivery":"Collection"} fuel saved.`); await loadBooking(false,false);
     } catch(e:any) { setError(e?.message||"Failed to update."); }
@@ -434,11 +538,8 @@ export default function PartnerBookingDetailPage() {
     if (!bookingId) return;
     setCancelling(true); setError(null); setOk(null);
     try {
-      const res = await fetch(`/api/partner/bookings/${bookingId}/cancel`, {
-        method:"POST", credentials:"include", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ reason: cancelReason }),
-      });
-      const json = await res.json().catch(()=>null);
+      const res=await fetch(`/api/partner/bookings/${bookingId}/cancel`,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({reason:cancelReason})});
+      const json=await res.json().catch(()=>null);
       if (!res.ok) throw new Error(json?.error||"Failed to cancel booking.");
       setOk("Booking cancelled. All parties have been notified by email.");
       setShowCancel(false); await loadBooking(false,false);
@@ -453,24 +554,23 @@ export default function PartnerBookingDetailPage() {
   const req = data.request;
   const stored: Currency = (bk.currency==="EUR"||bk.currency==="GBP"||bk.currency==="USD")?bk.currency:"EUR";
   const { symbol, label: currLabel } = CURRENCY_META[stored];
-  const collEffective    = effectiveFuel(bk.collection_fuel_level_driver, bk.collection_fuel_level_partner);
-  const retEffective     = effectiveFuel(bk.return_fuel_level_driver, bk.return_fuel_level_partner);
-  const collectionLocked = isLocked({ driverOrPartnerFuel:collEffective, customerConfirmed:bk.collection_confirmed_by_customer, customerFuel:bk.collection_fuel_level_customer });
-  const returnLocked     = isLocked({ driverOrPartnerFuel:retEffective, customerConfirmed:bk.return_confirmed_by_customer, customerFuel:bk.return_fuel_level_customer });
+  const collEffective    = effectiveFuel(bk.collection_fuel_level_driver,bk.collection_fuel_level_partner);
+  const retEffective     = effectiveFuel(bk.return_fuel_level_driver,bk.return_fuel_level_partner);
+  const collectionLocked = isLocked({driverOrPartnerFuel:collEffective,customerConfirmed:bk.collection_confirmed_by_customer,customerFuel:bk.collection_fuel_level_customer});
+  const returnLocked     = isLocked({driverOrPartnerFuel:retEffective,customerConfirmed:bk.return_confirmed_by_customer,customerFuel:bk.return_fuel_level_customer});
   const rateBadgeText    = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
-  const commissionRate   = bk.commission_rate ?? 20;
-  const carHire          = Number(bk.car_hire_price || 0);
-  const commissionAmount = bk.commission_amount ?? Math.max((carHire * commissionRate) / 100, 10);
-  const partnerPayout    = bk.partner_payout_amount ?? Math.max(0, carHire - commissionAmount);
-  const isCancelled      = bk.booking_status === "cancelled";
-  const canCancel        = !isCancelled && PRE_COLLECTION.includes(bk.booking_status);
+  const commissionRate   = bk.commission_rate??20;
+  const carHire          = Number(bk.car_hire_price||0);
+  const commissionAmount = bk.commission_amount??Math.max((carHire*commissionRate)/100,10);
+  const partnerPayout    = bk.partner_payout_amount??Math.max(0,carHire-commissionAmount);
+  const isCancelled      = bk.booking_status==="cancelled";
+  const canCancel        = !isCancelled&&PRE_COLLECTION.includes(bk.booking_status);
 
   return (
     <div className="space-y-6">
-      {error && <div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
-      {ok    && <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm font-bold text-black">{ok}</div>}
+      {error&&<div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
+      {ok&&<div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm font-bold text-black">{ok}</div>}
 
-      {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-black">Booking Detail</h1>
@@ -479,18 +579,10 @@ export default function PartnerBookingDetailPage() {
         <Link href="/partner/bookings" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">Back to Bookings</Link>
       </div>
 
-      {/* Cancelled banner */}
-      {isCancelled && (
-        <div className="border border-red-300 bg-red-50 p-6">
-          <p className="text-base font-black text-red-800">❌ This booking has been cancelled</p>
-          {bk.cancelled_by && <p className="mt-1 text-sm font-semibold text-red-600">Cancelled by: {bk.cancelled_by}</p>}
-          {bk.cancelled_at && <p className="text-sm font-semibold text-red-600">At: {fmt(bk.cancelled_at)}</p>}
-          {bk.cancellation_reason && <p className="text-sm font-semibold text-red-600">Reason: {bk.cancellation_reason}</p>}
-          {bk.refund_status && <p className="mt-2 text-sm font-black text-red-800">Refund: {bk.refund_status === "full" ? "Full refund issued" : bk.refund_status === "partial" ? "Partial refund issued" : "No refund"}</p>}
-        </div>
-      )}
+      {/* Cancellation summary — replaces the simple banner */}
+      {isCancelled && <CancellationSummary bk={bk} rates={rates} />}
 
-      {/* Cancel section */}
+      {/* Cancel section — only if still cancellable */}
       {canCancel && (
         <div className="border border-red-200 bg-red-50 p-6">
           <div className="flex items-start justify-between gap-4">
@@ -498,30 +590,19 @@ export default function PartnerBookingDetailPage() {
               <h2 className="text-base font-black text-red-800">Cancel This Booking</h2>
               <p className="mt-1 text-sm font-semibold text-red-600">Cancelling as a partner always gives the customer a full refund. This cannot be undone.</p>
             </div>
-            {!showCancel && (
-              <button type="button" onClick={()=>setShowCancel(true)}
-                className="shrink-0 border border-red-300 bg-white px-4 py-2 text-sm font-black text-red-700 hover:bg-red-50 transition-colors">
-                Cancel Booking
-              </button>
+            {!showCancel&&(
+              <button type="button" onClick={()=>setShowCancel(true)} className="shrink-0 border border-red-300 bg-white px-4 py-2 text-sm font-black text-red-700 hover:bg-red-50 transition-colors">Cancel Booking</button>
             )}
           </div>
-          {showCancel && (
+          {showCancel&&(
             <div className="mt-4 space-y-3">
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-red-700">Reason (optional)</label>
-                <textarea rows={3} value={cancelReason} onChange={e=>setCancelReason(e.target.value)}
-                  placeholder="e.g. Vehicle unavailable, staff illness…"
-                  className="mt-1 w-full border border-red-200 bg-white px-3 py-2.5 text-sm font-medium text-black outline-none focus:border-red-400 resize-none"/>
+                <textarea rows={3} value={cancelReason} onChange={e=>setCancelReason(e.target.value)} placeholder="e.g. Vehicle unavailable, staff illness…" className="mt-1 w-full border border-red-200 bg-white px-3 py-2.5 text-sm font-medium text-black outline-none focus:border-red-400 resize-none"/>
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={cancelBooking} disabled={cancelling}
-                  className="bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
-                  {cancelling?"Cancelling…":"Confirm Cancellation"}
-                </button>
-                <button type="button" onClick={()=>setShowCancel(false)} disabled={cancelling}
-                  className="border border-black/20 px-6 py-3 text-sm font-black text-black hover:bg-black/5 transition-colors">
-                  Keep Booking
-                </button>
+                <button type="button" onClick={cancelBooking} disabled={cancelling} className="bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50 transition-colors">{cancelling?"Cancelling…":"Confirm Cancellation"}</button>
+                <button type="button" onClick={()=>setShowCancel(false)} disabled={cancelling} className="border border-black/20 px-6 py-3 text-sm font-black text-black hover:bg-black/5 transition-colors">Keep Booking</button>
               </div>
             </div>
           )}
@@ -535,13 +616,16 @@ export default function PartnerBookingDetailPage() {
           <div className="space-y-3">
             <Field label="Job No.">{bk.job_number??req?.job_number??"—"}</Field>
             <Field label="Status">{statusLabel(bk.booking_status)}</Field>
-            <Field label="Total"><Amt amount={bk.amount} stored={stored} rates={rates}/></Field>
-            <Field label="Car Hire"><Amt amount={bk.car_hire_price} stored={stored} rates={rates}/></Field>
-            <Field label="Commission"><span className="text-amber-700">− {fmtCurr(commissionAmount,stored)}</span><span className="ml-2 text-xs font-bold text-black/40">{commissionRate}% Camel commission</span></Field>
-            <Field label="Your Payout (excl. fuel)"><span className="font-black text-black">{fmtCurr(partnerPayout,stored)}</span></Field>
+            <Field label="Original Car Hire"><Amt amount={bk.car_hire_price} stored={stored} rates={rates}/></Field>
+            <Field label="Commission">
+              <span className="text-amber-700">− {fmtCurr(commissionAmount,stored)}</span>
+              <span className="ml-2 text-xs font-bold text-black/40">{commissionRate}% Camel commission</span>
+            </Field>
+            <Field label="Original Payout (excl. fuel)">
+              <span className="font-black text-black">{fmtCurr(partnerPayout,stored)}</span>
+            </Field>
+            <Field label="Fuel Deposit"><Amt amount={bk.fuel_price} stored={stored} rates={rates}/></Field>
             <Field label="Created">{fmt(bk.created_at)}</Field>
-            <Field label="Driver">{drivers.find(d=>d.id===bk.assigned_driver_id)?.full_name||bk.driver_name||"—"}</Field>
-            <Field label="Driver assigned">{fmt(bk.driver_assigned_at)}</Field>
             <Field label="Notes">{bk.notes||"—"}</Field>
             <div className={`mt-2 inline-flex items-center gap-2 border px-3 py-1.5 text-xs font-black ${rateIsLive?"border-black/20 bg-black text-white":"border-black/10 bg-[#f0f0f0] text-black/60"}`}>
               <span className={`h-2 w-2 ${rateIsLive?"bg-[#ff7a00]":"bg-black/30"}`}/>{rateBadgeText}{rateIsLive?" · Live rate (frankfurter.app)":""}
@@ -570,7 +654,7 @@ export default function PartnerBookingDetailPage() {
       </div>
 
       {/* Driver assignment — hide if cancelled */}
-      {!isCancelled && (
+      {!isCancelled&&(
         <div className="border border-black/5 bg-white p-6">
           <h2 className="text-lg font-black text-black mb-2">Driver Assignment</h2>
           <div className="inline-flex items-center gap-2 border border-black/10 bg-[#f0f0f0] px-4 py-2 text-sm font-bold text-black mb-5">
@@ -604,7 +688,7 @@ export default function PartnerBookingDetailPage() {
       {/* Driver audit trail */}
       <div className="border border-black/5 bg-white p-6">
         <h2 className="text-lg font-black text-black mb-1">Driver Audit Trail</h2>
-        <p className="text-xs font-bold text-black/40 mb-5">Exact record of who delivered and collected the vehicle and when. Stamped automatically — never editable.</p>
+        <p className="text-xs font-bold text-black/40 mb-5">Exact record of who delivered and collected the vehicle and when.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className={`border p-5 ${bk.delivery_driver_name?"border-[#1a1a1a] bg-[#1a1a1a] text-white":"border-black/10 bg-[#f0f0f0]"}`}>
             <p className={`text-xs font-black uppercase tracking-widest ${bk.delivery_driver_name?"text-white/40":"text-black/40"}`}>🚗 Delivery driver</p>
@@ -615,30 +699,25 @@ export default function PartnerBookingDetailPage() {
             {bk.collection_driver_name?<><p className="mt-2 text-lg font-black text-white">{bk.collection_driver_name}</p><p className="mt-1 text-xs font-bold text-white/40">Collected at</p><p className="text-sm font-bold text-white/70">{fmt(bk.collection_confirmed_at)}</p>{bk.delivery_driver_id&&bk.collection_driver_id&&bk.delivery_driver_id!==bk.collection_driver_id&&<p className="mt-2 text-xs font-black text-[#ff7a00]">⚠ Different driver to delivery</p>}</>:<p className="mt-2 text-sm font-bold italic text-black/40">Not yet collected</p>}
           </div>
         </div>
-        {bk.delivery_driver_id&&bk.collection_driver_id&&bk.delivery_driver_id!==bk.collection_driver_id&&(
-          <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-700">Different drivers handled delivery and collection on this booking.</div>
-        )}
       </div>
 
-      {/* Insurance */}
-      {!isCancelled && (
-        <div>
-          <h2 className="text-lg font-black text-black mb-1">Insurance Documents</h2>
-          <p className="text-xs font-bold text-black/40 mb-4">Driver confirms handover at delivery via their app. Customer confirms receipt on their portal. <span className="text-black/30">(Refreshes every 10s)</span></p>
-          <InsuranceStatusCard booking={bk}/>
-        </div>
-      )}
-
-      {/* Fuel tracking */}
-      {!isCancelled && (
-        <div>
-          <h2 className="text-lg font-black text-black mb-1">Fuel Tracking</h2>
-          <p className="text-xs font-bold text-black/40 mb-4">Driver records fuel level via their app. Use the office override if needed. Customer confirms to lock each stage. <span className="text-black/30">(Refreshes every 10s)</span></p>
-          <div className="grid gap-6 xl:grid-cols-2">
-            <FuelStageCard title="Delivery" booking={bk} stage="collection" fuelValue={collectionFuel} onFuelChange={setCollectionFuel} confirmed={collectionConfirmed} onConfirmedChange={setCollectionConfirmed} notes={collectionNotes} onNotesChange={setCollectionNotes} onSave={()=>saveFuelSection("collection")} saving={savingSection==="collection"} locked={collectionLocked}/>
-            <FuelStageCard title="Collection" booking={bk} stage="return" fuelValue={returnFuel} onFuelChange={setReturnFuel} confirmed={returnConfirmed} onConfirmedChange={setReturnConfirmed} notes={returnNotes} onNotesChange={setReturnNotes} onSave={()=>saveFuelSection("return")} saving={savingSection==="return"} locked={returnLocked}/>
+      {/* Insurance + Fuel — hide if cancelled */}
+      {!isCancelled&&(
+        <>
+          <div>
+            <h2 className="text-lg font-black text-black mb-1">Insurance Documents</h2>
+            <p className="text-xs font-bold text-black/40 mb-4">Driver confirms handover at delivery via their app. Customer confirms receipt on their portal. <span className="text-black/30">(Refreshes every 10s)</span></p>
+            <InsuranceStatusCard booking={bk}/>
           </div>
-        </div>
+          <div>
+            <h2 className="text-lg font-black text-black mb-1">Fuel Tracking</h2>
+            <p className="text-xs font-bold text-black/40 mb-4">Driver records fuel level via their app. Use the office override if needed. Customer confirms to lock each stage. <span className="text-black/30">(Refreshes every 10s)</span></p>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <FuelStageCard title="Delivery" booking={bk} stage="collection" fuelValue={collectionFuel} onFuelChange={setCollectionFuel} confirmed={collectionConfirmed} onConfirmedChange={setCollectionConfirmed} notes={collectionNotes} onNotesChange={setCollectionNotes} onSave={()=>saveFuelSection("collection")} saving={savingSection==="collection"} locked={collectionLocked}/>
+              <FuelStageCard title="Collection" booking={bk} stage="return" fuelValue={returnFuel} onFuelChange={setReturnFuel} confirmed={returnConfirmed} onConfirmedChange={setReturnConfirmed} notes={returnNotes} onNotesChange={setReturnNotes} onSave={()=>saveFuelSection("return")} saving={savingSection==="return"} locked={returnLocked}/>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

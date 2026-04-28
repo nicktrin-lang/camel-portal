@@ -42,6 +42,10 @@ export async function GET(
         commission_rate,
         commission_amount,
         partner_payout_amount,
+        cancelled_by,
+        cancelled_at,
+        cancellation_reason,
+        refund_status,
         notes,
         created_at,
         job_number,
@@ -122,13 +126,12 @@ export async function GET(
       .eq("user_id", bookingRow.partner_user_id)
       .maybeSingle();
 
-    const bookingWithPartner = {
-      ...bookingRow,
-      partner_company_name: profileRow?.company_name || null,
-    };
-
     return NextResponse.json(
-      { booking: bookingWithPartner, request: requestRow, role: role || "partner" },
+      {
+        booking: { ...bookingRow, partner_company_name: profileRow?.company_name || null },
+        request: requestRow,
+        role: role || "partner",
+      },
       { status: 200 }
     );
   } catch (e: any) {
