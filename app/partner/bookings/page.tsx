@@ -8,7 +8,7 @@ type Currency = "EUR" | "GBP" | "USD";
 type BookingRow = {
   id: string; request_id: string; partner_user_id: string; winning_bid_id: string;
   booking_status: string; amount: number | null; currency: Currency | null;
-  notes: string | null; created_at: string; job_number: number | null;
+  notes: string | null; created_at: string; cancelled_by: string | null; cancelled_at: string | null; cancellation_reason: string | null; refund_status: string | null; job_number: number | null;
   driver_name: string | null; driver_phone: string | null;
   driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
   delivery_confirmed_at: string | null; collection_confirmed_at: string | null;
