@@ -34,6 +34,8 @@ type BookingRow = {
   partner_payout_amount:number|string|null;
   cancelled_by:string|null; cancelled_at:string|null;
   cancellation_reason:string|null; refund_status:string|null;
+  cancelled_by:string|null; cancelled_at:string|null;
+  cancellation_reason:string|null; refund_status:string|null;
   created_at:string|null; job_number:string|null;
   pickup_address:string|null; dropoff_address:string|null;
   pickup_at:string|null; dropoff_at:string|null;
