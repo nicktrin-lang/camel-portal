@@ -11,7 +11,6 @@ export async function GET(
   try {
     const { id } = await params;
 
-    // Use same auth pattern as other admin routes — check admin_users table
     const authed = await createRouteHandlerSupabaseClient();
     const { data: userData, error: userErr } = await authed.auth.getUser();
     const email = (userData?.user?.email || "").toLowerCase().trim();
@@ -38,6 +37,8 @@ export async function GET(
         id, request_id, partner_user_id, winning_bid_id,
         booking_status, amount, currency, fuel_price, car_hire_price,
         fuel_used_quarters, fuel_charge, fuel_refund,
+        commission_rate, commission_amount, partner_payout_amount,
+        cancelled_by, cancelled_at, cancellation_reason, refund_status,
         notes, created_at, job_number, assigned_driver_id,
         driver_name, driver_phone, driver_vehicle, driver_notes, driver_assigned_at,
         collection_confirmed_by_driver, collection_confirmed_by_driver_at, collection_fuel_level_driver,
@@ -65,7 +66,7 @@ export async function GET(
           id, job_number, customer_name, customer_email, customer_phone,
           pickup_address, dropoff_address, pickup_at, dropoff_at,
           journey_duration_minutes, passengers, suitcases, hand_luggage,
-          vehicle_category_name, notes, status, created_at
+          sport_equipment, vehicle_category_name, notes, status, created_at
         `)
         .eq("id", bookingRow.request_id)
         .maybeSingle();
