@@ -28,6 +28,8 @@ type BookingRow = {
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
   commission_rate: number | null; commission_amount: number | null; partner_payout_amount: number | null;
   currency: Currency;
+  cancelled_by?: string | null; cancelled_at?: string | null;
+  cancellation_reason?: string | null; refund_status?: string | null;
   collection_confirmed_by_driver?: boolean | null; collection_confirmed_by_driver_at?: string | null;
   collection_fuel_level_driver?: string | null;
   return_confirmed_by_driver?: boolean | null; return_confirmed_by_driver_at?: string | null;
@@ -59,6 +61,8 @@ type RequestRow = {
 
 type BookingApiResponse = { booking: BookingRow; request: RequestRow | null; role: string | null };
 type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
+
+const PRE_COLLECTION = ["confirmed","driver_assigned","en_route","arrived"];
 
 const inputCls = "w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-bold outline-none focus:border-black placeholder:text-black/30";
 const labelCls = "text-xs font-black uppercase tracking-widest text-black";
@@ -166,12 +170,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-// ── Insurance card ────────────────────────────────────────────────────────────
 function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
   const driverConfirmed   = !!booking.insurance_docs_confirmed_by_driver;
   const customerConfirmed = !!booking.insurance_docs_confirmed_by_customer;
   const bothConfirmed     = driverConfirmed && customerConfirmed;
-
   return (
     <div className={`border p-6 ${bothConfirmed ? "border-[#1a1a1a] bg-[#1a1a1a]" : "border-black/10 bg-white"}`}>
       <div className="flex items-center justify-between mb-2">
@@ -181,47 +183,24 @@ function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
         </div>
         {bothConfirmed && <span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Confirmed</span>}
       </div>
-      <p className={`text-xs font-bold mb-4 ${bothConfirmed ? "text-white/50" : "text-black/50"}`}>
-        Driver confirms handover at delivery. Customer confirms receipt. Both must agree.
-      </p>
+      <p className={`text-xs font-bold mb-4 ${bothConfirmed ? "text-white/50" : "text-black/50"}`}>Driver confirms handover at delivery. Customer confirms receipt. Both must agree.</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className={`border p-4 ${driverConfirmed && bothConfirmed ? "border-white/10 bg-white/5" : "border-black/10 bg-[#f0f0f0]"}`}>
           <p className={`text-xs font-black uppercase tracking-widest ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>Driver</p>
-          {driverConfirmed
-            ? <>
-                <p className={`mt-1 font-black ${bothConfirmed ? "text-white" : "text-black"}`}>✓ Handed over</p>
-                <p className={`mt-0.5 text-xs ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>{fmt(booking.insurance_docs_confirmed_by_driver_at)}</p>
-              </>
-            : <p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
+          {driverConfirmed ? <><p className={`mt-1 font-black ${bothConfirmed ? "text-white" : "text-black"}`}>✓ Handed over</p><p className={`mt-0.5 text-xs ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>{fmt(booking.insurance_docs_confirmed_by_driver_at)}</p></> : <p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
         </div>
         <div className={`border p-4 ${customerConfirmed && bothConfirmed ? "border-white/10 bg-white/5" : "border-black/10 bg-[#f0f0f0]"}`}>
           <p className={`text-xs font-black uppercase tracking-widest ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>Customer</p>
-          {customerConfirmed
-            ? <>
-                <p className={`mt-1 font-black ${bothConfirmed ? "text-white" : "text-black"}`}>✓ Received</p>
-                <p className={`mt-0.5 text-xs ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>{fmt(booking.insurance_docs_confirmed_by_customer_at)}</p>
-              </>
-            : <p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
+          {customerConfirmed ? <><p className={`mt-1 font-black ${bothConfirmed ? "text-white" : "text-black"}`}>✓ Received</p><p className={`mt-0.5 text-xs ${bothConfirmed ? "text-white/40" : "text-black/40"}`}>{fmt(booking.insurance_docs_confirmed_by_customer_at)}</p></> : <p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
         </div>
       </div>
-      <div className={`mt-4 border p-3 text-sm font-bold ${
-        bothConfirmed
-          ? "border-[#ff7a00]/30 bg-[#ff7a00]/10 text-[#ff7a00]"
-          : "border-black/10 bg-[#f0f0f0] text-black/60"
-      }`}>
-        {bothConfirmed
-          ? "✓ Both driver and customer confirm insurance documents were handed over at delivery."
-          : !driverConfirmed && !customerConfirmed
-            ? "Awaiting confirmation from driver and customer."
-            : !driverConfirmed
-              ? "Awaiting driver confirmation."
-              : "Awaiting customer confirmation."}
+      <div className={`mt-4 border p-3 text-sm font-bold ${bothConfirmed ? "border-[#ff7a00]/30 bg-[#ff7a00]/10 text-[#ff7a00]" : "border-black/10 bg-[#f0f0f0] text-black/60"}`}>
+        {bothConfirmed ? "✓ Both driver and customer confirm insurance documents were handed over at delivery." : !driverConfirmed && !customerConfirmed ? "Awaiting confirmation from driver and customer." : !driverConfirmed ? "Awaiting driver confirmation." : "Awaiting customer confirmation."}
       </div>
     </div>
   );
 }
 
-// ── Booking Summary card ──────────────────────────────────────────────────────
 function BookingSummaryCard({ booking, rates, isLive }: { booking: BookingRow; rates: Rates; isLive: boolean }) {
   const stored: Currency    = booking.currency ?? "EUR";
   const secondary: Currency = stored === "USD" ? "EUR" : stored === "GBP" ? "EUR" : "GBP";
@@ -238,7 +217,6 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking: BookingRow; r
   const primary  = (v: number) => fmtCurr(v, stored);
   const sec      = (v: number) => { const inEur = toEur(v, stored, rates); return `(${fmtCurr(fromEur(inEur, secondary, rates), secondary)} · ${fmtCurr(fromEur(inEur, tertiary, rates), tertiary)})`; };
   const rateBadge = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
-
   return (
     <div className="bg-[#1a1a1a] p-8 text-white">
       <div className="flex items-center justify-between mb-4">
@@ -249,137 +227,96 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking: BookingRow; r
         <p className="text-xs font-black uppercase tracking-widest text-white/50">Total booking value</p>
         <p className="mt-1 text-4xl font-black">{primary(totalAmt)} <span className="text-xl font-bold opacity-60">{sec(totalAmt)}</span></p>
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="bg-white/10 px-3 py-2">
-            <p className="text-xs font-black uppercase tracking-widest text-white/50">Car hire</p>
-            <p className="mt-0.5 font-black">{primary(carHireAmt)}</p>
-            <p className="text-xs text-white/40">{sec(carHireAmt)}</p>
-          </div>
-          <div className="bg-white/10 px-3 py-2">
-            <p className="text-xs font-black uppercase tracking-widest text-white/50">Full tank deposit</p>
-            <p className="mt-0.5 font-black">{primary(fullTankAmt)}</p>
-            <p className="text-xs text-white/40">{sec(fullTankAmt)}</p>
-          </div>
+          <div className="bg-white/10 px-3 py-2"><p className="text-xs font-black uppercase tracking-widest text-white/50">Car hire</p><p className="mt-0.5 font-black">{primary(carHireAmt)}</p><p className="text-xs text-white/40">{sec(carHireAmt)}</p></div>
+          <div className="bg-white/10 px-3 py-2"><p className="text-xs font-black uppercase tracking-widest text-white/50">Full tank deposit</p><p className="mt-0.5 font-black">{primary(fullTankAmt)}</p><p className="text-xs text-white/40">{sec(fullTankAmt)}</p></div>
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-4">
         {[
-          { label: "Delivery fuel",   value: fuelLabel(collFuel),  bar: collFuel },
-          { label: "Collection fuel", value: fuelLabel(retFuel),   bar: retFuel },
-          { label: "Fuel used",       value: usedQuarters !== null ? (QUARTER_LABELS[usedQuarters] ?? `${usedQuarters}/4`) : "—", bar: null },
-          { label: "Per quarter",     value: primary(perQtrAmt),   bar: null },
-        ].map(({ label, value, bar }) => (
-          <div key={label} className="bg-white/10 p-4">
-            <p className="text-xs font-black uppercase tracking-widest text-white/50">{label}</p>
-            <p className="mt-1 text-lg font-black">{value}</p>
-            {bar && <FuelBar level={bar} />}
-          </div>
+          { label:"Delivery fuel", value:fuelLabel(collFuel), bar:collFuel },
+          { label:"Collection fuel", value:fuelLabel(retFuel), bar:retFuel },
+          { label:"Fuel used", value:usedQuarters!==null?(QUARTER_LABELS[usedQuarters]??`${usedQuarters}/4`):"—", bar:null },
+          { label:"Per quarter", value:primary(perQtrAmt), bar:null },
+        ].map(({label,value,bar})=>(
+          <div key={label} className="bg-white/10 p-4"><p className="text-xs font-black uppercase tracking-widest text-white/50">{label}</p><p className="mt-1 text-lg font-black">{value}</p>{bar&&<FuelBar level={bar}/>}</div>
         ))}
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="bg-[#ff7a00]/30 border border-[#ff7a00]/50 p-5">
-          <p className="text-xs font-black uppercase tracking-widest text-white/70">Fuel charge to customer</p>
-          <p className="mt-2 text-3xl font-black">{fuelCharge != null ? primary(fuelCharge) : "—"} {fuelCharge != null && <span className="text-xl font-bold opacity-60">{sec(fuelCharge)}</span>}</p>
-        </div>
-        <div className="bg-green-500/20 border border-green-400/40 p-5">
-          <p className="text-xs font-black uppercase tracking-widest text-white/70">Refund to customer</p>
-          <p className="mt-2 text-3xl font-black">{fuelRefund != null ? primary(fuelRefund) : "—"} {fuelRefund != null && <span className="text-xl font-bold opacity-60">{sec(fuelRefund)}</span>}</p>
-        </div>
+        <div className="bg-[#ff7a00]/30 border border-[#ff7a00]/50 p-5"><p className="text-xs font-black uppercase tracking-widest text-white/70">Fuel charge to customer</p><p className="mt-2 text-3xl font-black">{fuelCharge!=null?primary(fuelCharge):"—"} {fuelCharge!=null&&<span className="text-xl font-bold opacity-60">{sec(fuelCharge)}</span>}</p></div>
+        <div className="bg-green-500/20 border border-green-400/40 p-5"><p className="text-xs font-black uppercase tracking-widest text-white/70">Refund to customer</p><p className="mt-2 text-3xl font-black">{fuelRefund!=null?primary(fuelRefund):"—"} {fuelRefund!=null&&<span className="text-xl font-bold opacity-60">{sec(fuelRefund)}</span>}</p></div>
       </div>
-      <div className={`mt-5 inline-flex items-center gap-2 px-4 py-2 text-sm font-black ${isLive ? "bg-white/5 text-white" : "bg-white/5 text-white/40"}`}>
-        <span className={`h-2 w-2 ${isLive ? "bg-[#ff7a00]" : "bg-white/30"}`} />
-        {rateBadge}{isLive ? " · Live rate (frankfurter.app)" : ""}
+      <div className={`mt-5 inline-flex items-center gap-2 px-4 py-2 text-sm font-black ${isLive?"bg-white/5 text-white":"bg-white/5 text-white/40"}`}>
+        <span className={`h-2 w-2 ${isLive?"bg-[#ff7a00]":"bg-white/30"}`}/>{rateBadge}{isLive?" · Live rate (frankfurter.app)":""}
       </div>
     </div>
   );
 }
 
-// ── Fuel Stage card ───────────────────────────────────────────────────────────
 function FuelStageCard({ title, booking, stage, fuelValue, onFuelChange, confirmed, onConfirmedChange, notes, onNotesChange, onSave, saving, locked }: {
-  title: string; booking: BookingRow; stage: "collection" | "return";
-  fuelValue: FuelLevel; onFuelChange: (v: FuelLevel) => void;
-  confirmed: boolean; onConfirmedChange: (v: boolean) => void;
-  notes: string; onNotesChange: (v: string) => void;
-  onSave: () => void; saving: boolean; locked: boolean;
+  title: string; booking: BookingRow; stage: "collection"|"return";
+  fuelValue: FuelLevel; onFuelChange:(v:FuelLevel)=>void;
+  confirmed: boolean; onConfirmedChange:(v:boolean)=>void;
+  notes: string; onNotesChange:(v:string)=>void;
+  onSave:()=>void; saving:boolean; locked:boolean;
 }) {
-  const isC               = stage === "collection";
-  const driverConfirmed   = isC ? !!booking.collection_confirmed_by_driver  : !!booking.return_confirmed_by_driver;
-  const driverFuel        = isC ? booking.collection_fuel_level_driver       : booking.return_fuel_level_driver;
-  const driverAt          = isC ? booking.collection_confirmed_by_driver_at  : booking.return_confirmed_by_driver_at;
-  const customerConfirmed = isC ? !!booking.collection_confirmed_by_customer : !!booking.return_confirmed_by_customer;
-  const customerFuel      = isC ? booking.collection_fuel_level_customer     : booking.return_fuel_level_customer;
-  const customerAt        = isC ? booking.collection_confirmed_by_customer_at : booking.return_confirmed_by_customer_at;
-  const customerNotes     = isC ? booking.collection_customer_notes          : booking.return_customer_notes;
-  const savedPartnerFuel  = isC ? booking.collection_fuel_level_partner      : booking.return_fuel_level_partner;
-  const savedPartnerAt    = isC ? booking.collection_confirmed_by_partner_at : booking.return_confirmed_by_partner_at;
-  const hasOverride       = !!savedPartnerFuel && savedPartnerFuel !== driverFuel;
-
+  const isC               = stage==="collection";
+  const driverConfirmed   = isC?!!booking.collection_confirmed_by_driver:!!booking.return_confirmed_by_driver;
+  const driverFuel        = isC?booking.collection_fuel_level_driver:booking.return_fuel_level_driver;
+  const driverAt          = isC?booking.collection_confirmed_by_driver_at:booking.return_confirmed_by_driver_at;
+  const customerConfirmed = isC?!!booking.collection_confirmed_by_customer:!!booking.return_confirmed_by_customer;
+  const customerFuel      = isC?booking.collection_fuel_level_customer:booking.return_fuel_level_customer;
+  const customerAt        = isC?booking.collection_confirmed_by_customer_at:booking.return_confirmed_by_customer_at;
+  const customerNotes     = isC?booking.collection_customer_notes:booking.return_customer_notes;
+  const savedPartnerFuel  = isC?booking.collection_fuel_level_partner:booking.return_fuel_level_partner;
+  const savedPartnerAt    = isC?booking.collection_confirmed_by_partner_at:booking.return_confirmed_by_partner_at;
+  const hasOverride       = !!savedPartnerFuel&&savedPartnerFuel!==driverFuel;
   return (
-    <div className={`border p-6 ${locked ? "border-[#1a1a1a] bg-[#1a1a1a] text-white" : "border-black/5 bg-white"}`}>
+    <div className={`border p-6 ${locked?"border-[#1a1a1a] bg-[#1a1a1a] text-white":"border-black/5 bg-white"}`}>
       <div className="flex items-center justify-between mb-4">
-        <h3 className={`text-base font-black ${locked ? "text-white" : "text-black"}`}>{title}</h3>
-        {locked && <span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Locked</span>}
+        <h3 className={`text-base font-black ${locked?"text-white":"text-black"}`}>{title}</h3>
+        {locked&&<span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Locked</span>}
       </div>
-      <div className={`border p-4 mb-3 ${driverConfirmed ? "border-white/20 bg-white/10" : "border-black/10 bg-[#f0f0f0]"}`}>
-        <p className={`text-xs font-black uppercase tracking-widest ${locked ? "text-white/40" : "text-black/40"}`}>Driver recorded</p>
-        {driverConfirmed && driverFuel
-          ? <><p className={`mt-1 text-lg font-black ${locked ? "text-white" : "text-black"}`}>{fuelLabel(driverFuel)}</p><FuelBar level={driverFuel} /><p className={`mt-1 text-xs ${locked ? "text-white/40" : "text-black/40"}`}>{fmt(driverAt)}</p></>
-          : <p className={`mt-1 text-sm font-bold italic ${locked ? "text-white/40" : "text-black/40"}`}>Driver has not yet recorded fuel level</p>}
+      <div className={`border p-4 mb-3 ${driverConfirmed?"border-white/20 bg-white/10":"border-black/10 bg-[#f0f0f0]"}`}>
+        <p className={`text-xs font-black uppercase tracking-widest ${locked?"text-white/40":"text-black/40"}`}>Driver recorded</p>
+        {driverConfirmed&&driverFuel?<><p className={`mt-1 text-lg font-black ${locked?"text-white":"text-black"}`}>{fuelLabel(driverFuel)}</p><FuelBar level={driverFuel}/><p className={`mt-1 text-xs ${locked?"text-white/40":"text-black/40"}`}>{fmt(driverAt)}</p></>:<p className={`mt-1 text-sm font-bold italic ${locked?"text-white/40":"text-black/40"}`}>Driver has not yet recorded fuel level</p>}
       </div>
-      <div className={`border p-4 mb-3 ${customerConfirmed ? "border-white/20 bg-white/10" : "border-black/10 bg-[#f0f0f0]"}`}>
-        <p className={`text-xs font-black uppercase tracking-widest ${locked ? "text-white/40" : "text-black/40"}`}>Customer confirmed</p>
-        {customerConfirmed
-          ? <><p className={`mt-1 text-lg font-black ${locked ? "text-white" : "text-black"}`}>{fuelLabel(customerFuel)} ✓</p><p className={`mt-1 text-xs ${locked ? "text-white/40" : "text-black/40"}`}>{fmt(customerAt)}</p>{customerNotes && <p className={`mt-1 text-xs ${locked ? "text-white/50" : "text-black/50"}`}>Note: {customerNotes}</p>}</>
-          : <p className={`mt-1 text-sm font-bold italic ${locked ? "text-white/40" : "text-black/40"}`}>Waiting for customer to confirm</p>}
+      <div className={`border p-4 mb-3 ${customerConfirmed?"border-white/20 bg-white/10":"border-black/10 bg-[#f0f0f0]"}`}>
+        <p className={`text-xs font-black uppercase tracking-widest ${locked?"text-white/40":"text-black/40"}`}>Customer confirmed</p>
+        {customerConfirmed?<><p className={`mt-1 text-lg font-black ${locked?"text-white":"text-black"}`}>{fuelLabel(customerFuel)} ✓</p><p className={`mt-1 text-xs ${locked?"text-white/40":"text-black/40"}`}>{fmt(customerAt)}</p>{customerNotes&&<p className={`mt-1 text-xs ${locked?"text-white/50":"text-black/50"}`}>Note: {customerNotes}</p>}</>:<p className={`mt-1 text-sm font-bold italic ${locked?"text-white/40":"text-black/40"}`}>Waiting for customer to confirm</p>}
       </div>
-      {locked ? (
-        <div className="border border-[#ff7a00]/30 bg-[#ff7a00]/10 p-3 text-sm font-black text-[#ff7a00]">
-          ✓ Both driver and customer agree on {fuelLabel(effectiveFuel(driverFuel, savedPartnerFuel))}
-        </div>
-      ) : (
+      {locked?(
+        <div className="border border-[#ff7a00]/30 bg-[#ff7a00]/10 p-3 text-sm font-black text-[#ff7a00]">✓ Both driver and customer agree on {fuelLabel(effectiveFuel(driverFuel,savedPartnerFuel))}</div>
+      ):(
         <>
           <div className="border border-amber-200 bg-amber-50 p-4 mb-4">
-            <p className="text-xs font-black uppercase tracking-widest text-amber-700 mb-1">
-              Office override{hasOverride ? ` — currently set to ${fuelLabel(savedPartnerFuel)}` : ""}
-            </p>
+            <p className="text-xs font-black uppercase tracking-widest text-amber-700 mb-1">Office override{hasOverride?` — currently set to ${fuelLabel(savedPartnerFuel)}`:""}</p>
             <p className="text-xs font-bold text-amber-600 mb-3">Use this if the driver is unavailable or you need to correct their reading.</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className={labelCls}>Fuel level</label>
-                <select value={fuelValue} onChange={e => onFuelChange(e.target.value as FuelLevel)} disabled={locked}
-                  className="mt-1 w-full border border-black/10 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:border-black disabled:opacity-60">
-                  <option value="full">Full</option>
-                  <option value="3/4">¾ Tank</option>
-                  <option value="half">½ Tank</option>
-                  <option value="quarter">¼ Tank</option>
-                  <option value="empty">Empty</option>
+                <select value={fuelValue} onChange={e=>onFuelChange(e.target.value as FuelLevel)} disabled={locked} className="mt-1 w-full border border-black/10 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:border-black disabled:opacity-60">
+                  <option value="full">Full</option><option value="3/4">¾ Tank</option><option value="half">½ Tank</option><option value="quarter">¼ Tank</option><option value="empty">Empty</option>
                 </select>
               </div>
               <div className="flex items-end">
                 <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-black text-black">
-                  <input type="checkbox" checked={confirmed} onChange={e => onConfirmedChange(e.target.checked)} disabled={locked} className="h-4 w-4 accent-[#ff7a00]" />
-                  Office confirms
+                  <input type="checkbox" checked={confirmed} onChange={e=>onConfirmedChange(e.target.checked)} disabled={locked} className="h-4 w-4 accent-[#ff7a00]"/>Office confirms
                 </label>
               </div>
             </div>
             <div className="mt-3">
               <label className={labelCls}>Notes</label>
-              <textarea rows={2} value={notes} onChange={e => onNotesChange(e.target.value)} disabled={locked}
-                className="mt-1 w-full border border-black/10 bg-[#f0f0f0] px-3 py-2 text-sm font-bold outline-none focus:border-black disabled:opacity-60"
-                placeholder="Reason for override, depot drop-off, out of hours, etc." />
+              <textarea rows={2} value={notes} onChange={e=>onNotesChange(e.target.value)} disabled={locked} className="mt-1 w-full border border-black/10 bg-[#f0f0f0] px-3 py-2 text-sm font-bold outline-none focus:border-black disabled:opacity-60" placeholder="Reason for override, depot drop-off, out of hours, etc."/>
             </div>
-            {savedPartnerAt && <p className="mt-2 text-xs font-bold text-amber-600">Last saved: {fuelLabel(savedPartnerFuel)} at {fmt(savedPartnerAt)}</p>}
+            {savedPartnerAt&&<p className="mt-2 text-xs font-bold text-amber-600">Last saved: {fuelLabel(savedPartnerFuel)} at {fmt(savedPartnerAt)}</p>}
           </div>
-          <button type="button" onClick={onSave} disabled={saving || locked}
-            className="w-full bg-[#ff7a00] py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
-            {saving ? "Saving…" : `Save ${title} Update`}
-          </button>
+          <button type="button" onClick={onSave} disabled={saving||locked} className="w-full bg-[#ff7a00] py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">{saving?"Saving…":`Save ${title} Update`}</button>
         </>
       )}
     </div>
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function PartnerBookingDetailPage() {
   const params    = useParams<{ id: string }>();
   const bookingId = String(params?.id || "");
@@ -404,6 +341,9 @@ export default function PartnerBookingDetailPage() {
   const [returnFuel,          setReturnFuel]          = useState<FuelLevel>("full");
   const [returnConfirmed,     setReturnConfirmed]     = useState(false);
   const [returnNotes,         setReturnNotes]         = useState("");
+  const [showCancel,     setShowCancel]     = useState(false);
+  const [cancelReason,   setCancelReason]   = useState("");
+  const [cancelling,     setCancelling]     = useState(false);
 
   function hydrateForm(d: BookingApiResponse) {
     const b = d.booking;
@@ -418,46 +358,46 @@ export default function PartnerBookingDetailPage() {
     setReturnNotes(b.return_partner_notes||"");
   }
 
-  async function loadBooking(showSpinner = false, hydrate = false) {
+  async function loadBooking(showSpinner=false, hydrate=false) {
     if (!bookingId) { setLoading(false); setError("Missing booking ID."); return; }
     if (showSpinner) setLoading(true);
     try {
-      const res  = await fetch(`/api/partner/bookings/${bookingId}`, { cache: "no-store", credentials: "include" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to load booking.");
+      const res  = await fetch(`/api/partner/bookings/${bookingId}`, { cache:"no-store", credentials:"include" });
+      const json = await res.json().catch(()=>null);
+      if (!res.ok) throw new Error(json?.error||"Failed to load booking.");
       setData(json); if (hydrate) hydrateForm(json);
-    } catch (e: any) { setError(e?.message || "Failed to load booking."); }
+    } catch(e:any) { setError(e?.message||"Failed to load booking."); }
     finally { if (showSpinner) setLoading(false); }
   }
 
   async function loadDrivers() {
     setLoadingDrivers(true);
     try {
-      const res  = await fetch("/api/partner/drivers", { cache: "no-store", credentials: "include" });
-      const json = await res.json().catch(() => null);
-      if (res.ok) setDrivers((json?.data || []).filter((d: DriverRow) => d.is_active));
+      const res  = await fetch("/api/partner/drivers", { cache:"no-store", credentials:"include" });
+      const json = await res.json().catch(()=>null);
+      if (res.ok) setDrivers((json?.data||[]).filter((d:DriverRow)=>d.is_active));
     } catch { setDrivers([]); }
     finally { setLoadingDrivers(false); }
   }
 
   async function loadRates() {
     try {
-      const res  = await fetch("/api/currency/rate", { cache: "no-store" });
-      const json = await res.json().catch(() => null);
-      if (json?.rates) { setRates({ GBP: Number(json.rates.GBP)||0.85, USD: Number(json.rates.USD)||1.08 }); setRateIsLive(!!json.live); }
+      const res  = await fetch("/api/currency/rate", { cache:"no-store" });
+      const json = await res.json().catch(()=>null);
+      if (json?.rates) { setRates({ GBP:Number(json.rates.GBP)||0.85, USD:Number(json.rates.USD)||1.08 }); setRateIsLive(!!json.live); }
     } catch {}
   }
 
-  useEffect(() => { loadBooking(true, true); loadDrivers(); loadRates(); }, [bookingId]);
+  useEffect(() => { loadBooking(true,true); loadDrivers(); loadRates(); }, [bookingId]);
   useEffect(() => {
     if (!bookingId) return;
-    const t = setInterval(() => loadBooking(false, false), 10000);
-    return () => clearInterval(t);
+    const t = setInterval(()=>loadBooking(false,false), 10000);
+    return ()=>clearInterval(t);
   }, [bookingId]);
 
   function handleDriverSelect(id: string) {
     setSelectedDriverId(id); if (!id) return;
-    const d = drivers.find(d => d.id === id);
+    const d = drivers.find(d=>d.id===id);
     if (d) { setDriverName(d.full_name||""); setDriverPhone(d.phone||""); }
   }
 
@@ -465,57 +405,65 @@ export default function PartnerBookingDetailPage() {
     e.preventDefault(); setSavingSection("details"); setError(null); setOk(null);
     try {
       const res = await fetch(`/api/partner/bookings/${bookingId}/update`, {
-        method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ booking_status: data?.booking.booking_status, assigned_driver_id: selectedDriverId||null, driver_name: driverName, driver_phone: driverPhone, driver_vehicle: driverVehicle, driver_notes: driverNotes, collection_fuel_level_partner: data?.booking.collection_fuel_level_partner, collection_confirmed_by_partner: data?.booking.collection_confirmed_by_partner, collection_partner_notes: data?.booking.collection_partner_notes, return_fuel_level_partner: data?.booking.return_fuel_level_partner, return_confirmed_by_partner: data?.booking.return_confirmed_by_partner, return_partner_notes: data?.booking.return_partner_notes }),
+        method:"POST", credentials:"include", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ booking_status:data?.booking.booking_status, assigned_driver_id:selectedDriverId||null, driver_name:driverName, driver_phone:driverPhone, driver_vehicle:driverVehicle, driver_notes:driverNotes, collection_fuel_level_partner:data?.booking.collection_fuel_level_partner, collection_confirmed_by_partner:data?.booking.collection_confirmed_by_partner, collection_partner_notes:data?.booking.collection_partner_notes, return_fuel_level_partner:data?.booking.return_fuel_level_partner, return_confirmed_by_partner:data?.booking.return_confirmed_by_partner, return_partner_notes:data?.booking.return_partner_notes }),
       });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to update.");
-      setOk("Driver details saved."); await loadBooking(false, false);
-    } catch (e: any) { setError(e?.message || "Failed to update."); }
+      const json = await res.json().catch(()=>null);
+      if (!res.ok) throw new Error(json?.error||"Failed to update.");
+      setOk("Driver details saved."); await loadBooking(false,false);
+    } catch(e:any) { setError(e?.message||"Failed to update."); }
     finally { setSavingSection(null); }
   }
 
-  async function saveFuelSection(section: "collection" | "return") {
+  async function saveFuelSection(section:"collection"|"return") {
     setSavingSection(section); setError(null); setOk(null);
     try {
-      const isC = section === "collection";
+      const isC = section==="collection";
       const res = await fetch(`/api/partner/bookings/${bookingId}/update`, {
-        method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ booking_status: data?.booking.booking_status, assigned_driver_id: data?.booking.assigned_driver_id, driver_name: data?.booking.driver_name, driver_phone: data?.booking.driver_phone, driver_vehicle: data?.booking.driver_vehicle, driver_notes: data?.booking.driver_notes, collection_fuel_level_partner: isC ? collectionFuel : data?.booking.collection_fuel_level_partner, collection_confirmed_by_partner: isC ? collectionConfirmed : data?.booking.collection_confirmed_by_partner, collection_partner_notes: isC ? collectionNotes : data?.booking.collection_partner_notes, return_fuel_level_partner: !isC ? returnFuel : data?.booking.return_fuel_level_partner, return_confirmed_by_partner: !isC ? returnConfirmed : data?.booking.return_confirmed_by_partner, return_partner_notes: !isC ? returnNotes : data?.booking.return_partner_notes }),
+        method:"POST", credentials:"include", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ booking_status:data?.booking.booking_status, assigned_driver_id:data?.booking.assigned_driver_id, driver_name:data?.booking.driver_name, driver_phone:data?.booking.driver_phone, driver_vehicle:data?.booking.driver_vehicle, driver_notes:data?.booking.driver_notes, collection_fuel_level_partner:isC?collectionFuel:data?.booking.collection_fuel_level_partner, collection_confirmed_by_partner:isC?collectionConfirmed:data?.booking.collection_confirmed_by_partner, collection_partner_notes:isC?collectionNotes:data?.booking.collection_partner_notes, return_fuel_level_partner:!isC?returnFuel:data?.booking.return_fuel_level_partner, return_confirmed_by_partner:!isC?returnConfirmed:data?.booking.return_confirmed_by_partner, return_partner_notes:!isC?returnNotes:data?.booking.return_partner_notes }),
       });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to update.");
-      setOk(`${section === "collection" ? "Delivery" : "Collection"} fuel saved.`); await loadBooking(false, false);
-    } catch (e: any) { setError(e?.message || "Failed to update."); }
+      const json = await res.json().catch(()=>null);
+      if (!res.ok) throw new Error(json?.error||"Failed to update.");
+      setOk(`${section==="collection"?"Delivery":"Collection"} fuel saved.`); await loadBooking(false,false);
+    } catch(e:any) { setError(e?.message||"Failed to update."); }
     finally { setSavingSection(null); }
   }
 
-  if (loading) return (
-    <div className="border border-black/5 bg-white p-8">
-      <p className="text-sm font-bold text-black/50">Loading booking…</p>
-    </div>
-  );
-  if (!data?.booking) return (
-    <div className="border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">{error || "Booking not found"}</div>
-  );
+  async function cancelBooking() {
+    if (!bookingId) return;
+    setCancelling(true); setError(null); setOk(null);
+    try {
+      const res = await fetch(`/api/partner/bookings/${bookingId}/cancel`, {
+        method:"POST", credentials:"include", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ reason: cancelReason }),
+      });
+      const json = await res.json().catch(()=>null);
+      if (!res.ok) throw new Error(json?.error||"Failed to cancel booking.");
+      setOk("Booking cancelled. All parties have been notified by email.");
+      setShowCancel(false); await loadBooking(false,false);
+    } catch(e:any) { setError(e?.message||"Failed to cancel."); }
+    finally { setCancelling(false); }
+  }
+
+  if (loading) return <div className="border border-black/5 bg-white p-8"><p className="text-sm font-bold text-black/50">Loading booking…</p></div>;
+  if (!data?.booking) return <div className="border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">{error||"Booking not found"}</div>;
 
   const bk  = data.booking;
   const req = data.request;
-  const stored: Currency = (bk.currency === "EUR" || bk.currency === "GBP" || bk.currency === "USD") ? bk.currency : "EUR";
+  const stored: Currency = (bk.currency==="EUR"||bk.currency==="GBP"||bk.currency==="USD")?bk.currency:"EUR";
   const { symbol, label: currLabel } = CURRENCY_META[stored];
   const collEffective    = effectiveFuel(bk.collection_fuel_level_driver, bk.collection_fuel_level_partner);
   const retEffective     = effectiveFuel(bk.return_fuel_level_driver, bk.return_fuel_level_partner);
-  const collectionLocked = isLocked({ driverOrPartnerFuel: collEffective, customerConfirmed: bk.collection_confirmed_by_customer, customerFuel: bk.collection_fuel_level_customer });
-  const returnLocked     = isLocked({ driverOrPartnerFuel: retEffective, customerConfirmed: bk.return_confirmed_by_customer, customerFuel: bk.return_fuel_level_customer });
+  const collectionLocked = isLocked({ driverOrPartnerFuel:collEffective, customerConfirmed:bk.collection_confirmed_by_customer, customerFuel:bk.collection_fuel_level_customer });
+  const returnLocked     = isLocked({ driverOrPartnerFuel:retEffective, customerConfirmed:bk.return_confirmed_by_customer, customerFuel:bk.return_fuel_level_customer });
   const rateBadgeText    = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
-
-  // Commission display — use stamped values if available, otherwise calculate from rate
   const commissionRate   = bk.commission_rate ?? 20;
   const carHire          = Number(bk.car_hire_price || 0);
   const commissionAmount = bk.commission_amount ?? Math.max((carHire * commissionRate) / 100, 10);
   const partnerPayout    = bk.partner_payout_amount ?? Math.max(0, carHire - commissionAmount);
+  const isCancelled      = bk.booking_status === "cancelled";
+  const canCancel        = !isCancelled && PRE_COLLECTION.includes(bk.booking_status);
 
   return (
     <div className="space-y-6">
@@ -528,134 +476,170 @@ export default function PartnerBookingDetailPage() {
           <h1 className="text-3xl font-black text-black">Booking Detail</h1>
           <p className="mt-1 text-sm font-bold text-black/50">View and manage this booking.</p>
         </div>
-        <Link href="/partner/bookings" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">
-          Back to Bookings
-        </Link>
+        <Link href="/partner/bookings" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">Back to Bookings</Link>
       </div>
+
+      {/* Cancelled banner */}
+      {isCancelled && (
+        <div className="border border-red-300 bg-red-50 p-6">
+          <p className="text-base font-black text-red-800">❌ This booking has been cancelled</p>
+          {bk.cancelled_by && <p className="mt-1 text-sm font-semibold text-red-600">Cancelled by: {bk.cancelled_by}</p>}
+          {bk.cancelled_at && <p className="text-sm font-semibold text-red-600">At: {fmt(bk.cancelled_at)}</p>}
+          {bk.cancellation_reason && <p className="text-sm font-semibold text-red-600">Reason: {bk.cancellation_reason}</p>}
+          {bk.refund_status && <p className="mt-2 text-sm font-black text-red-800">Refund: {bk.refund_status === "full" ? "Full refund issued" : bk.refund_status === "partial" ? "Partial refund issued" : "No refund"}</p>}
+        </div>
+      )}
+
+      {/* Cancel section */}
+      {canCancel && (
+        <div className="border border-red-200 bg-red-50 p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-base font-black text-red-800">Cancel This Booking</h2>
+              <p className="mt-1 text-sm font-semibold text-red-600">Cancelling as a partner always gives the customer a full refund. This cannot be undone.</p>
+            </div>
+            {!showCancel && (
+              <button type="button" onClick={()=>setShowCancel(true)}
+                className="shrink-0 border border-red-300 bg-white px-4 py-2 text-sm font-black text-red-700 hover:bg-red-50 transition-colors">
+                Cancel Booking
+              </button>
+            )}
+          </div>
+          {showCancel && (
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-black uppercase tracking-widest text-red-700">Reason (optional)</label>
+                <textarea rows={3} value={cancelReason} onChange={e=>setCancelReason(e.target.value)}
+                  placeholder="e.g. Vehicle unavailable, staff illness…"
+                  className="mt-1 w-full border border-red-200 bg-white px-3 py-2.5 text-sm font-medium text-black outline-none focus:border-red-400 resize-none"/>
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={cancelBooking} disabled={cancelling}
+                  className="bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+                  {cancelling?"Cancelling…":"Confirm Cancellation"}
+                </button>
+                <button type="button" onClick={()=>setShowCancel(false)} disabled={cancelling}
+                  className="border border-black/20 px-6 py-3 text-sm font-black text-black hover:bg-black/5 transition-colors">
+                  Keep Booking
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Info cards */}
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="border border-black/5 bg-white p-6">
           <h2 className="text-lg font-black text-black mb-4">Booking Information</h2>
           <div className="space-y-3">
-            <Field label="Job No.">{bk.job_number ?? req?.job_number ?? "—"}</Field>
+            <Field label="Job No.">{bk.job_number??req?.job_number??"—"}</Field>
             <Field label="Status">{statusLabel(bk.booking_status)}</Field>
-            <Field label="Total"><Amt amount={bk.amount} stored={stored} rates={rates} /></Field>
-            <Field label="Car Hire"><Amt amount={bk.car_hire_price} stored={stored} rates={rates} /></Field>
-            <Field label="Commission">
-              <span className="text-amber-700">− {fmtCurr(commissionAmount, stored)}</span>
-              <span className="ml-2 text-xs font-bold text-black/40">{commissionRate}% Camel commission</span>
-            </Field>
-            <Field label="Your Payout (excl. fuel)">
-              <span className="font-black text-black">{fmtCurr(partnerPayout, stored)}</span>
-            </Field>
+            <Field label="Total"><Amt amount={bk.amount} stored={stored} rates={rates}/></Field>
+            <Field label="Car Hire"><Amt amount={bk.car_hire_price} stored={stored} rates={rates}/></Field>
+            <Field label="Commission"><span className="text-amber-700">− {fmtCurr(commissionAmount,stored)}</span><span className="ml-2 text-xs font-bold text-black/40">{commissionRate}% Camel commission</span></Field>
+            <Field label="Your Payout (excl. fuel)"><span className="font-black text-black">{fmtCurr(partnerPayout,stored)}</span></Field>
             <Field label="Created">{fmt(bk.created_at)}</Field>
-            <Field label="Driver">{drivers.find(d => d.id === bk.assigned_driver_id)?.full_name || bk.driver_name || "—"}</Field>
+            <Field label="Driver">{drivers.find(d=>d.id===bk.assigned_driver_id)?.full_name||bk.driver_name||"—"}</Field>
             <Field label="Driver assigned">{fmt(bk.driver_assigned_at)}</Field>
-            <Field label="Notes">{bk.notes || "—"}</Field>
-            <div className={`mt-2 inline-flex items-center gap-2 border px-3 py-1.5 text-xs font-black ${rateIsLive ? "border-black/20 bg-black text-white" : "border-black/10 bg-[#f0f0f0] text-black/60"}`}>
-              <span className={`h-2 w-2 ${rateIsLive ? "bg-[#ff7a00]" : "bg-black/30"}`} />
-              {rateBadgeText}{rateIsLive ? " · Live rate (frankfurter.app)" : ""}
+            <Field label="Notes">{bk.notes||"—"}</Field>
+            <div className={`mt-2 inline-flex items-center gap-2 border px-3 py-1.5 text-xs font-black ${rateIsLive?"border-black/20 bg-black text-white":"border-black/10 bg-[#f0f0f0] text-black/60"}`}>
+              <span className={`h-2 w-2 ${rateIsLive?"bg-[#ff7a00]":"bg-black/30"}`}/>{rateBadgeText}{rateIsLive?" · Live rate (frankfurter.app)":""}
             </div>
-            <div className="inline-flex items-center gap-1.5 border border-black/20 bg-[#f0f0f0] px-3 py-1 text-xs font-black text-black">
-              {symbol} Booking currency: {currLabel}
-            </div>
+            <div className="inline-flex items-center gap-1.5 border border-black/20 bg-[#f0f0f0] px-3 py-1 text-xs font-black text-black">{symbol} Booking currency: {currLabel}</div>
           </div>
         </div>
-
         <div className="border border-black/5 bg-white p-6">
           <h2 className="text-lg font-black text-black mb-4">Journey Information</h2>
           <div className="space-y-3">
-            <Field label="Customer">{req?.customer_name || "—"}</Field>
-            <Field label="Email">{req?.customer_email || "—"}</Field>
-            <Field label="Phone">{req?.customer_phone || "—"}</Field>
-            <Field label="Pickup">{req?.pickup_address || "—"}</Field>
-            <Field label="Dropoff">{req?.dropoff_address || "—"}</Field>
+            <Field label="Customer">{req?.customer_name||"—"}</Field>
+            <Field label="Email">{req?.customer_email||"—"}</Field>
+            <Field label="Phone">{req?.customer_phone||"—"}</Field>
+            <Field label="Pickup">{req?.pickup_address||"—"}</Field>
+            <Field label="Dropoff">{req?.dropoff_address||"—"}</Field>
             <Field label="Pickup time">{fmt(req?.pickup_at)}</Field>
             <Field label="Dropoff time">{fmt(req?.dropoff_at)}</Field>
             <Field label="Duration">{fmtDuration(req?.journey_duration_minutes)}</Field>
-            <Field label="Passengers">{req?.passengers ?? "—"}</Field>
-            <Field label="Suitcases">{req?.suitcases ?? "—"}</Field>
-            <Field label="Sport equipment">{sportEquipmentLabel(req?.sport_equipment ?? null)}</Field>
-            <Field label="Vehicle">{req?.vehicle_category_name || "—"}</Field>
-            {req?.notes && <Field label="Notes">{req.notes}</Field>}
+            <Field label="Passengers">{req?.passengers??"—"}</Field>
+            <Field label="Suitcases">{req?.suitcases??"—"}</Field>
+            <Field label="Sport equipment">{sportEquipmentLabel(req?.sport_equipment??null)}</Field>
+            <Field label="Vehicle">{req?.vehicle_category_name||"—"}</Field>
+            {req?.notes&&<Field label="Notes">{req.notes}</Field>}
           </div>
         </div>
       </div>
 
-      {/* Driver assignment */}
-      <div className="border border-black/5 bg-white p-6">
-        <h2 className="text-lg font-black text-black mb-2">Driver Assignment</h2>
-        <div className="inline-flex items-center gap-2 border border-black/10 bg-[#f0f0f0] px-4 py-2 text-sm font-bold text-black mb-5">
-          <span className="text-black/50">Current status:</span> {statusLabel(bk.booking_status)}
+      {/* Driver assignment — hide if cancelled */}
+      {!isCancelled && (
+        <div className="border border-black/5 bg-white p-6">
+          <h2 className="text-lg font-black text-black mb-2">Driver Assignment</h2>
+          <div className="inline-flex items-center gap-2 border border-black/10 bg-[#f0f0f0] px-4 py-2 text-sm font-bold text-black mb-5">
+            <span className="text-black/50">Current status:</span> {statusLabel(bk.booking_status)}
+          </div>
+          <form onSubmit={saveDetails} className="space-y-5">
+            <div>
+              <label className={labelCls}>Assign driver</label>
+              <select value={selectedDriverId} onChange={e=>handleDriverSelect(e.target.value)} className={`mt-2 ${inputCls} bg-white`}>
+                <option value="">No driver selected</option>
+                {drivers.map(d=><option key={d.id} value={d.id}>{d.full_name}{d.phone?` (${d.phone})`:""}</option>)}
+              </select>
+              {loadingDrivers&&<p className="mt-1 text-xs font-bold text-black/40">Loading drivers…</p>}
+            </div>
+            <div className="grid gap-5 md:grid-cols-3">
+              <div><label className={labelCls}>Driver name</label><input value={driverName} onChange={e=>setDriverName(e.target.value)} className={`mt-2 ${inputCls}`} placeholder="John Smith"/></div>
+              <div><label className={labelCls}>Driver phone</label><input value={driverPhone} onChange={e=>setDriverPhone(e.target.value)} className={`mt-2 ${inputCls}`} placeholder="+34 600 000 000"/></div>
+              <div><label className={labelCls}>Vehicle</label><input value={driverVehicle} onChange={e=>setDriverVehicle(e.target.value)} className={`mt-2 ${inputCls}`} placeholder="Mercedes E-Class / AB12 CDE"/></div>
+            </div>
+            <div>
+              <label className={labelCls}>Driver notes</label>
+              <textarea rows={3} value={driverNotes} onChange={e=>setDriverNotes(e.target.value)} className={`mt-2 ${inputCls} resize-none`} placeholder="Optional notes about this assignment"/>
+            </div>
+            <button type="submit" disabled={savingSection==="details"} className="bg-[#ff7a00] px-6 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-60 transition-opacity">{savingSection==="details"?"Saving…":"Save Driver Details"}</button>
+          </form>
         </div>
-        <form onSubmit={saveDetails} className="space-y-5">
-          <div>
-            <label className={labelCls}>Assign driver</label>
-            <select value={selectedDriverId} onChange={e => handleDriverSelect(e.target.value)}
-              className={`mt-2 ${inputCls} bg-white`}>
-              <option value="">No driver selected</option>
-              {drivers.map(d => <option key={d.id} value={d.id}>{d.full_name}{d.phone ? ` (${d.phone})` : ""}</option>)}
-            </select>
-            {loadingDrivers && <p className="mt-1 text-xs font-bold text-black/40">Loading drivers…</p>}
-          </div>
-          <div className="grid gap-5 md:grid-cols-3">
-            <div><label className={labelCls}>Driver name</label><input value={driverName} onChange={e => setDriverName(e.target.value)} className={`mt-2 ${inputCls}`} placeholder="John Smith" /></div>
-            <div><label className={labelCls}>Driver phone</label><input value={driverPhone} onChange={e => setDriverPhone(e.target.value)} className={`mt-2 ${inputCls}`} placeholder="+34 600 000 000" /></div>
-            <div><label className={labelCls}>Vehicle</label><input value={driverVehicle} onChange={e => setDriverVehicle(e.target.value)} className={`mt-2 ${inputCls}`} placeholder="Mercedes E-Class / AB12 CDE" /></div>
-          </div>
-          <div>
-            <label className={labelCls}>Driver notes</label>
-            <textarea rows={3} value={driverNotes} onChange={e => setDriverNotes(e.target.value)} className={`mt-2 ${inputCls} resize-none`} placeholder="Optional notes about this assignment" />
-          </div>
-          <button type="submit" disabled={savingSection === "details"}
-            className="bg-[#ff7a00] px-6 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-60 transition-opacity">
-            {savingSection === "details" ? "Saving…" : "Save Driver Details"}
-          </button>
-        </form>
-      </div>
+      )}
 
-      {collectionLocked && returnLocked && <BookingSummaryCard booking={bk} rates={rates} isLive={rateIsLive} />}
+      {collectionLocked&&returnLocked&&<BookingSummaryCard booking={bk} rates={rates} isLive={rateIsLive}/>}
 
       {/* Driver audit trail */}
       <div className="border border-black/5 bg-white p-6">
         <h2 className="text-lg font-black text-black mb-1">Driver Audit Trail</h2>
         <p className="text-xs font-bold text-black/40 mb-5">Exact record of who delivered and collected the vehicle and when. Stamped automatically — never editable.</p>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className={`border p-5 ${bk.delivery_driver_name ? "border-[#1a1a1a] bg-[#1a1a1a] text-white" : "border-black/10 bg-[#f0f0f0]"}`}>
-            <p className={`text-xs font-black uppercase tracking-widest ${bk.delivery_driver_name ? "text-white/40" : "text-black/40"}`}>🚗 Delivery driver</p>
-            {bk.delivery_driver_name
-              ? <><p className="mt-2 text-lg font-black text-white">{bk.delivery_driver_name}</p><p className="mt-1 text-xs font-bold text-white/40">Delivered at</p><p className="text-sm font-bold text-white/70">{fmt(bk.delivery_confirmed_at)}</p>{bk.delivery_driver_id !== bk.assigned_driver_id && <p className="mt-2 text-xs font-black text-[#ff7a00]">⚠ Different driver to current assignment</p>}</>
-              : <p className="mt-2 text-sm font-bold italic text-black/40">Not yet delivered</p>}
+          <div className={`border p-5 ${bk.delivery_driver_name?"border-[#1a1a1a] bg-[#1a1a1a] text-white":"border-black/10 bg-[#f0f0f0]"}`}>
+            <p className={`text-xs font-black uppercase tracking-widest ${bk.delivery_driver_name?"text-white/40":"text-black/40"}`}>🚗 Delivery driver</p>
+            {bk.delivery_driver_name?<><p className="mt-2 text-lg font-black text-white">{bk.delivery_driver_name}</p><p className="mt-1 text-xs font-bold text-white/40">Delivered at</p><p className="text-sm font-bold text-white/70">{fmt(bk.delivery_confirmed_at)}</p>{bk.delivery_driver_id!==bk.assigned_driver_id&&<p className="mt-2 text-xs font-black text-[#ff7a00]">⚠ Different driver to current assignment</p>}</>:<p className="mt-2 text-sm font-bold italic text-black/40">Not yet delivered</p>}
           </div>
-          <div className={`border p-5 ${bk.collection_driver_name ? "border-[#1a1a1a] bg-[#1a1a1a] text-white" : "border-black/10 bg-[#f0f0f0]"}`}>
-            <p className={`text-xs font-black uppercase tracking-widest ${bk.collection_driver_name ? "text-white/40" : "text-black/40"}`}>🏁 Collection driver</p>
-            {bk.collection_driver_name
-              ? <><p className="mt-2 text-lg font-black text-white">{bk.collection_driver_name}</p><p className="mt-1 text-xs font-bold text-white/40">Collected at</p><p className="text-sm font-bold text-white/70">{fmt(bk.collection_confirmed_at)}</p>{bk.delivery_driver_id && bk.collection_driver_id && bk.delivery_driver_id !== bk.collection_driver_id && <p className="mt-2 text-xs font-black text-[#ff7a00]">⚠ Different driver to delivery</p>}</>
-              : <p className="mt-2 text-sm font-bold italic text-black/40">Not yet collected</p>}
+          <div className={`border p-5 ${bk.collection_driver_name?"border-[#1a1a1a] bg-[#1a1a1a] text-white":"border-black/10 bg-[#f0f0f0]"}`}>
+            <p className={`text-xs font-black uppercase tracking-widest ${bk.collection_driver_name?"text-white/40":"text-black/40"}`}>🏁 Collection driver</p>
+            {bk.collection_driver_name?<><p className="mt-2 text-lg font-black text-white">{bk.collection_driver_name}</p><p className="mt-1 text-xs font-bold text-white/40">Collected at</p><p className="text-sm font-bold text-white/70">{fmt(bk.collection_confirmed_at)}</p>{bk.delivery_driver_id&&bk.collection_driver_id&&bk.delivery_driver_id!==bk.collection_driver_id&&<p className="mt-2 text-xs font-black text-[#ff7a00]">⚠ Different driver to delivery</p>}</>:<p className="mt-2 text-sm font-bold italic text-black/40">Not yet collected</p>}
           </div>
         </div>
-        {bk.delivery_driver_id && bk.collection_driver_id && bk.delivery_driver_id !== bk.collection_driver_id && (
+        {bk.delivery_driver_id&&bk.collection_driver_id&&bk.delivery_driver_id!==bk.collection_driver_id&&(
           <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-700">Different drivers handled delivery and collection on this booking.</div>
         )}
       </div>
 
       {/* Insurance */}
-      <div>
-        <h2 className="text-lg font-black text-black mb-1">Insurance Documents</h2>
-        <p className="text-xs font-bold text-black/40 mb-4">Driver confirms handover at delivery via their app. Customer confirms receipt on their portal. <span className="text-black/30">(Refreshes every 10s)</span></p>
-        <InsuranceStatusCard booking={bk} />
-      </div>
+      {!isCancelled && (
+        <div>
+          <h2 className="text-lg font-black text-black mb-1">Insurance Documents</h2>
+          <p className="text-xs font-bold text-black/40 mb-4">Driver confirms handover at delivery via their app. Customer confirms receipt on their portal. <span className="text-black/30">(Refreshes every 10s)</span></p>
+          <InsuranceStatusCard booking={bk}/>
+        </div>
+      )}
 
       {/* Fuel tracking */}
-      <div>
-        <h2 className="text-lg font-black text-black mb-1">Fuel Tracking</h2>
-        <p className="text-xs font-bold text-black/40 mb-4">Driver records fuel level via their app. Use the office override if needed. Customer confirms to lock each stage. <span className="text-black/30">(Refreshes every 10s)</span></p>
-        <div className="grid gap-6 xl:grid-cols-2">
-          <FuelStageCard title="Delivery" booking={bk} stage="collection" fuelValue={collectionFuel} onFuelChange={setCollectionFuel} confirmed={collectionConfirmed} onConfirmedChange={setCollectionConfirmed} notes={collectionNotes} onNotesChange={setCollectionNotes} onSave={() => saveFuelSection("collection")} saving={savingSection === "collection"} locked={collectionLocked} />
-          <FuelStageCard title="Collection" booking={bk} stage="return" fuelValue={returnFuel} onFuelChange={setReturnFuel} confirmed={returnConfirmed} onConfirmedChange={setReturnConfirmed} notes={returnNotes} onNotesChange={setReturnNotes} onSave={() => saveFuelSection("return")} saving={savingSection === "return"} locked={returnLocked} />
+      {!isCancelled && (
+        <div>
+          <h2 className="text-lg font-black text-black mb-1">Fuel Tracking</h2>
+          <p className="text-xs font-bold text-black/40 mb-4">Driver records fuel level via their app. Use the office override if needed. Customer confirms to lock each stage. <span className="text-black/30">(Refreshes every 10s)</span></p>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <FuelStageCard title="Delivery" booking={bk} stage="collection" fuelValue={collectionFuel} onFuelChange={setCollectionFuel} confirmed={collectionConfirmed} onConfirmedChange={setCollectionConfirmed} notes={collectionNotes} onNotesChange={setCollectionNotes} onSave={()=>saveFuelSection("collection")} saving={savingSection==="collection"} locked={collectionLocked}/>
+            <FuelStageCard title="Collection" booking={bk} stage="return" fuelValue={returnFuel} onFuelChange={setReturnFuel} confirmed={returnConfirmed} onConfirmedChange={setReturnConfirmed} notes={returnNotes} onNotesChange={setReturnNotes} onSave={()=>saveFuelSection("return")} saving={savingSection==="return"} locked={returnLocked}/>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
