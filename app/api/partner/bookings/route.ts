@@ -47,6 +47,10 @@ export async function GET() {
         commission_rate,
         commission_amount,
         partner_payout_amount,
+        cancelled_by,
+        cancelled_at,
+        cancellation_reason,
+        refund_status,
         notes,
         created_at,
         job_number,
@@ -118,6 +122,26 @@ export async function GET() {
     const data = rows.map((booking: any) => {
       const request = requestMap.get(String(booking.request_id)) || null;
       const partnerProfile = profileMap.get(String(booking.partner_user_id)) || null;
+
+      const isCancelled  = String(booking.booking_status || "").toLowerCase() === "cancelled";
+      const refundStatus = booking.refund_status || null;
+      const fuel         = Number(booking.fuel_price ?? 0);
+
+      // Override financial figures for cancelled bookings
+      let effectiveCarHire    = booking.car_hire_price ?? null;
+      let effectiveCommission = booking.commission_amount ?? null;
+      let effectivePayout     = booking.partner_payout_amount ?? null;
+      let effectiveFuelRefund = booking.fuel_refund ?? null;
+
+      if (isCancelled && refundStatus === "full") {
+        effectiveCarHire    = 0;
+        effectiveCommission = 0;
+        effectivePayout     = 0;
+        effectiveFuelRefund = fuel;
+      } else if (isCancelled && refundStatus === "partial") {
+        effectiveFuelRefund = fuel;
+      }
+
       return {
         id: booking.id,
         request_id: booking.request_id,
@@ -126,17 +150,18 @@ export async function GET() {
         booking_status: booking.booking_status,
         amount: booking.amount,
         currency: booking.currency ?? "EUR",
-        car_hire_price: booking.car_hire_price ?? null,
+        car_hire_price: effectiveCarHire,
         fuel_price: booking.fuel_price ?? null,
         fuel_used_quarters: booking.fuel_used_quarters ?? null,
         fuel_charge: booking.fuel_charge ?? null,
-        fuel_refund: booking.fuel_refund ?? null,
-        // Use only the rate stamped on the booking at acceptance time.
-        // null = booking pre-dates commission stamping → frontend defaults to 20% (the historical rate).
-        // Never fall back to the current profile rate or historical bookings show the wrong %.
+        fuel_refund: effectiveFuelRefund,
         commission_rate: booking.commission_rate ?? null,
-        commission_amount: booking.commission_amount ?? null,
-        partner_payout_amount: booking.partner_payout_amount ?? null,
+        commission_amount: effectiveCommission,
+        partner_payout_amount: effectivePayout,
+        cancelled_by: booking.cancelled_by || null,
+        cancelled_at: booking.cancelled_at || null,
+        cancellation_reason: booking.cancellation_reason || null,
+        refund_status: refundStatus,
         notes: booking.notes,
         created_at: booking.created_at,
         job_number: booking.job_number ?? request?.job_number ?? null,
