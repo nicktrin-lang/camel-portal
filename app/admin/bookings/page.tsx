@@ -666,7 +666,7 @@ export default function AdminBookingsPage() {
                       {isCancelled&&row.refund_status==="full"?fmtCurr(0,row.currency??"EUR"):fmtCurr(payout,row.currency??"EUR")}
                     </td>
                     <td className="px-4 py-4 text-xs text-black/60">{row.cancelled_by||"—"}</td>
-                    <td className="px-4 py-4 text-xs text-black/60 whitespace-nowrap">{row.cancelled_at?fmtDate(row.cancelled_at):"—"}</td>
+                    <td className="px-4 py-4 text-xs text-black/60 whitespace-nowrap">{row.cancelled_at?fmtDateTime(row.cancelled_at):"—"}</td>
                     <td className="px-4 py-4">{insurancePill(row.insurance_docs_confirmed_by_driver,row.insurance_docs_confirmed_by_customer)}</td>
                   </tr>
                 );
