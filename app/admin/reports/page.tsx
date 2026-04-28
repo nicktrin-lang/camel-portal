@@ -242,7 +242,7 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
                     {isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(payout,curr)}
                   </td>
                   <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_by||"—"}</td>
-                  <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDate(b.cancelled_at):"—"}</td>
+                  <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDateTime(b.cancelled_at):"—"}</td>
                   <td className="px-4 py-3">{insurancePill(b.insurance_docs_confirmed_by_driver,b.insurance_docs_confirmed_by_customer)}</td>
                 </tr>
               );
@@ -577,7 +577,7 @@ export default function AdminReportsPage() {
                       {isCancelled&&b.refund_status==="full"?fmtCurr(0,b.currency??"EUR"):fmtCurr(payout,b.currency??"EUR")}
                     </td>
                     <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_by||"—"}</td>
-                    <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDate(b.cancelled_at):"—"}</td>
+                    <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDateTime(b.cancelled_at):"—"}</td>
                     <td className="px-4 py-3">{insurancePill(b.insurance_docs_confirmed_by_driver,b.insurance_docs_confirmed_by_customer)}</td>
                   </tr>
                 );

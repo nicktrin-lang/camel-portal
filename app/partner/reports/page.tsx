@@ -241,7 +241,7 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
                     {isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(netPayout,curr)}
                   </td>
                   <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_by||"—"}</td>
-                  <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDate(b.cancelled_at):"—"}</td>
+                  <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDateTime(b.cancelled_at):"—"}</td>
                 </tr>
               );
             })}
