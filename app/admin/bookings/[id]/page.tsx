@@ -22,6 +22,8 @@ type BookingRow = {
   currency: Currency;
   cancelled_by?: string | null; cancelled_at?: string | null;
   cancellation_reason?: string | null; refund_status?: string | null;
+  cancelled_by?: string | null; cancelled_at?: string | null;
+  cancellation_reason?: string | null; refund_status?: string | null;
   collection_confirmed_by_driver?: boolean | null; collection_confirmed_by_driver_at?: string | null;
   collection_fuel_level_driver?: string | null;
   return_confirmed_by_driver?: boolean | null; return_confirmed_by_driver_at?: string | null;
@@ -122,6 +124,75 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex flex-col gap-0.5">
       <span className="text-xs font-black uppercase tracking-widest text-black/40">{label}</span>
       <span className="text-sm font-bold text-black">{children}</span>
+    </div>
+  );
+}
+
+function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
+  const stored   = (bk.currency ?? "EUR") as Currency;
+  const carHire  = Number(bk.car_hire_price ?? 0);
+  const fuel     = Number(bk.fuel_price ?? 0);
+  const commRate = (bk as any).commission_rate ?? 20;
+  const commAmt  = (bk as any).commission_amount != null
+    ? Number((bk as any).commission_amount)
+    : Math.max((carHire * commRate) / 100, 10);
+  const basePayout = (bk as any).partner_payout_amount != null
+    ? Number((bk as any).partner_payout_amount)
+    : Math.max(0, carHire - commAmt);
+  const isFull    = bk.refund_status === "full";
+  const isPartial = bk.refund_status === "partial";
+
+  const customerCarHireRefund = isFull ? carHire : 0;
+  const customerFuelRefund    = fuel;
+  const customerTotalRefund   = customerCarHireRefund + customerFuelRefund;
+  const partnerKeepsCarHire   = isPartial ? carHire : 0;
+  const partnerKeepsComm      = isPartial ? commAmt : 0;
+  const partnerNetPayout      = isPartial ? basePayout : 0;
+  const cancelledByLabel      = bk.cancelled_by === "customer" ? "Customer" : bk.cancelled_by === "partner" ? "Partner" : "Camel Global Admin";
+
+  return (
+    <div className="border border-red-200 bg-red-50 p-6 space-y-4">
+      <div>
+        <p className="text-base font-black text-red-800">❌ Booking Cancelled</p>
+        <p className="text-sm font-semibold text-red-600 mt-1">Cancelled by: <strong>{cancelledByLabel}</strong> on {fmt(bk.cancelled_at)}</p>
+        {bk.cancellation_reason && <p className="text-sm font-semibold text-red-600">Reason: {bk.cancellation_reason}</p>}
+        <p className="text-sm font-semibold text-red-600 mt-1">
+          Refund type: <strong>{isFull ? "Full refund" : isPartial ? "Partial refund (within 48hrs of pickup)" : "No refund"}</strong>
+        </p>
+      </div>
+
+      <div className="bg-white border border-red-100 p-4">
+        <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-3">Original Booking Amounts</p>
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Car hire</span><span className="font-black text-black">{fmtCurr(carHire, stored)}</span></div>
+          <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Commission ({commRate}%)</span><span className="font-black text-amber-700">− {fmtCurr(commAmt, stored)}</span></div>
+          <div className="flex justify-between text-sm border-t border-black/10 pt-2"><span className="font-semibold text-black/60">Partner payout (excl. fuel)</span><span className="font-black text-black">{fmtCurr(basePayout, stored)}</span></div>
+          <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Full tank deposit</span><span className="font-black text-black">{fmtCurr(fuel, stored)}</span></div>
+          <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2"><span className="text-black/60">Total collected from customer</span><span className="text-black">{fmtCurr(carHire + fuel, stored)}</span></div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="bg-white border border-red-200 p-4">
+          <p className="text-xs font-black uppercase tracking-widest text-red-700 mb-3">Customer Refund</p>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Car hire refund</span><span className={`font-black ${customerCarHireRefund > 0 ? "text-green-700" : "text-red-500"}`}>{customerCarHireRefund > 0 ? fmtCurr(customerCarHireRefund, stored) : "Not refunded"}</span></div>
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Fuel deposit refund</span><span className="font-black text-green-700">{fmtCurr(customerFuelRefund, stored)}</span></div>
+            <div className="flex justify-between text-sm font-black border-t border-red-100 pt-2"><span className="text-red-800">Total refund to customer</span><span className="text-red-800">{fmtCurr(customerTotalRefund, stored)}</span></div>
+          </div>
+        </div>
+        <div className={`p-4 border ${isPartial ? "bg-amber-50 border-amber-200" : "bg-white border-red-200"}`}>
+          <p className="text-xs font-black uppercase tracking-widest text-black/60 mb-3">Partner Financial Position</p>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Car hire partner keeps</span><span className={`font-black ${partnerKeepsCarHire > 0 ? "text-black" : "text-red-500"}`}>{partnerKeepsCarHire > 0 ? fmtCurr(partnerKeepsCarHire, stored) : "None"}</span></div>
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Commission payable to Camel</span><span className={`font-black ${partnerKeepsComm > 0 ? "text-amber-700" : "text-black/30"}`}>{partnerKeepsComm > 0 ? `− ${fmtCurr(partnerKeepsComm, stored)}` : "None"}</span></div>
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Fuel deposit (returned to customer)</span><span className="font-black text-black/40">— {fmtCurr(fuel, stored)}</span></div>
+            <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2"><span className="text-black">Partner net payout</span><span className={partnerNetPayout > 0 ? "text-green-700" : "text-red-600"}>{partnerNetPayout > 0 ? fmtCurr(partnerNetPayout, stored) : `${fmtCurr(0, stored)} — no payout`}</span></div>
+          </div>
+          {isPartial && <p className="mt-3 text-xs font-bold text-amber-700 bg-amber-100 px-3 py-2">⚠ Customer cancelled within 48hrs — partner retains car hire fee minus commission.</p>}
+          {isFull && <p className="mt-3 text-xs font-bold text-red-700 bg-red-100 px-3 py-2">Full refund issued — no payout due to partner for this booking.</p>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -311,18 +382,10 @@ export default function AdminBookingDetailPage() {
       {error&&<div className="border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
       {ok&&<div className="border border-black/10 bg-[#f0f0f0] p-3 text-sm font-bold text-black">{ok}</div>}
 
-      {/* Cancelled banner */}
-      {isCancelled&&(
-        <div className="border border-red-300 bg-red-50 p-6">
-          <p className="text-base font-black text-red-800">❌ This booking has been cancelled</p>
-          {bk.cancelled_by&&<p className="mt-1 text-sm font-semibold text-red-600">Cancelled by: {bk.cancelled_by}</p>}
-          {bk.cancelled_at&&<p className="text-sm font-semibold text-red-600">At: {fmt(bk.cancelled_at)}</p>}
-          {bk.cancellation_reason&&<p className="text-sm font-semibold text-red-600">Reason: {bk.cancellation_reason}</p>}
-          {bk.refund_status&&<p className="mt-2 text-sm font-black text-red-800">Refund: {bk.refund_status==="full"?"Full refund issued":bk.refund_status==="partial"?"Partial refund issued":"No refund"}</p>}
-        </div>
-      )}
+      {/* Cancellation summary */}
+      {isCancelled && <CancellationSummary bk={bk as any} rates={rates} />}
 
-      {/* Admin cancel — can cancel any non-cancelled booking */}
+      {/* Admin cancel */}
       {!isCancelled&&(
         <div className="border border-red-200 bg-red-50 p-6">
           <div className="flex items-start justify-between gap-4">
