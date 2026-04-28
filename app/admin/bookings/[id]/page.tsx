@@ -22,8 +22,6 @@ type BookingRow = {
   currency: Currency;
   cancelled_by?: string | null; cancelled_at?: string | null;
   cancellation_reason?: string | null; refund_status?: string | null;
-  cancelled_by?: string | null; cancelled_at?: string | null;
-  cancellation_reason?: string | null; refund_status?: string | null;
   collection_confirmed_by_driver?: boolean | null; collection_confirmed_by_driver_at?: string | null;
   collection_fuel_level_driver?: string | null;
   return_confirmed_by_driver?: boolean | null; return_confirmed_by_driver_at?: string | null;
