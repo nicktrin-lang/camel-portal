@@ -34,7 +34,7 @@ const FUEL_BARS: Record<FuelLevel, number> = {
   full: 4, "3/4": 3, half: 2, quarter: 1, empty: 0,
 };
 
-function FuelBar({ level, light }: { level: FuelLevel; light?: boolean }) {
+function FuelBar({ level }: { level: FuelLevel }) {
   const filled = FUEL_BARS[level] ?? 0;
   return (
     <div className="flex gap-1 mt-2">
@@ -42,7 +42,7 @@ function FuelBar({ level, light }: { level: FuelLevel; light?: boolean }) {
         <div key={i} className={`h-3 flex-1 ${
           i < filled
             ? filled >= 3 ? "bg-green-500" : filled === 2 ? "bg-yellow-400" : "bg-red-400"
-            : light ? "bg-white/20" : "bg-black/10"
+            : "bg-black/10"
         }`}/>
       ))}
     </div>
@@ -144,248 +144,242 @@ export default function DriverJobsPage() {
   const completedJobs = useMemo(() => jobs.filter(j => ["completed","cancelled"].includes(j.booking_status.toLowerCase())), [jobs]);
 
   if (loading) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <p className="text-white/50 font-bold">Loading your jobs…</p>
+    <div className="flex items-center justify-center py-20">
+      <p className="text-black/40 font-bold text-sm">Loading your jobs…</p>
     </div>
   );
 
   if (error) return (
-    <div className="min-h-screen bg-black flex items-center justify-center px-6">
+    <div className="flex items-center justify-center py-20 px-6">
       <div className="max-w-md text-center">
         <p className="text-4xl mb-4">🚫</p>
-        <p className="text-white font-black text-xl mb-2">Access denied</p>
-        <p className="text-white/50 font-semibold text-sm">{error}</p>
+        <p className="text-black font-black text-xl mb-2">Access denied</p>
+        <p className="text-black/50 font-semibold text-sm">{error}</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="mx-auto max-w-3xl space-y-4">
 
-      {/* Header */}
-      <div className="w-full bg-black border-b border-white/10 px-6 py-4">
-        <div className="mx-auto max-w-3xl flex items-center justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">Camel Global</p>
-            <h1 className="text-xl font-black text-white">Driver Portal</h1>
-            {driverInfo && <p className="text-xs font-bold text-white/40 mt-0.5">{driverInfo.full_name}</p>}
-          </div>
-          <div className="text-right">
-            <p className="text-xs font-bold text-white/30">
-              {activeJobs.length} active · {completedJobs.length} completed
+      {/* Page header */}
+      <div className="bg-black px-6 py-5 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">Driver Portal</p>
+          <h1 className="text-xl font-black text-white mt-0.5">My Jobs</h1>
+          {driverInfo && <p className="text-xs font-bold text-white/40 mt-0.5">{driverInfo.full_name}</p>}
+        </div>
+        <div className="text-right">
+          <p className="text-xs font-bold text-white/50">
+            {activeJobs.length} active · {completedJobs.length} completed
+          </p>
+          {lastLoaded && (
+            <p className="text-xs font-bold text-white/30 mt-0.5">
+              Updated {lastLoaded.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
             </p>
-            {lastLoaded && (
-              <p className="text-xs font-bold text-white/20 mt-0.5">
-                Updated {lastLoaded.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-              </p>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
-      <div className="mx-auto max-w-3xl px-6 py-8 space-y-6">
+      {confirmOk && (
+        <div className="border border-green-500/30 bg-green-50 px-4 py-3 text-sm font-black text-green-700">
+          {confirmOk}
+        </div>
+      )}
+      {confirmError && (
+        <div className="border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-700">
+          {confirmError}
+        </div>
+      )}
 
-        {confirmOk && (
-          <div className="border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm font-black text-green-400">
-            {confirmOk}
-          </div>
-        )}
-        {confirmError && (
-          <div className="border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-400">
-            {confirmError}
-          </div>
-        )}
+      {activeJobs.length === 0 && completedJobs.length === 0 ? (
+        <div className="bg-white border border-black/5 p-12 text-center">
+          <p className="text-4xl mb-4">🚗</p>
+          <p className="text-black font-black text-xl mb-2">No jobs assigned</p>
+          <p className="text-black/40 font-semibold text-sm">Your partner will assign jobs to you here. This page refreshes automatically.</p>
+        </div>
+      ) : (
+        <>
+          {/* Active jobs */}
+          {activeJobs.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] px-1">Active Jobs</p>
+              {activeJobs.map(job => {
+                const isExpanded   = expandedJob === job.booking_id;
+                const collFuel     = fuelLevels[`coll_${job.booking_id}`] as FuelLevel | undefined;
+                const retFuel      = fuelLevels[`ret_${job.booking_id}`]  as FuelLevel | undefined;
+                const isConfirming = confirmingJob === job.booking_id;
 
-        {/* Active jobs */}
-        {activeJobs.length === 0 && completedJobs.length === 0 ? (
-          <div className="border border-white/10 p-12 text-center">
-            <p className="text-4xl mb-4">🚗</p>
-            <p className="text-white font-black text-xl mb-2">No jobs assigned</p>
-            <p className="text-white/40 font-semibold text-sm">Your partner will assign jobs to you here. This page refreshes automatically.</p>
-          </div>
-        ) : (
-          <>
-            {activeJobs.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">Active Jobs</p>
-                {activeJobs.map(job => {
-                  const isExpanded = expandedJob === job.booking_id;
-                  const collFuel = fuelLevels[`coll_${job.booking_id}`] as FuelLevel | undefined;
-                  const retFuel  = fuelLevels[`ret_${job.booking_id}`]  as FuelLevel | undefined;
-                  const isConfirming = confirmingJob === job.booking_id;
-
-                  return (
-                    <div key={job.booking_id} className="border border-white/10 bg-white/5">
-                      {/* Job header */}
-                      <button type="button" onClick={() => setExpandedJob(isExpanded ? null : job.booking_id)}
-                        className="w-full text-left px-5 py-4 flex items-start justify-between gap-4 hover:bg-white/5 transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="text-base font-black text-white">#{job.job_number ?? "—"}</span>
-                            <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>
-                              {statusLabel(job.booking_status)}
-                            </span>
-                          </div>
-                          <p className="text-sm font-bold text-white/70 truncate">📍 {job.pickup_address || "—"}</p>
-                          <p className="text-sm font-semibold text-white/40 truncate">🏁 {job.dropoff_address || "—"}</p>
-                          <p className="text-xs font-bold text-white/30 mt-1">
-                            🗓 {job.pickup_at ? new Date(job.pickup_at).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : "—"}
-                          </p>
+                return (
+                  <div key={job.booking_id} className="bg-white border border-black/5">
+                    <button type="button" onClick={() => setExpandedJob(isExpanded ? null : job.booking_id)}
+                      className="w-full text-left px-5 py-4 flex items-start justify-between gap-4 hover:bg-[#f0f0f0] transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="text-base font-black text-black">#{job.job_number ?? "—"}</span>
+                          <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>
+                            {statusLabel(job.booking_status)}
+                          </span>
                         </div>
-                        <span className="text-white/30 font-black text-lg shrink-0">{isExpanded ? "▲" : "▼"}</span>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="border-t border-white/10 px-5 py-5 space-y-5">
-
-                          {/* Journey details */}
-                          <div className="grid grid-cols-2 gap-3">
-                            {[
-                              { label:"Customer", value:job.customer_name },
-                              { label:"Customer phone", value:job.customer_phone, phone:true },
-                              { label:"Vehicle", value:job.driver_vehicle||job.vehicle_category_name },
-                              { label:"Pickup time", value:fmt(job.pickup_at) },
-                              { label:"Dropoff time", value:fmt(job.dropoff_at) },
-                              { label:"Assigned at", value:fmt(job.driver_assigned_at) },
-                            ].map(({ label, value, phone }) => (
-                              <div key={label}>
-                                <p className="text-xs font-black uppercase tracking-wide text-white/30">{label}</p>
-                                {phone && value
-                                  ? <a href={`tel:${value}`} className="text-sm font-bold text-[#ff7a00] underline">{value}</a>
-                                  : <p className="text-sm font-bold text-white">{value || "—"}</p>}
-                              </div>
-                            ))}
-                          </div>
-
-                          {job.driver_notes && (
-                            <div className="border border-[#ff7a00]/20 bg-[#ff7a00]/5 px-4 py-3">
-                              <p className="text-xs font-black uppercase tracking-wide text-[#ff7a00] mb-1">Notes from partner</p>
-                              <p className="text-sm font-bold text-white/70">{job.driver_notes}</p>
-                            </div>
-                          )}
-
-                          {/* WhatsApp customer */}
-                          {job.customer_phone && (
-                            <a href={`https://wa.me/${job.customer_phone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 bg-green-500 px-4 py-2.5 text-sm font-black text-white hover:bg-green-600 transition-colors">
-                              💬 WhatsApp Customer
-                            </a>
-                          )}
-
-                          {/* Insurance confirmation */}
-                          <div className={`border p-4 ${job.insurance_docs_confirmed_by_driver ? "border-green-500/30 bg-green-500/10" : "border-white/10 bg-white/5"}`}>
-                            <p className="text-xs font-black uppercase tracking-wide text-white/40 mb-2">📄 Insurance Documents</p>
-                            {job.insurance_docs_confirmed_by_driver ? (
-                              <p className="text-sm font-black text-green-400">✓ Confirmed handover at {fmt(job.insurance_docs_confirmed_by_driver_at)}</p>
-                            ) : (
-                              <>
-                                <p className="text-sm font-bold text-white/60 mb-3">Confirm you have handed the insurance documents to the customer.</p>
-                                <button type="button" disabled={isConfirming}
-                                  onClick={() => confirmAction(job.booking_id, "insurance")}
-                                  className="bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
-                                  {isConfirming ? "Saving…" : "✓ Confirm insurance handover"}
-                                </button>
-                              </>
-                            )}
-                          </div>
-
-                          {/* Delivery fuel */}
-                          <div className={`border p-4 ${job.collection_confirmed_by_driver ? "border-green-500/30 bg-green-500/10" : "border-white/10 bg-white/5"}`}>
-                            <p className="text-xs font-black uppercase tracking-wide text-white/40 mb-2">⛽ Delivery Fuel Level</p>
-                            {job.collection_confirmed_by_driver ? (
-                              <>
-                                <p className="text-sm font-black text-green-400">✓ Recorded: {FUEL_LABELS[job.collection_fuel_level_driver as FuelLevel] || job.collection_fuel_level_driver}</p>
-                                <p className="text-xs text-white/30 mt-1">{fmt(job.collection_confirmed_by_driver_at)}</p>
-                                {job.collection_fuel_level_driver && <FuelBar level={job.collection_fuel_level_driver as FuelLevel} light/>}
-                              </>
-                            ) : (
-                              <>
-                                <p className="text-sm font-bold text-white/60 mb-3">Record the fuel level when you deliver the vehicle.</p>
-                                <div className="grid grid-cols-5 gap-2 mb-3">
-                                  {FUEL_OPTIONS.map(opt => (
-                                    <button key={opt} type="button"
-                                      onClick={() => setFuelLevels(f => ({ ...f, [`coll_${job.booking_id}`]: opt }))}
-                                      className={`py-2.5 text-xs font-black transition-colors ${collFuel === opt ? "bg-[#ff7a00] text-white" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>
-                                      {FUEL_LABELS[opt]}
-                                    </button>
-                                  ))}
-                                </div>
-                                {collFuel && <FuelBar level={collFuel} light/>}
-                                <button type="button" disabled={!collFuel || isConfirming}
-                                  onClick={() => confirmAction(job.booking_id, "collection", collFuel)}
-                                  className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
-                                  {isConfirming ? "Saving…" : "✓ Confirm delivery fuel"}
-                                </button>
-                              </>
-                            )}
-                          </div>
-
-                          {/* Collection fuel */}
-                          <div className={`border p-4 ${job.return_confirmed_by_driver ? "border-green-500/30 bg-green-500/10" : "border-white/10 bg-white/5"}`}>
-                            <p className="text-xs font-black uppercase tracking-wide text-white/40 mb-2">⛽ Collection Fuel Level</p>
-                            {job.return_confirmed_by_driver ? (
-                              <>
-                                <p className="text-sm font-black text-green-400">✓ Recorded: {FUEL_LABELS[job.return_fuel_level_driver as FuelLevel] || job.return_fuel_level_driver}</p>
-                                <p className="text-xs text-white/30 mt-1">{fmt(job.return_confirmed_by_driver_at)}</p>
-                                {job.return_fuel_level_driver && <FuelBar level={job.return_fuel_level_driver as FuelLevel} light/>}
-                              </>
-                            ) : (
-                              <>
-                                <p className="text-sm font-bold text-white/60 mb-3">Record the fuel level when you collect the vehicle back.</p>
-                                <div className="grid grid-cols-5 gap-2 mb-3">
-                                  {FUEL_OPTIONS.map(opt => (
-                                    <button key={opt} type="button"
-                                      onClick={() => setFuelLevels(f => ({ ...f, [`ret_${job.booking_id}`]: opt }))}
-                                      className={`py-2.5 text-xs font-black transition-colors ${retFuel === opt ? "bg-[#ff7a00] text-white" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>
-                                      {FUEL_LABELS[opt]}
-                                    </button>
-                                  ))}
-                                </div>
-                                {retFuel && <FuelBar level={retFuel} light/>}
-                                <button type="button" disabled={!retFuel || isConfirming}
-                                  onClick={() => confirmAction(job.booking_id, "return", retFuel)}
-                                  className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
-                                  {isConfirming ? "Saving…" : "✓ Confirm collection fuel"}
-                                </button>
-                              </>
-                            )}
-                          </div>
-
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Completed jobs */}
-            {completedJobs.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs font-black uppercase tracking-widest text-white/30">Completed & Cancelled</p>
-                {completedJobs.map(job => (
-                  <div key={job.booking_id} className="border border-white/5 bg-white/3 px-5 py-4 flex items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-black text-white/60">#{job.job_number ?? "—"}</span>
-                        <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>
-                          {statusLabel(job.booking_status)}
-                        </span>
+                        <p className="text-sm font-bold text-black/70 truncate">📍 {job.pickup_address || "—"}</p>
+                        <p className="text-sm font-semibold text-black/40 truncate">🏁 {job.dropoff_address || "—"}</p>
+                        <p className="text-xs font-bold text-black/30 mt-1">
+                          🗓 {job.pickup_at ? new Date(job.pickup_at).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : "—"}
+                        </p>
                       </div>
-                      <p className="text-xs font-bold text-white/30 truncate">{job.pickup_address || "—"}</p>
-                      <p className="text-xs text-white/20">{job.pickup_at ? new Date(job.pickup_at).toLocaleDateString("en-GB") : "—"}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
+                      <span className="text-black/30 font-black text-lg shrink-0">{isExpanded ? "▲" : "▼"}</span>
+                    </button>
 
-        <p className="text-center text-xs font-bold text-white/20 pb-4">
-          Auto-refreshes every 15 seconds · Camel Global Driver Portal
-        </p>
-      </div>
+                    {isExpanded && (
+                      <div className="border-t border-black/5 px-5 py-5 space-y-5">
+
+                        {/* Journey details */}
+                        <div className="grid grid-cols-2 gap-3">
+                          {[
+                            { label:"Customer",       value: job.customer_name },
+                            { label:"Customer phone", value: job.customer_phone, phone: true },
+                            { label:"Vehicle",        value: job.driver_vehicle || job.vehicle_category_name },
+                            { label:"Pickup time",    value: fmt(job.pickup_at) },
+                            { label:"Dropoff time",   value: fmt(job.dropoff_at) },
+                            { label:"Assigned at",    value: fmt(job.driver_assigned_at) },
+                          ].map(({ label, value, phone }) => (
+                            <div key={label}>
+                              <p className="text-xs font-black uppercase tracking-wide text-black/30">{label}</p>
+                              {phone && value
+                                ? <a href={`tel:${value}`} className="text-sm font-bold text-[#ff7a00] underline">{value}</a>
+                                : <p className="text-sm font-bold text-black">{value || "—"}</p>}
+                            </div>
+                          ))}
+                        </div>
+
+                        {job.driver_notes && (
+                          <div className="border-l-4 border-[#ff7a00] bg-[#ff7a00]/5 px-4 py-3">
+                            <p className="text-xs font-black uppercase tracking-wide text-[#ff7a00] mb-1">Notes from partner</p>
+                            <p className="text-sm font-bold text-black/70">{job.driver_notes}</p>
+                          </div>
+                        )}
+
+                        {/* WhatsApp */}
+                        {job.customer_phone && (
+                          <a href={`https://wa.me/${job.customer_phone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 bg-green-500 px-4 py-2.5 text-sm font-black text-white hover:bg-green-600 transition-colors">
+                            💬 WhatsApp Customer
+                          </a>
+                        )}
+
+                        {/* Insurance */}
+                        <div className={`border p-4 ${job.insurance_docs_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
+                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">📄 Insurance Documents</p>
+                          {job.insurance_docs_confirmed_by_driver ? (
+                            <p className="text-sm font-black text-green-700">✓ Confirmed handover at {fmt(job.insurance_docs_confirmed_by_driver_at)}</p>
+                          ) : (
+                            <>
+                              <p className="text-sm font-bold text-black/60 mb-3">Confirm you have handed the insurance documents to the customer.</p>
+                              <button type="button" disabled={isConfirming}
+                                onClick={() => confirmAction(job.booking_id, "insurance")}
+                                className="bg-black px-5 py-3 text-sm font-black text-white hover:opacity-80 disabled:opacity-40 transition-opacity">
+                                {isConfirming ? "Saving…" : "✓ Confirm insurance handover"}
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Delivery fuel */}
+                        <div className={`border p-4 ${job.collection_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
+                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">⛽ Delivery Fuel Level</p>
+                          {job.collection_confirmed_by_driver ? (
+                            <>
+                              <p className="text-sm font-black text-green-700">✓ Recorded: {FUEL_LABELS[job.collection_fuel_level_driver as FuelLevel] || job.collection_fuel_level_driver}</p>
+                              <p className="text-xs text-black/30 mt-1">{fmt(job.collection_confirmed_by_driver_at)}</p>
+                              {job.collection_fuel_level_driver && <FuelBar level={job.collection_fuel_level_driver as FuelLevel}/>}
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-sm font-bold text-black/60 mb-3">Record the fuel level when you deliver the vehicle.</p>
+                              <div className="grid grid-cols-5 gap-2 mb-3">
+                                {FUEL_OPTIONS.map(opt => (
+                                  <button key={opt} type="button"
+                                    onClick={() => setFuelLevels(f => ({ ...f, [`coll_${job.booking_id}`]: opt }))}
+                                    className={`py-2.5 text-xs font-black transition-colors ${collFuel === opt ? "bg-[#ff7a00] text-white" : "bg-white text-black/60 border border-black/10 hover:border-black/30"}`}>
+                                    {FUEL_LABELS[opt]}
+                                  </button>
+                                ))}
+                              </div>
+                              {collFuel && <FuelBar level={collFuel}/>}
+                              <button type="button" disabled={!collFuel || isConfirming}
+                                onClick={() => confirmAction(job.booking_id, "collection", collFuel)}
+                                className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
+                                {isConfirming ? "Saving…" : "✓ Confirm delivery fuel"}
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Collection fuel */}
+                        <div className={`border p-4 ${job.return_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
+                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">⛽ Collection Fuel Level</p>
+                          {job.return_confirmed_by_driver ? (
+                            <>
+                              <p className="text-sm font-black text-green-700">✓ Recorded: {FUEL_LABELS[job.return_fuel_level_driver as FuelLevel] || job.return_fuel_level_driver}</p>
+                              <p className="text-xs text-black/30 mt-1">{fmt(job.return_confirmed_by_driver_at)}</p>
+                              {job.return_fuel_level_driver && <FuelBar level={job.return_fuel_level_driver as FuelLevel}/>}
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-sm font-bold text-black/60 mb-3">Record the fuel level when you collect the vehicle back.</p>
+                              <div className="grid grid-cols-5 gap-2 mb-3">
+                                {FUEL_OPTIONS.map(opt => (
+                                  <button key={opt} type="button"
+                                    onClick={() => setFuelLevels(f => ({ ...f, [`ret_${job.booking_id}`]: opt }))}
+                                    className={`py-2.5 text-xs font-black transition-colors ${retFuel === opt ? "bg-[#ff7a00] text-white" : "bg-white text-black/60 border border-black/10 hover:border-black/30"}`}>
+                                    {FUEL_LABELS[opt]}
+                                  </button>
+                                ))}
+                              </div>
+                              {retFuel && <FuelBar level={retFuel}/>}
+                              <button type="button" disabled={!retFuel || isConfirming}
+                                onClick={() => confirmAction(job.booking_id, "return", retFuel)}
+                                className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
+                                {isConfirming ? "Saving…" : "✓ Confirm collection fuel"}
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Completed jobs */}
+          {completedJobs.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-widest text-black/30 px-1">Completed & Cancelled</p>
+              {completedJobs.map(job => (
+                <div key={job.booking_id} className="bg-white border border-black/5 px-5 py-4 flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-black text-black/50">#{job.job_number ?? "—"}</span>
+                      <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>
+                        {statusLabel(job.booking_status)}
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-black/40 truncate">{job.pickup_address || "—"}</p>
+                    <p className="text-xs text-black/30">{job.pickup_at ? new Date(job.pickup_at).toLocaleDateString("en-GB") : "—"}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      <p className="text-center text-xs font-bold text-black/20 pb-4">
+        Auto-refreshes every 15 seconds · Camel Global Driver Portal
+      </p>
     </div>
   );
 }
