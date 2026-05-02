@@ -8,6 +8,7 @@ const year = new Date().getFullYear();
 
 // ── Partner / Admin / Driver footer ──────────────────────────────────────────
 export function PortalFooter({ variant }: { variant: "partner" | "admin" | "driver" }) {
+  const prefix    = variant === "admin" ? "/admin" : variant === "driver" ? "/partner" : "/partner";
   const termsHref = variant === "admin" ? "/admin/terms"           : "/partner/terms";
   const rulesHref = variant === "admin" ? "/admin/operating-rules" : "/partner/operating-rules";
 
@@ -31,16 +32,16 @@ export function PortalFooter({ variant }: { variant: "partner" | "admin" | "driv
 
             <div className="flex flex-col gap-3">
               <p className="text-xs font-black uppercase tracking-widest text-white/40">Company</p>
-              <Link href="/about"   className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">About Us</Link>
-              <Link href="/contact" className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Contact</Link>
+              <Link href={`${prefix}/about`}   className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">About Us</Link>
+              <Link href={`${prefix}/contact`} className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Contact</Link>
             </div>
 
             <div className="flex flex-col gap-3">
               <p className="text-xs font-black uppercase tracking-widest text-white/40">Legal</p>
-              <Link href={termsHref} className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Partner Terms</Link>
-              <Link href={rulesHref} className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Operating Agreement</Link>
-              <Link href="/privacy"  className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Privacy Policy</Link>
-              <Link href="/cookies"  className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Cookie Policy</Link>
+              <Link href={termsHref}           className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Partner Terms</Link>
+              <Link href={rulesHref}           className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Operating Agreement</Link>
+              <Link href={`${prefix}/privacy`} className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Privacy Policy</Link>
+              <Link href={`${prefix}/cookies`} className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Cookie Policy</Link>
             </div>
 
             <div className="flex flex-col gap-3">
