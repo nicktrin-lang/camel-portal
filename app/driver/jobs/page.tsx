@@ -358,20 +358,79 @@ export default function DriverJobsPage() {
           {completedJobs.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-black uppercase tracking-widest text-black/30 px-1">Completed & Cancelled</p>
-              {completedJobs.map(job => (
-                <div key={job.booking_id} className="bg-white border border-black/5 px-5 py-4 flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-black text-black/50">#{job.job_number ?? "—"}</span>
-                      <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>
-                        {statusLabel(job.booking_status)}
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold text-black/40 truncate">{job.pickup_address || "—"}</p>
-                    <p className="text-xs text-black/30">{job.pickup_at ? new Date(job.pickup_at).toLocaleDateString("en-GB") : "—"}</p>
+              {completedJobs.map(job => {
+                const isExpanded = expandedJob === job.booking_id;
+                return (
+                  <div key={job.booking_id} className="bg-white border border-black/5">
+                    <button type="button" onClick={() => setExpandedJob(isExpanded ? null : job.booking_id)}
+                      className="w-full text-left px-5 py-4 flex items-start justify-between gap-4 hover:bg-[#f0f0f0] transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-black text-black/50">#{job.job_number ?? "—"}</span>
+                          <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>
+                            {statusLabel(job.booking_status)}
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-black/40 truncate">📍 {job.pickup_address || "—"}</p>
+                        <p className="text-xs text-black/30">{job.pickup_at ? new Date(job.pickup_at).toLocaleDateString("en-GB") : "—"}</p>
+                      </div>
+                      <span className="text-black/30 font-black text-lg shrink-0">{isExpanded ? "▲" : "▼"}</span>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t border-black/5 px-5 py-5 space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          {[
+                            { label:"Customer",       value: job.customer_name },
+                            { label:"Customer phone", value: job.customer_phone, phone: true },
+                            { label:"Vehicle",        value: job.driver_vehicle || job.vehicle_category_name },
+                            { label:"Pickup time",    value: fmt(job.pickup_at) },
+                            { label:"Dropoff time",   value: fmt(job.dropoff_at) },
+                            { label:"Dropoff address",value: job.dropoff_address },
+                          ].map(({ label, value, phone }) => (
+                            <div key={label}>
+                              <p className="text-xs font-black uppercase tracking-wide text-black/30">{label}</p>
+                              {phone && value
+                                ? <a href={`tel:${value}`} className="text-sm font-bold text-[#ff7a00] underline">{value}</a>
+                                : <p className="text-sm font-bold text-black">{value || "—"}</p>}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Fuel summary */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="border border-black/10 bg-[#f0f0f0] p-3">
+                            <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">⛽ Delivery fuel</p>
+                            <p className="text-sm font-bold text-black">
+                              {job.collection_fuel_level_driver ? FUEL_LABELS[job.collection_fuel_level_driver as FuelLevel] || job.collection_fuel_level_driver : "—"}
+                            </p>
+                            {job.collection_confirmed_by_driver && job.collection_fuel_level_driver &&
+                              <FuelBar level={job.collection_fuel_level_driver as FuelLevel}/>}
+                          </div>
+                          <div className="border border-black/10 bg-[#f0f0f0] p-3">
+                            <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">⛽ Collection fuel</p>
+                            <p className="text-sm font-bold text-black">
+                              {job.return_fuel_level_driver ? FUEL_LABELS[job.return_fuel_level_driver as FuelLevel] || job.return_fuel_level_driver : "—"}
+                            </p>
+                            {job.return_confirmed_by_driver && job.return_fuel_level_driver &&
+                              <FuelBar level={job.return_fuel_level_driver as FuelLevel}/>}
+                          </div>
+                        </div>
+
+                        {/* Insurance */}
+                        <div className={`border p-3 ${job.insurance_docs_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
+                          <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">📄 Insurance handover</p>
+                          <p className="text-sm font-bold text-black">
+                            {job.insurance_docs_confirmed_by_driver
+                              ? `✓ Confirmed at ${fmt(job.insurance_docs_confirmed_by_driver_at)}`
+                              : "Not confirmed"}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>
