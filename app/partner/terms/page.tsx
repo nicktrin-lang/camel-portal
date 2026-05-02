@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 
-const VERSION = "2026-04";
-const EFFECTIVE_DATE = "1 April 2026";
+const VERSION = "2026-05";
+const EFFECTIVE_DATE = "1 May 2026";
 
 type Section = { title: string; clauses: string[] };
 
@@ -42,7 +42,7 @@ const TERMS: Section[] = [
       "The Partner warrants that all information provided during registration and at any point thereafter is true, accurate, current, and complete.",
       "The Partner is responsible for maintaining the confidentiality of their account credentials and for all activity that occurs under their account.",
       "The Partner must notify Camel Global immediately of any unauthorised use of their account or any other breach of security.",
-      "Camel Global reserves the right to refuse registration or to suspend or terminate an account at any time in accordance with clause 11.",
+      "Camel Global reserves the right to refuse registration or to suspend or terminate an account at any time in accordance with clause 14.",
       "Each partner account is for a single legal entity. The Partner must not create multiple accounts or allow third parties to use their account.",
       "The Partner must keep their registered details, including legal company name, VAT/NIF number, and contact information, up to date at all times.",
     ],
@@ -93,11 +93,24 @@ const TERMS: Section[] = [
       "Camel Global will issue commission invoices to Partners on a monthly basis with reverse charge treatment under Article 44/196 of the EU VAT Directive where applicable.",
       "The Partner is solely responsible for accounting for and paying all taxes on income received through the Platform.",
       "In the event of a Customer refund dispute, the financial liability rests with the Partner.",
-      "All fuel refunds owed to Customers must be processed within 5 business days of Booking completion.",
+      "All fuel refunds owed to Customers are processed automatically by the Platform.",
     ],
   },
   {
-    title: "8. VAT and Tax",
+    title: "8. Cancellations and Refunds",
+    clauses: [
+      "The following cancellation policy applies to all Bookings made through the Platform. The cancellation timestamp is recorded automatically by the Platform at the moment a cancellation is confirmed.",
+      "If the Partner cancels a confirmed Booking for any reason, the Customer will receive a full refund of everything paid, including the Hire Price and the fuel deposit. Partner cancellations are a breach of clause 4 and may result in account suspension.",
+      "If the Customer cancels a Booking more than 48 hours before the scheduled pickup time, the Customer receives a full refund of everything paid. The Partner receives no payout for that Booking.",
+      "If the Customer cancels a Booking within 48 hours of the scheduled pickup time, the Hire Price is non-refundable and the Partner retains their net payout (Hire Price minus Commission). The fuel deposit is always refunded to the Customer in full as the fuel has not been used.",
+      "Once a vehicle has been collected and the hire is underway, no cancellation is possible and no refund of the Hire Price is available. Fuel is settled based on actual usage at the end of the hire.",
+      "Camel Global admin may cancel any Booking at any time and will issue a full refund to the Customer. The Partner will be notified by email.",
+      "All refunds are processed automatically by the Platform and will appear in the Customer's account within 5–10 working days.",
+      "The 48-hour threshold is measured from the scheduled pickup time recorded on the Booking at the time of confirmation. Any changes to the pickup time agreed between the parties do not retrospectively alter the threshold.",
+    ],
+  },
+  {
+    title: "9. VAT and Tax",
     clauses: [
       "The Partner is responsible for charging and accounting for VAT on the full Booking price paid by the Customer.",
       "Camel Global will invoice the Partner for commission using the reverse charge mechanism under Article 44/196 of the EU VAT Directive.",
@@ -106,7 +119,7 @@ const TERMS: Section[] = [
     ],
   },
   {
-    title: "9. Insurance",
+    title: "10. Insurance",
     clauses: [
       "The Partner is solely responsible for ensuring all vehicles are comprehensively insured at all times.",
       "The Partner must maintain public liability insurance with a minimum coverage of €5,000,000.",
@@ -117,7 +130,7 @@ const TERMS: Section[] = [
     ],
   },
   {
-    title: "10. Intellectual Property",
+    title: "11. Intellectual Property",
     clauses: [
       "Camel Global retains all intellectual property rights in the Platform.",
       "The Partner is granted a limited, non-exclusive, non-transferable licence to use the Platform solely for fulfilling Bookings.",
@@ -126,7 +139,7 @@ const TERMS: Section[] = [
     ],
   },
   {
-    title: "11. Data Protection and GDPR",
+    title: "12. Data Protection and GDPR",
     clauses: [
       "Each party shall comply with all applicable data protection legislation, including the UK GDPR and EU GDPR.",
       "Customer personal data may only be processed by the Partner for the purpose of fulfilling the specific Booking for which it was shared.",
@@ -137,7 +150,7 @@ const TERMS: Section[] = [
     ],
   },
   {
-    title: "12. Liability",
+    title: "13. Liability",
     clauses: [
       "Nothing in this Agreement limits liability for death or personal injury caused by negligence or fraud.",
       "Camel Global's total aggregate liability shall not exceed the total commission paid by the Partner in the 3 months preceding the claim.",
@@ -146,7 +159,7 @@ const TERMS: Section[] = [
     ],
   },
   {
-    title: "13. Suspension and Termination",
+    title: "14. Suspension and Termination",
     clauses: [
       "Camel Global may suspend a Partner account immediately for a serious customer complaint, breach of standards, failure to fulfil a Booking, or misrepresentation.",
       "Following suspension, the Partner will be notified by email and given 5 business days to respond.",
@@ -156,7 +169,7 @@ const TERMS: Section[] = [
     ],
   },
   {
-    title: "14. Amendments",
+    title: "15. Amendments",
     clauses: [
       "Camel Global reserves the right to amend these Terms at any time.",
       "Partners will be notified of material changes by email with at least 14 days' notice.",
@@ -165,7 +178,7 @@ const TERMS: Section[] = [
     ],
   },
   {
-    title: "15. General",
+    title: "16. General",
     clauses: [
       "This Agreement constitutes the entire agreement between the parties in relation to its subject matter.",
       "If any provision is found invalid or unenforceable, the remaining provisions continue in full force.",
@@ -227,7 +240,7 @@ async function downloadTermsPDF() {
     doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3);
     doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
     doc.setFontSize(7); doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "normal");
-    doc.text(`Camel Global Partner Terms and Conditions — Version ${VERSION} — camelglobal.com`, margin, pageH - 6);
+    doc.text(`Camel Global Partner Terms and Conditions — Version ${VERSION} — camel-global.com`, margin, pageH - 6);
     doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 6, { align: "right" });
   }
   doc.save(`Camel-Global-Partner-Terms-${VERSION}.pdf`);
@@ -236,7 +249,6 @@ async function downloadTermsPDF() {
 export default function PartnerTermsPage() {
   return (
     <>
-      {/* Hero — full bleed black band */}
       <div className="w-full bg-black px-6 py-16 text-white mb-6">
         <div className="mx-auto max-w-5xl">
           <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">Legal</p>
@@ -250,10 +262,8 @@ export default function PartnerTermsPage() {
         </div>
       </div>
 
-      {/* Content */}
       <div className="mx-auto max-w-5xl px-6 space-y-4 pb-10">
 
-        {/* Download + key points */}
         <div className="bg-white p-6">
           <div className="flex justify-end mb-6">
             <button type="button" onClick={() => downloadTermsPDF()}
@@ -265,7 +275,7 @@ export default function PartnerTermsPage() {
             {[
               { icon: "🏪", title: "Camel is a marketplace", body: "We are an intermediary. The hire contract is always between you and the customer." },
               { icon: "💰", title: "Commission from 20%", body: "Standard rate is 20% on the hire price only. Fuel charges pass through to you at 100%. Minimum €10 per booking. Reduced rates available by agreement." },
-              { icon: "⚖️", title: "England & Wales law", body: "This agreement is governed by English law. Disputes are subject to the courts of England and Wales." },
+              { icon: "❌", title: "Cancellation policy", body: "Partner cancellations = full refund to customer. Customer cancels >48hrs = full refund, no payout. Customer cancels <48hrs = you keep hire fee minus commission. Fuel always refunded." },
             ].map(({ icon, title, body }) => (
               <div key={title} className="bg-[#f0f0f0] p-4">
                 <div className="text-2xl mb-2">{icon}</div>
@@ -276,7 +286,6 @@ export default function PartnerTermsPage() {
           </div>
         </div>
 
-        {/* Terms sections */}
         {TERMS.map(({ title, clauses }) => (
           <div key={title} className="bg-white p-6">
             <h2 className="text-xs font-black uppercase tracking-widest text-black mb-4 pb-2 border-b border-black/10">{title}</h2>
@@ -291,13 +300,12 @@ export default function PartnerTermsPage() {
           </div>
         ))}
 
-        {/* Operating rules note */}
         <div className="bg-[#f0f0f0] p-6">
           <p className="text-xs font-black uppercase tracking-widest text-black mb-2">Partner Operating Rules</p>
           <p className="text-sm font-bold text-black/70 leading-relaxed">
             The Partner Operating Rules are incorporated into this Agreement and have the same legal force as these Terms.
             They set out the day-to-day operational standards covering bidding, vehicle standards, fuel policy, driver conduct,
-            customer service, and more. You can read and download the Operating Rules from your{" "}
+            customer service, cancellations, and more. You can read and download the Operating Rules from your{" "}
             <Link href="/partner/account" className="font-black text-black underline hover:opacity-70">
               partner account page
             </Link>.

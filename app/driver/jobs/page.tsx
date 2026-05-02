@@ -34,16 +34,16 @@ const FUEL_BARS: Record<FuelLevel, number> = {
   full: 4, "3/4": 3, half: 2, quarter: 1, empty: 0,
 };
 
-function FuelBar({ level }: { level: FuelLevel }) {
+function FuelBar({ level, light }: { level: FuelLevel; light?: boolean }) {
   const filled = FUEL_BARS[level] ?? 0;
   return (
-    <div className="flex gap-1">
-      {[0, 1, 2, 3].map(i => (
-        <div key={i} className={`h-3 flex-1 rounded-full ${
+    <div className="flex gap-1 mt-2">
+      {[0,1,2,3].map(i => (
+        <div key={i} className={`h-3 flex-1 ${
           i < filled
             ? filled >= 3 ? "bg-green-500" : filled === 2 ? "bg-yellow-400" : "bg-red-400"
-            : "bg-slate-200"
-        }`} />
+            : light ? "bg-white/20" : "bg-black/10"
+        }`}/>
       ))}
     </div>
   );
@@ -51,363 +51,338 @@ function FuelBar({ level }: { level: FuelLevel }) {
 
 function fmt(v?: string | null) {
   if (!v) return "—";
-  try { return new Date(v).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
+  try { return new Date(v).toLocaleString("en-GB", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }); }
   catch { return v; }
 }
 
-function Detail({ label, value, phone }: { label: string; value?: string | null; phone?: boolean }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      {phone && value
-        ? <a href={`tel:${value}`} className="text-sm font-medium text-[#003768] underline">{value}</a>
-        : <p className="text-sm font-medium text-slate-800">{value || "—"}</p>}
-    </div>
-  );
+function statusLabel(s: string): string {
+  switch (s.toLowerCase()) {
+    case "confirmed":       return "Awaiting delivery";
+    case "driver_assigned": return "Assigned to you";
+    case "en_route":        return "En route";
+    case "arrived":         return "Arrived";
+    case "collected":       return "On hire";
+    case "returned":        return "Returned";
+    case "completed":       return "Completed";
+    case "cancelled":       return "Cancelled";
+    default: return s.replaceAll("_", " ");
+  }
 }
 
-function FuelSummaryCard({ title, confirmed, confirmedAt, fuelLevel }: {
-  title: string; confirmed: boolean; confirmedAt?: string | null; fuelLevel: FuelLevel | null;
-}) {
-  return (
-    <div className={`rounded-xl border p-3 ${confirmed ? "border-green-200 bg-green-50" : "border-slate-200 bg-slate-50"}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
-      <div className="mt-1 flex items-center gap-2">
-        <span className={`text-lg font-bold ${confirmed ? "text-green-700" : "text-slate-400"}`}>
-          {confirmed ? (fuelLevel ? FUEL_LABELS[fuelLevel] : "✓") : "Pending"}
-        </span>
-      </div>
-      {confirmed && fuelLevel && <div className="mt-2"><FuelBar level={fuelLevel} /></div>}
-      {confirmed && confirmedAt && <p className="mt-1 text-xs text-slate-400">{fmt(confirmedAt)}</p>}
-    </div>
-  );
+function statusColor(s: string): string {
+  switch (s.toLowerCase()) {
+    case "driver_assigned": case "en_route": case "arrived": return "bg-[#ff7a00] text-white";
+    case "collected": case "returned": return "bg-black text-white";
+    case "completed": return "bg-green-500 text-white";
+    case "cancelled": return "bg-red-100 text-red-700";
+    default: return "bg-[#f0f0f0] text-black";
+  }
 }
-
-function InsuranceSummaryCard({ driverConfirmed, driverConfirmedAt, customerConfirmed }: {
-  driverConfirmed: boolean; driverConfirmedAt?: string | null; customerConfirmed: boolean;
-}) {
-  const bothConfirmed = driverConfirmed && customerConfirmed;
-  return (
-    <div className={`rounded-xl border p-3 ${bothConfirmed ? "border-green-200 bg-green-50" : driverConfirmed ? "border-blue-200 bg-blue-50" : "border-amber-100 bg-amber-50"}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Insurance docs</p>
-      {bothConfirmed ? (
-        <span className="mt-1 block text-sm font-bold text-green-700">✓ Both confirmed</span>
-      ) : driverConfirmed ? (
-        <>
-          <span className="mt-1 block text-sm font-bold text-blue-700">✓ You confirmed</span>
-          <span className="text-xs text-amber-600">Waiting for customer…</span>
-        </>
-      ) : (
-        <span className="mt-1 block text-sm font-bold text-amber-600">Not confirmed</span>
-      )}
-      {driverConfirmed && driverConfirmedAt && <p className="mt-1 text-xs text-slate-400">{fmt(driverConfirmedAt)}</p>}
-    </div>
-  );
-}
-
-function JobCard({ job, mode, fuelInput, onFuelChange, insuranceChecked, onInsuranceChange, onConfirm, saving }: {
-  job: DriverJob; mode: "collection" | "return" | "readonly";
-  fuelInput: FuelLevel; onFuelChange: (v: FuelLevel) => void;
-  insuranceChecked: boolean; onInsuranceChange: (v: boolean) => void;
-  onConfirm: () => void; saving: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
-      <button type="button" onClick={() => setExpanded(p => !p)}
-        className="flex w-full items-center justify-between gap-3 p-4 text-left">
-        <div className="flex flex-col gap-1 min-w-0">
-          <span className="text-base font-bold text-[#003768]">Job #{job.job_number ?? "—"}</span>
-          <span className="text-sm text-slate-600 truncate">{job.pickup_address ?? "—"}</span>
-          <span className="text-xs text-slate-400">{fmt(job.pickup_at)}</span>
-        </div>
-        <svg viewBox="0 0 24 24" className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
-          fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
-
-      {expanded && (
-        <div className="border-t border-black/5 px-4 pb-5 pt-4 space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Detail label="Customer"       value={job.customer_name} />
-            <Detail label="Customer phone" value={job.customer_phone} phone />
-            <Detail label="Vehicle"        value={job.vehicle_category_name} />
-            <Detail label="Driver vehicle" value={job.driver_vehicle} />
-            <Detail label="Pickup"         value={job.pickup_address} />
-            <Detail label="Dropoff"        value={job.dropoff_address} />
-            <Detail label="Pickup time"    value={fmt(job.pickup_at)} />
-            <Detail label="Dropoff time"   value={fmt(job.dropoff_at)} />
-          </div>
-
-          {/* Status summary cards */}
-          <div className="grid gap-3 sm:grid-cols-3">
-            <FuelSummaryCard title="Delivery fuel"   confirmed={!!job.collection_confirmed_by_driver}
-              confirmedAt={job.collection_confirmed_by_driver_at}
-              fuelLevel={job.collection_fuel_level_driver as FuelLevel | null} />
-            <FuelSummaryCard title="Collection fuel" confirmed={!!job.return_confirmed_by_driver}
-              confirmedAt={job.return_confirmed_by_driver_at}
-              fuelLevel={job.return_fuel_level_driver as FuelLevel | null} />
-            <InsuranceSummaryCard
-              driverConfirmed={!!job.insurance_docs_confirmed_by_driver}
-              driverConfirmedAt={job.insurance_docs_confirmed_by_driver_at}
-              customerConfirmed={!!job.insurance_docs_confirmed_by_customer} />
-          </div>
-
-          {mode !== "readonly" && (
-            <div className="rounded-2xl bg-slate-50 p-4 space-y-4">
-              <p className="text-sm font-semibold text-[#003768]">
-                {mode === "collection" ? "Record delivery fuel level" : "Record collection fuel level"}
-              </p>
-
-              {/* Fuel selector */}
-              <div className="grid grid-cols-5 gap-2">
-                {FUEL_OPTIONS.map(opt => (
-                  <button key={opt} type="button" onClick={() => onFuelChange(opt)}
-                    className={`flex flex-col items-center gap-1 rounded-xl border-2 p-2 text-xs font-semibold transition ${
-                      fuelInput === opt
-                        ? "border-[#003768] bg-[#003768] text-white"
-                        : "border-black/10 bg-white text-slate-700 hover:border-[#003768]/40"
-                    }`}>
-                    <span className="text-base leading-none">
-                      {opt === "full" ? "F" : opt === "3/4" ? "¾" : opt === "half" ? "½" : opt === "quarter" ? "¼" : "E"}
-                    </span>
-                    <span className="hidden sm:block">{FUEL_LABELS[opt]}</span>
-                  </button>
-                ))}
-              </div>
-              <FuelBar level={fuelInput} />
-
-              {/* Insurance checkbox — delivery stage only */}
-              {mode === "collection" && (
-                <label className={`flex items-start gap-3 rounded-xl border-2 p-3 cursor-pointer transition ${
-                  insuranceChecked ? "border-green-400 bg-green-50" : "border-amber-300 bg-amber-50"
-                }`}>
-                  <input type="checkbox" checked={insuranceChecked} onChange={e => onInsuranceChange(e.target.checked)}
-                    className="mt-0.5 h-5 w-5 shrink-0 accent-[#003768]" />
-                  <div>
-                    <p className="text-sm font-semibold text-[#003768]">Insurance documents handed to customer</p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Tick to confirm you have handed the insurance paperwork to the customer at delivery.
-                    </p>
-                  </div>
-                </label>
-              )}
-
-              {/* Delivery blocked until insurance ticked; collection has no insurance requirement */}
-              {mode === "collection" && !insuranceChecked && (
-                <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
-                  ⚠ You must tick the insurance box above before confirming delivery.
-                </p>
-              )}
-              <button type="button" onClick={onConfirm}
-                disabled={saving || (mode === "collection" && !insuranceChecked)}
-                className="w-full rounded-full bg-[#ff7a00] py-3 font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60 active:scale-95 transition-transform">
-                {saving ? "Saving…" : mode === "collection" ? "✓ Confirm Delivery" : "✓ Confirm Collection"}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const PAGE_SIZE = 10;
 
 export default function DriverJobsPage() {
-  const [loading,          setLoading]          = useState(true);
-  const [activeTab,        setActiveTab]        = useState<"awaiting" | "onHire" | "completed">("awaiting");
-  const [savingId,         setSavingId]         = useState<string | null>(null);
-  const [error,            setError]            = useState<string | null>(null);
-  const [toast,            setToast]            = useState<string | null>(null);
-  const [driver,           setDriver]           = useState<DriverInfo | null>(null);
-  const [jobs,             setJobs]             = useState<DriverJob[]>([]);
-  const [fuelInputs,       setFuelInputs]       = useState<Record<string, FuelLevel>>({});
-  const [insuranceInputs,  setInsuranceInputs]  = useState<Record<string, boolean>>({});
-  const [visibleCount,     setVisibleCount]     = useState<Record<string, number>>({
-    awaiting: PAGE_SIZE, onHire: PAGE_SIZE, completed: PAGE_SIZE,
-  });
+  const [driverInfo,    setDriverInfo]    = useState<DriverInfo | null>(null);
+  const [jobs,          setJobs]          = useState<DriverJob[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState<string | null>(null);
+  const [expandedJob,   setExpandedJob]   = useState<string | null>(null);
+  const [confirmingJob, setConfirmingJob] = useState<string | null>(null);
+  const [fuelLevels,    setFuelLevels]    = useState<Record<string, FuelLevel>>({});
+  const [confirmError,  setConfirmError]  = useState<string | null>(null);
+  const [confirmOk,     setConfirmOk]     = useState<string | null>(null);
+  const [lastLoaded,    setLastLoaded]    = useState<Date | null>(null);
 
   async function load() {
-    setLoading(true); setError(null);
     try {
-      const res  = await fetch("/api/driver/jobs", { credentials: "include", cache: "no-store" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to load jobs.");
-      setDriver(json.driver ?? null);
-      setJobs(json.jobs ?? []);
-      const fInputs: Record<string, FuelLevel> = {};
-      const iInputs: Record<string, boolean>   = {};
-      for (const j of json.jobs ?? []) {
-        fInputs[j.booking_id] = "full";
-        iInputs[j.booking_id] = false;
-      }
-      setFuelInputs(fInputs);
-      setInsuranceInputs(iInputs);
-    } catch (e: any) {
-      setError(e?.message || "Failed to load jobs.");
-    } finally {
-      setLoading(false);
-    }
+      const [dRes, jRes] = await Promise.all([
+        fetch("/api/driver/check", { credentials: "include", cache: "no-store" }),
+        fetch("/api/driver/jobs",  { credentials: "include", cache: "no-store" }),
+      ]);
+      const dJson = await dRes.json().catch(() => null);
+      const jJson = await jRes.json().catch(() => null);
+      if (!dRes.ok) { setError(dJson?.error || "Not authorised as a driver."); setLoading(false); return; }
+      setDriverInfo(dJson?.driver || null);
+      setJobs(Array.isArray(jJson?.jobs) ? jJson.jobs : []);
+      setLastLoaded(new Date());
+    } catch (e: any) { setError(e?.message || "Failed to load jobs."); }
+    finally { setLoading(false); }
   }
 
-  useEffect(() => { load(); }, []);
-
-  // Auto-refresh every 10 seconds so driver sees status changes without manual refresh
   useEffect(() => {
-    const t = setInterval(() => {
-      // Only silent-refresh (no spinner) — don't reset fuel/insurance inputs mid-interaction
-      fetch("/api/driver/jobs", { credentials: "include", cache: "no-store" })
-        .then(r => r.json())
-        .then(json => {
-          if (json?.jobs) setJobs(json.jobs);
-          if (json?.driver) setDriver(json.driver);
-        })
-        .catch(() => {});
-    }, 10000);
+    load();
+    const t = setInterval(load, 15000);
     return () => clearInterval(t);
   }, []);
 
-  async function confirmStage(bookingId: string, stage: "collection" | "return") {
-    setSavingId(bookingId); setError(null);
+  async function confirmAction(
+    bookingId: string,
+    action: "collection" | "return" | "insurance",
+    fuelLevel?: FuelLevel
+  ) {
+    setConfirmingJob(bookingId); setConfirmError(null); setConfirmOk(null);
     try {
-      const body: Record<string, any> = {
-        stage,
-        fuel_level: fuelInputs[bookingId] ?? "full",
-      };
-      // Only send insurance flag on delivery stage
-      if (stage === "collection") {
-        body.insurance_docs_handed_over = insuranceInputs[bookingId] ?? false;
-      }
-
-      const res  = await fetch(`/api/driver/bookings/${bookingId}/confirm`, {
+      const res = await fetch(`/api/driver/bookings/${bookingId}/confirm`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ action, fuel_level: fuelLevel }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to save.");
-      setToast(stage === "collection" ? "Delivery confirmed ✓" : "Collection confirmed ✓");
-      setTimeout(() => setToast(null), 3000);
+      if (!res.ok) throw new Error(json?.error || "Failed to confirm.");
+      setConfirmOk(
+        action === "collection" ? "Delivery confirmed ✓" :
+        action === "return"     ? "Collection confirmed ✓" :
+                                  "Insurance confirmed ✓"
+      );
       await load();
-    } catch (e: any) {
-      setError(e?.message || "Failed to save.");
-    } finally {
-      setSavingId(null);
-    }
+    } catch (e: any) { setConfirmError(e?.message || "Failed to confirm."); }
+    finally { setConfirmingJob(null); }
   }
 
-  const { awaiting, onHire, completed } = useMemo(() => ({
-    awaiting:  jobs.filter(j => j.booking_status_label === "Awaiting delivery"),
-    onHire:    jobs.filter(j => j.booking_status_label === "On Hire"),
-    completed: jobs.filter(j => j.booking_status_label === "Completed"),
-  }), [jobs]);
+  const activeJobs    = useMemo(() => jobs.filter(j => !["completed","cancelled"].includes(j.booking_status.toLowerCase())), [jobs]);
+  const completedJobs = useMemo(() => jobs.filter(j => ["completed","cancelled"].includes(j.booking_status.toLowerCase())), [jobs]);
 
-  useEffect(() => {
-    if (!loading) {
-      if (awaiting.length > 0) setActiveTab("awaiting");
-      else if (onHire.length > 0) setActiveTab("onHire");
-      else setActiveTab("completed");
-    }
-  }, [loading]);
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <p className="text-white/50 font-bold">Loading your jobs…</p>
+    </div>
+  );
 
-  const tabs: { key: "awaiting" | "onHire" | "completed"; label: string; count: number; accent: string; bg: string; border: string }[] = [
-    { key: "awaiting",  label: "Awaiting Delivery", count: awaiting.length,  accent: "text-blue-700",   bg: "bg-blue-50",   border: "border-blue-200" },
-    { key: "onHire",    label: "On Hire",            count: onHire.length,    accent: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200" },
-    { key: "completed", label: "Completed",          count: completed.length, accent: "text-green-700",  bg: "bg-green-50",  border: "border-green-200" },
-  ];
-
-  const activeJobs    = activeTab === "awaiting" ? awaiting : activeTab === "onHire" ? onHire : completed;
-  const activeMode    = activeTab === "awaiting" ? "collection" : activeTab === "onHire" ? "return" : "readonly";
-  const activeVisible = visibleCount[activeTab];
-  const visibleJobs   = activeJobs.slice(0, activeVisible);
-  const hasMore       = activeJobs.length > activeVisible;
+  if (error) return (
+    <div className="min-h-screen bg-black flex items-center justify-center px-6">
+      <div className="max-w-md text-center">
+        <p className="text-4xl mb-4">🚫</p>
+        <p className="text-white font-black text-xl mb-2">Access denied</p>
+        <p className="text-white/50 font-semibold text-sm">{error}</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      {toast && (
-        <div className="fixed top-24 inset-x-4 z-50 rounded-2xl bg-green-600 px-5 py-3 text-center text-sm font-semibold text-white shadow-xl md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-96">
-          {toast}
-        </div>
-      )}
+    <div className="min-h-screen bg-black text-white">
 
-      {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[#003768]">My Jobs</h1>
-          {driver && <p className="mt-1 text-sm text-slate-500">Signed in as <span className="font-semibold text-[#003768]">{driver.full_name}</span></p>}
-        </div>
-        <button type="button" onClick={load} disabled={loading}
-          className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#003768] hover:bg-black/5 disabled:opacity-50 shadow-sm">
-          {loading ? "Loading…" : "↻ Refresh"}
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="rounded-3xl border border-black/5 bg-white p-8 text-center text-slate-500">Loading jobs…</div>
-      ) : jobs.length === 0 ? (
-        <div className="rounded-3xl border border-black/5 bg-white p-8 text-center">
-          <p className="text-4xl">🚗</p>
-          <p className="mt-3 text-lg font-semibold text-slate-700">No jobs assigned yet</p>
-          <p className="mt-1 text-sm text-slate-500">Your partner will assign jobs to you here.</p>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-3 gap-3">
-            {tabs.map(tab => (
-              <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
-                className={`rounded-3xl border-2 p-4 shadow-sm text-center transition-all ${tab.bg} ${tab.border} ${
-                  activeTab === tab.key ? "shadow-md scale-[1.02]" : "opacity-60 hover:opacity-80"
-                }`}>
-                <p className={`text-3xl font-bold ${tab.accent}`}>{tab.count}</p>
-                <p className={`mt-1 text-xs font-semibold uppercase tracking-wide ${tab.accent}`}>
-                  {tab.key === "awaiting" ? "Awaiting" : tab.key === "onHire" ? "On Hire" : "Completed"}
-                </p>
-                <p className={`text-xs ${tab.accent} opacity-80`}>
-                  {tab.key === "awaiting" ? "Delivery" : tab.key === "onHire" ? "Active" : "Done"}
-                </p>
-              </button>
-            ))}
-          </div>
-
+      {/* Header */}
+      <div className="w-full bg-black border-b border-white/10 px-6 py-4">
+        <div className="mx-auto max-w-3xl flex items-center justify-between">
           <div>
-            <div className="mb-3 flex items-center gap-2">
-              <h2 className={`text-lg font-bold ${tabs.find(t => t.key === activeTab)?.accent}`}>
-                {tabs.find(t => t.key === activeTab)?.label}
-              </h2>
-              <span className="rounded-full bg-black/5 px-2.5 py-0.5 text-xs font-bold text-slate-600">{activeJobs.length}</span>
-            </div>
-
-            {activeJobs.length === 0 ? (
-              <div className="rounded-3xl border border-black/5 bg-white p-8 text-center">
-                <p className="text-slate-500 text-sm">No jobs in this category.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {visibleJobs.map(job => (
-                  <JobCard key={job.booking_id} job={job} mode={activeMode}
-                    fuelInput={fuelInputs[job.booking_id] ?? "full"}
-                    onFuelChange={v => setFuelInputs(p => ({ ...p, [job.booking_id]: v }))}
-                    insuranceChecked={insuranceInputs[job.booking_id] ?? false}
-                    onInsuranceChange={v => setInsuranceInputs(p => ({ ...p, [job.booking_id]: v }))}
-                    onConfirm={() => confirmStage(job.booking_id, activeMode === "readonly" ? "return" : activeMode)}
-                    saving={savingId === job.booking_id} />
-                ))}
-                {hasMore && (
-                  <button type="button"
-                    onClick={() => setVisibleCount(p => ({ ...p, [activeTab]: p[activeTab] + PAGE_SIZE }))}
-                    className="w-full rounded-2xl border border-black/10 bg-white py-3 text-sm font-semibold text-[#003768] hover:bg-slate-50">
-                    ▼ Show more ({activeJobs.length - activeVisible} remaining)
-                  </button>
-                )}
-              </div>
+            <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">Camel Global</p>
+            <h1 className="text-xl font-black text-white">Driver Portal</h1>
+            {driverInfo && <p className="text-xs font-bold text-white/40 mt-0.5">{driverInfo.full_name}</p>}
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-bold text-white/30">
+              {activeJobs.length} active · {completedJobs.length} completed
+            </p>
+            {lastLoaded && (
+              <p className="text-xs font-bold text-white/20 mt-0.5">
+                Updated {lastLoaded.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </p>
             )}
           </div>
-        </>
-      )}
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-3xl px-6 py-8 space-y-6">
+
+        {confirmOk && (
+          <div className="border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm font-black text-green-400">
+            {confirmOk}
+          </div>
+        )}
+        {confirmError && (
+          <div className="border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-400">
+            {confirmError}
+          </div>
+        )}
+
+        {/* Active jobs */}
+        {activeJobs.length === 0 && completedJobs.length === 0 ? (
+          <div className="border border-white/10 p-12 text-center">
+            <p className="text-4xl mb-4">🚗</p>
+            <p className="text-white font-black text-xl mb-2">No jobs assigned</p>
+            <p className="text-white/40 font-semibold text-sm">Your partner will assign jobs to you here. This page refreshes automatically.</p>
+          </div>
+        ) : (
+          <>
+            {activeJobs.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">Active Jobs</p>
+                {activeJobs.map(job => {
+                  const isExpanded = expandedJob === job.booking_id;
+                  const collFuel = fuelLevels[`coll_${job.booking_id}`] as FuelLevel | undefined;
+                  const retFuel  = fuelLevels[`ret_${job.booking_id}`]  as FuelLevel | undefined;
+                  const isConfirming = confirmingJob === job.booking_id;
+
+                  return (
+                    <div key={job.booking_id} className="border border-white/10 bg-white/5">
+                      {/* Job header */}
+                      <button type="button" onClick={() => setExpandedJob(isExpanded ? null : job.booking_id)}
+                        className="w-full text-left px-5 py-4 flex items-start justify-between gap-4 hover:bg-white/5 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="text-base font-black text-white">#{job.job_number ?? "—"}</span>
+                            <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>
+                              {statusLabel(job.booking_status)}
+                            </span>
+                          </div>
+                          <p className="text-sm font-bold text-white/70 truncate">📍 {job.pickup_address || "—"}</p>
+                          <p className="text-sm font-semibold text-white/40 truncate">🏁 {job.dropoff_address || "—"}</p>
+                          <p className="text-xs font-bold text-white/30 mt-1">
+                            🗓 {job.pickup_at ? new Date(job.pickup_at).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : "—"}
+                          </p>
+                        </div>
+                        <span className="text-white/30 font-black text-lg shrink-0">{isExpanded ? "▲" : "▼"}</span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="border-t border-white/10 px-5 py-5 space-y-5">
+
+                          {/* Journey details */}
+                          <div className="grid grid-cols-2 gap-3">
+                            {[
+                              { label:"Customer", value:job.customer_name },
+                              { label:"Customer phone", value:job.customer_phone, phone:true },
+                              { label:"Vehicle", value:job.driver_vehicle||job.vehicle_category_name },
+                              { label:"Pickup time", value:fmt(job.pickup_at) },
+                              { label:"Dropoff time", value:fmt(job.dropoff_at) },
+                              { label:"Assigned at", value:fmt(job.driver_assigned_at) },
+                            ].map(({ label, value, phone }) => (
+                              <div key={label}>
+                                <p className="text-xs font-black uppercase tracking-wide text-white/30">{label}</p>
+                                {phone && value
+                                  ? <a href={`tel:${value}`} className="text-sm font-bold text-[#ff7a00] underline">{value}</a>
+                                  : <p className="text-sm font-bold text-white">{value || "—"}</p>}
+                              </div>
+                            ))}
+                          </div>
+
+                          {job.driver_notes && (
+                            <div className="border border-[#ff7a00]/20 bg-[#ff7a00]/5 px-4 py-3">
+                              <p className="text-xs font-black uppercase tracking-wide text-[#ff7a00] mb-1">Notes from partner</p>
+                              <p className="text-sm font-bold text-white/70">{job.driver_notes}</p>
+                            </div>
+                          )}
+
+                          {/* WhatsApp customer */}
+                          {job.customer_phone && (
+                            <a href={`https://wa.me/${job.customer_phone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 bg-green-500 px-4 py-2.5 text-sm font-black text-white hover:bg-green-600 transition-colors">
+                              💬 WhatsApp Customer
+                            </a>
+                          )}
+
+                          {/* Insurance confirmation */}
+                          <div className={`border p-4 ${job.insurance_docs_confirmed_by_driver ? "border-green-500/30 bg-green-500/10" : "border-white/10 bg-white/5"}`}>
+                            <p className="text-xs font-black uppercase tracking-wide text-white/40 mb-2">📄 Insurance Documents</p>
+                            {job.insurance_docs_confirmed_by_driver ? (
+                              <p className="text-sm font-black text-green-400">✓ Confirmed handover at {fmt(job.insurance_docs_confirmed_by_driver_at)}</p>
+                            ) : (
+                              <>
+                                <p className="text-sm font-bold text-white/60 mb-3">Confirm you have handed the insurance documents to the customer.</p>
+                                <button type="button" disabled={isConfirming}
+                                  onClick={() => confirmAction(job.booking_id, "insurance")}
+                                  className="bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
+                                  {isConfirming ? "Saving…" : "✓ Confirm insurance handover"}
+                                </button>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Delivery fuel */}
+                          <div className={`border p-4 ${job.collection_confirmed_by_driver ? "border-green-500/30 bg-green-500/10" : "border-white/10 bg-white/5"}`}>
+                            <p className="text-xs font-black uppercase tracking-wide text-white/40 mb-2">⛽ Delivery Fuel Level</p>
+                            {job.collection_confirmed_by_driver ? (
+                              <>
+                                <p className="text-sm font-black text-green-400">✓ Recorded: {FUEL_LABELS[job.collection_fuel_level_driver as FuelLevel] || job.collection_fuel_level_driver}</p>
+                                <p className="text-xs text-white/30 mt-1">{fmt(job.collection_confirmed_by_driver_at)}</p>
+                                {job.collection_fuel_level_driver && <FuelBar level={job.collection_fuel_level_driver as FuelLevel} light/>}
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm font-bold text-white/60 mb-3">Record the fuel level when you deliver the vehicle.</p>
+                                <div className="grid grid-cols-5 gap-2 mb-3">
+                                  {FUEL_OPTIONS.map(opt => (
+                                    <button key={opt} type="button"
+                                      onClick={() => setFuelLevels(f => ({ ...f, [`coll_${job.booking_id}`]: opt }))}
+                                      className={`py-2.5 text-xs font-black transition-colors ${collFuel === opt ? "bg-[#ff7a00] text-white" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>
+                                      {FUEL_LABELS[opt]}
+                                    </button>
+                                  ))}
+                                </div>
+                                {collFuel && <FuelBar level={collFuel} light/>}
+                                <button type="button" disabled={!collFuel || isConfirming}
+                                  onClick={() => confirmAction(job.booking_id, "collection", collFuel)}
+                                  className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
+                                  {isConfirming ? "Saving…" : "✓ Confirm delivery fuel"}
+                                </button>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Collection fuel */}
+                          <div className={`border p-4 ${job.return_confirmed_by_driver ? "border-green-500/30 bg-green-500/10" : "border-white/10 bg-white/5"}`}>
+                            <p className="text-xs font-black uppercase tracking-wide text-white/40 mb-2">⛽ Collection Fuel Level</p>
+                            {job.return_confirmed_by_driver ? (
+                              <>
+                                <p className="text-sm font-black text-green-400">✓ Recorded: {FUEL_LABELS[job.return_fuel_level_driver as FuelLevel] || job.return_fuel_level_driver}</p>
+                                <p className="text-xs text-white/30 mt-1">{fmt(job.return_confirmed_by_driver_at)}</p>
+                                {job.return_fuel_level_driver && <FuelBar level={job.return_fuel_level_driver as FuelLevel} light/>}
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm font-bold text-white/60 mb-3">Record the fuel level when you collect the vehicle back.</p>
+                                <div className="grid grid-cols-5 gap-2 mb-3">
+                                  {FUEL_OPTIONS.map(opt => (
+                                    <button key={opt} type="button"
+                                      onClick={() => setFuelLevels(f => ({ ...f, [`ret_${job.booking_id}`]: opt }))}
+                                      className={`py-2.5 text-xs font-black transition-colors ${retFuel === opt ? "bg-[#ff7a00] text-white" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>
+                                      {FUEL_LABELS[opt]}
+                                    </button>
+                                  ))}
+                                </div>
+                                {retFuel && <FuelBar level={retFuel} light/>}
+                                <button type="button" disabled={!retFuel || isConfirming}
+                                  onClick={() => confirmAction(job.booking_id, "return", retFuel)}
+                                  className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
+                                  {isConfirming ? "Saving…" : "✓ Confirm collection fuel"}
+                                </button>
+                              </>
+                            )}
+                          </div>
+
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Completed jobs */}
+            {completedJobs.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-black uppercase tracking-widest text-white/30">Completed & Cancelled</p>
+                {completedJobs.map(job => (
+                  <div key={job.booking_id} className="border border-white/5 bg-white/3 px-5 py-4 flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-black text-white/60">#{job.job_number ?? "—"}</span>
+                        <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>
+                          {statusLabel(job.booking_status)}
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold text-white/30 truncate">{job.pickup_address || "—"}</p>
+                      <p className="text-xs text-white/20">{job.pickup_at ? new Date(job.pickup_at).toLocaleDateString("en-GB") : "—"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        <p className="text-center text-xs font-bold text-white/20 pb-4">
+          Auto-refreshes every 15 seconds · Camel Global Driver Portal
+        </p>
+      </div>
     </div>
   );
 }
