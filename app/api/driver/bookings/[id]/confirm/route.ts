@@ -21,16 +21,16 @@ export async function POST(
     const { id } = await params;
     const body = await req.json().catch(() => null);
 
-    const stage = String(body?.stage || "").trim().toLowerCase();
+    // Accept either "action" (new page) or "stage" (legacy) so both work
+    const action = String(body?.action || body?.stage || "").trim().toLowerCase();
     const fuelLevel = normalizeFuel(body?.fuel_level);
-    // Insurance only applies at delivery (collection stage)
-    const insuranceHandedOver = stage === "collection" ? !!body?.insurance_docs_handed_over : undefined;
 
-    if (stage !== "collection" && stage !== "return") {
-      return NextResponse.json({ error: "Invalid stage." }, { status: 400 });
+    if (!["collection", "return", "insurance"].includes(action)) {
+      return NextResponse.json({ error: "Invalid action." }, { status: 400 });
     }
 
-    if (!fuelLevel) {
+    // Fuel is required for collection and return, not for insurance-only
+    if (action !== "insurance" && !fuelLevel) {
       return NextResponse.json({ error: "Valid fuel level is required." }, { status: 400 });
     }
 
@@ -83,24 +83,25 @@ export async function POST(
     const now = new Date().toISOString();
     const updatePayload: Record<string, any> = {};
 
-    if (stage === "collection") {
-      // Insurance is a hard blocker at delivery — driver must tick before confirming
-      if (!insuranceHandedOver) {
-        return NextResponse.json(
-          { error: "You must confirm that insurance documents have been handed to the customer before confirming delivery." },
-          { status: 400 }
-        );
-      }
+    if (action === "insurance") {
+      // Standalone insurance confirmation — no fuel required
+      updatePayload.insurance_docs_confirmed_by_driver = true;
+      updatePayload.insurance_docs_confirmed_by_driver_at = now;
+    }
 
+    if (action === "collection") {
       updatePayload.collection_confirmed_by_driver = true;
       updatePayload.collection_confirmed_by_driver_at = now;
       updatePayload.collection_fuel_level_driver = fuelLevel;
-      updatePayload.insurance_docs_confirmed_by_driver = true;
-      updatePayload.insurance_docs_confirmed_by_driver_at = now;
 
-      // Stamp delivery driver — only write once, never overwrite
+      // Also stamp insurance if not already confirmed separately
+      if (!bookingRow.collection_confirmed_by_driver) {
+        updatePayload.insurance_docs_confirmed_by_driver = true;
+        updatePayload.insurance_docs_confirmed_by_driver_at = now;
+      }
+
       if (!bookingRow.delivery_driver_id) {
-        updatePayload.delivery_driver_id   = driverRow.id;
+        updatePayload.delivery_driver_id = driverRow.id;
         updatePayload.delivery_driver_name = driverRow.full_name || null;
         updatePayload.delivery_confirmed_at = now;
       }
@@ -110,14 +111,13 @@ export async function POST(
       }
     }
 
-    if (stage === "return") {
+    if (action === "return") {
       updatePayload.return_confirmed_by_driver = true;
       updatePayload.return_confirmed_by_driver_at = now;
       updatePayload.return_fuel_level_driver = fuelLevel;
 
-      // Stamp collection driver — only write once, never overwrite
       if (!bookingRow.collection_driver_id) {
-        updatePayload.collection_driver_id   = driverRow.id;
+        updatePayload.collection_driver_id = driverRow.id;
         updatePayload.collection_driver_name = driverRow.full_name || null;
         updatePayload.collection_confirmed_at = now;
       }
@@ -135,7 +135,7 @@ export async function POST(
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
 
-    return NextResponse.json({ ok: true, stage, fuel_level: fuelLevel, insurance_docs_handed_over: insuranceHandedOver }, { status: 200 });
+    return NextResponse.json({ ok: true, action, fuel_level: fuelLevel }, { status: 200 });
 
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
