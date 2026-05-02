@@ -8,61 +8,53 @@ export default function AdminOperatingRulesPage() {
 
   async function handleDownload() {
     setDownloading(true);
-    try {
-      await downloadOperatingRulesPDF("Partner");
-    } finally {
-      setDownloading(false);
-    }
+    try { await downloadOperatingRulesPDF("Partner"); }
+    finally { setDownloading(false); }
   }
 
   return (
-    <div className="space-y-6">
-
-      {/* Header */}
-      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)] md:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-[#ff7a00]">Legal</p>
-            <h1 className="text-2xl font-bold text-[#003768]">Partner Operating Agreement</h1>
-            <p className="mt-2 text-sm text-slate-500">
-              These rules govern partner conduct on the Camel Global platform.
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              Last updated April 2026 — subject to change with 14 days&apos; notice.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={downloading}
-            className="shrink-0 rounded-full bg-[#003768] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60"
-          >
-            {downloading ? "Generating…" : "⬇ Download PDF"}
-          </button>
+    <>
+      {/* Hero */}
+      <div className="w-full bg-black px-6 py-16 text-white mb-6">
+        <div className="mx-auto max-w-5xl">
+          <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">Legal</p>
+          <h1 className="text-4xl font-black text-white md:text-5xl">Partner Operating Agreement</h1>
+          <p className="mt-3 text-base font-bold text-white/70">
+            These rules govern partner conduct on the Camel Global platform. By operating as a partner you agree to comply with all sections below.
+          </p>
+          <p className="mt-2 text-xs font-bold text-white/40">Last updated April 2026 — subject to change with 14 days&apos; notice.</p>
         </div>
       </div>
 
-      {/* Rules */}
-      <div className="space-y-4">
+      <div className="mx-auto max-w-5xl px-6 space-y-4 pb-10">
+
+        <div className="flex justify-end">
+          <button type="button" onClick={handleDownload} disabled={downloading}
+            className="bg-black px-5 py-3 text-sm font-black text-white hover:opacity-80 disabled:opacity-50 transition-opacity">
+            {downloading ? "Generating…" : "⬇ Download PDF"}
+          </button>
+        </div>
+
         {OPERATING_RULES.map(({ section, rules }) => (
-          <div key={section} className="rounded-3xl border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-            <h2 className="text-base font-bold text-[#003768]">{section}</h2>
-            <ol className="mt-4 space-y-2">
+          <div key={section} className="bg-white p-6">
+            <h2 className="text-xs font-black uppercase tracking-widest text-black mb-4 pb-2 border-b border-black/10">
+              {section}
+            </h2>
+            <ol className="space-y-3">
               {rules.map((rule, i) => (
-                <li key={i} className="flex gap-3 text-sm text-slate-700">
-                  <span className="shrink-0 font-semibold text-[#003768]">{i + 1}.</span>
+                <li key={i} className="flex gap-3 text-sm font-bold text-black/70 leading-relaxed">
+                  <span className="shrink-0 font-black text-black w-5">{i + 1}.</span>
                   <span>{rule}</span>
                 </li>
               ))}
             </ol>
           </div>
         ))}
+
+        <p className="text-xs font-bold text-black/30 text-center pb-4">
+          Camel Global Partner Operating Agreement — Last updated April 2026 — Subject to change with 14 days&apos; notice.
+        </p>
       </div>
-
-      <p className="pb-4 text-center text-xs text-slate-400">
-        Camel Global Partner Operating Agreement — Last updated April 2026 — Subject to change with 14 days&apos; notice.
-      </p>
-
-    </div>
+    </>
   );
 }
