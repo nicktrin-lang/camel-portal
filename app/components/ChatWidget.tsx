@@ -11,7 +11,6 @@ const SUGGESTIONS = [
   "How do I cancel a booking?",
 ];
 
-// Split text on phone-number-like sequences and make them WhatsApp links
 function renderText(text: string) {
   const phoneRe = /(\+?[\d ()[\]-]{9,15})/g;
   const parts = text.split(phoneRe);
@@ -48,14 +47,14 @@ export default function ChatWidget({
   const [emailSent, setEmailSent]   = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
 
-  // Drag state — position stored as distance from bottom-right corner
-  const [pos, setPos]       = useState<{ x: number; y: number } | null>(null);
-  const dragging            = useRef(false);
-  const didDrag             = useRef(false);
-  const dragOffset          = useRef({ x: 0, y: 0 });
-  const bubbleRef           = useRef<HTMLButtonElement>(null);
-  const bottomRef           = useRef<HTMLDivElement>(null);
-  const inputRef            = useRef<HTMLTextAreaElement>(null);
+  // Position stored as distance from bottom-right corner
+  const [pos, setPos]   = useState<{ x: number; y: number } | null>(null);
+  const dragging        = useRef(false);
+  const didDrag         = useRef(false);
+  const dragOffset      = useRef({ x: 0, y: 0 });
+  const bubbleRef       = useRef<HTMLButtonElement>(null);
+  const bottomRef       = useRef<HTMLDivElement>(null);
+  const inputRef        = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (open) { setUnread(0); setTimeout(() => inputRef.current?.focus(), 100); }
@@ -65,31 +64,65 @@ export default function ChatWidget({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
+  // ── shared drag logic ────────────────────────────────────────────────────
+  function startDrag(clientX: number, clientY: number) {
     dragging.current = true;
-    didDrag.current = false;
+    didDrag.current  = false;
     const rect = bubbleRef.current!.getBoundingClientRect();
-    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    dragOffset.current = { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function moveDrag(clientX: number, clientY: number) {
+    if (!dragging.current) return;
+    didDrag.current = true;
+    const x = window.innerWidth  - (clientX - dragOffset.current.x) - 56;
+    const y = window.innerHeight - (clientY - dragOffset.current.y) - 56;
+    setPos({ x: Math.max(8, x), y: Math.max(8, y) });
+  }
+
+  function endDrag() { dragging.current = false; }
+
+  // ── mouse events ─────────────────────────────────────────────────────────
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    startDrag(e.clientX, e.clientY);
     e.preventDefault();
   }, []);
 
   useEffect(() => {
-    function onMove(e: MouseEvent) {
-      if (!dragging.current) return;
-      didDrag.current = true;
-      const x = window.innerWidth  - (e.clientX - dragOffset.current.x) - 56;
-      const y = window.innerHeight - (e.clientY - dragOffset.current.y) - 56;
-      setPos({ x: Math.max(8, x), y: Math.max(8, y) });
-    }
-    function onUp() { dragging.current = false; }
+    function onMove(e: MouseEvent) { moveDrag(e.clientX, e.clientY); }
+    function onUp() { endDrag(); }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
   }, []);
 
+  // ── touch events ──────────────────────────────────────────────────────────
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    startDrag(t.clientX, t.clientY);
+    // Don't preventDefault here — allows the click to still fire on tap
+  }, []);
+
+  useEffect(() => {
+    function onMove(e: TouchEvent) {
+      if (!dragging.current) return;
+      const t = e.touches[0];
+      moveDrag(t.clientX, t.clientY);
+      e.preventDefault(); // prevent page scroll while dragging
+    }
+    function onUp() { endDrag(); }
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+    return () => {
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
+    };
+  }, []);
+
   const right  = pos ? `${pos.x}px` : "24px";
   const bottom = pos ? `${pos.y}px` : "24px";
 
+  // ── messaging ─────────────────────────────────────────────────────────────
   async function send(text: string) {
     const content = text.trim();
     if (!content || loading || ended) return;
@@ -179,9 +212,10 @@ export default function ChatWidget({
         ref={bubbleRef}
         type="button"
         onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
         onClick={handleBubbleClick}
         style={{ right, bottom }}
-        className="fixed z-[9999] flex h-14 w-14 items-center justify-center bg-[#ff7a00] text-white shadow-lg hover:opacity-90 transition-opacity cursor-grab active:cursor-grabbing select-none"
+        className="fixed z-[9999] flex h-14 w-14 items-center justify-center bg-[#ff7a00] text-white shadow-lg hover:opacity-90 transition-opacity cursor-grab active:cursor-grabbing select-none touch-none"
         aria-label="Open help chat"
       >
         {open ? (
