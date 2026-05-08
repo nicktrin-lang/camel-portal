@@ -31,6 +31,7 @@ function getAdminNavItems(role: PortalRole) {
     { href: "/admin/bookings",  label: "Bookings" },
     { href: "/admin/reviews",   label: "Review Moderation" },
     { href: "/admin/reports",   label: "Report Management" },
+    { href: "/admin/outreach",  label: "Partner Outreach" },
   ];
   if (role === "super_admin") items.push({ href: "/admin/users", label: "Admin Users" });
   return items;
