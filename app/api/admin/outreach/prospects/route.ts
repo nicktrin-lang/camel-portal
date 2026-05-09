@@ -19,13 +19,14 @@ export async function GET() {
     const { data: adminRow } = await db.from("admin_users").select("role").eq("email", email).maybeSingle();
     if (!adminRow || !isAllowed(adminRow.role)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
-    const { data, error } = await db
-      .from("outreach_prospects")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(0, 9999);
-    if (error) throw error;
-    return NextResponse.json({ prospects: data || [] });
+    const [batch1, batch2] = await Promise.all([
+      db.from("outreach_prospects").select("*").order("created_at", { ascending: false }).range(0, 999),
+      db.from("outreach_prospects").select("*").order("created_at", { ascending: false }).range(1000, 1999),
+    ]);
+    if (batch1.error) throw batch1.error;
+    if (batch2.error) throw batch2.error;
+    const prospects = [...(batch1.data || []), ...(batch2.data || [])];
+    return NextResponse.json({ prospects });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
   }
