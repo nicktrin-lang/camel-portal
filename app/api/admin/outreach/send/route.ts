@@ -5,11 +5,14 @@ import {
 } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
 
+const DAILY_LIMIT = 50;
+
 function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";
 }
 
-export async function POST(req: Request) {
+export async function GET() {
+  // Returns how many emails have been sent today
   try {
     const authed = await createRouteHandlerSupabaseClient();
     const { data: userData, error: userErr } = await authed.auth.getUser();
@@ -19,6 +22,51 @@ export async function POST(req: Request) {
     const db = createServiceRoleSupabaseClient();
     const { data: adminRow } = await db.from("admin_users").select("role").eq("email", email).maybeSingle();
     if (!adminRow || !isAllowed(adminRow.role)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const { count } = await db
+      .from("outreach_prospects")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "sent")
+      .gte("sent_at", todayStart.toISOString());
+
+    const sentToday = count || 0;
+    return NextResponse.json({ sent_today: sentToday, daily_limit: DAILY_LIMIT, remaining: Math.max(0, DAILY_LIMIT - sentToday) });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const authed = await createRouteHandlerSupabaseClient();
+    const { data: userData, error: userErr } = await authed.auth.getUser();
+    const adminEmail = (userData?.user?.email || "").toLowerCase().trim();
+    if (userErr || !adminEmail) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+    const db = createServiceRoleSupabaseClient();
+    const { data: adminRow } = await db.from("admin_users").select("role").eq("email", adminEmail).maybeSingle();
+    if (!adminRow || !isAllowed(adminRow.role)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
+    // Check daily limit
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const { count } = await db
+      .from("outreach_prospects")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "sent")
+      .gte("sent_at", todayStart.toISOString());
+    const sentToday = count || 0;
+
+    if (sentToday >= DAILY_LIMIT) {
+      return NextResponse.json({
+        error: `Daily limit of ${DAILY_LIMIT} emails reached. Come back tomorrow.`,
+        sent_today: sentToday,
+        daily_limit: DAILY_LIMIT,
+      }, { status: 429 });
+    }
 
     const body = await req.json().catch(() => null);
     const { prospect_id } = body || {};
@@ -36,7 +84,7 @@ export async function POST(req: Request) {
     }
 
     // Ask Claude to generate a personalised email
-    const prompt = `You are writing a cold outreach email on behalf of Camel Global — a meet & greet car hire platform launching in Spain.
+    const prompt = `You are writing a cold outreach email on behalf of Camel Global — a meet & greet car hire platform operating in Spain.
 
 The platform works like this: customers submit car hire requests online, nearby car hire companies receive the request and submit bids, the customer accepts the best bid, and a driver delivers the car directly to the customer (airport, hotel, home, etc). The car hire company keeps ~80% of the hire price (Camel charges 20% commission, minimum €10). There are no upfront costs or subscription fees — partners only pay when they complete a booking.
 
@@ -104,16 +152,14 @@ Requirements:
       </div>
     `;
 
-    // Send via Resend
     await sendEmail({ to: prospect.email, subject, html: fullHtml });
 
-    // Update prospect status
     await db
       .from("outreach_prospects")
       .update({ status: "sent", sent_at: new Date().toISOString() })
       .eq("id", prospect_id);
 
-    return NextResponse.json({ ok: true, subject, preview: htmlBody.slice(0, 200) });
+    return NextResponse.json({ ok: true, subject, sent_today: sentToday + 1, remaining: Math.max(0, DAILY_LIMIT - sentToday - 1) });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
   }

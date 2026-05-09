@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+
+const DAILY_LIMIT = 50;
 
 type Status = "pending" | "sent" | "bounced" | "replied" | "onboarded";
 
@@ -33,22 +35,32 @@ function fmt(v?: string | null) {
 }
 
 export default function OutreachPage() {
-  const [prospects, setProspects]   = useState<Prospect[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState<string | null>(null);
-  const [sending, setSending]       = useState<string | null>(null);
-  const [sendResult, setSendResult] = useState<Record<string, "ok" | "error">>({});
-  const [deleting, setDeleting]     = useState<string | null>(null);
-  const [showAdd, setShowAdd]       = useState(false);
-  const [bulkSending, setBulkSending] = useState(false);
+  const [prospects, setProspects]     = useState<Prospect[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
+  const [sending, setSending]         = useState<string | null>(null);
+  const [sendResult, setSendResult]   = useState<Record<string, "ok" | "error">>({});
+  const [deleting, setDeleting]       = useState<string | null>(null);
+  const [showAdd, setShowAdd]         = useState(false);
+  const [batchSending, setBatchSending] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
+  const [sentToday, setSentToday]     = useState(0);
+  const [totalCount, setTotalCount]   = useState(0);
 
-  // Add form state
   const [form, setForm] = useState({
     company_name: "", contact_name: "", email: "", city: "", country: "Spain", notes: "",
   });
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError]     = useState<string | null>(null);
+
+  const loadDailyCount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/outreach/send");
+      const json = await res.json();
+      if (res.ok) setSentToday(json.sent_today || 0);
+    } catch { /* ignore */ }
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -57,7 +69,9 @@ export default function OutreachPage() {
       const res = await fetch("/api/admin/outreach/prospects");
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to load");
-      setProspects(json.prospects || []);
+      const all: Prospect[] = json.prospects || [];
+      setProspects(all);
+      setTotalCount(all.length);
     } catch (e: any) {
       setError(e?.message || "Failed to load prospects");
     } finally {
@@ -65,9 +79,12 @@ export default function OutreachPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    loadDailyCount();
+  }, [loadDailyCount]);
 
-  async function handleSend(id: string) {
+  async function handleSend(id: string): Promise<boolean> {
     setSending(id);
     setSendResult(r => ({ ...r, [id]: undefined as any }));
     try {
@@ -77,27 +94,50 @@ export default function OutreachPage() {
         body: JSON.stringify({ prospect_id: id }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Send failed");
+      if (!res.ok) {
+        if (res.status === 429) throw new Error(json.error); // daily limit hit
+        throw new Error(json.error || "Send failed");
+      }
       setSendResult(r => ({ ...r, [id]: "ok" }));
+      setSentToday(json.sent_today || 0);
       setProspects(p => p.map(x => x.id === id ? { ...x, status: "sent", sent_at: new Date().toISOString() } : x));
+      return true;
     } catch (e: any) {
       setSendResult(r => ({ ...r, [id]: "error" }));
-      alert(`Send failed: ${e?.message}`);
+      if (String(e?.message).includes("Daily limit")) {
+        alert(e.message);
+        return false; // stop batch
+      }
+      return true; // continue batch on other errors
     } finally {
       setSending(null);
     }
   }
 
-  async function handleBulkSend() {
+  async function handleBatchSend() {
+    const remaining = DAILY_LIMIT - sentToday;
+    if (remaining <= 0) {
+      alert(`Daily limit of ${DAILY_LIMIT} emails already reached. Come back tomorrow.`);
+      return;
+    }
     const pending = prospects.filter(p => p.status === "pending");
     if (pending.length === 0) { alert("No pending prospects to send to."); return; }
-    if (!confirm(`Send emails to ${pending.length} pending prospect(s)? Claude will generate a personalised email for each.`)) return;
-    setBulkSending(true);
-    for (const p of pending) {
-      await handleSend(p.id);
-      await new Promise(r => setTimeout(r, 800)); // small delay between sends
+    const toSend = pending.slice(0, remaining);
+    if (!confirm(`Send emails to ${toSend.length} prospect(s) today?\n\nDaily limit: ${DAILY_LIMIT} | Already sent today: ${sentToday} | Sending now: ${toSend.length}\n\nClaude will write a personalised email for each company.`)) return;
+
+    setBatchSending(true);
+    setBatchProgress({ done: 0, total: toSend.length });
+
+    for (let i = 0; i < toSend.length; i++) {
+      const shouldContinue = await handleSend(toSend[i].id);
+      setBatchProgress({ done: i + 1, total: toSend.length });
+      if (!shouldContinue) break;
+      if (i < toSend.length - 1) await new Promise(r => setTimeout(r, 1000));
     }
-    setBulkSending(false);
+
+    setBatchSending(false);
+    setBatchProgress(null);
+    await loadDailyCount();
   }
 
   async function handleStatusChange(id: string, status: Status) {
@@ -115,6 +155,7 @@ export default function OutreachPage() {
     try {
       await fetch(`/api/admin/outreach/prospects/${id}`, { method: "DELETE" });
       setProspects(p => p.filter(x => x.id !== id));
+      setTotalCount(c => c - 1);
     } finally {
       setDeleting(null);
     }
@@ -133,6 +174,7 @@ export default function OutreachPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to add");
       setProspects(p => [json.prospect, ...p]);
+      setTotalCount(c => c + 1);
       setForm({ company_name: "", contact_name: "", email: "", city: "", country: "Spain", notes: "" });
       setShowAdd(false);
     } catch (e: any) {
@@ -149,6 +191,10 @@ export default function OutreachPage() {
     return acc;
   }, {} as Record<string, number>);
 
+  const remaining = Math.max(0, DAILY_LIMIT - sentToday);
+  const pendingCount = counts["pending"] || 0;
+  const batchSize = Math.min(remaining, pendingCount);
+
   return (
     <div className="space-y-6">
 
@@ -157,16 +203,35 @@ export default function OutreachPage() {
         <div>
           <h1 className="text-2xl font-black text-black">Partner Outreach</h1>
           <p className="mt-1 text-sm font-semibold text-black/50">
-            AI-powered email outreach to prospective car hire partners
+            AI-powered email outreach · {totalCount.toLocaleString()} total prospects
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          {/* Daily progress bar */}
+          <div className="flex flex-col gap-1 min-w-[160px]">
+            <div className="flex justify-between text-xs font-black text-black/40">
+              <span>Today</span>
+              <span>{sentToday} / {DAILY_LIMIT}</span>
+            </div>
+            <div className="h-2 bg-black/10 w-full">
+              <div
+                className="h-2 bg-[#ff7a00] transition-all"
+                style={{ width: `${Math.min(100, (sentToday / DAILY_LIMIT) * 100)}%` }}
+              />
+            </div>
+          </div>
           <button
-            onClick={handleBulkSend}
-            disabled={bulkSending || loading}
-            className="bg-[#ff7a00] px-4 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+            onClick={handleBatchSend}
+            disabled={batchSending || loading || remaining === 0 || pendingCount === 0}
+            className="bg-[#ff7a00] px-4 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap"
           >
-            {bulkSending ? "Sending…" : `Send All Pending (${counts["pending"] || 0})`}
+            {batchSending
+              ? batchProgress
+                ? `Sending ${batchProgress.done}/${batchProgress.total}…`
+                : "Sending…"
+              : remaining === 0
+                ? "Limit reached today"
+                : `Send Today's Batch (${batchSize})`}
           </button>
           <button
             onClick={() => setShowAdd(s => !s)}
@@ -201,73 +266,56 @@ export default function OutreachPage() {
           <form onSubmit={handleAdd} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1">Company Name *</label>
-              <input
-                required
-                value={form.company_name}
+              <input required value={form.company_name}
                 onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
                 className="w-full border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-semibold text-black outline-none focus:border-black"
-                placeholder="Hertz Spain SL"
-              />
+                placeholder="Hertz Spain SL" />
             </div>
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1">Contact Name</label>
-              <input
-                value={form.contact_name}
+              <input value={form.contact_name}
                 onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))}
                 className="w-full border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-semibold text-black outline-none focus:border-black"
-                placeholder="Juan García"
-              />
+                placeholder="Juan García" />
             </div>
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1">Email *</label>
-              <input
-                required
-                type="email"
-                value={form.email}
+              <input required type="email" value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 className="w-full border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-semibold text-black outline-none focus:border-black"
-                placeholder="info@example.com"
-              />
+                placeholder="info@example.com" />
             </div>
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1">City</label>
-              <input
-                value={form.city}
+              <input value={form.city}
                 onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
                 className="w-full border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-semibold text-black outline-none focus:border-black"
-                placeholder="Madrid"
-              />
+                placeholder="Madrid" />
             </div>
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1">Country</label>
-              <input
-                value={form.country}
+              <input value={form.country}
                 onChange={e => setForm(f => ({ ...f, country: e.target.value }))}
                 className="w-full border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-semibold text-black outline-none focus:border-black"
-                placeholder="Spain"
-              />
+                placeholder="Spain" />
             </div>
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1">Notes</label>
-              <input
-                value={form.notes}
+              <input value={form.notes}
                 onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 className="w-full border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-semibold text-black outline-none focus:border-black"
-                placeholder="Found via Google Maps, serves Malaga airport"
-              />
+                placeholder="Serves Malaga airport" />
             </div>
             {addError && (
               <div className="sm:col-span-2 bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{addError}</div>
             )}
             <div className="sm:col-span-2 flex gap-3">
-              <button
-                type="submit"
-                disabled={addLoading}
-                className="bg-[#ff7a00] px-6 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-40"
-              >
+              <button type="submit" disabled={addLoading}
+                className="bg-[#ff7a00] px-6 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-40">
                 {addLoading ? "Adding…" : "Add Prospect"}
               </button>
-              <button type="button" onClick={() => setShowAdd(false)} className="px-6 py-2 text-sm font-black text-black/50 hover:text-black">
+              <button type="button" onClick={() => setShowAdd(false)}
+                className="px-6 py-2 text-sm font-black text-black/50 hover:text-black">
                 Cancel
               </button>
             </div>
@@ -275,7 +323,6 @@ export default function OutreachPage() {
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>
       )}
@@ -317,35 +364,26 @@ export default function OutreachPage() {
                       <select
                         value={p.status}
                         onChange={e => handleStatusChange(p.id, e.target.value as Status)}
-                        className={[
-                          "text-xs font-black px-2 py-1 border-0 outline-none cursor-pointer",
-                          STATUS_STYLES[p.status],
-                        ].join(" ")}
+                        className={["text-xs font-black px-2 py-1 border-0 outline-none cursor-pointer", STATUS_STYLES[p.status]].join(" ")}
                       >
-                        {STATUS_OPTIONS.map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
+                        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </td>
                     <td className="px-4 py-3 text-xs font-semibold text-black/50">{fmt(p.sent_at)}</td>
                     <td className="px-4 py-3 text-xs font-semibold text-black/50 max-w-[160px] truncate" title={p.notes || ""}>{p.notes || "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 items-center">
-                        {(p.status === "pending") && (
+                        {p.status === "pending" && (
                           <button
                             onClick={() => handleSend(p.id)}
-                            disabled={sending === p.id || bulkSending}
+                            disabled={sending === p.id || batchSending || remaining === 0}
                             className="bg-[#ff7a00] px-3 py-1 text-xs font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap"
                           >
-                            {sending === p.id ? "Sending…" : "Send Email"}
+                            {sending === p.id ? "Sending…" : "Send"}
                           </button>
                         )}
-                        {sendResult[p.id] === "ok" && (
-                          <span className="text-xs font-black text-green-600">✓ Sent</span>
-                        )}
-                        {sendResult[p.id] === "error" && (
-                          <span className="text-xs font-black text-red-600">✗ Failed</span>
-                        )}
+                        {sendResult[p.id] === "ok" && <span className="text-xs font-black text-green-600">✓</span>}
+                        {sendResult[p.id] === "error" && <span className="text-xs font-black text-red-600">✗</span>}
                         <button
                           onClick={() => handleDelete(p.id, p.company_name)}
                           disabled={deleting === p.id}
@@ -364,8 +402,7 @@ export default function OutreachPage() {
       </div>
 
       <p className="text-xs font-semibold text-black/30">
-        {filtered.length} prospect{filtered.length !== 1 ? "s" : ""} shown
-        {statusFilter !== "all" ? ` · filtered by: ${statusFilter}` : ` · ${prospects.length} total`}
+        {filtered.length} shown · {totalCount.toLocaleString()} total · {remaining} emails remaining today
       </p>
     </div>
   );
