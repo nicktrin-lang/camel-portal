@@ -22,7 +22,8 @@ export async function GET() {
     const { data, error } = await db
       .from("outreach_prospects")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(0, 9999);
     if (error) throw error;
     return NextResponse.json({ prospects: data || [] });
   } catch (e: any) {
