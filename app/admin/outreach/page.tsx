@@ -46,6 +46,7 @@ export default function OutreachPage() {
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
   const [sentToday, setSentToday]     = useState(0);
+  const [testSending, setTestSending] = useState(false);
   const [totalCount, setTotalCount]   = useState(0);
 
   const [form, setForm] = useState({
@@ -61,6 +62,24 @@ export default function OutreachPage() {
       if (res.ok) setSentToday(json.sent_today || 0);
     } catch { /* ignore */ }
   }, []);
+
+  async function handleTestEmail() {
+    setTestSending(true);
+    try {
+      const res = await fetch("/api/admin/outreach/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test_email: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed");
+      alert(`✅ Test email sent to your inbox!\n\nSubject: ${json.subject}\n\nCheck your email and approve the copy before sending to real prospects.`);
+    } catch (e: any) {
+      alert(`❌ Test failed: ${e?.message}`);
+    } finally {
+      setTestSending(false);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -232,6 +251,13 @@ export default function OutreachPage() {
               : remaining === 0
                 ? "Limit reached today"
                 : `Send Today's Batch (${batchSize})`}
+          </button>
+          <button
+            onClick={handleTestEmail}
+            disabled={testSending}
+            className="bg-white border border-black px-4 py-2 text-sm font-black text-black hover:bg-black hover:text-white disabled:opacity-40 transition-all"
+          >
+            {testSending ? "Sending test…" : "Send Test Email"}
           </button>
           <button
             onClick={() => setShowAdd(s => !s)}
