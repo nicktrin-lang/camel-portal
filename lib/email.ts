@@ -174,31 +174,35 @@ export async function sendReviewReminderEmail(
   jobNumber?: number | null,
   requestId?: string | null
 ) {
-  const baseUrl   = process.env.PORTAL_BASE_URL || "http://localhost:3000";
-  const reviewUrl = requestId
-    ? `${baseUrl}/test-booking/requests/${requestId}`
-    : `${baseUrl}/test-booking/requests`;
+  // Customer site URL — reviews live on camel-global.com, not the partner portal
+  const customerUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
+
+  // Deep link to the booking page. Login page supports ?next= and redirects after auth.
+  const destination = requestId
+    ? `/bookings/${requestId}`
+    : `/bookings`;
+  const reviewUrl = `${customerUrl}/login?next=${encodeURIComponent(destination)}`;
 
   return sendEmail({
     to,
-    subject: `How was your car hire experience?${jobNumber ? ` (Booking ${jobNumber})` : ""}`,
+    subject: `How was your car hire experience?${jobNumber ? ` (Booking #${jobNumber})` : ""}`,
     html: `
       <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
-        <div style="background:#003768; padding:24px 32px; border-radius:12px 12px 0 0;">
+        <div style="background:#000; padding:24px 32px;">
           <h2 style="color:#fff; margin:0;">How was your car hire experience? ⭐</h2>
         </div>
-        <div style="background:#f8fafc; padding:24px 32px; border-radius:0 0 12px 12px; border:1px solid #e2e8f0;">
+        <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
           <p>Hi,</p>
           <p>Your Camel Global car hire booking${jobNumber ? ` <strong>#${jobNumber}</strong>` : ""} is now complete. We'd love to hear how it went.</p>
           <p>Your review helps other customers choose the right car hire company for their trip.</p>
           <p style="margin:24px 0;">
             <a href="${reviewUrl}"
-              style="background:#ff7a00; color:#fff; padding:12px 28px; border-radius:999px; text-decoration:none; font-weight:600; display:inline-block;">
-              Leave a Review
+              style="background:#ff7a00; color:#fff; padding:12px 28px; text-decoration:none; font-weight:700; display:inline-block; font-family: system-ui, Arial, sans-serif;">
+              Leave a Review →
             </a>
           </p>
-          <p style="color:#64748b; font-size:14px;">It only takes 30 seconds.</p>
-          <p style="margin-top:32px; color:#64748b;">Best regards,<br/><strong>The Camel Global Team</strong></p>
+          <p style="color:#888; font-size:14px;">It only takes 30 seconds.</p>
+          <p style="margin-top:32px; color:#888; font-size:14px;">Best regards,<br/><strong style="color:#222;">The Camel Global Team</strong></p>
         </div>
       </div>
     `,
