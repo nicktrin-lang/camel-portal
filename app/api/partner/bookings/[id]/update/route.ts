@@ -93,7 +93,8 @@ export async function POST(
         collection_confirmed_by_driver, collection_confirmed_by_driver_at,
         collection_fuel_level_driver,
         return_confirmed_by_driver, return_confirmed_by_driver_at,
-        return_fuel_level_driver
+        return_fuel_level_driver,
+        payout_status
       `)
       .eq("id", id);
 
@@ -106,17 +107,13 @@ export async function POST(
 
     // ── GUARD: prevent marking complete until driver has confirmed both stages ──
     if (booking_status === "completed") {
-      const driverConfirmedCollection = !!bookingRow.collection_confirmed_by_driver;
-      const driverConfirmedReturn = !!bookingRow.return_confirmed_by_driver;
-
-      if (!driverConfirmedCollection) {
+      if (!bookingRow.collection_confirmed_by_driver) {
         return NextResponse.json(
           { error: "Cannot mark as completed — driver has not yet confirmed collection." },
           { status: 400 }
         );
       }
-
-      if (!driverConfirmedReturn) {
+      if (!bookingRow.return_confirmed_by_driver) {
         return NextResponse.json(
           { error: "Cannot mark as completed — driver has not yet confirmed return." },
           { status: 400 }
@@ -191,7 +188,6 @@ export async function POST(
 
     // Auto-advance status based on fuel matching
     if (collectionMatched && returnMatched) {
-      // Only auto-complete if driver has confirmed both stages
       if (bookingRow.collection_confirmed_by_driver && bookingRow.return_confirmed_by_driver) {
         updatePayload.booking_status = "completed";
       } else {
@@ -207,6 +203,24 @@ export async function POST(
       .eq("id", id);
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
+
+    // ── Trigger completion flow when booking reaches "completed" ──────────────
+    // Fire-and-forget with internal fetch so it runs async without blocking the UI response.
+    // The complete route is idempotent — safe to call multiple times.
+    if (updatePayload.booking_status === "completed" && bookingRow.payout_status === "held") {
+      const portalBase = process.env.PORTAL_BASE_URL || "https://portal.camel-global.com";
+      // We pass the auth cookie through by forwarding the Authorization header
+      // The complete route uses getPortalUserRole() which reads from cookies,
+      // so we call it server-side via internal fetch with the same session.
+      fetch(`${portalBase}/api/partner/bookings/${id}/complete`, {
+        method: "POST",
+        headers: {
+          // Forward cookie header so session is valid in the complete route
+          cookie: (req.headers.get("cookie") || ""),
+          "content-type": "application/json",
+        },
+      }).catch(e => console.error("Complete route fetch failed:", e?.message));
+    }
 
     return NextResponse.json(
       { ok: true, collection_locked: collectionMatched, return_locked: returnMatched },
