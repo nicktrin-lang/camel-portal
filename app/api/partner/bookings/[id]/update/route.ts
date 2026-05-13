@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
 import { isAdminRole } from "@/lib/portal/roles";
+import { completeBooking } from "@/lib/portal/completeBooking";
 
 const ALLOWED_BOOKING_STATUSES = [
   "confirmed", "driver_assigned", "en_route", "arrived",
@@ -204,22 +205,15 @@ export async function POST(
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
 
-    // ── Trigger completion flow when booking reaches "completed" ──────────────
-    // Fire-and-forget with internal fetch so it runs async without blocking the UI response.
-    // The complete route is idempotent — safe to call multiple times.
+    // ── Trigger completion inline when booking reaches "completed" ────────────
+    // Called directly (no HTTP round-trip) so no auth/cookie issues.
+    // completeBooking is idempotent — safe if already processed.
     if (updatePayload.booking_status === "completed" && bookingRow.payout_status === "held") {
-      const portalBase = process.env.PORTAL_BASE_URL || "https://portal.camel-global.com";
-      // We pass the auth cookie through by forwarding the Authorization header
-      // The complete route uses getPortalUserRole() which reads from cookies,
-      // so we call it server-side via internal fetch with the same session.
-      fetch(`${portalBase}/api/partner/bookings/${id}/complete`, {
-        method: "POST",
-        headers: {
-          // Forward cookie header so session is valid in the complete route
-          cookie: (req.headers.get("cookie") || ""),
-          "content-type": "application/json",
-        },
-      }).catch(e => console.error("Complete route fetch failed:", e?.message));
+      const result = await completeBooking(id);
+      if (!result.ok && !("already_processed" in result)) {
+        // Log but don't fail the update response — booking is already completed in DB
+        console.error(`completeBooking failed for ${id}:`, result.error);
+      }
     }
 
     return NextResponse.json(
