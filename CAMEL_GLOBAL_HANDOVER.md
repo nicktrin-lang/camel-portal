@@ -6,54 +6,75 @@
 
 ## Working Rules
 - **Always paste the current file before Claude rewrites it.** Claude works from what you paste, not from memory.
-- **Always give Claude the full file tree** at the start of a new chat: `find /c/dev/camel-portal -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.next/*' | sort`
+- **Always give Claude the full file tree** at the start of a new chat:
+  - Portal: `find ~/camel-portal -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.next/*' | sort`
+  - Customer: `find ~/camel-customer -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.next/*' | sort`
 - **Before any rewrite**, Claude will tell you which files to paste, or give you a command to cat them.
 - **Always ask Claude to check the actual file** before rewriting — never assume the artifact is current.
 - **Always provide the git push command** at the end of every change.
 - **Claude must always write full files** — no partial diffs, no "change X to Y" instructions.
-- **Local path is** `C:/dev/camel-portal` (Windows, Git Bash)
-- **Two terminals always open:** Terminal 1 = `npm run dev` running, Terminal 2 = git/bash commands
+- **When rebranding/restyling, never touch API call parameters or business logic — visual classes only.**
+- **ChatWidget.tsx is identical in both repos** — always update both when changing it.
+- **Always `git pull` before starting any session** — collaborator may have pushed.
 
 ---
 
 ## Project Overview
 - **Name:** Camel Global
+- **Legal entity:** NTUK Ltd, trading as Camel Global
+- **Company number:** 08765474
+- **Registered address:** Office 7, 35-37 Ludgate Hill, London, England, EC4M 7JN
 - **Type:** Meet & greet car hire platform (Uber-style for car hire)
 - **Stack:** Next.js 16, Supabase, Vercel, GitHub
-- **Repo:** `github.com/nicktrin-lang/camel-portal`
-- **Branch:** `main`
-- **Local path:** `C:/dev/camel-portal`
-- **Deployment:** Vercel (auto-deploys on push to main)
-- **Cost target:** Zero / minimal
+- **Launching in Spain first, USD support ready for future US rollout**
 
-### How It Works
-1. Customer submits a car hire request with pickup/dropoff details
-2. All car hire companies (partners) within 30km radius are alerted and can bid
-3. Customer accepts a bid → booking is confirmed
-4. Driver delivers car to chosen location; fuel level recorded at delivery
-5. Fuel level recorded again at collection
-6. Customer pays only for fuel used (rounded to nearest ¼ tank)
-7. Launching in Spain first, with USD support ready for future US rollout
+### Repos
+| Repo | Purpose | Local path |
+|------|---------|------------|
+| `nicktrin-lang/camel-portal` | Partner + Admin + Driver portal | `~/camel-portal` |
+| `nicktrin-lang/camel-customer` | Customer site | `~/camel-customer` |
+
+### Domains
+| Domain | Project | Repo | Purpose |
+|--------|---------|------|---------|
+| `portal.camel-global.com` | `camel-portal-live` | `camel-portal` | Portal production |
+| `test-portal.camel-global.com` | `camel-portal-live` | `camel-portal` | Portal staging |
+| `camel-global.com` / `www.camel-global.com` | `camel-customer-live` | `camel-customer` | Customer production |
+| `test.camel-global.com` | `camel-customer-live` | `camel-customer` | Customer staging |
+
+### Vercel Projects
+| Project | Repo | Domains |
+|---------|------|---------|
+| `camel-portal-live` | `nicktrin-lang/camel-portal` | `portal.camel-global.com`, `test-portal.camel-global.com` |
+| `camel-customer-live` | `nicktrin-lang/camel-customer` | `camel-global.com`, `www.camel-global.com`, `test.camel-global.com` |
+
+### Deploy Commands
+```bash
+# Portal
+cd ~/camel-portal && git add . && git commit -m "message" && git push origin main
+
+# Customer
+cd ~/camel-customer && git add . && git commit -m "message" && git push origin main
+```
 
 ### Portals
 | Portal | Path | Users |
 |--------|------|-------|
-| Customer | `/` (root) | End customers |
-| Partner | `/partner` | Car hire companies |
-| Driver | `/driver` | Delivery drivers |
-| Admin | `/admin` | Camel Global staff |
+| Customer | `camel-global.com/` | End customers |
+| Partner | `portal.camel-global.com/partner` | Car hire companies |
+| Driver | `portal.camel-global.com/driver` | Delivery drivers |
+| Admin | `portal.camel-global.com/admin` | Camel Global staff |
 
 ---
 
 ## Tech Architecture
 
-### Key Libraries & Files
+### Key Libraries & Files — Portal (`~/camel-portal`)
 | File | Purpose |
 |------|---------|
-| `lib/currency.ts` | All currency utilities — EUR, GBP, USD formatting + conversion |
-| `lib/useCurrency.ts` | React hook — currency state, live rates, fmt helpers |
 | `lib/supabase/browser.ts` | Supabase browser client (partner/admin) |
-| `lib/supabase-customer/browser.ts` | Supabase browser client (customers) |
+| `lib/supabase/server.ts` | Supabase server client |
+| `lib/cities.ts` | Shared city list for Photon search bias |
 | `lib/portal/calculateFuelCharge.ts` | Fuel charge calculation logic |
 | `lib/portal/calculateCommission.ts` | Commission — 20% of hire price, min €10 floor |
 | `lib/portal/syncBookingStatuses.ts` | Booking status sync logic |
@@ -61,84 +82,125 @@
 | `lib/portal/triggerPartnerLiveRefresh.ts` | Triggers the live status refresh |
 | `lib/portal/operatingRules.ts` | Shared OPERATING_RULES data + downloadOperatingRulesPDF() |
 | `lib/rateLimit.ts` | In-memory rate limiter — 3 req / 15 min per IP |
-| `lib/hcaptcha.ts` | Server-side hCaptcha token verification (`verifyHCaptcha`) |
-| `lib/email.ts` | Resend email sender — `sendEmail()` + all notification helpers |
-| `app/components/HCaptcha.tsx` | Reusable hCaptcha React widget (explicit render) |
-| `app/components/CookieBanner.tsx` | GDPR cookie consent banner (localStorage) |
-| `app/components/Footer.tsx` | Smart footer — 4 variants: Customer, Partner, Admin, Driver |
-| `app/components/ChatWidget.tsx` | AI chat widget — floating bubble, streaming, transcript email |
-| `app/api/chat/route.ts` | Claude AI chat API — context-aware, streams responses |
-| `app/api/chat/transcript/route.ts` | Emails chat transcript to user on end chat |
-| `app/api/auth/verify-captcha/route.ts` | POST endpoint — verifies hCaptcha token server-side |
-| `app/api/currency/rate/route.ts` | Live rate API — fetches EUR→GBP,USD from frankfurter.app |
-| `app/api/partner/refresh-live-status/route.ts` | POST endpoint — runs live status check |
-| `app/api/partner/requests/[id]/route.ts` | Returns commissionRate + minimumCommission to bid form |
-| `app/api/partner/delete-account/route.ts` | POST — soft deletes partner account (stamps deleted_at) |
-| `app/api/contact/route.ts` | POST — contact form handler, Resend email, hCaptcha, rate limited |
-| `app/partner/settings/page.tsx` | Partner settings page — delete account flow |
-| `app/partner/terms/page.tsx` | Full partner T&Cs — versioned, PDF download, Legal label |
-| `app/partner/operating-rules/page.tsx` | Partner Operating Agreement web page + PDF download |
-| `app/partner/contact/page.tsx` | Partner contact form |
-| `app/partner/privacy/page.tsx` | Privacy policy inside partner layout |
-| `app/partner/cookies/page.tsx` | Cookie policy inside partner layout |
-| `app/partner/about/page.tsx` | About Us inside partner layout |
+| `lib/hcaptcha.ts` | Server-side hCaptcha token verification |
+| `lib/currency.ts` | All currency utilities — EUR, GBP, USD formatting + conversion |
+| `lib/useCurrency.ts` | React hook — currency state, live rates, fmt helpers |
+| `lib/email.ts` | Resend email sender — all notification helpers. Review reminder uses `NEXT_PUBLIC_SITE_URL` (customer domain) with `?next=` login redirect |
+| `app/api/geocode/route.ts` | Photon forward search + Nominatim reverse geocode |
+| `app/api/chat/route.ts` | AI chat API — Camel Help widget (portal side) |
+| `app/api/chat/transcript/route.ts` | Emails chat transcript to partner/admin |
+| `app/api/cron/review-reminder/route.ts` | Daily cron — sends review reminder 7 days after completion |
+| `app/components/ChatWidget.tsx` | Floating AI chat widget — draggable (mouse + touch), streaming |
+| `app/components/Footer.tsx` | Smart footer — partner/admin/driver/customer variants. Driver footer is minimal — no portal links |
+| `app/page.tsx` | Portal public homepage — full partner landing page |
+| `app/partner/terms/page.tsx` | Full partner T&Cs — cancellation section, NTUK Ltd details |
+| `app/partner/operating-rules/page.tsx` | Partner Operating Agreement — web + PDF |
+| `app/partner/about/page.tsx` | About Us — new branding |
+| `app/partner/contact/page.tsx` | Contact form — new branding |
+| `app/partner/privacy/page.tsx` | Privacy policy — NTUK Ltd details |
+| `app/partner/cookies/page.tsx` | Cookie policy — new branding |
 | `app/admin/terms/page.tsx` | Partner T&Cs inside admin layout |
 | `app/admin/operating-rules/page.tsx` | Operating Agreement inside admin layout |
-| `app/admin/contact/page.tsx` | Contact form inside admin layout |
-| `app/admin/privacy/page.tsx` | Privacy policy inside admin layout |
-| `app/admin/cookies/page.tsx` | Cookie policy inside admin layout |
 | `app/admin/about/page.tsx` | About Us inside admin layout |
-| `app/admin/outreach/page.tsx` | AI partner outreach UI — prospect table, batch send, map (TODO) |
-| `app/api/admin/outreach/prospects/route.ts` | GET all prospects (2-batch for 1916 rows) + POST add prospect |
-| `app/api/admin/outreach/prospects/[id]/route.ts` | PATCH update status/notes + DELETE prospect |
-| `app/api/admin/outreach/send/route.ts` | POST — Claude generates Spanish email + sends via Resend. GET — daily count |
+| `app/admin/contact/page.tsx` | Contact form inside admin layout |
+| `app/admin/privacy/page.tsx` | Privacy policy inside admin layout — NTUK Ltd details |
+| `app/admin/cookies/page.tsx` | Cookie policy inside admin layout |
+| `app/driver/jobs/page.tsx` | Driver jobs — light theme, expandable completed jobs |
+| `app/api/driver/bookings/[id]/confirm/route.ts` | Driver confirm — accepts `action` OR `stage`, standalone insurance |
+| `app/api/partner/bookings/[id]/cancel/route.ts` | Partner/admin cancel — always full refund |
+| `app/api/admin/bookings/[id]/cancel/route.ts` | Admin cancel — always full refund |
 
-### API Routes — Customer Booking Engine
-All internal API routes stay at `/api/test-booking/*` — do not rename these.
-| Route | Purpose |
-|-------|---------|
-| `app/api/test-booking/requests/route.ts` | Create / list customer requests |
-| `app/api/test-booking/requests/[id]/route.ts` | Get single request + bids + booking |
-| `app/api/test-booking/bids/accept/route.ts` | Accept a partner bid |
-| `app/api/test-booking/bookings/[id]/update/route.ts` | Customer fuel/insurance confirmations |
-| `app/api/test-booking/reviews/route.ts` | Submit / fetch reviews |
-| `app/api/test-booking/customer-profile/route.ts` | Upsert customer profile (service role) |
-| `app/api/test-booking/delete-account/route.ts` | Soft delete customer account |
-
-### Currency System
-- **Supported:** `EUR | GBP | USD`
-- **Rates:** Live from `frankfurter.app`, cached 1 hour, fallback GBP 0.85 / USD 1.08
-- **Storage:** All prices stored in the currency the booking was made in
-
-### PDF Downloads
-- All PDF exports use **jsPDF** — real `.pdf` files, direct download, no print dialog
-- Operating Rules PDF: `downloadOperatingRulesPDF()` in `lib/portal/operatingRules.ts`
-- Partner T&Cs PDF: `downloadTermsPDF()` in `app/partner/terms/page.tsx`
+### Key Libraries & Files — Customer (`~/camel-customer`)
+| File | Purpose |
+|------|---------|
+| `lib/supabase-customer/browser.ts` | Supabase browser client (customers) |
+| `lib/supabase-customer/server.ts` | Supabase server client (customers) |
+| `app/api/chat/route.ts` | AI chat API — Camel Help widget (customer side) |
+| `app/api/chat/transcript/route.ts` | Emails chat transcript to customer |
+| `app/api/test-booking/bookings/[id]/cancel/route.ts` | Customer booking cancellation |
+| `app/components/ChatWidget.tsx` | **Identical to portal version** — always update both |
+| `app/terms/page.tsx` | Customer T&Cs — full 48hr cancellation policy, NTUK Ltd details |
+| `app/privacy/page.tsx` | Privacy policy — NTUK Ltd details |
+| `app/login/page.tsx` | Customer login — supports `?next=` redirect param |
+| `app/bookings/[id]/page.tsx` | Booking detail — has review form, uses `request_id` as URL param |
 
 ---
 
-## Footer System
+## Email Addresses
+| Address | Type | Forwards to |
+|---------|------|-------------|
+| `info@camel-global.com` | Mailbox (Mail Lite, Fasthosts) | Gmail via POP — `mail.livemail.co.uk:995` |
+| `contact@camel-global.com` | Forwarder | `artur@` + `info@` |
+| `partners@camel-global.com` | Forwarder | `artur@` + `info@` |
+| `press@camel-global.com` | Forwarder | `artur@` + `info@` |
+| `email@camel-global.com` | Forwarder | `nicktrin@gmail.com` + `artur@` |
 
-### Four Distinct Footers (`app/components/Footer.tsx`)
-| Portal | Footer | All links |
-|--------|--------|-----------|
-| `/partner/*` | PartnerFooter | `/partner/*` |
-| `/admin/*` | AdminFooter | `/admin/*` |
-| `/driver/*` | DriverFooter | Driver Login link only |
-| Everything else | CustomerFooter | Standard public links |
+---
+
+## AI Chat Widget (Camel Help)
+- Floating orange bubble, bottom-right, draggable on **both mouse and touch (mobile)**
+- Logged-in users only — customer site and partner portal
+- Calls Anthropic API (`claude-haiku-4-5-20251001`) server-side
+- Fetches user's bookings/requests from Supabase and injects into system prompt
+- Streams responses back to the widget
+- "End chat" button emails transcript to user via Resend
+- WhatsApp links auto-detected in phone numbers in responses
+- **ChatWidget.tsx is identical in both repos** — cp portal version to customer whenever changed:
+  ```bash
+  cp ~/camel-portal/app/components/ChatWidget.tsx ~/camel-customer/app/components/ChatWidget.tsx
+  ```
+- **Env var required:** `ANTHROPIC_API_KEY` in both Vercel projects (use same key for both)
+
+---
+
+## Review Reminder Email
+- Cron runs daily at 10am UTC — sends 7 days after booking completion if no review
+- Link in email goes to: `camel-global.com/login?next=/bookings/{request_id}`
+- Login page reads `?next=` param and redirects after auth — lands on booking with review form
+- **Bug history:** was pointing to `portal.camel-global.com` (wrong domain) with no login redirect — fixed Chat 24
+
+---
+
+## Cancellation System
+
+### Rules
+| Who cancels | Car hire refund | Fuel refund |
+|-------------|-----------------|-------------|
+| Partner | Full | Full |
+| Customer >48hrs before pickup | Full | Full |
+| Customer <48hrs before pickup | None | Full |
+| Admin | Full | Full |
+
+### DB columns on `partner_bookings`
+| Column | Purpose |
+|--------|---------|
+| `cancelled_by` | `customer` / `partner` / `admin` |
+| `cancelled_at` | Timestamp of cancellation |
+| `cancellation_reason` | Optional reason text |
+| `refund_status` | `full` / `partial` / `none` |
 
 ---
 
 ## Commission & Payments Model
 - Partner = supplier, issues VAT invoice to customer
-- Camel = intermediary, earns 20% commission (min €10 floor), invoices partner
-- Fuel charges pass through 100% to partner
+- Camel = intermediary, earns commission (default 20%, min €10 floor), invoices partner
+- Commission rate set per-partner in admin — stored on `partner_profiles.commission_rate`
+- Rate stamped on each booking at acceptance — never changes after that
+- Fuel charges pass through 100% to partner — no commission on fuel
+- `partner_profiles.stripe_account_id` column exists ready for Stripe Connect
+
+---
+
+## Currency System
+- **Supported:** `EUR | GBP | USD`
+- **Rates:** Live from `frankfurter.app`, cached 1 hour, fallback GBP 0.85 / USD 1.08
+- **Storage:** All prices stored in the currency the booking was made in
 
 ---
 
 ## Live Status System (7 checks)
 1. Fleet base address set
-2. Fleet base GPS set
+2. Fleet base GPS set (lat + lng)
 3. Service radius set
 4. At least one active fleet vehicle
 5. At least one active driver
@@ -147,306 +209,241 @@ All internal API routes stay at `/api/test-booking/*` — do not rename these.
 
 ---
 
-## GDPR — Account Deletion
-- Soft delete — stamps `deleted_at`, retains all booking/financial data
-- `partner_profiles.deleted_at`, `customer_profiles.deleted_at`
+## Footer System
+| Portal | Footer variant | Notes |
+|--------|---------------|-------|
+| `/partner/*` | PartnerFooter | Full links — company, legal, platform |
+| `/admin/*` | AdminFooter | Full links — company, legal, platform |
+| `/driver/*` | DriverFooter | Minimal — customer site, partner login, become a partner only. No portal links. |
+| Everything else | CustomerFooter | Standard public links |
+
+**Important:** Portal footer links use prefixed paths (`/partner/about`, `/admin/cookies` etc.) — not root paths.
 
 ---
 
-## Security
-- CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy in `next.config.ts`
-- CSP includes: OpenStreetMap tiles (`*.tile.openstreetmap.org`), unpkg (Leaflet), hCaptcha, Supabase, Google Maps, frankfurter
-- Rate limiting: 3 req / 15 min per IP
-- hCaptcha on all login, signup, forgot password, contact forms
+## Supabase Projects
+| Project | URL | Used by |
+|---------|-----|---------|
+| `camel-global` | `https://guhcavvpuveiovspzxmg.supabase.co` | Portal + Customer (both) |
 
 ---
 
-## Map System (Leaflet / OpenStreetMap)
-- All maps use react-leaflet with SSR disabled
-- Pattern: thin shell component (`dynamic(() => import('./Inner'), { ssr: false })`) + inner component with all Leaflet code
-- Files: `app/partner/profile/MapPicker.tsx` (shell) + `MapPickerInner.tsx` (full code)
-- Marker icons loaded from unpkg — fix applied in all inner files
+## Environment Variables
 
----
-
-## AI Chat Widget
-- Floating orange bubble on partner and admin portals
-- Uses Claude Haiku via Anthropic API (streaming)
-- Context-aware: loads last 20 bookings + partner profile data per session
-- On "End chat": emails full transcript to user via Resend
-- Component: `app/components/ChatWidget.tsx`
-- API: `app/api/chat/route.ts` + `app/api/chat/transcript/route.ts`
-
----
-
-## Partner Outreach Agent
-
-### Overview
-AI-powered cold email outreach system to contact car hire companies across Spain.
-Built entirely without any email marketing platform — uses Claude + Resend only.
-
-### How It Works
-1. Admin goes to `/admin/outreach`
-2. Clicks "Send Today's Batch (50)" 
-3. For each prospect, Claude generates a personalised Spanish email
-4. Resend delivers it to the company's inbox
-5. Status updates automatically: pending → sent
-6. Admin manually updates: sent → replied → onboarded when companies respond
-
-### Database Table: `outreach_prospects`
-```sql
-id, company_name, contact_name, email, city, country,
-status (pending/sent/bounced/replied/onboarded),
-notes, sent_at, created_at
+### Portal (`camel-portal-live`)
 ```
-- **Total prospects loaded:** ~1,700 (after deduplication from original 1,916)
-- **Source:** Master_Database_Spain.xlsx — pre-filtered qualified Spanish car hire companies
-- **Daily limit:** 50 emails/day (server-enforced) — safe for Resend free tier + spam filters
-
-### Key Details
-- **Email language:** Spanish
-- **No commission mention in emails** — just get the click, explain on landing page
-- **Link in email:** `https://portal.camel-global.com/`
-- **Sender:** `partners@camel-global.com` (plan to move to `partners@e.camel-global.com` subdomain — see TODO)
-- **Cost:** ~$1 total for all 1,916 emails (Claude Haiku is very cheap)
-- **Resend free tier:** 3,000 emails/month — fits entirely within free tier
-
-### Pending Tasks for Outreach (Nick's feedback)
-- [ ] **Deduplicate database** — run SQL to remove duplicate emails (keep one per unique email)
-  ```sql
-  DELETE FROM outreach_prospects
-  WHERE id NOT IN (
-    SELECT DISTINCT ON (email) id
-    FROM outreach_prospects
-    ORDER BY email, created_at ASC
-  );
-  ```
-- [ ] **Subdomain sender** — Nick to register `e.camel-global.com` in Resend, add DNS records, update `EMAIL_FROM` in Vercel to `partners@e.camel-global.com` to protect main domain from blacklisting
-- [ ] **Add lat/lng columns** to `outreach_prospects` table
-- [ ] **Map view** on outreach page — colour-coded by status (pending/sent/replied/onboarded)
-- [ ] **Airport priority ordering** — sort batch sends by proximity to key airports: Málaga, Alicante, Valencia, Madrid
-
-### Environment Variables Required
-```
-ANTHROPIC_API_KEY=sk-ant-...   # Claude API — add to Vercel (Nick has permission)
-RESEND_API_KEY=re_...          # Already set
-EMAIL_FROM=...                 # Currently partners@camel-global.com
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_HCAPTCHA_SITE_KEY
+HCAPTCHA_SECRET_KEY
+RESEND_API_KEY
+EMAIL_FROM
+CRON_SECRET
+CAMEL_ADMIN_EMAILS
+PORTAL_BASE_URL                   → https://portal.camel-global.com
+NEXT_PUBLIC_SITE_URL              → https://portal.camel-global.com
+ANTHROPIC_API_KEY                 → sk-ant-... (same key as customer site)
 ```
 
-### Auth Pattern for Admin API Routes
-All outreach API routes use this pattern (NOT `getPortalUserRole` — that only works for partners):
-```ts
-const authed = await createRouteHandlerSupabaseClient();
-const { data: userData } = await authed.auth.getUser();
-const email = userData?.user?.email;
-const db = createServiceRoleSupabaseClient();
-const { data: adminRow } = await db.from("admin_users").select("role").eq("email", email).maybeSingle();
-if (!adminRow || !isAllowed(adminRow.role)) return 403;
+### Customer (`camel-customer-live`)
+```
+NEXT_PUBLIC_CUSTOMER_SUPABASE_URL
+NEXT_PUBLIC_CUSTOMER_SUPABASE_ANON_KEY
+CUSTOMER_SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_HCAPTCHA_SITE_KEY
+HCAPTCHA_SECRET_KEY
+RESEND_API_KEY
+NEXT_PUBLIC_SITE_URL              → https://camel-global.com
+ANTHROPIC_API_KEY                 → sk-ant-... (same key as portal)
 ```
 
 ---
 
-## DB Columns Reference
-**Chat 8:** `partner_profiles`: legal_company_name, vat_number, company_registration_number, stripe_account_id, stripe_onboarding_status, commission_rate. `partner_bookings`: commission_rate, commission_amount, partner_payout_amount, invoice_period. `platform_settings`: default_commission_rate, minimum_commission_amount.
-**Chat 9:** `partner_applications`: terms_accepted_at, terms_version
-**Chat 10:** `customer_profiles`: RLS enabled
-**Chat 11:** `partner_profiles`: deleted_at. `customer_profiles`: deleted_at
-**Chat 14:** `outreach_prospects`: full table created (id, company_name, contact_name, email, city, country, status, notes, sent_at, created_at). lat/lng columns pending.
+## Stable Tags
 
----
-
-## Current Stable State
-
-### Last Known Good Tag
-```bash
-git checkout v-stable-pre-customer-ui
-```
-**Description:** All portals working, maps fixed (CSP + Leaflet SSR), review email link fixed, login auth redirect working. Safe rollback point before customer UI overhaul.
-
-### All Stable Tags
+### Portal (`~/camel-portal`)
 | Tag | Description |
 |-----|-------------|
-| `v-stable-pre-customer-ui` | Safe rollback before customer UI overhaul — everything working |
-| `v-stable-footer-policy-pages-complete` | Full footer system, all portal policy pages, customer header fix |
-| `v-stable-footer-contact` | Split footers, contact page, operating rules shared lib |
-| `v-stable-footer-policy-pages` | Footer, About, Privacy, Cookie Policy, Customer Terms |
-| `v-stable-gdpr-delete` | GDPR soft delete, settings pages, cookie banner, RLS audit |
-| `v-stable-captcha` | Security headers, cleanup, rate limiting, hCaptcha all forms |
-| `v-stable-partner-terms` | Partner T&Cs, versioned acceptance, PDF downloads |
-| `v-stable-commission-reporting` | Full commission system, billing details, reporting, Excel exports |
-| `v-stable-partner-reviews` | Partner review system, admin moderation, 7-day reminder cron |
-| `v-stable-admin-insurance-live-status` | Admin booking detail with insurance and driver audit trail |
-| `v-stable-driver-audit-trail` | Driver audit trail — stamped permanently |
-| `v-stable-insurance-handover` | Full insurance document handover flow |
-| `v-stable-live-status-checks` | 6-check live status system |
-| `v-stable-fuel-flow-fixed` | Full fuel confirmation flow |
-| `v-stable-admin-booking-fixes` | Admin booking detail matches partner view |
-| `v-stable-password-reset` | All three portals password reset |
-| `v-stable-currency-reporting` | Full EUR/GBP/USD revenue reporting |
+| `v-stable-chat20` | Chat 20 — 5 bug fixes, geocode API, duplicate email fixed |
+| `v-stable-chat21` | Chat 21 — Photon search, city fields, address overhaul |
+| `v-stable-chat22` | Chat 22 — Commission rate system fully fixed |
+| `v-stable-chat23` | Chat 23 — AI chat widget, cancellation system, cancellation-aware financials |
+| `v-stable-chat24` | Chat 24 — Portal homepage, branding overhaul, driver fixes, chat widget touch drag |
+| `v-stable-chat24b` | Chat 24b — NTUK Ltd company details, footer fixes, driver footer restricted, review email fix |
+| `v-stable-chat24c` | Chat 24c — SEO metadata, sitemaps, robots.txt, alt text, partner signup metadata |
+
+### Customer (`~/camel-customer`)
+| Tag | Description |
+|-----|-------------|
+| `v-stable-chat20` | Chat 20 — map picker address fix |
+| `v-stable-chat21` | Chat 21 — Photon search, city selector, /book simplified |
+| `v-stable-chat22` | Chat 22 — Commission stamp on customer bid acceptance |
+| `v-stable-chat23` | Chat 23 — AI chat widget, cancellation system, customer cancellation UI |
+| `v-stable-chat24` | Chat 24 — Customer T&Cs Section 7 rewrite, chat widget touch drag |
+| `v-stable-chat24b` | Chat 24b — NTUK Ltd company details, privacy/terms updated |
+| `v-stable-chat24c` | Chat 24c — SEO metadata, sitemaps, robots.txt, alt text improvements |
+
+### Rollback
+```bash
+cd ~/camel-portal && git checkout v-stable-chat24c
+cd ~/camel-customer && git checkout v-stable-chat24c
+```
 
 ---
 
 ## What Is Working ✅
-- Customer booking flow (functional at `/test-booking/*` — UI overhaul in progress)
+- Customer booking flow — single homepage widget
+- Guest booking flow — draft survives login/signup redirect
 - Partner bid submission and management
-- Driver job portal
+- Driver job portal — light theme, expandable history, touch-draggable chat widget, minimal footer
 - Admin approval and account management
 - Full EUR / GBP / USD currency support
-- Full commission system — 20% default, min €10, per-partner override
-- Fuel level recording, charge/refund calculation
-- Email notifications + password reset on all three portals
-- Google Maps integration
+- Full commission system — adjustable per partner, default 20%, min €10
+- Fuel level recording, charge/refund calculation (to nearest ¼ tank)
+- Email notifications + password reset on all portals
 - Live status system — 7 checks
-- Partner login → onboarding redirect if incomplete
-- Partner login → blocked with amber notice if account deleted
-- Partner onboarding — 6 steps including Business & Billing
-- Driver portal — independent header, auto-refresh, insurance checkbox
-- Insurance handover — all three portals
-- Partner review system — ratings, replies, admin moderation, cron reminder
-- Review email link — uses correct request_id, auth redirect to login then back
-- Business & Billing — onboarding, read-only for partners, editable by admin
-- Partner T&Cs — full legal document, versioned acceptance at signup, PDF download
-- Partner Operating Rules — web page + PDF download, shared lib
-- Real PDF downloads (jsPDF) — no print dialog
-- Security headers — CSP includes OpenStreetMap, unpkg, hCaptcha, Supabase, Google Maps
-- Rate limiting — 3 req / 15 min per IP
-- hCaptcha — all login, forgot password, signup, and contact forms
-- Customer profile RLS — policies in place, service role used on signup
-- Cookie consent banner — GDPR compliant
-- RLS audit — all tables reviewed
-- GDPR account deletion — soft delete for partners and customers
-- Footer system — 4 portal-aware footers
-- Policy pages — Privacy, Cookies, Terms, About, Contact for all three portals
-- Maps — Leaflet/OpenStreetMap working on all pages (CSP fixed, SSR fixed)
-- AI chat widget — Claude Haiku, streaming, transcript email, draggable bubble
-- **Partner outreach agent — 1,916 prospects loaded, Spanish emails, 50/day batch, test email working**
+- Partner onboarding — 6 steps with Photon address search
+- Security headers, rate limiting, hCaptcha on all forms
+- Customer profile RLS, cookie consent banner, GDPR soft delete
+- Photon address search across all address inputs
+- **AI Chat Widget** — both sites, logged-in only, draggable on mouse AND touch, streaming, transcript email, booking-aware
+- **Booking cancellation** — customer/partner/admin, 48hr rule, financial breakdowns, cancellation-aware reports, Excel exports
+- **Portal homepage** — full partner landing page with how it works, pricing, requirements, cancellation summary, insurance/licence requirements, driver section
+- **Branding overhaul** — all partner and admin static pages match current black/white/orange style
+- **Customer T&Cs** — full 48hr cancellation policy Section 7, automatic refunds stated
+- **Partner T&Cs** — Section 8 cancellation policy, PDF updated
+- **Company details** — NTUK Ltd (trading as Camel Global), reg 08765474, Ludgate Hill address — in all privacy/terms/footer pages across both repos
+- **Review reminder email** — correct domain (customer site), login redirect with `?next=` to booking page
+- **Email addresses** — `contact@`, `partners@`, `press@`, `email@` forwarders live. `info@` mailbox on Fasthosts, connected to Gmail via POP + SMTP
+- **SEO** — optimised metadata, Open Graph tags, canonical URLs, airport keywords (Málaga, Alicante, Valencia, Madrid, Barcelona, Palma, Ibiza, Tenerife, Gran Canaria, Seville, Bilbao) across both sites. Sitemaps at `/sitemap.xml` on both domains. robots.txt updated with sitemap reference and correct disallow rules. Alt text improved. Partner signup has dedicated `metadata.ts`. Login/signup/account noindexed.
+
+---
+
+## Collaborator Note
+A collaborator works on the same `camel-portal` repo from a Windows machine (`C:/dev/camel-portal`). He built the **Partner Outreach Agent** (`/admin/outreach`). His changes are on `main`. Always `git pull` before starting. Key files he owns: `app/admin/outreach/page.tsx`, `app/api/admin/outreach/*`.
 
 ---
 
 ## Session Log
 
-### Chat 14 (Completed — AI Partner Outreach Agent)
-- Built full outreach system: `/admin/outreach` page + 3 API routes
-- Loaded 1,916 Spanish car hire companies from Master_Database_Spain.xlsx
-- Claude Haiku generates personalised Spanish email per company
-- Sends via Resend — no marketing platform needed
-- 50/day server-enforced limit with progress bar
-- Test email sent and confirmed working (lands in Promotions tab — normal)
-- Fixed auth bug: outreach routes use `admin_users` table check, not `getPortalUserRole`
-- Fixed Supabase 1,000 row limit — 2-batch fetch pattern
-- Added "Partner Outreach" to admin sidebar nav
-- Nick's pending requests: deduplicate emails, subdomain sender, lat/lng + map, airport priority ordering, remove commission from email copy, change link to portal.camel-global.com
+### Chat 24c (Completed)
+**SEO overhaul**
+1. Updated both layout files — title templates, full keyword lists targeting Spanish airports, Open Graph tags, Twitter cards, robots directives.
+2. Updated per-page metadata on about, privacy, terms, cookies pages — customer site.
+3. Added portal homepage metadata targeting partner keywords.
+4. Created `sitemap.ts` on both repos — customer returns empty on test site, portal only lists public pages.
+5. Updated `robots.ts` on both repos — added sitemap URL reference, disallow rules for portal inner pages and customer account pages.
+6. Created `app/partner/signup/metadata.ts` — dedicated SEO for become a partner page.
+7. Fixed alt text — logo images updated from "Camel" to "Camel Global — Meet and Greet Car Hire Spain".
+8. Stable tags `v-stable-chat24c` on both repos.
+9. **When going live:** submit sitemaps to Google Search Console — `camel-global.com/sitemap.xml` and `portal.camel-global.com/sitemap.xml`.
+1. Updated company name to NTUK Ltd (trading as Camel Global), reg 08765474, address Office 7 35-37 Ludgate Hill across all privacy/terms pages and footers in both repos — sed commands run directly.
+2. Set up email forwarders on Fasthosts — `contact@`, `partners@`, `press@`, `email@`.
+3. Connected `info@camel-global.com` mailbox to Gmail via POP (`mail.livemail.co.uk:995`) and SMTP (`smtp.livemail.co.uk:465`).
+4. Fixed driver footer — now minimal (customer site, partner login, become a partner only). No portal links accessible to drivers.
+5. Fixed portal homepage nav — Driver Login now styled as bordered box matching Partner Login.
+6. Fixed footer copyright text on homepage — changed from `text-white/30` (invisible) to `text-white/70`.
+7. Fixed review reminder email — was pointing to `portal.camel-global.com` (wrong domain). Now uses `NEXT_PUBLIC_SITE_URL` → `camel-global.com/login?next=/bookings/{request_id}`.
+8. Stable tags `v-stable-chat24b` on both repos.
 
-### Chat 13 (Completed — Bugs + Customer UI Overhaul)
-- Review email link: cron was passing `booking.id` to URL — fixed to pass `booking.request_id`
-- Request detail page: added auth guard — unauthenticated users redirected to `/test-booking/login?next=...`
-- Login page: added `useSearchParams` + `next=` redirect support, wrapped in `<Suspense>`
-- Maps: all Leaflet maps broken due to CSP blocking tile requests — fixed
-- Maps: Leaflet SSR crash — split MapPicker into shell + inner
-- Customer UI overhaul spec agreed, build starting
+### Chat 24 (Completed)
+**Branding, fixes, homepage, chat widget**
+1. Pushed partner T&Cs + driver jobs page rebrand from Chat 23.
+2. Fixed driver jobs "Access denied" bug — removed broken `/api/driver/check` GET call.
+3. Fixed driver confirm API — accepts `action` (new) or `stage` (legacy), standalone insurance.
+4. Made driver completed jobs expandable with read-only detail.
+5. Customer T&Cs Section 7 — full 48hr policy rewrite.
+6. Fixed portal footer broken links — prefixed paths.
+7. Rebranded partner + admin static pages — black hero + white cards.
+8. Built portal homepage — full partner landing page.
+9. Applied 9 homepage fixes including insurance/licence section.
+10. Added touch drag to ChatWidget — copied to both repos.
 
-### Chats 1–12 (Completed)
-- Core booking flow, fuel, drivers, insurance, reviews, currency, password reset, commission, T&Cs, security, GDPR, footer, policy pages
+### Chat 23 (Completed)
+**AI Chat Widget + Booking Cancellation System**
+- AI chat widget live on both sites
+- Full cancellation system — DB, routes, UI, 48hr rule, financials
+- Stable tag `v-stable-chat23` on both repos
+
+### Chats 20–22 (Completed)
+- Address search, commission fixes, bug fixes
 
 ---
 
 ## Pre-Launch Build Plan
 
-| # | Task | Est. Time | Status |
-|---|------|-----------|--------|
-| 1 | Security headers | 30 min | ✅ Done |
-| 2 | Code cleanup | 1 hr | ✅ Done |
-| 3 | Rate limiting | 1–2 hrs | ✅ Done |
-| 4 | CAPTCHA at all sign-in points | 2–3 hrs | ✅ Done |
-| 5 | Cookie acceptance banner | 2–3 hrs | ✅ Done |
-| 6 | Partner & Admin finance pages | 2–3 hrs | ⏸ Deferred (post-Stripe) |
-| 7 | RLS audit | 2–3 hrs | ✅ Done |
-| 8 | GDPR data deletion | 3–4 hrs | ✅ Done |
-| 9 | Footer + policy pages | 3–4 hrs | ✅ Done |
-| 10 | Spanish translation (partner + driver portals, `next-intl`) | 15–20 hrs | ⬜ Todo |
-| 11 | Customer booking site full UI overhaul | 15–20 hrs | 🔄 In progress |
-| 12 | Stripe Connect integration | 8–10 hrs | ⬜ Deferred |
-| 13 | Xero monthly commission endpoint | 3–4 hrs | ⬜ Deferred |
-| 14 | DAC7 EU platform reporting | 3–4 hrs | ⬜ Deferred |
-| 15 | Outreach agent — dedup + map + airport priority | 3–4 hrs | ⬜ Todo |
+| # | Task | Status |
+|---|------|--------|
+| 1 | Security headers | ✅ Done |
+| 2 | Code cleanup | ✅ Done |
+| 3 | Rate limiting | ✅ Done |
+| 4 | CAPTCHA at all sign-in points | ✅ Done |
+| 5 | Cookie acceptance banner | ✅ Done |
+| 6 | Partner & Admin finance pages | ⏸ Deferred (post-Stripe) |
+| 7 | RLS audit | ✅ Done |
+| 8 | GDPR data deletion | ✅ Done |
+| 9 | Footer + policy pages | ✅ Done |
+| 10 | Spanish translation | ⬜ Todo — do last |
+| 11 | Customer booking site full UI overhaul | ✅ Done |
+| 11b | Portal rebrand | ✅ Done |
+| 11c | Repo split | ✅ Done |
+| 11d | Google Analytics | ✅ Done |
+| 12 | Stripe Connect integration | ⬜ Next — do before translation |
+| 13 | Xero monthly commission endpoint | ⬜ Deferred |
+| 14 | DAC7 EU platform reporting | ⬜ Deferred |
+| 15 | Partner outreach agent | ✅ Done (collaborator) |
 
 ---
 
 ## TODO Before Go-Live
-- [ ] Update company registration number in privacy/terms pages (currently `XXXXXXXX`)
-- [ ] Update registered address in privacy/terms pages (currently placeholder)
-- [ ] Stripe Connect integration (Phase 2)
-- [ ] Spanish translation (Item 10)
-- [ ] Customer UI overhaul (Item 11) — in progress
-- [ ] Outreach: deduplicate database (SQL above)
-- [ ] Outreach: Nick to set up `e.camel-global.com` subdomain in Resend
-- [ ] Outreach: Nick to update `ANTHROPIC_API_KEY` in Vercel
+- [ ] Stripe Connect integration — **next priority**
+- [ ] Spanish translation — after Stripe
+- [ ] Delete legacy `camel-customers` Supabase project
+- [ ] Outreach: deduplicate database (SQL in collaborator's handover)
+- [ ] Outreach: set up `e.camel-global.com` subdomain in Resend
 - [ ] Outreach: add lat/lng + map view + airport priority ordering
 
----
-
-## Environment Variables
-```
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-NEXT_PUBLIC_CUSTOMER_SUPABASE_URL=
-NEXT_PUBLIC_CUSTOMER_SUPABASE_ANON_KEY=
-CUSTOMER_SUPABASE_SERVICE_ROLE_KEY=
-
-# Email (Resend)
-RESEND_API_KEY=
-EMAIL_FROM=Camel Global Partners <partners@camel-global.com>
-ADMIN_NOTIFY_EMAIL=nick@camel-global.com
-PORTAL_BASE_URL=https://portal.camel-global.com
-
-# Admin
-NEXT_PUBLIC_CAMEL_ADMIN_EMAILS=nick@camel-global.com,nicktrin@gmail.com
-CAMEL_ADMIN_EMAILS=nick@camel-global.com,nicktrin@gmail.com
-
-# AI
-ANTHROPIC_API_KEY=sk-ant-...   # Claude API — must be set in Vercel by Nick
-
-# Other
-CRON_SECRET=
-NEXT_PUBLIC_HCAPTCHA_SITE_KEY=
-HCAPTCHA_SECRET_KEY=
-NEXT_PUBLIC_SITE_URL=https://portal.camel-global.com
-```
+## Stripe Connect — Plan for Next Session
+- Partners need `stripe_account_id` on `partner_profiles` (column already exists)
+- Add "Set up payouts" step to partner onboarding flow
+- Launches Stripe Express hosted onboarding
+- On completion, store `stripe_account_id` on partner profile
+- Commission deducted automatically at payout
+- Partners receive net amount directly to their bank account
+- Stripe handles all bank detail collection — Camel never touches raw bank data
 
 ---
 
 ## Useful Commands
 
 ```bash
-# Push changes
-cd /c/dev/camel-portal
-git add .
-git commit -m "your message"
-git push origin main
+# Always pull before starting
+cd ~/camel-portal && git pull origin main
 
-# Pull latest
-git stash
-git pull origin main
+# Portal
+cd ~/camel-portal && git add . && git commit -m "message" && git push origin main
 
-# Full file tree (Windows)
-find /c/dev/camel-portal -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.next/*' | sort
+# Customer
+cd ~/camel-customer && git add . && git commit -m "message" && git push origin main
 
-# Cat a file
-cat /c/dev/camel-portal/app/admin/outreach/page.tsx
+# Copy ChatWidget to both repos (always do both)
+cp ~/camel-portal/app/components/ChatWidget.tsx ~/camel-customer/app/components/ChatWidget.tsx
+
+# File trees
+find ~/camel-portal -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.next/*' | sort
+find ~/camel-customer -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/.next/*' | sort
 
 # Create stable tag
-git tag -a v-tag-name -m "description"
-git push origin v-tag-name
+git tag -a v-tag-name -m "description" && git push origin v-tag-name
 
 # Roll back
 git checkout v-tag-name
-
-# List tags
-git tag | grep stable
 ```
 
 ---
 
-*Last updated: Chat 14 — AI partner outreach agent built and tested. 1,916 Spanish car hire prospects loaded. Claude writes personalised Spanish emails, Resend delivers, 50/day limit. Test email confirmed working. Pending: Nick to update Anthropic API key in Vercel, deduplicate DB, subdomain sender, map view, airport priority ordering.*
+*Last updated: Chat 24c — SEO overhaul complete. Sitemaps, robots.txt, Open Graph, airport keywords, alt text, partner signup metadata. Stable tag v-stable-chat24c on both repos. Next: Stripe Connect integration.*
