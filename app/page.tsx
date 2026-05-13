@@ -10,7 +10,7 @@ export default function PortalHomePage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-2">
           <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
           <div className="flex items-center gap-3">
-            <Link href="/driver/login" className="hidden sm:block text-sm font-black text-white/60 hover:text-white transition-colors">
+            <Link href="/driver/login" className="border border-white/30 px-5 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
               Driver Login
             </Link>
             <Link href="/partner/login" className="border border-white/30 px-5 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
@@ -350,7 +350,7 @@ export default function PortalHomePage() {
       <footer className="w-full bg-black border-t border-white/10 px-6 py-8">
         <div className="mx-auto max-w-6xl flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} className="h-14 w-auto brightness-0 invert" />
-          <p className="text-xs font-bold text-white/30">© {new Date().getFullYear()} NTUK Ltd. All rights reserved. Trading as Camel Global · Registered in England &amp; Wales · Company No. 08765474</p>
+          <p className="text-xs font-bold text-white/70">© {new Date().getFullYear()} NTUK Ltd. All rights reserved. Trading as Camel Global · Registered in England &amp; Wales · Company No. 08765474</p>
         </div>
       </footer>
 
