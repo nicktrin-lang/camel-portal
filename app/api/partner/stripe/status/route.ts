@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" });
 
 export async function GET() {
   try {
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createRouteHandlerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
