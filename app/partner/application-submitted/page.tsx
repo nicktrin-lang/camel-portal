@@ -41,7 +41,7 @@ export default function PartnerApplicationSubmittedPage() {
       {/* Copyright */}
       <div className="border-t border-white/10 py-5 px-6">
         <p className="text-center text-xs font-bold text-white/30">
-          © {new Date().getFullYear()} Camel Global Ltd. All rights reserved.
+          © {new Date().getFullYear()} NTUK Ltd. All rights reserved. Trading as Camel Global.
         </p>
       </div>
 

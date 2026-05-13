@@ -60,8 +60,8 @@ export function PortalFooter({ variant }: { variant: "partner" | "admin" | "driv
         </div>
 
         <div className="mt-10 border-t border-white/10 pt-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-bold text-white/60">© {year} Camel Global Ltd. All rights reserved.</p>
-          <p className="text-sm font-bold text-white/60">Registered in England &amp; Wales</p>
+          <p className="text-sm font-bold text-white/60">© {year} NTUK Ltd. All rights reserved. Trading as Camel Global.</p>
+          <p className="text-sm font-bold text-white/60">Registered in England &amp; Wales · Company No. 08765474</p>
         </div>
       </div>
     </footer>
@@ -129,8 +129,8 @@ function CustomerFooter() {
         </div>
 
         <div className="mt-10 border-t border-white/20 pt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-bold text-white">© {year} Camel Global Ltd. All rights reserved.</p>
-          <p className="text-sm font-bold text-white">Registered in England &amp; Wales</p>
+          <p className="text-sm font-bold text-white">© {year} NTUK Ltd. All rights reserved. Trading as Camel Global.</p>
+          <p className="text-sm font-bold text-white">Registered in England &amp; Wales · Company No. 08765474</p>
         </div>
       </div>
     </footer>

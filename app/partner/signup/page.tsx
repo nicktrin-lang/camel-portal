@@ -13,7 +13,7 @@ const TERMS_EFFECTIVE = "1 April 2026";
 const TERMS_SECTIONS = [
   { title: "1. Definitions", clauses: [
     '"Agreement" means these Partner Terms and Conditions together with the Partner Operating Rules, which are incorporated by reference and form part of this Agreement.',
-    '"Camel Global", "we", "us" or "our" means Camel Global Ltd, a company registered in England and Wales.',
+    '"Camel Global", "we", "us" or "our" means NTUK Ltd, a company registered in England and Wales (company number 08765474), trading as Camel Global. Our registered address is Office 7, 35-37 Ludgate Hill, London, England, EC4M 7JN.',
     '"Partner", "you" or "your" means the independent car hire business that has registered on the Platform and accepted this Agreement.',
     '"Platform" means the Camel Global web-based marketplace, portals, APIs, and associated services available at camel-global.com.',
     '"Customer" means any end user who submits a car hire request via the Platform.',

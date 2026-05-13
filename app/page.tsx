@@ -350,7 +350,7 @@ export default function PortalHomePage() {
       <footer className="w-full bg-black border-t border-white/10 px-6 py-8">
         <div className="mx-auto max-w-6xl flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} className="h-14 w-auto brightness-0 invert" />
-          <p className="text-xs font-bold text-white/30">© {new Date().getFullYear()} Camel Global Ltd. All rights reserved. Registered in England &amp; Wales.</p>
+          <p className="text-xs font-bold text-white/30">© {new Date().getFullYear()} NTUK Ltd. All rights reserved. Trading as Camel Global · Registered in England &amp; Wales · Company No. 08765474</p>
         </div>
       </footer>
 
