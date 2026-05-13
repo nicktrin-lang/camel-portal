@@ -1,24 +1,14 @@
 import type { MetadataRoute } from "next";
-import { headers } from "next/headers";
 
-export default async function robots(): Promise<MetadataRoute.Robots> {
-  const headerStore = await headers();
-  const host = headerStore.get("host") || "";
-  const isTestSite = host.includes("test.camel-global.com");
-
-  if (isTestSite) {
-    return {
-      rules: {
-        userAgent: "*",
-        disallow: "/",
-      },
-    };
-  }
-
+export default function robots(): MetadataRoute.Robots {
   return {
-    rules: {
-      userAgent: "*",
-      allow: "/",
-    },
+    rules: [
+      {
+        userAgent: "*",
+        allow: ["/", "/partner/signup", "/partner/terms", "/partner/privacy"],
+        disallow: ["/partner/", "/admin/", "/driver/", "/api/"],
+      },
+    ],
+    sitemap: "https://portal.camel-global.com/sitemap.xml",
   };
 }
