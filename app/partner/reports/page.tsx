@@ -142,19 +142,21 @@ function downloadBlob(blob: Blob, filename: string) {
 
 // Cancellation-aware financials
 function calcCommission(b: BookingRow): { rate: number; amount: number; payout: number; fuelRefund: number } {
-  const isCancelled  = String(b.booking_status||"").toLowerCase()==="cancelled";
-  const refundStatus = b.refund_status||null;
-  const fuel         = Number(b.fuel_price??0);
+  const isCancelled  = String(b.booking_status || "").toLowerCase() === "cancelled";
+  const refundStatus = b.refund_status || null;
+  const fuel         = Number(b.fuel_price ?? 0);
 
-  if (isCancelled && refundStatus==="full") {
-    return { rate:0, amount:0, payout:0, fuelRefund:fuel };
+  if (isCancelled && refundStatus === "full") {
+    return { rate: 0, amount: 0, payout: 0, fuelRefund: fuel };
   }
 
-  const hire   = Number(b.car_hire_price??0);
-  const rate   = b.commission_rate??20;
-  const amount = b.commission_amount??Math.max((hire*rate)/100,10);
-  const payout = b.partner_payout_amount??Math.max(0,hire-amount);
-  const fuelRefund = (isCancelled&&refundStatus==="partial") ? fuel : Number(b.fuel_refund??0);
+  const hire   = Number(b.car_hire_price ?? 0);
+  const rate   = b.commission_rate ?? 20;
+  // Always recalculate from bid currency car_hire_price
+  // commission_amount and partner_payout_amount in DB may be in charge currency
+  const amount = Math.max((hire * rate) / 100, 10);
+  const payout = Math.max(0, hire - amount);
+  const fuelRefund = (isCancelled && refundStatus === "partial") ? fuel : Number(b.fuel_refund ?? 0);
   return { rate, amount, payout, fuelRefund };
 }
 
