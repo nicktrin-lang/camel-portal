@@ -559,10 +559,12 @@ export default function PartnerBookingDetailPage() {
   const collectionLocked = isLocked({driverOrPartnerFuel:collEffective,customerConfirmed:bk.collection_confirmed_by_customer,customerFuel:bk.collection_fuel_level_customer});
   const returnLocked     = isLocked({driverOrPartnerFuel:retEffective,customerConfirmed:bk.return_confirmed_by_customer,customerFuel:bk.return_fuel_level_customer});
   const rateBadgeText    = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
-  const commissionRate   = bk.commission_rate??20;
-  const carHire          = Number(bk.car_hire_price||0);
-  const commissionAmount = bk.commission_amount??Math.max((carHire*commissionRate)/100,10);
-  const partnerPayout    = bk.partner_payout_amount??Math.max(0,carHire-commissionAmount);
+  const commissionRate   = bk.commission_rate ?? 20;
+  const carHire          = Number(bk.car_hire_price || 0);
+  // Always recalculate commission from bid currency car hire price (stored in bk.currency)
+  // commission_amount and partner_payout_amount on the booking may be in charge currency — don't use them
+  const commissionAmount = Math.max((carHire * commissionRate) / 100, 10);
+  const partnerPayout    = Math.max(0, carHire - commissionAmount);
   const isCancelled      = bk.booking_status==="cancelled";
   const canCancel        = !isCancelled&&PRE_COLLECTION.includes(bk.booking_status);
 
