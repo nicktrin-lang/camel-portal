@@ -15,6 +15,7 @@ type Profile = {
   base_lng: number | null;
   country: string | null;
   vat_number: string | null;
+  stripe_onboarding_complete: boolean | null;
 };
 
 type BookingRow = {
@@ -95,16 +96,18 @@ export default function PartnerDashboardPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
 
-  const [loading,     setLoading]     = useState(true);
-  const [error,       setError]       = useState<string | null>(null);
-  const [profile,     setProfile]     = useState<Profile | null>(null);
-  const [appStatus,   setAppStatus]   = useState("pending");
-  const [email,       setEmail]       = useState("");
-  const [bookings,    setBookings]    = useState<BookingRow[]>([]);
-  const [requests,    setRequests]    = useState<RequestRow[]>([]);
-  const [driverCount, setDriverCount] = useState(0);
-  const [fleetCount,  setFleetCount]  = useState(0);
-  const [liveStatus,  setLiveStatus]  = useState<LiveStatus | null>(null);
+  const [loading,        setLoading]        = useState(true);
+  const [error,          setError]          = useState<string | null>(null);
+  const [profile,        setProfile]        = useState<Profile | null>(null);
+  const [appStatus,      setAppStatus]      = useState("pending");
+  const [email,          setEmail]          = useState("");
+  const [bookings,       setBookings]       = useState<BookingRow[]>([]);
+  const [requests,       setRequests]       = useState<RequestRow[]>([]);
+  const [driverCount,    setDriverCount]    = useState(0);
+  const [fleetCount,     setFleetCount]     = useState(0);
+  const [liveStatus,     setLiveStatus]     = useState<LiveStatus | null>(null);
+  const [stripeComplete, setStripeComplete] = useState(false);
+  const [stripeLinking,  setStripeLinking]  = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -119,23 +122,25 @@ export default function PartnerDashboardPage() {
         const [
           { data: profileRow },
           { data: appRow },
-          bkRes, reqRes, drvRes, fleetRes,
+          bkRes, reqRes, drvRes, fleetRes, stripeRes,
         ] = await Promise.all([
           supabase.from("partner_profiles")
-            .select("contact_name,company_name,address,service_radius_km,country,default_currency,base_lat,base_lng,vat_number")
+            .select("contact_name,company_name,address,service_radius_km,country,default_currency,base_lat,base_lng,vat_number,stripe_onboarding_complete")
             .eq("user_id", user.id).maybeSingle(),
           supabase.from("partner_applications")
             .select("status").eq("email", userEmail)
             .order("created_at", { ascending: false }).limit(1).maybeSingle(),
-          fetch("/api/partner/bookings",  { cache: "no-store", credentials: "include" }),
-          fetch("/api/partner/requests",  { cache: "no-store", credentials: "include" }),
-          fetch("/api/partner/drivers",   { cache: "no-store", credentials: "include" }),
+          fetch("/api/partner/bookings",       { cache: "no-store", credentials: "include" }),
+          fetch("/api/partner/requests",       { cache: "no-store", credentials: "include" }),
+          fetch("/api/partner/drivers",        { cache: "no-store", credentials: "include" }),
           supabase.from("partner_fleet").select("id").eq("user_id", user.id).eq("is_active", true),
+          fetch("/api/partner/stripe/status",  { credentials: "include" }),
         ]);
 
-        const bkJson  = await safeJson(bkRes);
-        const reqJson = await safeJson(reqRes);
-        const drvJson = await safeJson(drvRes);
+        const bkJson     = await safeJson(bkRes);
+        const reqJson    = await safeJson(reqRes);
+        const drvJson    = await safeJson(drvRes);
+        const stripeJson = await safeJson(stripeRes);
         if (!mounted) return;
 
         setProfile(profileRow as Profile | null);
@@ -145,6 +150,7 @@ export default function PartnerDashboardPage() {
         setRequests(Array.isArray(reqJson?.data)   ? reqJson.data.slice(0, 5) : []);
         setDriverCount(Array.isArray(drvJson?.data) ? drvJson.data.filter((d: any) => d.is_active).length : 0);
         setFleetCount(Array.isArray(fleetRes?.data)  ? fleetRes.data.length : 0);
+        setStripeComplete(stripeJson?.onboarding_complete ?? false);
 
         try {
           const liveRes = await fetch("/api/partner/refresh-live-status", {
@@ -168,6 +174,15 @@ export default function PartnerDashboardPage() {
     load();
     return () => { mounted = false; };
   }, [router, supabase]);
+
+  async function openStripeDashboard() {
+    setStripeLinking(true);
+    try {
+      const res = await fetch("/api/partner/stripe/dashboard-link", { method: "POST", credentials: "include" });
+      const json = await res.json();
+      if (json?.url) window.open(json.url, "_blank");
+    } catch {} finally { setStripeLinking(false); }
+  }
 
   if (loading) return (
     <div className="border border-black/5 bg-white p-8">
@@ -199,6 +214,40 @@ export default function PartnerDashboardPage() {
           {isApproved ? "✓ Account Approved" : "⏳ Pending Approval"}
         </span>
       </div>
+
+      {/* Stripe payout banner */}
+      {!stripeComplete && (
+        <div className="border border-[#ff7a00]/30 bg-[#fff7f0] p-5">
+          <div className="flex items-start gap-3">
+            <span className="text-xl">💳</span>
+            <div className="flex-1">
+              <p className="font-black text-[#c05c00]">Set up payouts to receive booking payments</p>
+              <p className="mt-1 text-sm font-bold text-[#c05c00]/80">Connect your bank account via Stripe so you can receive your earnings from completed bookings. Takes about 5 minutes.</p>
+              <Link href="/partner/onboarding?step=payouts"
+                className="mt-3 inline-flex items-center gap-2 bg-[#ff7a00] px-4 py-2 text-sm font-black text-white hover:opacity-90 transition-opacity">
+                Set Up Payouts →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stripe connected banner */}
+      {stripeComplete && (
+        <div className="border border-green-200 bg-green-50 p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center bg-green-600 text-white font-black text-xs">✓</span>
+            <div>
+              <p className="font-black text-green-800">Payouts active</p>
+              <p className="text-xs font-bold text-green-700">Completed bookings are paid out monthly to your bank account.</p>
+            </div>
+          </div>
+          <button onClick={openStripeDashboard} disabled={stripeLinking}
+            className="shrink-0 border border-green-300 px-3 py-1.5 text-xs font-black text-green-800 hover:bg-green-100 transition-colors disabled:opacity-50">
+            {stripeLinking ? "Opening…" : "Manage Payouts →"}
+          </button>
+        </div>
+      )}
 
       {/* Live status banner */}
       {liveStatus && !liveStatus.isLive && (
@@ -366,12 +415,13 @@ export default function PartnerDashboardPage() {
           <p className="mt-1 text-xs font-bold text-black/40 mb-4">Complete these steps to start receiving bookings.</p>
           <div className="space-y-2">
             {[
-              { label: "Fleet location set",  done: !!(profile?.base_lat && profile?.base_lng), href: "/partner/profile" },
-              { label: "Bidding currency set", done: !!(profile?.default_currency),              href: "/partner/profile" },
-              { label: "VAT / NIF number set", done: !!(profile?.vat_number),                    href: "/partner/profile" },
-              { label: "Account approved",     done: isApproved,                                  href: "/partner/account" },
-              { label: "Drivers added",        done: driverCount > 0,                             href: "/partner/drivers" },
-              { label: "Fleet added",          done: fleetCount > 0,                              href: "/partner/fleet" },
+              { label: "Fleet location set",   done: !!(profile?.base_lat && profile?.base_lng), href: "/partner/profile" },
+              { label: "Bidding currency set",  done: !!(profile?.default_currency),              href: "/partner/profile" },
+              { label: "VAT / NIF number set",  done: !!(profile?.vat_number),                    href: "/partner/profile" },
+              { label: "Payouts connected",     done: stripeComplete,                             href: "/partner/onboarding?step=payouts" },
+              { label: "Account approved",      done: isApproved,                                 href: "/partner/account" },
+              { label: "Drivers added",         done: driverCount > 0,                            href: "/partner/drivers" },
+              { label: "Fleet added",           done: fleetCount > 0,                             href: "/partner/fleet" },
             ].map(({ label, done, href }) => (
               <Link key={label} href={href}
                 className="flex items-center gap-3 border border-black/5 bg-[#f0f0f0] px-3 py-2.5 hover:bg-black/5 transition-colors">

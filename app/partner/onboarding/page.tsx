@@ -2,13 +2,13 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { FLEET_CATEGORIES } from "@/app/components/portal/fleetCategories";
 
 const MapPicker = dynamic(() => import("../profile/MapPicker"), { ssr: false });
 
-type Step = "location" | "currency" | "billing" | "fleet" | "drivers" | "golive";
+type Step = "location" | "currency" | "billing" | "fleet" | "drivers" | "payouts" | "golive";
 
 type Profile = {
   company_name: string | null;
@@ -28,6 +28,8 @@ type Profile = {
   legal_company_name: string | null;
   vat_number: string | null;
   company_registration_number: string | null;
+  stripe_account_id: string | null;
+  stripe_onboarding_complete: boolean | null;
 };
 
 type AddressResult = {
@@ -51,19 +53,20 @@ const STEPS: { key: Step; label: string; icon: string }[] = [
   { key: "billing",  label: "Business & Billing", icon: "🧾" },
   { key: "fleet",    label: "Car Fleet",          icon: "🚗" },
   { key: "drivers",  label: "Drivers",            icon: "👤" },
+  { key: "payouts",  label: "Payouts",            icon: "💳" },
   { key: "golive",   label: "Go Live",            icon: "🚀" },
 ];
 
 // ── Step nav ───────────────────────────────────────────────────────────────────
 function StepNav({ current, completed }: { current: Step; completed: Set<Step> }) {
   return (
-    <div className="flex items-center justify-between mb-8">
+    <div className="flex items-center justify-between mb-8 overflow-x-auto pb-2">
       {STEPS.map((s, i) => {
         const done = completed.has(s.key);
         const active = s.key === current;
         return (
-          <div key={s.key} className="flex items-center flex-1">
-            <div className="flex flex-col items-center">
+          <div key={s.key} className="flex items-center flex-1 min-w-0">
+            <div className="flex flex-col items-center shrink-0">
               <div className={`w-10 h-10 flex items-center justify-center text-base font-black transition-colors ${
                 done   ? "bg-black text-white" :
                 active ? "bg-[#ff7a00] text-white" :
@@ -439,45 +442,20 @@ function StepBilling({ profile, onDone, onBack }: { profile: Profile | null; onD
           <p className="font-black mb-1">Why we need this</p>
           <p className="font-bold text-black/60">Camel Global takes a commission from each completed booking. Your VAT number and legal company name are required so we can issue correct cross-border commission invoices. Without a VAT number your account cannot go live.</p>
         </InfoBox>
-
         <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm">
           <p className="font-black text-black mb-1">📋 How commission works</p>
           <p className="font-bold text-black/60">Camel Global charges a <strong className="text-black">20% commission</strong> on the car hire price for each completed booking, with a <strong className="text-black">minimum commission of €10 per booking</strong>. Fuel charges are passed through to you in full — we take no commission on fuel.</p>
         </div>
-
         {error && <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
-
         <div className="space-y-4">
-          <FieldInput
-            label="Legal company name"
-            value={legalName}
-            onChange={setLegalName}
-            placeholder="e.g. Valencia Cars S.L."
-            required
-            hint="Your full registered legal name — this appears on commission invoices."
-          />
-          <FieldInput
-            label="Company registration number"
-            value={regNumber}
-            onChange={setRegNumber}
-            placeholder="e.g. B12345678"
-            hint="Your company registration number from your country of incorporation."
-          />
-          <FieldInput
-            label="VAT / NIF Number"
-            value={vatNumber}
-            onChange={setVatNumber}
-            placeholder="e.g. ESB12345678"
-            required
-            hint="Your VAT or NIF number for cross-border invoicing. Spanish companies use a NIF (e.g. B12345678), which becomes ESB12345678 for EU transactions. Your account cannot go live without this."
-          />
+          <FieldInput label="Legal company name" value={legalName} onChange={setLegalName} placeholder="e.g. Valencia Cars S.L." required hint="Your full registered legal name — this appears on commission invoices." />
+          <FieldInput label="Company registration number" value={regNumber} onChange={setRegNumber} placeholder="e.g. B12345678" hint="Your company registration number from your country of incorporation." />
+          <FieldInput label="VAT / NIF Number" value={vatNumber} onChange={setVatNumber} placeholder="e.g. ESB12345678" required hint="Your VAT or NIF number for cross-border invoicing. Spanish companies use a NIF (e.g. B12345678), which becomes ESB12345678 for EU transactions. Your account cannot go live without this." />
         </div>
-
         <div className="border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm">
           <p className="font-black text-black">🔒 Your details are secure</p>
           <p className="mt-0.5 font-bold text-black/60">These details are used solely for commission invoicing and are never shared with customers.</p>
         </div>
-
         <NavButtons onBack={onBack} onNext={save} saving={saving} canSkip onSkip={onDone} />
       </div>
     </Card>
@@ -569,9 +547,9 @@ function StepFleet({ onDone, onBack }: { onDone: () => void; onBack: () => void 
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {[
-                { key: "max_passengers",  label: "Max passengers" },
-                { key: "max_suitcases",   label: "Max suitcases" },
-                { key: "max_hand_luggage",label: "Hand luggage" },
+                { key: "max_passengers",   label: "Max passengers" },
+                { key: "max_suitcases",    label: "Max suitcases" },
+                { key: "max_hand_luggage", label: "Hand luggage" },
               ].map(({ key, label }) => (
                 <div key={key}>
                   <label className="text-xs font-black uppercase tracking-widest text-black mb-1.5 block">{label}</label>
@@ -701,25 +679,124 @@ function StepDrivers({ onDone, onBack }: { onDone: () => void; onBack: () => voi
   );
 }
 
+// ── Step: Payouts ──────────────────────────────────────────────────────────────
+function StepPayouts({ profile, onDone, onBack }: { profile: Profile | null; onDone: () => void; onBack: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<{ connected: boolean; onboarding_complete: boolean; payouts_enabled: boolean } | null>(null);
+  const [error, setError] = useState("");
+  const searchParams = useSearchParams();
+  const stripeReturn = searchParams.get("stripe");
+
+  useEffect(() => {
+    // Check status on load and after returning from Stripe
+    checkStatus();
+  }, []);
+
+  async function checkStatus() {
+    try {
+      const res = await fetch("/api/partner/stripe/status", { credentials: "include" });
+      const json = await res.json();
+      setStatus(json);
+    } catch {}
+  }
+
+  async function startOnboarding() {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/api/partner/stripe/connect", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Failed to start onboarding");
+      window.location.href = json.url;
+    } catch (e: any) { setError(e.message); setLoading(false); }
+  }
+
+  const isComplete = status?.onboarding_complete || profile?.stripe_onboarding_complete;
+
+  return (
+    <Card title="Set Up Payouts" subtitle="Connect your bank account to receive payments from completed bookings.">
+      <div className="space-y-5">
+        <InfoBox>
+          <p className="font-black mb-1">How payouts work</p>
+          <p className="font-bold text-black/60">When a customer pays for their booking, funds are split automatically — Camel Global's commission goes to us, and your net amount (car hire minus commission, plus fuel) is held securely in your Stripe account. At the end of each month, all completed bookings are paid out to your bank account in one transfer.</p>
+        </InfoBox>
+
+        <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm space-y-2">
+          <p className="font-black text-black">💳 Powered by Stripe</p>
+          <p className="font-bold text-black/60">Payouts are handled securely by Stripe. You will be asked to provide your business details and bank account information directly with Stripe — Camel Global never sees your bank details.</p>
+          <p className="font-bold text-black/60">Monthly commission invoices are generated automatically and emailed to you.</p>
+        </div>
+
+        {stripeReturn === "complete" && !isComplete && (
+          <div className="border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+            Stripe is reviewing your details. This usually takes a few minutes. Refresh to check your status.
+          </div>
+        )}
+
+        {error && <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
+
+        {isComplete ? (
+          <div className="border border-green-200 bg-green-50 p-5">
+            <div className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center bg-green-600 text-white font-black text-sm">✓</span>
+              <div>
+                <p className="font-black text-green-800">Payouts connected</p>
+                <p className="text-sm font-bold text-green-700">Your Stripe account is set up and ready to receive payments.</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="border border-black/10 bg-white p-5 flex items-center gap-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center bg-[#e0e0e0] text-black/40 font-black text-lg">💳</span>
+              <div>
+                <p className="font-black text-black">Not yet connected</p>
+                <p className="text-sm font-bold text-black/50">Click below to set up your Stripe Express account. You will be redirected to Stripe and returned here when complete.</p>
+              </div>
+            </div>
+            <button type="button" onClick={startOnboarding} disabled={loading}
+              className="w-full bg-[#ff7a00] py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
+              {loading ? "Redirecting to Stripe…" : "Set Up Payouts with Stripe →"}
+            </button>
+            <button type="button" onClick={checkStatus}
+              className="w-full border border-black/20 py-2.5 text-sm font-black text-black/50 hover:bg-black/5">
+              Refresh status
+            </button>
+          </div>
+        )}
+
+        <NavButtons onBack={onBack} onNext={onDone} canSkip onSkip={onDone}
+          nextLabel={isComplete ? "Continue" : undefined} />
+      </div>
+    </Card>
+  );
+}
+
 // ── Step: Go Live ──────────────────────────────────────────────────────────────
 function StepGoLive({ profile, onBack }: { profile: Profile | null; onBack: () => void }) {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [fleetCount, setFleetCount] = useState(0);
   const [driverCount, setDriverCount] = useState(0);
+  const [stripeComplete, setStripeComplete] = useState(false);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     async function check() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setChecking(false); return; }
-      const [{ data: fleet }, driversRes] = await Promise.all([
+      const [{ data: fleet }, driversRes, stripeRes] = await Promise.all([
         supabase.from("partner_fleet").select("id").eq("user_id", user.id).eq("is_active", true),
         fetch("/api/partner/drivers", { cache: "no-store", credentials: "include" }),
+        fetch("/api/partner/stripe/status", { credentials: "include" }),
       ]);
       const driversJson = await driversRes.json().catch(() => null);
+      const stripeJson  = await stripeRes.json().catch(() => null);
       setFleetCount(fleet?.length ?? 0);
       setDriverCount((driversJson?.data || []).filter((d: DriverRow) => d.is_active).length);
+      setStripeComplete(stripeJson?.onboarding_complete ?? false);
       setChecking(false);
     }
     check();
@@ -739,6 +816,7 @@ function StepGoLive({ profile, onBack }: { profile: Profile | null; onBack: () =
     { label: "VAT number provided",        done: !!(profile?.vat_number) },
     { label: "At least one vehicle added", done: fleetCount > 0 },
     { label: "At least one driver added",  done: driverCount > 0 },
+    { label: "Stripe payouts connected",   done: stripeComplete },
   ];
   const allDone = checks.every(c => c.done);
   const donePct = Math.round((checks.filter(c => c.done).length / checks.length) * 100);
@@ -779,7 +857,7 @@ function StepGoLive({ profile, onBack }: { profile: Profile | null; onBack: () =
         ) : (
           <div className="border border-amber-200 bg-amber-50 p-4 text-sm">
             <p className="font-black text-amber-800">A few things still to complete</p>
-            <p className="mt-1 font-bold text-amber-700">You can complete the remaining steps from your dashboard. Note: a VAT number is required before your account can go live.</p>
+            <p className="mt-1 font-bold text-amber-700">You can complete the remaining steps from your dashboard. Note: a VAT number and Stripe payout account are required before your account can go live.</p>
           </div>
         )}
         <div className="flex gap-3">
@@ -802,12 +880,13 @@ function StepGoLive({ profile, onBack }: { profile: Profile | null; onBack: () =
 export default function PartnerOnboardingPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>("location");
   const [completed, setCompleted] = useState<Set<Step>>(new Set());
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const cols = "company_name,contact_name,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,service_radius_km,default_currency,legal_company_name,vat_number,company_registration_number";
+  const cols = "company_name,contact_name,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,service_radius_km,default_currency,legal_company_name,vat_number,company_registration_number,stripe_account_id,stripe_onboarding_complete";
 
   async function refreshProfile(userId: string) {
     const { data } = await supabase.from("partner_profiles").select(cols).eq("user_id", userId).maybeSingle();
@@ -819,12 +898,14 @@ export default function PartnerOnboardingPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/partner/login?reason=not_signed_in"); return; }
-      const [{ data: prof }, { data: fleet }, driversRes] = await Promise.all([
+      const [{ data: prof }, { data: fleet }, driversRes, stripeRes] = await Promise.all([
         supabase.from("partner_profiles").select(cols).eq("user_id", user.id).maybeSingle(),
         supabase.from("partner_fleet").select("id").eq("user_id", user.id).eq("is_active", true),
         fetch("/api/partner/drivers", { cache: "no-store", credentials: "include" }),
+        fetch("/api/partner/stripe/status", { credentials: "include" }),
       ]);
       const driversJson = await driversRes.json().catch(() => null);
+      const stripeJson  = await stripeRes.json().catch(() => null);
       setProfile(prof as Profile | null);
       const done = new Set<Step>();
       if (prof?.base_lat && prof?.base_lng && prof?.base_address1) done.add("location");
@@ -832,7 +913,12 @@ export default function PartnerOnboardingPage() {
       if (prof?.legal_company_name && prof?.vat_number) done.add("billing");
       if (fleet && fleet.length > 0) done.add("fleet");
       if ((driversJson?.data || []).filter((d: DriverRow) => d.is_active).length > 0) done.add("drivers");
+      if (stripeJson?.onboarding_complete) done.add("payouts");
       setCompleted(done);
+
+      // If returning from Stripe, jump to payouts step
+      if (searchParams.get("stripe")) setStep("payouts");
+
       setLoading(false);
     }
     load();
@@ -883,10 +969,17 @@ export default function PartnerOnboardingPage() {
         <StepFleet onDone={() => complete("fleet", "drivers")} onBack={() => setStep("billing")} />
       )}
       {step === "drivers" && (
-        <StepDrivers onDone={() => complete("drivers", "golive")} onBack={() => setStep("fleet")} />
+        <StepDrivers onDone={() => complete("drivers", "payouts")} onBack={() => setStep("fleet")} />
+      )}
+      {step === "payouts" && (
+        <StepPayouts profile={profile} onDone={async () => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) await refreshProfile(user.id);
+          complete("payouts", "golive");
+        }} onBack={() => setStep("drivers")} />
       )}
       {step === "golive" && (
-        <StepGoLive profile={profile} onBack={() => setStep("drivers")} />
+        <StepGoLive profile={profile} onBack={() => setStep("payouts")} />
       )}
     </div>
   );
