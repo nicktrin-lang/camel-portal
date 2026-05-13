@@ -110,12 +110,9 @@ function payoutsByCurrency(rows: BookingRow[]): Record<Currency, number> {
     const curr: Currency = (r.currency as Currency) ?? "EUR";
     const hire    = Number(r.car_hire_price ?? 0);
     const rate    = r.commission_rate ?? 20;
-    const commAmt = r.commission_amount != null
-      ? Number(r.commission_amount)
-      : Math.max((hire * rate) / 100, 10);
-    const payout  = r.partner_payout_amount != null
-      ? Number(r.partner_payout_amount)
-      : Math.max(0, hire - commAmt);
+    // Always recalculate from bid currency car_hire_price — commission_amount may be in charge currency
+    const commAmt = Math.max((hire * rate) / 100, 10);
+    const payout  = Math.max(0, hire - commAmt);
     const netPayout = payout + Number(r.fuel_charge ?? 0);
     if (isFinite(netPayout)) totals[curr] += netPayout;
   }
@@ -173,9 +170,9 @@ function downloadExcel(rows: BookingRow[]) {
   const dateStr = new Date().toISOString().split("T")[0];
   const fuelHeaders = ["Job No.","Company Name","Legal Company Name","Company Reg. No.","VAT / NIF Number","Customer","Customer Email","Customer Phone","Status","Driver","Vehicle","Pickup Address","Dropoff Address","Scheduled Pickup At","Scheduled Dropoff At","Actual Pickup Date & Time","Actual Dropoff Date & Time","Completed Date","Duration","Currency","Car Hire Price","Commission Rate (%)","Commission Amount","Fuel Deposit","Fuel Charge","Fuel Refund","Total Amount","Your Payout","Created At","Cancelled By","Cancelled At","Cancellation Reason","Refund Status"];
   const fuelRows = rows.map(r => {
-    const hire = r.car_hire_price ?? 0; const rate = r.commission_rate ?? 20;
-    const commAmt = r.commission_amount ?? Math.max((hire * rate) / 100, 10);
-    const payout = r.partner_payout_amount ?? Math.max(0, hire - commAmt);
+    const hire = Number(r.car_hire_price ?? 0); const rate = r.commission_rate ?? 20;
+    const commAmt = Math.max((hire * rate) / 100, 10);
+    const payout = Math.max(0, hire - commAmt);
     const isCompleted = String(r.booking_status || "").toLowerCase() === "completed";
     return [r.job_number ?? "",r.partner_company_name ?? "",r.partner_legal_company_name ?? "",r.partner_company_registration_number ?? "",r.partner_vat_number ?? "",r.customer_name ?? "",r.customer_email ?? "",r.customer_phone ?? "",r.booking_status ?? "",r.driver_name ?? "",r.vehicle_category_name ?? "",r.pickup_address ?? "",r.dropoff_address ?? "",fmtDateTimeStr(r.pickup_at),fmtDateTimeStr(r.dropoff_at),fmtDateTimeStr(r.delivery_confirmed_at),fmtDateTimeStr(r.collection_confirmed_at),isCompleted ? fmtDateOnly(r.created_at) : "",fmtDuration(r.journey_duration_minutes),r.currency ?? "EUR",hire,rate,commAmt,r.fuel_price ?? "",r.fuel_charge ?? "",r.fuel_refund ?? "",r.amount ?? "",payout + Number(r.fuel_charge ?? 0),fmtDateTimeStr(r.created_at),r.cancelled_by ?? "",r.cancelled_at ? fmtDateTimeStr(r.cancelled_at) : "",r.cancellation_reason ?? "",r.refund_status ?? ""];
   });
@@ -364,8 +361,8 @@ export default function PartnerBookingsPage() {
                   {visible.map((row, i) => {
                     const rate    = row.commission_rate ?? 20;
                     const hire    = Number(row.car_hire_price ?? 0);
-                    const commAmt = row.commission_amount != null ? Number(row.commission_amount) : Math.max((hire * rate) / 100, 10);
-                    const payout  = row.partner_payout_amount != null ? Number(row.partner_payout_amount) : Math.max(0, hire - commAmt);
+                    const commAmt = Math.max((hire * rate) / 100, 10);
+                    const payout  = Math.max(0, hire - commAmt);
                     const netPayout = payout + Number(row.fuel_charge ?? 0);
                     return (
                       <tr key={row.id}
