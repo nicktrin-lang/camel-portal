@@ -159,15 +159,12 @@ function calcPayout(b: BookingRow): { hire: number; rate: number; commAmt: numbe
 
   const hire    = Number(b.car_hire_price ?? 0);
   const rate    = b.commission_rate ?? 20;
-  const commAmt = b.commission_amount != null
-    ? Number(b.commission_amount)
-    : Math.max((hire * rate) / 100, 10);
-  const basePayout = b.partner_payout_amount != null
-    ? Number(b.partner_payout_amount)
-    : Math.max(0, hire - commAmt);
-  const payout = basePayout + Number(b.fuel_charge ?? 0);
+  // Always recalculate from bid currency car_hire_price
+  // commission_amount and partner_payout_amount in DB may be in charge currency
+  const commAmt    = Math.max((hire * rate) / 100, 10);
+  const basePayout = Math.max(0, hire - commAmt);
+  const payout     = basePayout + Number(b.fuel_charge ?? 0);
 
-  // Partial cancel (customer <48hrs) — fuel always refunded
   const fuelRefund = (isCancelled && refundStatus === "partial")
     ? fuel
     : Number(b.fuel_refund ?? 0);
