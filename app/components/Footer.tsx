@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 
 const year = new Date().getFullYear();
 
-// ── Partner / Admin / Driver footer ──────────────────────────────────────────
-export function PortalFooter({ variant }: { variant: "partner" | "admin" | "driver" }) {
-  const prefix    = variant === "admin" ? "/admin" : variant === "driver" ? "/partner" : "/partner";
+// ── Partner / Admin footer ────────────────────────────────────────────────────
+export function PortalFooter({ variant }: { variant: "partner" | "admin" }) {
+  const prefix    = variant === "admin" ? "/admin" : "/partner";
   const termsHref = variant === "admin" ? "/admin/terms"           : "/partner/terms";
   const rulesHref = variant === "admin" ? "/admin/operating-rules" : "/partner/operating-rules";
 
@@ -51,15 +51,46 @@ export function PortalFooter({ variant }: { variant: "partner" | "admin" | "driv
               {variant === "partner" && (
                 <Link href="/partner/signup" className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Become a Partner</Link>
               )}
-              {variant === "driver" && (
-                <Link href="/driver/login" className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Driver Login</Link>
-              )}
             </div>
 
           </div>
         </div>
 
         <div className="mt-10 border-t border-white/10 pt-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-bold text-white/60">© {year} NTUK Ltd. All rights reserved. Trading as Camel Global.</p>
+          <p className="text-sm font-bold text-white/60">Registered in England &amp; Wales · Company No. 08765474</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// ── Driver footer — minimal, no portal links ──────────────────────────────────
+function DriverFooter() {
+  return (
+    <footer className="w-full bg-black border-t border-white/10 text-white">
+      <div className="mx-auto max-w-7xl px-6 py-10">
+        <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+
+          <div className="flex flex-col gap-3 shrink-0">
+            <Link href="/">
+              <Image src="/camel-logo.png" alt="Camel Global" width={160} height={58} className="h-14 w-auto brightness-0 invert" />
+            </Link>
+            <p className="max-w-[200px] text-sm font-bold text-white/50 leading-relaxed">
+              Meet &amp; greet car hire, delivered to your door.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-black uppercase tracking-widest text-white/40">Platform</p>
+            <Link href="https://camel-global.com" className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Customer Site</Link>
+            <Link href="/partner/login"           className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Partner Login</Link>
+            <Link href="/partner/signup"          className="text-sm font-bold text-white hover:text-[#ff7a00] transition-colors">Become a Partner</Link>
+          </div>
+
+        </div>
+
+        <div className="mt-8 border-t border-white/10 pt-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-bold text-white/60">© {year} NTUK Ltd. All rights reserved. Trading as Camel Global.</p>
           <p className="text-sm font-bold text-white/60">Registered in England &amp; Wales · Company No. 08765474</p>
         </div>
@@ -141,7 +172,7 @@ function CustomerFooter() {
 export default function Footer() {
   const pathname = usePathname();
   if (pathname?.startsWith("/admin"))   return <PortalFooter variant="admin" />;
-  if (pathname?.startsWith("/driver"))  return <PortalFooter variant="driver" />;
+  if (pathname?.startsWith("/driver"))  return <DriverFooter />;
   if (pathname?.startsWith("/partner")) return <PortalFooter variant="partner" />;
   return <CustomerFooter />;
 }
