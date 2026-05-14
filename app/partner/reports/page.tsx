@@ -118,11 +118,7 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-// Convert stripe_fee (in charge currency) to bid currency
-function stripeFeeInBidCurrency(
-  stripe_fee: number | null, stripe_fee_currency: string | null,
-  bid_currency: string, exchange_rate: number | null
-): number {
+function stripeFeeInBidCurrency(stripe_fee: number|null, stripe_fee_currency: string|null, bid_currency: string, exchange_rate: number|null): number {
   if (!stripe_fee || stripe_fee <= 0) return 0;
   if (!stripe_fee_currency || stripe_fee_currency.toUpperCase() === bid_currency.toUpperCase()) return stripe_fee;
   if (exchange_rate && exchange_rate > 0) return stripe_fee / exchange_rate;
@@ -163,16 +159,16 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5 mb-4">
         {[
-          { label:"Total Bookings",      value:t.count,                           isMoney:false },
-          { label:"Completed",           value:t.completed,                       isMoney:false },
-          { label:"Cancelled",           value:t.cancelled,                       isMoney:false },
-          { label:"Car Hire Revenue",    value:t.carHire,                         isMoney:true  },
-          { label:"Camel Commission",    value:t.commissionTotal,                 isMoney:true  },
-          { label:"Stripe Fees",         value:t.stripeFeeTotal,                  isMoney:true  },
-          { label:"Your Net Payout",     value:t.partnerPayoutTotal,              isMoney:true  },
-          { label:"Fuel Charged",        value:t.fuelCharge,                      isMoney:true  },
-          { label:"Fuel Refunds Issued", value:t.fuelRefund,                      isMoney:true  },
-          { label:"Total Revenue",       value:t.total,                           isMoney:true  },
+          { label:"Total Bookings",      value:t.count,                isMoney:false },
+          { label:"Completed",           value:t.completed,            isMoney:false },
+          { label:"Cancelled",           value:t.cancelled,            isMoney:false },
+          { label:"Car Hire Revenue",    value:t.carHire,              isMoney:true  },
+          { label:"Camel Commission",    value:t.commissionTotal,      isMoney:true  },
+          { label:"Stripe Fees",         value:t.stripeFeeTotal,       isMoney:true  },
+          { label:"Your Net Payout",     value:t.partnerPayoutTotal,   isMoney:true  },
+          { label:"Fuel Charged",        value:t.fuelCharge,           isMoney:true  },
+          { label:"Fuel Refunds Issued", value:t.fuelRefund,           isMoney:true  },
+          { label:"Total Revenue",       value:t.total,                isMoney:true  },
         ].map(({label:lbl,value,isMoney})=>(
           <div key={lbl} className={`border p-4 ${lbl==="Cancelled"&&(value as number)>0?"border-red-200 bg-red-50":"border-black/5 bg-[#f0f0f0]"}`}>
             <p className="text-xs font-black uppercase tracking-widest text-black/40">{lbl}</p>
@@ -202,11 +198,7 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
                 <tr key={b.id} className={`transition-colors hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/50":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                   <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
                   <td className="px-4 py-3 font-bold text-black/70">{b.customer_name||"—"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className={`inline-flex border px-2 py-0.5 text-xs font-black ${statusPillClasses(b.booking_status)}`}>
-                      {String(b.booking_status||"—").replaceAll("_"," ")}
-                    </span>
-                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex border px-2 py-0.5 text-xs font-black ${statusPillClasses(b.booking_status)}`}>{String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
                   <td className={`px-4 py-3 font-bold whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,curr)}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     {isCancelled&&b.refund_status==="full"
@@ -214,14 +206,10 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
                       : <><div className="text-xs font-black text-amber-700">− {fmtCurr(commAmt,curr)}</div><div className="text-xs font-bold text-black/40">{rate}%</div></>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {feeInBid > 0
-                      ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid, curr)}</span>
-                      : <span className="text-black/30">—</span>}
+                    {feeInBid > 0 ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid, curr)}</span> : <span className="text-black/30">—</span>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-xs font-bold text-black/50">
-                    {hasCurrConv && b.conversion_rate
-                      ? <span title={`${b.currency} → ${b.charge_currency}`}>{Number(b.conversion_rate).toFixed(4)}</span>
-                      : "—"}
+                    {hasCurrConv && b.conversion_rate ? <span title={`${b.currency} → ${b.charge_currency}`}>{Number(b.conversion_rate).toFixed(4)}</span> : "—"}
                   </td>
                   <td className="px-4 py-3 font-bold text-black/70 whitespace-nowrap">{fmtAmt(b.fuel_price,curr)}</td>
                   <td className="px-4 py-3 font-bold text-black/70 whitespace-nowrap">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
@@ -346,7 +334,7 @@ export default function PartnerReportsPage() {
       "Return Fuel (Driver)","Return Fuel (Partner Override)",
       "Quarters Used","Fuel Used Label",
       "Fuel Charge to Customer","Fuel Refund to Customer",
-      "Total Booking Amount","Net Payout (after all fees)",
+      "Total Booking Amount","Net Payout (after all fees)","Payout Status",
       "Customer Collection Confirmed","Customer Return Confirmed",
       "Booking Status","Cancelled By","Cancelled At","Cancellation Reason","Refund Status",
       "Created At",
@@ -365,12 +353,9 @@ export default function PartnerReportsPage() {
         fmtDateTime(b.delivery_confirmed_at),fmtDateTime(b.collection_confirmed_at),
         isCompleted?fmtDate(b.created_at):"",
         b.vehicle_category_name||"",b.driver_name||"",b.driver_vehicle||"",
-        b.currency||"EUR",
-        b.charge_currency||b.currency||"EUR",
+        b.currency||"EUR",b.charge_currency||b.currency||"EUR",
         hire,rate,commAmt,
-        feeInBid>0?feeInBid.toFixed(4):"",
-        b.stripe_fee_currency||"",
-        b.exchange_rate||b.conversion_rate||"",
+        feeInBid>0?feeInBid.toFixed(4):"",b.stripe_fee_currency||"",b.exchange_rate||b.conversion_rate||"",
         Number(b.fuel_price??0),
         b.collection_fuel_level_driver||"—",b.collection_fuel_level_partner||"—",
         b.return_fuel_level_driver||"—",b.return_fuel_level_partner||"—",
@@ -379,14 +364,11 @@ export default function PartnerReportsPage() {
         Number(b.fuel_charge??0),fuelRefund,
         isCancelled?0:Number(b.amount??0),
         isCancelled&&b.refund_status==="full"?0:payout,
-        b.collection_confirmed_by_customer?"Yes":"No",
-        b.return_confirmed_by_customer?"Yes":"No",
-        b.booking_status||"",
-        b.cancelled_by||"",
+        b.payout_status||"",
+        b.collection_confirmed_by_customer?"Yes":"No",b.return_confirmed_by_customer?"Yes":"No",
+        b.booking_status||"",b.cancelled_by||"",
         b.cancelled_at?fmtDateTime(b.cancelled_at):"",
-        b.cancellation_reason||"",
-        b.refund_status||"",
-        fmtDate(b.created_at),
+        b.cancellation_reason||"",b.refund_status||"",fmtDate(b.created_at),
       ];
     });
     const blob = buildXls([{ name:"Fuel Reconciliation", headers:fuelHeaders, rows:fuelRows }]);
@@ -412,22 +394,14 @@ export default function PartnerReportsPage() {
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <label className="text-xs font-black uppercase tracking-widest text-black/40">Date from</label>
-              <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
-                className="mt-1 block border border-black/10 bg-[#f0f0f0] px-4 py-2.5 text-sm font-bold outline-none focus:border-black"/>
+              <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 block border border-black/10 bg-[#f0f0f0] px-4 py-2.5 text-sm font-bold outline-none focus:border-black"/>
             </div>
             <div>
               <label className="text-xs font-black uppercase tracking-widest text-black/40">Date to</label>
-              <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
-                className="mt-1 block border border-black/10 bg-[#f0f0f0] px-4 py-2.5 text-sm font-bold outline-none focus:border-black"/>
+              <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 block border border-black/10 bg-[#f0f0f0] px-4 py-2.5 text-sm font-bold outline-none focus:border-black"/>
             </div>
-            <button type="button" onClick={()=>{setDateFrom("");setDateTo("");}}
-              className="border border-black/20 bg-white px-5 py-2.5 text-sm font-black text-black hover:bg-black/5 transition-colors">
-              Clear Filters
-            </button>
-            <button type="button" onClick={exportExcel}
-              className="bg-black px-5 py-2.5 text-sm font-black text-white hover:opacity-80 transition-opacity">
-              ⬇ Export Excel
-            </button>
+            <button type="button" onClick={()=>{setDateFrom("");setDateTo("");}} className="border border-black/20 bg-white px-5 py-2.5 text-sm font-black text-black hover:bg-black/5 transition-colors">Clear Filters</button>
+            <button type="button" onClick={exportExcel} className="bg-black px-5 py-2.5 text-sm font-black text-white hover:opacity-80 transition-opacity">⬇ Export Excel</button>
           </div>
         </div>
         <div className="mt-4 border border-black/10 bg-[#f8f8f8] p-3 text-xs font-bold text-black/60">
@@ -470,6 +444,51 @@ export default function PartnerReportsPage() {
         const currBookings = filteredBookings.filter(b=>(b.currency??"EUR")===curr);
         return <CurrencySection key={curr} curr={curr} t={t} bookings={currBookings}/>;
       })}
+
+      {/* Payout Status Breakdown */}
+      {(()=>{
+        const held  = filteredBookings.filter(b=>b.payout_status==="held");
+        const ready = filteredBookings.filter(b=>b.payout_status==="ready");
+        const paid  = filteredBookings.filter(b=>b.payout_status==="paid");
+        const calcTotal = (rows: BookingRow[]) => {
+          const byCurr: Record<string,number> = {};
+          for (const b of rows) {
+            const curr = b.currency ?? "EUR";
+            const { payout } = calcCommission(b);
+            byCurr[curr] = (byCurr[curr] ?? 0) + payout;
+          }
+          return byCurr;
+        };
+        const heldTotals  = calcTotal(held);
+        const readyTotals = calcTotal(ready);
+        const paidTotals  = calcTotal(paid);
+        if (held.length===0&&ready.length===0&&paid.length===0) return null;
+        return (
+          <div className="border border-black/5 bg-white p-6">
+            <h2 className="text-lg font-black text-black mb-1">Payout Status</h2>
+            <p className="text-sm font-bold text-black/40 mb-4">Breakdown of your bookings by payout stage.</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                { label:"Held",  desc:"Payment received — hire not yet complete",       bks:held,  totals:heldTotals,  color:"text-amber-700", bg:"border-amber-200 bg-amber-50"  },
+                { label:"Ready", desc:"Hire complete — queued for next monthly payout", bks:ready, totals:readyTotals, color:"text-blue-700",  bg:"border-blue-200 bg-blue-50"    },
+                { label:"Paid",  desc:"Payout transferred to your Stripe account",      bks:paid,  totals:paidTotals,  color:"text-green-700", bg:"border-green-200 bg-green-50"  },
+              ].map(({label,desc,bks,totals,color,bg})=>(
+                <div key={label} className={`border p-4 ${bg}`}>
+                  <p className={`text-xs font-black uppercase tracking-widest mb-1 ${color}`}>{label}</p>
+                  <p className="text-3xl font-black text-black">{bks.length}</p>
+                  <p className="text-xs font-bold text-black/40 mt-1 mb-3">{desc}</p>
+                  {Object.entries(totals).filter(([_k,v])=>v>0).map(([curr,val])=>(
+                    <p key={curr} className={`text-sm font-black ${color}`}>{fmtCurr(val,curr)} {curr}</p>
+                  ))}
+                  {Object.keys(totals).length===0&&<p className="text-sm font-bold text-black/30">—</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      <div className="border border-black/5 bg-white p-6">
         <h2 className="text-lg font-black text-black mb-4">Vehicle Category Breakdown</h2>
         <div className="overflow-x-auto border border-black/10">
           <table className="min-w-full text-sm">
