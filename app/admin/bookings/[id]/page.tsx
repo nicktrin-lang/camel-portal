@@ -138,52 +138,73 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 // ── Payment Fees Card (Admin) ──────────────────────────────────────────────────
-function PaymentFeesCard({ payment, bidCurrency }: { payment: PaymentData; bidCurrency: Currency }) {
+function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentData; bidCurrency: Currency; booking: BookingRow }) {
   if (!payment) return null;
   const chargeCurr  = (payment.charge_currency || bidCurrency) as string;
-  const hasCurrConv = chargeCurr !== bidCurrency;
+  const hasCurrConv = chargeCurr.toUpperCase() !== bidCurrency.toUpperCase();
+  const fmtB = (n: number) => fmtCurr(n, bidCurrency);
+  const fmtC = (n: number) => fmtCurr(n, chargeCurr);
+
+  const feeInBid = (() => {
+    if (!payment.stripe_fee || payment.stripe_fee <= 0) return 0;
+    if (!hasCurrConv) return payment.stripe_fee;
+    if (payment.exchange_rate && payment.exchange_rate > 0) return payment.stripe_fee / payment.exchange_rate;
+    return payment.stripe_fee;
+  })();
+
+  const hire      = Number(booking.car_hire_price ?? 0);
+  const rate      = (booking as any).commission_rate ?? 20;
+  const commAmt   = Math.max((hire * rate) / 100, 10);
+  const fuelCharge = Number(booking.fuel_charge ?? 0);
+  const netPayout = Math.max(0, hire - commAmt + fuelCharge - feeInBid);
 
   return (
     <div className="border border-black/10 bg-[#f8f8f8] p-6">
       <h2 className="text-base font-black text-black mb-1">Payment & Fee Breakdown</h2>
       <p className="text-xs font-bold text-black/40 mb-4">
-        Actual Stripe amounts. Charge currency: <strong>{chargeCurr}</strong>. Bid currency: <strong>{bidCurrency}</strong>.
-        {hasCurrConv && <span className="ml-1 text-amber-700">⚠ Currency conversion applied at payment.</span>}
+        All amounts in bid currency ({bidCurrency}). Charge currency: <strong>{chargeCurr}</strong>.
+        {hasCurrConv && <span className="ml-1 text-amber-700">⚠ Currency conversion applied by Stripe.</span>}
       </p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
         {[
-          { label:"Total charged",       value: payment.amount_total,        curr: chargeCurr, color:"text-black" },
-          { label:"Car hire charged",    value: payment.amount_car_hire,     curr: chargeCurr, color:"text-black" },
-          { label:"Fuel deposit charged",value: payment.amount_fuel_deposit, curr: chargeCurr, color:"text-black" },
-          { label:"Stripe processing fee",value: payment.stripe_fee,         curr: payment.stripe_fee_currency||chargeCurr, color:"text-amber-700" },
+          { label:"Total charged to customer", value: payment.amount_total,        curr: chargeCurr, color:"text-black" },
+          { label:"Car hire charged",          value: payment.amount_car_hire,     curr: chargeCurr, color:"text-black" },
+          { label:"Fuel deposit charged",      value: payment.amount_fuel_deposit, curr: chargeCurr, color:"text-black" },
+          { label:"Stripe fee (in bid currency)", value: feeInBid > 0 ? feeInBid : null, curr: bidCurrency, color:"text-amber-700" },
         ].map(({ label, value, curr, color }) => (
           <div key={label} className="border border-black/10 bg-white p-4">
             <p className="text-xs font-black uppercase tracking-widest text-black/40">{label}</p>
             <p className={`mt-1 text-lg font-black ${color}`}>
-              {value != null ? fmtCurr(value, curr) : "—"}
+              {value != null && value > 0 ? fmtCurr(value, curr) : "—"}
             </p>
           </div>
         ))}
       </div>
       {hasCurrConv && payment.exchange_rate != null && (
-        <div className="mt-3 border border-amber-200 bg-amber-50 p-3 text-sm">
-          <span className="font-black text-amber-800">Conversion rate: </span>
-          <span className="font-bold text-amber-700">1 {bidCurrency} = {payment.exchange_rate.toFixed(4)} {chargeCurr}</span>
-          <span className="ml-2 text-xs text-amber-600">(applied at time of payment)</span>
+        <div className="mb-3 border border-amber-200 bg-amber-50 p-3 text-sm">
+          <span className="font-black text-amber-800">Stripe conversion rate: </span>
+          <span className="font-bold text-amber-700">1 {chargeCurr} = {payment.exchange_rate.toFixed(5)} {bidCurrency}</span>
+          <span className="ml-2 text-xs text-amber-600">(applied at time of payment — fee includes processing + conversion)</span>
         </div>
       )}
+      <div className="border border-black/10 bg-white p-4">
+        <div className="flex justify-between text-sm font-black">
+          <span className="text-black">Partner net payout (hire − commission + fuel − Stripe fees)</span>
+          <span className="text-green-700">{fmtB(netPayout)}</span>
+        </div>
+      </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {payment.fuel_refund_amount != null && payment.fuel_refund_amount > 0 && (
           <div className="border border-green-200 bg-green-50 p-3">
             <p className="text-xs font-black uppercase tracking-widest text-green-700">Fuel refund issued</p>
-            <p className="mt-1 font-black text-green-700">{fmtCurr(payment.fuel_refund_amount, chargeCurr)}</p>
+            <p className="mt-1 font-black text-green-700">{fmtC(payment.fuel_refund_amount)}</p>
             {payment.fuel_refund_stripe_id && <p className="mt-0.5 text-xs text-green-600/70">{payment.fuel_refund_stripe_id}</p>}
           </div>
         )}
         {payment.cancellation_refund_amount != null && payment.cancellation_refund_amount > 0 && (
           <div className="border border-red-200 bg-red-50 p-3">
             <p className="text-xs font-black uppercase tracking-widest text-red-700">Cancellation refund issued</p>
-            <p className="mt-1 font-black text-red-700">{fmtCurr(payment.cancellation_refund_amount, chargeCurr)}</p>
+            <p className="mt-1 font-black text-red-700">{fmtC(payment.cancellation_refund_amount)}</p>
             {payment.cancellation_refund_stripe_id && <p className="mt-0.5 text-xs text-red-600/70">{payment.cancellation_refund_stripe_id}</p>}
             {payment.cancelled_refunded_at && <p className="mt-0.5 text-xs text-red-600/70">{fmt(payment.cancelled_refunded_at)}</p>}
           </div>
@@ -470,15 +491,14 @@ export default function AdminBookingDetailPage() {
             <Field label="Status">{statusLabel(bk.booking_status)}</Field>
             <Field label="Partner">{bk.partner_company_name||"—"}</Field>
             <Field label="Bid Currency">{bk.currency??"EUR"}</Field>
-            {bk.charge_currency && bk.charge_currency !== bk.currency && (
-              <Field label="Charge Currency">
-                <span className="text-amber-700">{bk.charge_currency}</span>
-                <span className="ml-2 text-xs text-black/40">(customer paid in this currency)</span>
-              </Field>
-            )}
-            {bk.conversion_rate && bk.charge_currency && bk.charge_currency !== bk.currency && (
+            <Field label="Customer Paid In">
+              {bk.charge_currency && bk.charge_currency.toUpperCase() !== (bk.currency??"EUR").toUpperCase()
+                ? <><span className="text-amber-700">{bk.charge_currency}</span><span className="ml-2 text-xs font-bold text-black/40">— Stripe conversion fee applies</span></>
+                : <span className="text-black/60">{bk.currency??"EUR"} — same as bid, no conversion fee</span>}
+            </Field>
+            {bk.conversion_rate && bk.charge_currency && bk.charge_currency.toUpperCase() !== (bk.currency??"EUR").toUpperCase() && (
               <Field label="Conversion Rate">
-                1 {bk.currency} = {Number(bk.conversion_rate).toFixed(4)} {bk.charge_currency}
+                1 {bk.charge_currency} = {Number(bk.conversion_rate).toFixed(5)} {bk.currency}
               </Field>
             )}
             <Field label="Created">{fmt(bk.created_at)}</Field>
@@ -510,7 +530,7 @@ export default function AdminBookingDetailPage() {
       </div>
 
       {/* Payment fees — always show */}
-      <PaymentFeesCard payment={data.payment} bidCurrency={stored} />
+      <PaymentFeesCard payment={data.payment} bidCurrency={stored} booking={bk} />
 
       {collectionLocked&&returnLocked&&<BookingSummaryCard booking={bk} rates={rates} isLive={rateIsLive}/>}
 

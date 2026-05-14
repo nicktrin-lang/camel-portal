@@ -196,7 +196,7 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
             {visible.map((b,i)=>{
               const usedQ=b.fuel_used_quarters;
               const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-              const { commAmt, payout, rate, hire, fuelRefund } = calcPayout(b);
+              const { commAmt, payout, rate, hire, fuelRefund, feeInBid } = calcPayout(b);
               const hasCurrConv = b.charge_currency && b.charge_currency !== (b.currency ?? "EUR");
               return (
                 <tr key={b.id} className={`hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/50":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
@@ -213,8 +213,8 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
                     )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {b.stripe_fee != null
-                      ? <span className="font-black text-amber-700">− {fmtCurr(b.stripe_fee, b.stripe_fee_currency||curr)}</span>
+                    {feeInBid > 0
+                      ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid, curr)}</span>
                       : <span className="text-black/30">—</span>}
                   </td>
                   <td className="px-4 py-3 text-xs font-bold text-black/50 whitespace-nowrap">
@@ -299,7 +299,7 @@ export default function AdminReportsPage() {
       const c: Currency = (b.currency as Currency)??"EUR";
       if (!t[c]) continue;
       const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { commAmt, payout, hire, fuelRefund } = calcPayout(b);
+      const { commAmt, payout, hire, fuelRefund, feeInBid } = calcPayout(b);
       t[c].count++;
       if (!isCancelled) {
         t[c].total              += Number(b.amount??0);
@@ -308,7 +308,7 @@ export default function AdminReportsPage() {
         t[c].fuelCharge         += Number(b.fuel_charge??0);
         t[c].commissionTotal    += commAmt;
         t[c].partnerPayoutTotal += payout;
-        t[c].stripeFeeTotal     += Number(b.stripe_fee??0);
+        t[c].stripeFeeTotal     += feeInBid;
       }
       t[c].fuelRefund += fuelRefund;
       if (isCancelled) t[c].cancelled++;
@@ -326,14 +326,14 @@ export default function AdminReportsPage() {
     const pid  = String(b.partner_user_id||"unknown");
     const name = String(b.partner_company_name||"Unknown Partner");
     const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
-    const { commAmt, payout, hire } = calcPayout(b);
+    const { commAmt, payout, hire, feeInBid } = calcPayout(b);
     const cur = partnerMap.get(pid)||{ name, bookings:0, revenue:0, commission:0, payout:0, stripeFees:0, completed:0, cancelled:0 };
     cur.bookings++;
     if (!isCancelled) {
       cur.revenue    += isFinite(Number(b.amount??0))?Number(b.amount??0):0;
       cur.commission += commAmt;
       cur.payout     += payout;
-      cur.stripeFees += Number(b.stripe_fee??0);
+      cur.stripeFees += feeInBid;
     }
     if (isCancelled) cur.cancelled++;
     if (String(b.booking_status||"").toLowerCase()==="completed") cur.completed++;
@@ -375,7 +375,7 @@ export default function AdminReportsPage() {
     const fuelRows = filteredBookings.map(b=>{
       const usedQ=b.fuel_used_quarters;
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { hire, rate, commAmt, payout, fuelRefund } = calcPayout(b);
+      const { hire, rate, commAmt, payout, fuelRefund, feeInBid } = calcPayout(b);
       const isCompleted=String(b.booking_status||"").toLowerCase()==="completed";
       return [
         b.job_number||"",b.partner_company_name||"",b.partner_legal_company_name||"",
@@ -389,7 +389,7 @@ export default function AdminReportsPage() {
         b.currency||"EUR",
         b.charge_currency||b.currency||"EUR",
         hire,rate,commAmt,
-        b.stripe_fee??"",
+        feeInBid>0?feeInBid.toFixed(4):"",
         b.stripe_fee_currency||"",
         b.exchange_rate||b.conversion_rate||"",
         Number(b.fuel_price??0),
@@ -538,7 +538,7 @@ export default function AdminReportsPage() {
               ):filteredBookings.slice(0,allBookingsVisible).map((b,i)=>{
                 const usedQ=b.fuel_used_quarters;
                 const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-                const { commAmt, payout, rate, hire, fuelRefund } = calcPayout(b);
+                const { commAmt, payout, rate, hire, fuelRefund, feeInBid } = calcPayout(b);
                 const hasCurrConv = b.charge_currency && b.charge_currency !== (b.currency ?? "EUR");
                 return (
                   <tr key={b.id} className={`hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/50":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
@@ -555,8 +555,8 @@ export default function AdminReportsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {b.stripe_fee != null
-                        ? <span className="font-black text-amber-700">− {fmtCurr(b.stripe_fee, b.stripe_fee_currency||b.currency||"EUR")}</span>
+                      {feeInBid > 0
+                        ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid, b.stripe_fee_currency||b.currency||"EUR")}</span>
                         : <span className="text-black/30">—</span>}
                     </td>
                     <td className="px-4 py-3 text-xs font-bold text-black/50 whitespace-nowrap">

@@ -335,19 +335,19 @@ export default function PartnerTermsPage() {
           <div className="space-y-2 text-sm font-bold text-amber-900">
             <div className="flex justify-between border-b border-amber-200 pb-2">
               <span>Hire price (as bid)</span>
-              <span>e.g. €500.00</span>
+              <span>e.g. €100.00</span>
             </div>
             <div className="flex justify-between text-amber-700">
               <span>Camel commission (20%, min €10)</span>
-              <span>− €100.00</span>
+              <span>− €20.00</span>
             </div>
             <div className="flex justify-between text-amber-700">
               <span>Stripe processing fee (~1.5% + €0.25 on total charged)</span>
-              <span>~ − €8.00</span>
+              <span>~ − €1.75</span>
             </div>
             <div className="flex justify-between border-t border-amber-300 pt-2 font-black text-amber-900">
               <span>Your approximate net payout (excl. fuel)</span>
-              <span>~ €392.00</span>
+              <span>~ €78.25</span>
             </div>
           </div>
           <p className="mt-3 text-xs font-bold text-amber-700">

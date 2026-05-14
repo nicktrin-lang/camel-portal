@@ -134,17 +134,29 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-function calcCommission(b: BookingRow): { rate: number; amount: number; payout: number; fuelRefund: number } {
+function stripeFeeInBidCurrency(
+  stripe_fee: number | null, stripe_fee_currency: string | null,
+  bid_currency: string, exchange_rate: number | null
+): number {
+  if (!stripe_fee || stripe_fee <= 0) return 0;
+  if (!stripe_fee_currency || stripe_fee_currency.toUpperCase() === bid_currency.toUpperCase()) return stripe_fee;
+  if (exchange_rate && exchange_rate > 0) return stripe_fee / exchange_rate;
+  return stripe_fee;
+}
+
+function calcCommission(b: BookingRow): { rate: number; amount: number; payout: number; fuelRefund: number; feeInBid: number } {
   const isCancelled  = String(b.booking_status || "").toLowerCase() === "cancelled";
   const refundStatus = b.refund_status || null;
   const fuel         = Number(b.fuel_price ?? 0);
-  if (isCancelled && refundStatus === "full") return { rate:0, amount:0, payout:0, fuelRefund:fuel };
+  const bidCurr      = (b.currency ?? "EUR") as string;
+  const feeInBid     = stripeFeeInBidCurrency(b.stripe_fee, b.stripe_fee_currency, bidCurr, b.exchange_rate);
+  if (isCancelled && refundStatus === "full") return { rate:0, amount:0, payout:0, fuelRefund:fuel, feeInBid:0 };
   const hire   = Number(b.car_hire_price ?? 0);
   const rate   = b.commission_rate ?? 20;
   const amount = Math.max((hire * rate) / 100, 10);
-  const payout = Math.max(0, hire - amount);
+  const payout = Math.max(0, hire - amount + Number(b.fuel_charge ?? 0) - feeInBid);
   const fuelRefund = (isCancelled && refundStatus === "partial") ? fuel : Number(b.fuel_refund ?? 0);
-  return { rate, amount, payout, fuelRefund };
+  return { rate, amount, payout, fuelRefund, feeInBid };
 }
 
 type CurrencyTotals = {
@@ -171,15 +183,15 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
           { label:"Cancelled",           value:t.cancelled,                       isMoney:false },
           { label:"Car Hire Revenue",    value:t.carHire,                         isMoney:true  },
           { label:"Camel Commission",    value:t.commissionTotal,                 isMoney:true  },
-          { label:"Stripe Fees",         value:t.stripeFeeTotal,                  isMoney:true  },
+          { label:"Stripe Fees",         value:t.stripeFeeTotal,                  isMoney:true, grey:true },
           { label:"Your Net Payout",     value:t.partnerPayoutTotal+t.fuelCharge, isMoney:true  },
           { label:"Fuel Charged",        value:t.fuelCharge,                      isMoney:true  },
           { label:"Fuel Refunds Issued", value:t.fuelRefund,                      isMoney:true  },
           { label:"Total Revenue",       value:t.total,                           isMoney:true  },
         ].map(({label:lbl,value,isMoney})=>(
-          <div key={lbl} className={`border p-4 ${lbl==="Cancelled"&&(value as number)>0?"border-red-200 bg-red-50":lbl==="Stripe Fees"&&(value as number)>0?"border-amber-100 bg-amber-50":"border-black/5 bg-[#f0f0f0]"}`}>
+          <div key={lbl} className={`border p-4 ${lbl==="Cancelled"&&(value as number)>0?"border-red-200 bg-red-50":"border-black/5 bg-[#f0f0f0]"}`}>
             <p className="text-xs font-black uppercase tracking-widest text-black/40">{lbl}</p>
-            <p className={`mt-1 text-lg font-black ${lbl==="Cancelled"&&(value as number)>0?"text-red-700":lbl==="Stripe Fees"?"text-amber-700":"text-black"}`}>
+            <p className={`mt-1 text-lg font-black ${lbl==="Cancelled"&&(value as number)>0?"text-red-700":"text-black"}`}>
               {isMoney?fmtCurr(value as number,curr):value}
             </p>
           </div>
@@ -198,8 +210,7 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
             {visible.map((b,i)=>{
               const usedQ       = b.fuel_used_quarters;
               const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
-              const { rate, amount:commAmt, payout, fuelRefund } = calcCommission(b);
-              const netPayout   = payout+Number(b.fuel_charge??0);
+              const { rate, amount:commAmt, payout, fuelRefund, feeInBid } = calcCommission(b);
               const hire        = isCancelled&&b.refund_status==="full"?0:Number(b.car_hire_price??0);
               const hasCurrConv = b.charge_currency && b.charge_currency !== (b.currency ?? "EUR");
               return (
@@ -220,13 +231,13 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
                     )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {b.stripe_fee != null
-                      ? <span className="font-black text-amber-700">− {fmtCurr(b.stripe_fee, b.stripe_fee_currency || curr)}</span>
+                    {feeInBid > 0
+                      ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid, curr)}</span>
                       : <span className="text-black/30">—</span>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-xs font-bold text-black/50">
                     {hasCurrConv && b.conversion_rate
-                      ? <span title={`${b.currency} → ${b.charge_currency}`}>{b.conversion_rate.toFixed(4)}</span>
+                      ? <span title={`${b.currency} → ${b.charge_currency}`}>{Number(b.conversion_rate).toFixed(4)}</span>
                       : "—"}
                   </td>
                   <td className="px-4 py-3 font-bold text-black/70 whitespace-nowrap">{fmtAmt(b.fuel_price,curr)}</td>
@@ -235,7 +246,7 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
                   <td className="px-4 py-3 font-black text-green-600 whitespace-nowrap">{fuelRefund>0?fmtCurr(fuelRefund,curr):"—"}</td>
                   <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,curr)}</td>
                   <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-black"}`}>
-                    {isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(netPayout,curr)}
+                    {isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(payout,curr)}
                   </td>
                   <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_by||"—"}</td>
                   <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDateTime(b.cancelled_at):"—"}</td>
@@ -299,12 +310,11 @@ export default function PartnerReportsPage() {
       EUR:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,count:0,completed:0,cancelled:0 },
       GBP:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,count:0,completed:0,cancelled:0 },
       USD:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,count:0,completed:0,cancelled:0 },
-    };
     for (const b of filteredBookings) {
       const c: Currency = (b.currency as Currency)??"EUR";
       if (!t[c]) continue;
       const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { amount:commAmt, payout, fuelRefund } = calcCommission(b);
+      const { amount:commAmt, payout, fuelRefund, feeInBid } = calcCommission(b);
       t[c].count++;
       if (!isCancelled) {
         t[c].total              += Number(b.amount??0);
@@ -313,7 +323,7 @@ export default function PartnerReportsPage() {
         t[c].fuelCharge         += Number(b.fuel_charge??0);
         t[c].commissionTotal    += commAmt;
         t[c].partnerPayoutTotal += payout;
-        t[c].stripeFeeTotal     += Number(b.stripe_fee??0);
+        t[c].stripeFeeTotal     += feeInBid;
       }
       t[c].fuelRefund += fuelRefund;
       if (isCancelled) t[c].cancelled++;
@@ -360,8 +370,8 @@ export default function PartnerReportsPage() {
     const fuelRows = filteredBookings.map(b=>{
       const usedQ       = b.fuel_used_quarters;
       const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { rate, amount:commAmt, payout, fuelRefund } = calcCommission(b);
-      const netPayout   = payout+Number(b.fuel_charge??0);
+      const { rate, amount:commAmt, payout, fuelRefund, feeInBid } = calcCommission(b);
+      const netPayout   = payout;
       const hire        = isCancelled&&b.refund_status==="full"?0:Number(b.car_hire_price??0);
       const isCompleted = String(b.booking_status||"").toLowerCase()==="completed";
       return [
@@ -375,7 +385,7 @@ export default function PartnerReportsPage() {
         b.currency||"EUR",
         b.charge_currency||b.currency||"EUR",
         hire,rate,commAmt,
-        b.stripe_fee??"",
+        feeInBid>0?feeInBid.toFixed(4):"",
         b.stripe_fee_currency||"",
         b.exchange_rate||b.conversion_rate||"",
         Number(b.fuel_price??0),

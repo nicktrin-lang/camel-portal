@@ -8,7 +8,9 @@ type Currency = "EUR" | "GBP" | "USD";
 type BookingRow = {
   id: string; request_id: string; partner_user_id: string; winning_bid_id: string;
   booking_status: string; amount: number | null; currency: Currency | null;
-  notes: string | null; created_at: string; cancelled_by: string | null; cancelled_at: string | null; cancellation_reason: string | null; refund_status: string | null; job_number: number | null;
+  charge_currency: string | null; conversion_rate: number | null;
+  notes: string | null; created_at: string; cancelled_by: string | null; cancelled_at: string | null;
+  cancellation_reason: string | null; refund_status: string | null; job_number: number | null;
   driver_name: string | null; driver_phone: string | null;
   driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
   delivery_confirmed_at: string | null; collection_confirmed_at: string | null;
@@ -26,6 +28,7 @@ type BookingRow = {
   fuel_charge: number | null; fuel_refund: number | null;
   commission_rate: number | null; commission_amount: number | null;
   partner_payout_amount: number | null;
+  stripe_fee: number | null; stripe_fee_currency: string | null; exchange_rate: number | null;
 };
 
 type ApiResponse = { data: BookingRow[]; role: string | null; adminMode: boolean };
@@ -49,7 +52,6 @@ function fmt(v?: string | null) {
   if (!v) return "—";
   try { return new Date(v).toLocaleString(); } catch { return v; }
 }
-
 function fmtDuration(m?: number | null) {
   if (!m) return "—";
   const mpd = 24 * 60;
@@ -58,14 +60,47 @@ function fmtDuration(m?: number | null) {
   const h = Math.floor(m / 60), mins = m % 60;
   return mins ? `${h}h ${mins}m` : `${h}h`;
 }
-
-function fmtAmount(amount: number | string | null, currency: Currency | null) {
+function fmtAmount(amount: number | string | null, currency: string | null) {
   if (amount == null) return "—";
   const num = Number(amount);
   if (isNaN(num)) return "—";
   const curr = currency ?? "EUR";
-  const { locale } = CURRENCY_CONFIG[curr];
+  const locale = curr === "GBP" ? "en-GB" : curr === "USD" ? "en-US" : "es-ES";
   return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(num);
+}
+function fmtCurr(amount: number, currency: string) {
+  const locale = currency === "GBP" ? "en-GB" : currency === "USD" ? "en-US" : "es-ES";
+  return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
+}
+
+// Convert stripe_fee (in charge currency) to bid currency using Stripe's exchange_rate
+// exchange_rate from Stripe balance transaction = charge_currency → settlement (bid) currency rate
+// So: fee_in_bid = stripe_fee / exchange_rate (if exchange_rate is charge→bid)
+// If same currency, no conversion needed.
+function stripeFeeInBidCurrency(
+  stripe_fee: number | null,
+  stripe_fee_currency: string | null,
+  bid_currency: string,
+  exchange_rate: number | null
+): number {
+  if (!stripe_fee || stripe_fee <= 0) return 0;
+  if (!stripe_fee_currency || stripe_fee_currency.toUpperCase() === bid_currency.toUpperCase()) {
+    return stripe_fee;
+  }
+  // Different currencies — convert using Stripe's exchange rate
+  if (exchange_rate && exchange_rate > 0) return stripe_fee / exchange_rate;
+  return stripe_fee; // fallback if no rate
+}
+
+function calcNetPayout(r: BookingRow): number {
+  const isCancelled = String(r.booking_status || "").toLowerCase() === "cancelled";
+  if (isCancelled && r.refund_status === "full") return 0;
+  const hire      = Number(r.car_hire_price ?? 0);
+  const rate      = r.commission_rate ?? 20;
+  const commAmt   = Math.max((hire * rate) / 100, 10);
+  const basePayout = Math.max(0, hire - commAmt);
+  const feeInBid  = stripeFeeInBidCurrency(r.stripe_fee, r.stripe_fee_currency, r.currency ?? "EUR", r.exchange_rate);
+  return Math.max(0, basePayout + Number(r.fuel_charge ?? 0) - feeInBid);
 }
 
 function statusPill(status?: string | null) {
@@ -81,7 +116,6 @@ function statusPill(status?: string | null) {
   };
   return map[status ?? ""] ?? "border-black/10 bg-white text-black/60";
 }
-
 function fmtStatus(s?: string | null) {
   switch (String(s || "").toLowerCase()) {
     case "collected": case "returned": return "On Hire";
@@ -90,8 +124,17 @@ function fmtStatus(s?: string | null) {
     default: return String(s || "—").replaceAll("_", " ");
   }
 }
-
 function norm(v: unknown) { return String(v || "").toLowerCase().trim(); }
+
+function payoutsByCurrency(rows: BookingRow[]): Record<Currency, number> {
+  const totals: Record<Currency, number> = { EUR: 0, GBP: 0, USD: 0 };
+  for (const r of rows) {
+    const curr: Currency = (r.currency as Currency) ?? "EUR";
+    const net = calcNetPayout(r);
+    if (isFinite(net)) totals[curr] += net;
+  }
+  return totals;
+}
 
 function revenuesByCurrency(rows: BookingRow[]): Record<Currency, number> {
   const totals: Record<Currency, number> = { EUR: 0, GBP: 0, USD: 0 };
@@ -103,27 +146,9 @@ function revenuesByCurrency(rows: BookingRow[]): Record<Currency, number> {
   return totals;
 }
 
-// ── Net payout totals per currency (hire - commission + fuel_charge) ──────────
-function payoutsByCurrency(rows: BookingRow[]): Record<Currency, number> {
-  const totals: Record<Currency, number> = { EUR: 0, GBP: 0, USD: 0 };
-  for (const r of rows) {
-    const curr: Currency = (r.currency as Currency) ?? "EUR";
-    const hire    = Number(r.car_hire_price ?? 0);
-    const rate    = r.commission_rate ?? 20;
-    // Always recalculate from bid currency car_hire_price — commission_amount may be in charge currency
-    const commAmt = Math.max((hire * rate) / 100, 10);
-    const payout  = Math.max(0, hire - commAmt);
-    const netPayout = payout + Number(r.fuel_charge ?? 0);
-    if (isFinite(netPayout)) totals[curr] += netPayout;
-  }
-  return totals;
-}
-
-// ── Excel Export ──────────────────────────────────────────────────────────────
 function escapeXml(v: unknown): string {
   return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
-
 function buildXls(sheets: { name: string; headers: string[]; rows: Array<Array<unknown>> }[]): Blob {
   const xmlSheets = sheets.map(sheet => {
     const rowsXml = [
@@ -132,9 +157,7 @@ function buildXls(sheets: { name: string; headers: string[]; rows: Array<Array<u
         `<Row ss:Index="${ri + 2}">${row.map(cell => {
           const v = cell ?? "";
           const isNum = typeof v === "number" || (typeof v === "string" && v !== "" && !isNaN(Number(v)) && v.trim() !== "");
-          return isNum
-            ? `<Cell><Data ss:Type="Number">${escapeXml(v)}</Data></Cell>`
-            : `<Cell><Data ss:Type="String">${escapeXml(v)}</Data></Cell>`;
+          return isNum ? `<Cell><Data ss:Type="Number">${escapeXml(v)}</Data></Cell>` : `<Cell><Data ss:Type="String">${escapeXml(v)}</Data></Cell>`;
         }).join("")}</Row>`
       ),
     ].join("");
@@ -147,7 +170,6 @@ function buildXls(sheets: { name: string; headers: string[]; rows: Array<Array<u
 </Workbook>`;
   return new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8;" });
 }
-
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -155,28 +177,54 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
-
-function fmtDateOnly(v?: string | null) {
-  if (!v) return "";
-  try { return new Date(v).toLocaleDateString(); } catch { return v; }
-}
-
-function fmtDateTimeStr(v?: string | null) {
-  if (!v) return "";
-  try { return new Date(v).toLocaleString(); } catch { return v; }
-}
+function fmtDateOnly(v?: string | null) { if (!v) return ""; try { return new Date(v).toLocaleDateString(); } catch { return v; } }
+function fmtDateTimeStr(v?: string | null) { if (!v) return ""; try { return new Date(v).toLocaleString(); } catch { return v; } }
 
 function downloadExcel(rows: BookingRow[]) {
   const dateStr = new Date().toISOString().split("T")[0];
-  const fuelHeaders = ["Job No.","Company Name","Legal Company Name","Company Reg. No.","VAT / NIF Number","Customer","Customer Email","Customer Phone","Status","Driver","Vehicle","Pickup Address","Dropoff Address","Scheduled Pickup At","Scheduled Dropoff At","Actual Pickup Date & Time","Actual Dropoff Date & Time","Completed Date","Duration","Currency","Car Hire Price","Commission Rate (%)","Commission Amount","Fuel Deposit","Fuel Charge","Fuel Refund","Total Amount","Your Payout","Created At","Cancelled By","Cancelled At","Cancellation Reason","Refund Status"];
-  const fuelRows = rows.map(r => {
-    const hire = Number(r.car_hire_price ?? 0); const rate = r.commission_rate ?? 20;
-    const commAmt = Math.max((hire * rate) / 100, 10);
-    const payout = Math.max(0, hire - commAmt);
+  const headers = [
+    "Job No.","Company Name","Legal Company Name","Company Reg. No.","VAT / NIF Number",
+    "Customer","Customer Email","Customer Phone","Status","Driver","Vehicle",
+    "Pickup Address","Dropoff Address","Scheduled Pickup At","Scheduled Dropoff At",
+    "Actual Pickup Date & Time","Actual Dropoff Date & Time","Completed Date","Duration",
+    "Bid Currency","Charge Currency",
+    "Car Hire Price","Commission Rate (%)","Commission Amount",
+    "Stripe Fee (in bid currency)","Stripe Fee Currency","Stripe Exchange Rate",
+    "Fuel Deposit","Fuel Charge","Fuel Refund",
+    "Total Amount","Net Payout (after all fees)",
+    "Created At","Cancelled By","Cancelled At","Cancellation Reason","Refund Status",
+  ];
+  const exRows = rows.map(r => {
+    const hire      = Number(r.car_hire_price ?? 0);
+    const rate      = r.commission_rate ?? 20;
+    const commAmt   = Math.max((hire * rate) / 100, 10);
+    const feeInBid  = stripeFeeInBidCurrency(r.stripe_fee, r.stripe_fee_currency, r.currency ?? "EUR", r.exchange_rate);
+    const netPayout = calcNetPayout(r);
     const isCompleted = String(r.booking_status || "").toLowerCase() === "completed";
-    return [r.job_number ?? "",r.partner_company_name ?? "",r.partner_legal_company_name ?? "",r.partner_company_registration_number ?? "",r.partner_vat_number ?? "",r.customer_name ?? "",r.customer_email ?? "",r.customer_phone ?? "",r.booking_status ?? "",r.driver_name ?? "",r.vehicle_category_name ?? "",r.pickup_address ?? "",r.dropoff_address ?? "",fmtDateTimeStr(r.pickup_at),fmtDateTimeStr(r.dropoff_at),fmtDateTimeStr(r.delivery_confirmed_at),fmtDateTimeStr(r.collection_confirmed_at),isCompleted ? fmtDateOnly(r.created_at) : "",fmtDuration(r.journey_duration_minutes),r.currency ?? "EUR",hire,rate,commAmt,r.fuel_price ?? "",r.fuel_charge ?? "",r.fuel_refund ?? "",r.amount ?? "",payout + Number(r.fuel_charge ?? 0),fmtDateTimeStr(r.created_at),r.cancelled_by ?? "",r.cancelled_at ? fmtDateTimeStr(r.cancelled_at) : "",r.cancellation_reason ?? "",r.refund_status ?? ""];
+    return [
+      r.job_number ?? "", r.partner_company_name ?? "", r.partner_legal_company_name ?? "",
+      r.partner_company_registration_number ?? "", r.partner_vat_number ?? "",
+      r.customer_name ?? "", r.customer_email ?? "", r.customer_phone ?? "",
+      r.booking_status ?? "", r.driver_name ?? "", r.vehicle_category_name ?? "",
+      r.pickup_address ?? "", r.dropoff_address ?? "",
+      fmtDateTimeStr(r.pickup_at), fmtDateTimeStr(r.dropoff_at),
+      fmtDateTimeStr(r.delivery_confirmed_at), fmtDateTimeStr(r.collection_confirmed_at),
+      isCompleted ? fmtDateOnly(r.created_at) : "",
+      fmtDuration(r.journey_duration_minutes),
+      r.currency ?? "EUR",
+      r.charge_currency ?? r.currency ?? "EUR",
+      hire, rate, commAmt,
+      feeInBid > 0 ? feeInBid.toFixed(4) : "",
+      r.stripe_fee_currency ?? "",
+      r.exchange_rate ?? "",
+      r.fuel_price ?? "", r.fuel_charge ?? "", r.fuel_refund ?? "",
+      r.amount ?? "", netPayout.toFixed(2),
+      fmtDateTimeStr(r.created_at), r.cancelled_by ?? "",
+      r.cancelled_at ? fmtDateTimeStr(r.cancelled_at) : "",
+      r.cancellation_reason ?? "", r.refund_status ?? "",
+    ];
   });
-  const blob = buildXls([{ name: "Booking Detail", headers: fuelHeaders, rows: fuelRows }]);
+  const blob = buildXls([{ name: "Booking Detail", headers, rows: exRows }]);
   downloadBlob(blob, `camel-bookings-${dateStr}.xls`);
 }
 
@@ -231,7 +279,6 @@ export default function PartnerBookingsPage() {
     <div className="space-y-6">
       {error && <div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
 
-      {/* Header + Filters */}
       <div className="border border-black/5 bg-white p-6 md:p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -282,13 +329,14 @@ export default function PartnerBookingsPage() {
           </div>
         ))}
         {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
-          const amt = payouts[curr as Currency];
-          const { locale, label } = CURRENCY_CONFIG[curr as Currency];
+          const amt = payouts[curr];
+          const { locale, label } = CURRENCY_CONFIG[curr];
           const formatted = new Intl.NumberFormat(locale, { style: "currency", currency: curr, maximumFractionDigits: 2 }).format(amt);
           return (
             <div key={curr} className="border border-black/5 bg-white p-5">
-              <p className="text-xs font-black uppercase tracking-widest text-black/40">Your Payout ({label})</p>
+              <p className="text-xs font-black uppercase tracking-widest text-black/40">Net Payout ({label})</p>
               <p className={`mt-2 text-2xl font-black ${amt > 0 ? "text-black" : "text-black/20"}`}>{formatted}</p>
+              <p className="text-xs font-bold text-black/30 mt-0.5">after all fees</p>
             </div>
           );
         })}
@@ -298,12 +346,12 @@ export default function PartnerBookingsPage() {
       {Object.values(revenues).filter(v => v > 0).length > 1 && (
         <div className="border border-black/5 bg-white p-6">
           <h2 className="text-lg font-black text-black">Revenue by Currency</h2>
-          <p className="mt-0.5 text-xs font-bold text-black/40">Breakdown of bookings and payout per currency for reconciliation.</p>
+          <p className="mt-0.5 text-xs font-bold text-black/40">Breakdown of bookings and net payout per currency.</p>
           <div className="mt-4 overflow-x-auto border border-black/10">
             <table className="min-w-full text-sm">
               <thead className="bg-black text-white text-left">
                 <tr>
-                  {["Currency","Bookings","Completed","Gross Revenue","Your Payout"].map(h => (
+                  {["Currency","Bookings","Completed","Gross Revenue","Net Payout (after fees)"].map(h => (
                     <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-widest">{h}</th>
                   ))}
                 </tr>
@@ -351,7 +399,7 @@ export default function PartnerBookingsPage() {
                     {[
                       "Job No.", ...(adminMode ? ["Partner"] : []),
                       "Customer","Status","Driver","Pickup","Pickup Time","Vehicle",
-                      "Currency","Car Hire","Commission","Fuel Charge","Fuel Refund","Your Payout","Created",
+                      "Bid Curr","Car Hire","Commission","Stripe Fee","Fuel Charge","Fuel Refund","Net Payout","Created",
                     ].map(h => (
                       <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
@@ -359,11 +407,12 @@ export default function PartnerBookingsPage() {
                 </thead>
                 <tbody className="divide-y divide-black/5">
                   {visible.map((row, i) => {
-                    const rate    = row.commission_rate ?? 20;
-                    const hire    = Number(row.car_hire_price ?? 0);
-                    const commAmt = Math.max((hire * rate) / 100, 10);
-                    const payout  = Math.max(0, hire - commAmt);
-                    const netPayout = payout + Number(row.fuel_charge ?? 0);
+                    const hire      = Number(row.car_hire_price ?? 0);
+                    const rate      = row.commission_rate ?? 20;
+                    const commAmt   = Math.max((hire * rate) / 100, 10);
+                    const feeInBid  = stripeFeeInBidCurrency(row.stripe_fee, row.stripe_fee_currency, row.currency ?? "EUR", row.exchange_rate);
+                    const netPayout = calcNetPayout(row);
+                    const hasCurrConv = row.charge_currency && row.charge_currency !== (row.currency ?? "EUR");
                     return (
                       <tr key={row.id}
                         onClick={() => router.push(`/partner/bookings/${row.id}`)}
@@ -384,14 +433,24 @@ export default function PartnerBookingsPage() {
                         <td className="px-4 py-3 font-bold text-black/70 whitespace-nowrap">{fmt(row.pickup_at)}</td>
                         <td className="px-4 py-3 font-bold text-black/70 whitespace-nowrap">{row.vehicle_category_name || "—"}</td>
                         <td className="px-4 py-3">
-                          <span className="border border-black/20 px-2 py-0.5 text-xs font-black text-black">
+                          <div className="border border-black/20 px-2 py-0.5 text-xs font-black text-black inline-block">
                             {row.currency ?? "EUR"}
-                          </span>
+                          </div>
+                          {hasCurrConv && (
+                            <div className="text-xs font-bold text-amber-600 mt-0.5" title={`Customer paid in ${row.charge_currency}`}>
+                              cust: {row.charge_currency}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 font-bold text-black/70 whitespace-nowrap">{fmtAmount(hire, row.currency)}</td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-xs font-black text-amber-700">{fmtAmount(commAmt, row.currency)}</div>
+                          <div className="text-xs font-black text-amber-700">− {fmtAmount(commAmt, row.currency)}</div>
                           <div className="text-xs font-bold text-black/40">{rate}%</div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {feeInBid > 0
+                            ? <span className="text-xs font-black text-amber-700">− {fmtCurr(feeInBid, row.currency ?? "EUR")}</span>
+                            : <span className="text-black/30 text-xs">—</span>}
                         </td>
                         <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">
                           {row.fuel_charge != null ? fmtAmount(Number(row.fuel_charge), row.currency) : "—"}
