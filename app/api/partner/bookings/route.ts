@@ -37,7 +37,7 @@ export async function GET() {
         return_fuel_level_driver, return_fuel_level_partner, return_fuel_level_customer,
         return_confirmed_by_customer,
         insurance_docs_confirmed_by_driver, insurance_docs_confirmed_by_customer,
-        payment_id
+        payment_id, payout_status
       `)
       .order("created_at", { ascending: false });
 
@@ -175,6 +175,7 @@ export async function GET() {
         stripe_fee: payment?.stripe_fee ?? null,
         stripe_fee_currency: payment?.stripe_fee_currency ?? null,
         exchange_rate: payment?.exchange_rate ?? null,
+        payout_status: booking.payout_status ?? null,
         role,
         adminMode,
       };

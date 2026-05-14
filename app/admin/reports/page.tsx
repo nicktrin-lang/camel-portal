@@ -34,6 +34,7 @@ type BookingRow = {
   commission_rate:number|null; commission_amount:number|string|null;
   partner_payout_amount:number|string|null;
   stripe_fee:number|null; stripe_fee_currency:string|null; exchange_rate:number|null;
+  payout_status:string|null;
   cancelled_by:string|null; cancelled_at:string|null;
   cancellation_reason:string|null; refund_status:string|null;
   created_at:string|null; job_number:string|null;
@@ -103,15 +104,6 @@ function getMonthKey(value: string|null|undefined) {
 }
 function getCurrentMonthKey() { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; }
 function getPreviousMonthKey() { const n=new Date(); n.setMonth(n.getMonth()-1); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; }
-function stripeFeeInBidCurrency(
-  stripe_fee: number | null, stripe_fee_currency: string | null,
-  bid_currency: string, exchange_rate: number | null
-): number {
-  if (!stripe_fee || stripe_fee <= 0) return 0;
-  if (!stripe_fee_currency || stripe_fee_currency.toUpperCase() === bid_currency.toUpperCase()) return stripe_fee;
-  if (exchange_rate && exchange_rate > 0) return stripe_fee / exchange_rate;
-  return stripe_fee;
-}
 
 function calcPayout(b: BookingRow): { hire:number; rate:number; commAmt:number; payout:number; fuelRefund:number; feeInBid:number } {
   const isCancelled  = String(b.booking_status||"").toLowerCase()==="cancelled";
@@ -634,6 +626,49 @@ export default function AdminReportsPage() {
           </table>
         </div>
       </div>
+
+      {/* Payout Status Breakdown */}
+      {(() => {
+        const held  = filteredBookings.filter(b => b.payout_status === "held");
+        const ready = filteredBookings.filter(b => b.payout_status === "ready");
+        const paid  = filteredBookings.filter(b => b.payout_status === "paid");
+        const calcTotal = (rows: BookingRow[]) => {
+          const byCurr: Record<string, number> = {};
+          for (const b of rows) {
+            const curr = b.currency ?? "EUR";
+            const { payout } = calcPayout(b);
+            byCurr[curr] = (byCurr[curr] ?? 0) + payout;
+          }
+          return byCurr;
+        };
+        const heldTotals  = calcTotal(held);
+        const readyTotals = calcTotal(ready);
+        const paidTotals  = calcTotal(paid);
+        if (held.length===0&&ready.length===0&&paid.length===0) return null;
+        return (
+          <div className="border border-black/10 bg-white p-6 md:p-8">
+            <h2 className="text-xl font-black text-black mb-1">Payout Status</h2>
+            <p className="text-sm text-black/50 mb-4">Network-wide breakdown of bookings by payout stage.</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                { label:"Held",  desc:"Payment received — hire not yet complete",         bookings:held,  totals:heldTotals,  color:"text-amber-700", bg:"border-amber-200 bg-amber-50" },
+                { label:"Ready", desc:"Hire complete — queued for next monthly payout",   bookings:ready, totals:readyTotals, color:"text-blue-700",  bg:"border-blue-200 bg-blue-50"   },
+                { label:"Paid",  desc:"Payout transferred to partner Stripe account",     bookings:paid,  totals:paidTotals,  color:"text-green-700", bg:"border-green-200 bg-green-50" },
+              ].map(({ label, desc, bookings: bks, totals, color, bg }) => (
+                <div key={label} className={`border p-4 ${bg}`}>
+                  <p className={`text-xs font-black uppercase tracking-widest ${color} mb-1`}>{label}</p>
+                  <p className="text-3xl font-black text-black">{bks.length}</p>
+                  <p className="text-xs font-bold text-black/40 mt-1 mb-3">{desc}</p>
+                  {Object.entries(totals).filter(([,v])=>v>0).map(([curr,val])=>(
+                    <p key={curr} className={`text-sm font-black ${color}`}>{fmtCurr(val,curr)} {curr}</p>
+                  ))}
+                  {Object.keys(totals).length===0&&<p className="text-sm font-bold text-black/30">—</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h2 className="text-xl font-black text-black mb-4">Vehicle Category Breakdown</h2>

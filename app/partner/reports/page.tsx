@@ -30,6 +30,7 @@ type BookingRow = {
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
   commission_rate: number | null; commission_amount: number | null; partner_payout_amount: number | null;
   stripe_fee: number | null; stripe_fee_currency: string | null; exchange_rate: number | null;
+  payout_status: string | null;
   cancelled_by: string | null; cancelled_at: string | null;
   cancellation_reason: string | null; refund_status: string | null;
   created_at: string | null; job_number: string | null; pickup_address: string | null;
@@ -469,8 +470,6 @@ export default function PartnerReportsPage() {
         const currBookings = filteredBookings.filter(b=>(b.currency??"EUR")===curr);
         return <CurrencySection key={curr} curr={curr} t={t} bookings={currBookings}/>;
       })}
-
-      <div className="border border-black/5 bg-white p-6">
         <h2 className="text-lg font-black text-black mb-4">Vehicle Category Breakdown</h2>
         <div className="overflow-x-auto border border-black/10">
           <table className="min-w-full text-sm">
