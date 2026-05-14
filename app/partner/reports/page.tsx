@@ -12,12 +12,12 @@ const CURRENCY_META: Record<Currency, { symbol: string; locale: string; label: s
   USD: { symbol: "$", locale: "en-US", label: "USD" },
 };
 
-function fmtCurr(amount: number, currency: Currency | string): string {
+function fmtCurr(amount: number, currency: string): string {
   const locale = currency === "GBP" ? "en-GB" : currency === "USD" ? "en-US" : "es-ES";
   return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
 }
 
-function fmtAmt(amount: number | string | null, currency: Currency | string | null): string {
+function fmtAmt(amount: number | string | null, currency: string | null): string {
   const amt = Number(amount ?? 0);
   if (!isFinite(amt)) return "—";
   return fmtCurr(amt, currency ?? "EUR");
@@ -29,6 +29,7 @@ type BookingRow = {
   car_hire_price: number | null; fuel_price: number | null;
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
   commission_rate: number | null; commission_amount: number | null; partner_payout_amount: number | null;
+  stripe_fee: number | null; stripe_fee_currency: string | null; exchange_rate: number | null;
   cancelled_by: string | null; cancelled_at: string | null;
   cancellation_reason: string | null; refund_status: string | null;
   created_at: string | null; job_number: string | null; pickup_address: string | null;
@@ -42,7 +43,6 @@ type BookingRow = {
   collection_confirmed_by_customer: boolean; return_confirmed_by_customer: boolean;
   partner_legal_company_name: string | null; partner_vat_number: string | null;
   partner_company_registration_number: string | null;
-  stripe_fee: number | null; stripe_fee_currency: string | null; exchange_rate: number | null;
 };
 
 type RequestRow = {
@@ -52,9 +52,7 @@ type RequestRow = {
   created_at: string | null; expires_at: string | null;
 };
 
-const QUARTER_LABELS: Record<number, string> = {
-  0:"Empty", 1:"¼ Tank", 2:"½ Tank", 3:"¾ Tank", 4:"Full Tank",
-};
+const QUARTER_LABELS: Record<number, string> = { 0:"Empty", 1:"¼ Tank", 2:"½ Tank", 3:"¾ Tank", 4:"Full Tank" };
 
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
@@ -62,15 +60,8 @@ async function safeJson(res: Response): Promise<any> {
   try { return JSON.parse(text); } catch { return { _raw: text }; }
 }
 
-function fmtDate(value?: string | null) {
-  if (!value) return "";
-  try { return new Date(value).toLocaleDateString(); } catch { return value; }
-}
-
-function fmtDateTime(value?: string | null) {
-  if (!value) return "";
-  try { return new Date(value).toLocaleString(); } catch { return value; }
-}
+function fmtDate(value?: string | null) { if (!value) return ""; try { return new Date(value).toLocaleDateString(); } catch { return value; } }
+function fmtDateTime(value?: string | null) { if (!value) return ""; try { return new Date(value).toLocaleString(); } catch { return value; } }
 
 function statusPillClasses(status?: string | null) {
   switch (String(status || "").toLowerCase()) {
@@ -103,18 +94,11 @@ function getPreviousMonthKey() { const n=new Date(); n.setMonth(n.getMonth()-1);
 function escapeXml(v: unknown): string {
   return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-
 function buildXls(sheets: { name: string; headers: string[]; rows: Array<Array<unknown>> }[]): Blob {
   const xmlSheets = sheets.map(sheet => {
     const rowsXml = [
       `<Row ss:Index="1">${sheet.headers.map(h=>`<Cell ss:StyleID="header"><Data ss:Type="String">${escapeXml(h)}</Data></Cell>`).join("")}</Row>`,
-      ...sheet.rows.map((row,ri)=>
-        `<Row ss:Index="${ri+2}">${row.map(cell=>{
-          const v=cell??"";
-          const isNum=typeof v==="number"||(typeof v==="string"&&v!==""&&!isNaN(Number(v))&&v.trim()!=="");
-          return isNum?`<Cell><Data ss:Type="Number">${escapeXml(v)}</Data></Cell>`:`<Cell><Data ss:Type="String">${escapeXml(v)}</Data></Cell>`;
-        }).join("")}</Row>`
-      ),
+      ...sheet.rows.map((row,ri)=>`<Row ss:Index="${ri+2}">${row.map(cell=>{const v=cell??"";const isNum=typeof v==="number"||(typeof v==="string"&&v!==""&&!isNaN(Number(v))&&v.trim()!=="");return isNum?`<Cell><Data ss:Type="Number">${escapeXml(v)}</Data></Cell>`:`<Cell><Data ss:Type="String">${escapeXml(v)}</Data></Cell>`;}).join("")}</Row>`),
     ].join("");
     return `<Worksheet ss:Name="${escapeXml(sheet.name)}"><Table>${rowsXml}</Table></Worksheet>`;
   });
@@ -125,7 +109,6 @@ function buildXls(sheets: { name: string; headers: string[]; rows: Array<Array<u
 </Workbook>`;
   return new Blob([xml],{type:"application/vnd.ms-excel;charset=utf-8;"});
 }
-
 function downloadBlob(blob: Blob, filename: string) {
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
@@ -134,6 +117,7 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+// Convert stripe_fee (in charge currency) to bid currency
 function stripeFeeInBidCurrency(
   stripe_fee: number | null, stripe_fee_currency: string | null,
   bid_currency: string, exchange_rate: number | null
@@ -183,8 +167,8 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
           { label:"Cancelled",           value:t.cancelled,                       isMoney:false },
           { label:"Car Hire Revenue",    value:t.carHire,                         isMoney:true  },
           { label:"Camel Commission",    value:t.commissionTotal,                 isMoney:true  },
-          { label:"Stripe Fees",         value:t.stripeFeeTotal,                  isMoney:true, grey:true },
-          { label:"Your Net Payout",     value:t.partnerPayoutTotal+t.fuelCharge, isMoney:true  },
+          { label:"Stripe Fees",         value:t.stripeFeeTotal,                  isMoney:true  },
+          { label:"Your Net Payout",     value:t.partnerPayoutTotal,              isMoney:true  },
           { label:"Fuel Charged",        value:t.fuelCharge,                      isMoney:true  },
           { label:"Fuel Refunds Issued", value:t.fuelRefund,                      isMoney:true  },
           { label:"Total Revenue",       value:t.total,                           isMoney:true  },
@@ -201,7 +185,7 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
         <table className="min-w-full text-sm">
           <thead className="bg-black text-white text-left">
             <tr>
-              {["Job","Customer","Status","Car Hire","Commission","Stripe Fee","Conv. Rate","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Your Payout","Cancelled By","Cancelled At"].map(h=>(
+              {["Job","Customer","Status","Car Hire","Commission","Stripe Fee","Conv. Rate","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Net Payout","Cancelled By","Cancelled At"].map(h=>(
                 <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -212,7 +196,7 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
               const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
               const { rate, amount:commAmt, payout, fuelRefund, feeInBid } = calcCommission(b);
               const hire        = isCancelled&&b.refund_status==="full"?0:Number(b.car_hire_price??0);
-              const hasCurrConv = b.charge_currency && b.charge_currency !== (b.currency ?? "EUR");
+              const hasCurrConv = b.charge_currency && b.charge_currency.toUpperCase() !== (b.currency ?? "EUR").toUpperCase();
               return (
                 <tr key={b.id} className={`transition-colors hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/50":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                   <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
@@ -224,11 +208,9 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
                   </td>
                   <td className={`px-4 py-3 font-bold whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,curr)}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {isCancelled&&b.refund_status==="full"?(
-                      <span className="text-xs font-black text-red-400 line-through">{fmtCurr(commAmt,curr)}</span>
-                    ):(
-                      <><div className="text-xs font-black text-amber-700">− {fmtCurr(commAmt,curr)}</div><div className="text-xs font-bold text-black/40">{rate}%</div></>
-                    )}
+                    {isCancelled&&b.refund_status==="full"
+                      ? <span className="text-xs font-black text-red-400 line-through">{fmtCurr(commAmt,curr)}</span>
+                      : <><div className="text-xs font-black text-amber-700">− {fmtCurr(commAmt,curr)}</div><div className="text-xs font-bold text-black/40">{rate}%</div></>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     {feeInBid > 0
@@ -310,6 +292,7 @@ export default function PartnerReportsPage() {
       EUR:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,count:0,completed:0,cancelled:0 },
       GBP:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,count:0,completed:0,cancelled:0 },
       USD:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,count:0,completed:0,cancelled:0 },
+    };
     for (const b of filteredBookings) {
       const c: Currency = (b.currency as Currency)??"EUR";
       if (!t[c]) continue;
@@ -357,12 +340,12 @@ export default function PartnerReportsPage() {
       "Actual Pickup Date & Time","Actual Dropoff Date & Time","Completed Date",
       "Vehicle","Driver","Driver Vehicle","Bid Currency","Charge Currency",
       "Car Hire Price","Commission Rate (%)","Commission Amount",
-      "Stripe Processing Fee","Stripe Fee Currency","Exchange Rate (Bid→Charge)",
+      "Stripe Fee (in bid currency)","Stripe Fee Currency","Exchange Rate",
       "Full Fuel Deposit","Collection Fuel (Driver)","Collection Fuel (Partner Override)",
       "Return Fuel (Driver)","Return Fuel (Partner Override)",
       "Quarters Used","Fuel Used Label",
       "Fuel Charge to Customer","Fuel Refund to Customer",
-      "Total Booking Amount","Your Payout",
+      "Total Booking Amount","Net Payout (after all fees)",
       "Customer Collection Confirmed","Customer Return Confirmed",
       "Booking Status","Cancelled By","Cancelled At","Cancellation Reason","Refund Status",
       "Created At",
@@ -371,7 +354,6 @@ export default function PartnerReportsPage() {
       const usedQ       = b.fuel_used_quarters;
       const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
       const { rate, amount:commAmt, payout, fuelRefund, feeInBid } = calcCommission(b);
-      const netPayout   = payout;
       const hire        = isCancelled&&b.refund_status==="full"?0:Number(b.car_hire_price??0);
       const isCompleted = String(b.booking_status||"").toLowerCase()==="completed";
       return [
@@ -395,7 +377,7 @@ export default function PartnerReportsPage() {
         usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—",
         Number(b.fuel_charge??0),fuelRefund,
         isCancelled?0:Number(b.amount??0),
-        isCancelled&&b.refund_status==="full"?0:netPayout,
+        isCancelled&&b.refund_status==="full"?0:payout,
         b.collection_confirmed_by_customer?"Yes":"No",
         b.return_confirmed_by_customer?"Yes":"No",
         b.booking_status||"",
@@ -447,8 +429,8 @@ export default function PartnerReportsPage() {
             </button>
           </div>
         </div>
-        <div className="mt-4 border border-amber-100 bg-amber-50 p-3 text-xs font-bold text-amber-800">
-          ℹ Stripe processing fees (~1.5% + 30¢) are deducted before your payout is calculated. If your customer paid in a different currency to your bid, a conversion rate is shown. See your <a href="/partner/terms" className="underline">partner terms</a> for full fee disclosure.
+        <div className="mt-4 border border-black/10 bg-[#f8f8f8] p-3 text-xs font-bold text-black/60">
+          ℹ Stripe processing fees (~1.5% + €0.25) are deducted before your payout is calculated. If your customer paid in a different currency to your bid, a conversion rate is shown. See your <a href="/partner/terms" className="underline text-black">partner terms</a> for full fee disclosure.
         </div>
       </div>
 
