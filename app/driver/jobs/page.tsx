@@ -95,32 +95,17 @@ export default function DriverJobsPage() {
     try {
       const res  = await fetch("/api/driver/jobs", { credentials: "include", cache: "no-store" });
       const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(json?.error || "Not authorised as a driver.");
-        setLoading(false);
-        return;
-      }
+      if (!res.ok) { setError(json?.error || "Not authorised as a driver."); setLoading(false); return; }
       setDriverInfo(json?.driver || null);
       setJobs(Array.isArray(json?.jobs) ? json.jobs : []);
       setLastLoaded(new Date());
-    } catch (e: any) {
-      setError(e?.message || "Failed to load jobs.");
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: any) { setError(e?.message || "Failed to load jobs."); }
+    finally { setLoading(false); }
   }
 
-  useEffect(() => {
-    load();
-    const t = setInterval(load, 15000);
-    return () => clearInterval(t);
-  }, []);
+  useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, []);
 
-  async function confirmAction(
-    bookingId: string,
-    action: "collection" | "return" | "insurance",
-    fuelLevel?: FuelLevel
-  ) {
+  async function confirmAction(bookingId: string, action: "collection" | "return" | "insurance", fuelLevel?: FuelLevel) {
     setConfirmingJob(bookingId); setConfirmError(null); setConfirmOk(null);
     try {
       const res = await fetch(`/api/driver/bookings/${bookingId}/confirm`, {
@@ -130,18 +115,20 @@ export default function DriverJobsPage() {
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to confirm.");
-      setConfirmOk(
-        action === "collection" ? "Delivery confirmed ✓" :
-        action === "return"     ? "Collection confirmed ✓" :
-                                  "Insurance confirmed ✓"
-      );
+      setConfirmOk(action === "collection" ? "Delivery confirmed ✓" : action === "return" ? "Collection confirmed ✓" : "Insurance confirmed ✓");
       await load();
     } catch (e: any) { setConfirmError(e?.message || "Failed to confirm."); }
     finally { setConfirmingJob(null); }
   }
 
   const activeJobs    = useMemo(() => jobs.filter(j => !["completed","cancelled"].includes(j.booking_status.toLowerCase())), [jobs]);
-  const completedJobs = useMemo(() => jobs.filter(j => ["completed","cancelled"].includes(j.booking_status.toLowerCase())), [jobs]);
+  const completedJobs = useMemo(() => jobs.filter(j => j.booking_status.toLowerCase() === "completed"), [jobs]);
+  const cancelledJobs = useMemo(() => jobs.filter(j => j.booking_status.toLowerCase() === "cancelled"), [jobs]);
+
+  // Stat card counts
+  const awaitingDelivery = useMemo(() => jobs.filter(j => ["confirmed","driver_assigned","en_route","arrived"].includes(j.booking_status.toLowerCase())).length, [jobs]);
+  const onHire           = useMemo(() => jobs.filter(j => ["collected","returned"].includes(j.booking_status.toLowerCase())).length, [jobs]);
+  const completedCount   = completedJobs.length;
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
@@ -170,29 +157,32 @@ export default function DriverJobsPage() {
           {driverInfo && <p className="text-xs font-bold text-white/40 mt-0.5">{driverInfo.full_name}</p>}
         </div>
         <div className="text-right">
-          <p className="text-xs font-bold text-white/50">
-            {activeJobs.length} active · {completedJobs.length} completed
-          </p>
           {lastLoaded && (
-            <p className="text-xs font-bold text-white/30 mt-0.5">
-              Updated {lastLoaded.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            <p className="text-xs font-bold text-white/30">
+              Updated {lastLoaded.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", second:"2-digit" })}
             </p>
           )}
         </div>
       </div>
 
-      {confirmOk && (
-        <div className="border border-green-500/30 bg-green-50 px-4 py-3 text-sm font-black text-green-700">
-          {confirmOk}
-        </div>
-      )}
-      {confirmError && (
-        <div className="border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-700">
-          {confirmError}
-        </div>
-      )}
+      {/* ── Stat cards ── */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label:"Awaiting Delivery", value:awaitingDelivery, color:"text-[#ff7a00]", border:"border-[#ff7a00]/20 bg-white" },
+          { label:"On Hire",           value:onHire,           color:"text-black",     border:"border-black/10 bg-white" },
+          { label:"Completed",         value:completedCount,   color:"text-green-600", border:"border-green-200 bg-green-50" },
+        ].map(({ label, value, color, border }) => (
+          <div key={label} className={`border ${border} p-4`}>
+            <p className="text-xs font-black uppercase tracking-widest text-black/40">{label}</p>
+            <p className={`mt-1 text-3xl font-black ${color}`}>{value}</p>
+          </div>
+        ))}
+      </div>
 
-      {activeJobs.length === 0 && completedJobs.length === 0 ? (
+      {confirmOk && <div className="border border-green-500/30 bg-green-50 px-4 py-3 text-sm font-black text-green-700">{confirmOk}</div>}
+      {confirmError && <div className="border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-700">{confirmError}</div>}
+
+      {activeJobs.length === 0 && completedJobs.length === 0 && cancelledJobs.length === 0 ? (
         <div className="bg-white border border-black/5 p-12 text-center">
           <p className="text-4xl mb-4">🚗</p>
           <p className="text-black font-black text-xl mb-2">No jobs assigned</p>
@@ -209,7 +199,6 @@ export default function DriverJobsPage() {
                 const collFuel     = fuelLevels[`coll_${job.booking_id}`] as FuelLevel | undefined;
                 const retFuel      = fuelLevels[`ret_${job.booking_id}`]  as FuelLevel | undefined;
                 const isConfirming = confirmingJob === job.booking_id;
-
                 return (
                   <div key={job.booking_id} className="bg-white border border-black/5">
                     <button type="button" onClick={() => setExpandedJob(isExpanded ? null : job.booking_id)}
@@ -217,9 +206,7 @@ export default function DriverJobsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="text-base font-black text-black">#{job.job_number ?? "—"}</span>
-                          <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>
-                            {statusLabel(job.booking_status)}
-                          </span>
+                          <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>{statusLabel(job.booking_status)}</span>
                         </div>
                         <p className="text-sm font-bold text-black/70 truncate">📍 {job.pickup_address || "—"}</p>
                         <p className="text-sm font-semibold text-black/40 truncate">🏁 {job.dropoff_address || "—"}</p>
@@ -232,8 +219,6 @@ export default function DriverJobsPage() {
 
                     {isExpanded && (
                       <div className="border-t border-black/5 px-5 py-5 space-y-5">
-
-                        {/* Journey details */}
                         <div className="grid grid-cols-2 gap-3">
                           {[
                             { label:"Customer",       value: job.customer_name },
@@ -259,7 +244,6 @@ export default function DriverJobsPage() {
                           </div>
                         )}
 
-                        {/* WhatsApp */}
                         {job.customer_phone && (
                           <a href={`https://wa.me/${job.customer_phone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 bg-green-500 px-4 py-2.5 text-sm font-black text-white hover:bg-green-600 transition-colors">
@@ -275,8 +259,7 @@ export default function DriverJobsPage() {
                           ) : (
                             <>
                               <p className="text-sm font-bold text-black/60 mb-3">Confirm you have handed the insurance documents to the customer.</p>
-                              <button type="button" disabled={isConfirming}
-                                onClick={() => confirmAction(job.booking_id, "insurance")}
+                              <button type="button" disabled={isConfirming} onClick={() => confirmAction(job.booking_id, "insurance")}
                                 className="bg-black px-5 py-3 text-sm font-black text-white hover:opacity-80 disabled:opacity-40 transition-opacity">
                                 {isConfirming ? "Saving…" : "✓ Confirm insurance handover"}
                               </button>
@@ -345,7 +328,6 @@ export default function DriverJobsPage() {
                             </>
                           )}
                         </div>
-
                       </div>
                     )}
                   </div>
@@ -354,11 +336,11 @@ export default function DriverJobsPage() {
             </div>
           )}
 
-          {/* Completed jobs */}
-          {completedJobs.length > 0 && (
+          {/* Completed & Cancelled jobs */}
+          {(completedJobs.length > 0 || cancelledJobs.length > 0) && (
             <div className="space-y-2">
               <p className="text-xs font-black uppercase tracking-widest text-black/30 px-1">Completed & Cancelled</p>
-              {completedJobs.map(job => {
+              {[...completedJobs, ...cancelledJobs].map(job => {
                 const isExpanded = expandedJob === job.booking_id;
                 return (
                   <div key={job.booking_id} className="bg-white border border-black/5">
@@ -367,9 +349,7 @@ export default function DriverJobsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-black text-black/50">#{job.job_number ?? "—"}</span>
-                          <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>
-                            {statusLabel(job.booking_status)}
-                          </span>
+                          <span className={`px-2 py-0.5 text-xs font-black uppercase tracking-wide ${statusColor(job.booking_status)}`}>{statusLabel(job.booking_status)}</span>
                         </div>
                         <p className="text-xs font-bold text-black/40 truncate">📍 {job.pickup_address || "—"}</p>
                         <p className="text-xs text-black/30">{job.pickup_at ? new Date(job.pickup_at).toLocaleDateString("en-GB") : "—"}</p>
@@ -381,12 +361,12 @@ export default function DriverJobsPage() {
                       <div className="border-t border-black/5 px-5 py-5 space-y-4">
                         <div className="grid grid-cols-2 gap-3">
                           {[
-                            { label:"Customer",       value: job.customer_name },
-                            { label:"Customer phone", value: job.customer_phone, phone: true },
-                            { label:"Vehicle",        value: job.driver_vehicle || job.vehicle_category_name },
-                            { label:"Pickup time",    value: fmt(job.pickup_at) },
-                            { label:"Dropoff time",   value: fmt(job.dropoff_at) },
-                            { label:"Dropoff address",value: job.dropoff_address },
+                            { label:"Customer",        value: job.customer_name },
+                            { label:"Customer phone",  value: job.customer_phone, phone: true },
+                            { label:"Vehicle",         value: job.driver_vehicle || job.vehicle_category_name },
+                            { label:"Pickup time",     value: fmt(job.pickup_at) },
+                            { label:"Dropoff time",    value: fmt(job.dropoff_at) },
+                            { label:"Dropoff address", value: job.dropoff_address },
                           ].map(({ label, value, phone }) => (
                             <div key={label}>
                               <p className="text-xs font-black uppercase tracking-wide text-black/30">{label}</p>
@@ -396,35 +376,21 @@ export default function DriverJobsPage() {
                             </div>
                           ))}
                         </div>
-
-                        {/* Fuel summary */}
                         <div className="grid grid-cols-2 gap-3">
                           <div className="border border-black/10 bg-[#f0f0f0] p-3">
                             <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">⛽ Delivery fuel</p>
-                            <p className="text-sm font-bold text-black">
-                              {job.collection_fuel_level_driver ? FUEL_LABELS[job.collection_fuel_level_driver as FuelLevel] || job.collection_fuel_level_driver : "—"}
-                            </p>
-                            {job.collection_confirmed_by_driver && job.collection_fuel_level_driver &&
-                              <FuelBar level={job.collection_fuel_level_driver as FuelLevel}/>}
+                            <p className="text-sm font-bold text-black">{job.collection_fuel_level_driver ? FUEL_LABELS[job.collection_fuel_level_driver as FuelLevel] || job.collection_fuel_level_driver : "—"}</p>
+                            {job.collection_confirmed_by_driver && job.collection_fuel_level_driver && <FuelBar level={job.collection_fuel_level_driver as FuelLevel}/>}
                           </div>
                           <div className="border border-black/10 bg-[#f0f0f0] p-3">
                             <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">⛽ Collection fuel</p>
-                            <p className="text-sm font-bold text-black">
-                              {job.return_fuel_level_driver ? FUEL_LABELS[job.return_fuel_level_driver as FuelLevel] || job.return_fuel_level_driver : "—"}
-                            </p>
-                            {job.return_confirmed_by_driver && job.return_fuel_level_driver &&
-                              <FuelBar level={job.return_fuel_level_driver as FuelLevel}/>}
+                            <p className="text-sm font-bold text-black">{job.return_fuel_level_driver ? FUEL_LABELS[job.return_fuel_level_driver as FuelLevel] || job.return_fuel_level_driver : "—"}</p>
+                            {job.return_confirmed_by_driver && job.return_fuel_level_driver && <FuelBar level={job.return_fuel_level_driver as FuelLevel}/>}
                           </div>
                         </div>
-
-                        {/* Insurance */}
                         <div className={`border p-3 ${job.insurance_docs_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                           <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">📄 Insurance handover</p>
-                          <p className="text-sm font-bold text-black">
-                            {job.insurance_docs_confirmed_by_driver
-                              ? `✓ Confirmed at ${fmt(job.insurance_docs_confirmed_by_driver_at)}`
-                              : "Not confirmed"}
-                          </p>
+                          <p className="text-sm font-bold text-black">{job.insurance_docs_confirmed_by_driver ? `✓ Confirmed at ${fmt(job.insurance_docs_confirmed_by_driver_at)}` : "Not confirmed"}</p>
                         </div>
                       </div>
                     )}
