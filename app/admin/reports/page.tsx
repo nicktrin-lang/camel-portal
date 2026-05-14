@@ -659,7 +659,7 @@ export default function AdminReportsPage() {
                   <p className={`text-xs font-black uppercase tracking-widest ${color} mb-1`}>{label}</p>
                   <p className="text-3xl font-black text-black">{bks.length}</p>
                   <p className="text-xs font-bold text-black/40 mt-1 mb-3">{desc}</p>
-                  {Object.entries(totals).filter(([,v])=>v>0).map(([curr,val])=>(
+                  {Object.entries(totals).filter(([_,v])=>v>0).map(([curr,val])=>(
                     <p key={curr} className={`text-sm font-black ${color}`}>{fmtCurr(val,curr)} {curr}</p>
                   ))}
                   {Object.keys(totals).length===0&&<p className="text-sm font-bold text-black/30">—</p>}
