@@ -19,7 +19,7 @@ type BookingRow = {
   driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
   fuel_price: number | null; car_hire_price: number | null;
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
-  currency: Currency;
+  currency: Currency; charge_currency: string | null; conversion_rate: number | null;
   cancelled_by?: string | null; cancelled_at?: string | null;
   cancellation_reason?: string | null; refund_status?: string | null;
   collection_confirmed_by_driver?: boolean | null; collection_confirmed_by_driver_at?: string | null;
@@ -38,7 +38,17 @@ type BookingRow = {
   insurance_docs_confirmed_by_customer?: boolean | null; insurance_docs_confirmed_by_customer_at?: string | null;
   delivery_driver_id?: string | null; delivery_driver_name?: string | null; delivery_confirmed_at?: string | null;
   collection_driver_id?: string | null; collection_driver_name?: string | null; collection_confirmed_at?: string | null;
+  payment_id?: string | null;
 };
+
+type PaymentData = {
+  stripe_fee: number | null; stripe_fee_currency: string | null;
+  exchange_rate: number | null; charge_currency: string | null;
+  amount_total: number | null; amount_car_hire: number | null; amount_fuel_deposit: number | null;
+  cancellation_refund_amount: number | null; cancellation_refund_stripe_id: string | null;
+  cancelled_refunded_at: string | null;
+  fuel_refund_amount: number | null; fuel_refund_stripe_id: string | null;
+} | null;
 
 type RequestRow = {
   id: string; job_number: number | null; customer_name: string | null;
@@ -50,10 +60,11 @@ type RequestRow = {
   vehicle_category_name: string | null; notes: string | null; status: string | null;
 };
 
-type ApiResponse = { booking: BookingRow; request: RequestRow | null; role: string | null };
+type ApiResponse = { booking: BookingRow; payment: PaymentData; request: RequestRow | null; role: string | null };
 
-function fmtCurr(amount: number, curr: Currency): string {
-  return new Intl.NumberFormat(CURRENCY_META[curr].locale, { style:"currency", currency:curr }).format(amount);
+function fmtCurr(amount: number, curr: string): string {
+  const locale = curr === "GBP" ? "en-GB" : curr === "USD" ? "en-US" : "es-ES";
+  return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(amount);
 }
 function toEur(amount: number, stored: Currency, rates: Rates): number {
   if (stored==="EUR") return amount;
@@ -126,20 +137,71 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// ── Payment Fees Card (Admin) ──────────────────────────────────────────────────
+function PaymentFeesCard({ payment, bidCurrency }: { payment: PaymentData; bidCurrency: Currency }) {
+  if (!payment) return null;
+  const chargeCurr  = (payment.charge_currency || bidCurrency) as string;
+  const hasCurrConv = chargeCurr !== bidCurrency;
+
+  return (
+    <div className="border border-black/10 bg-[#f8f8f8] p-6">
+      <h2 className="text-base font-black text-black mb-1">Payment & Fee Breakdown</h2>
+      <p className="text-xs font-bold text-black/40 mb-4">
+        Actual Stripe amounts. Charge currency: <strong>{chargeCurr}</strong>. Bid currency: <strong>{bidCurrency}</strong>.
+        {hasCurrConv && <span className="ml-1 text-amber-700">⚠ Currency conversion applied at payment.</span>}
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label:"Total charged",       value: payment.amount_total,        curr: chargeCurr, color:"text-black" },
+          { label:"Car hire charged",    value: payment.amount_car_hire,     curr: chargeCurr, color:"text-black" },
+          { label:"Fuel deposit charged",value: payment.amount_fuel_deposit, curr: chargeCurr, color:"text-black" },
+          { label:"Stripe processing fee",value: payment.stripe_fee,         curr: payment.stripe_fee_currency||chargeCurr, color:"text-amber-700" },
+        ].map(({ label, value, curr, color }) => (
+          <div key={label} className="border border-black/10 bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-widest text-black/40">{label}</p>
+            <p className={`mt-1 text-lg font-black ${color}`}>
+              {value != null ? fmtCurr(value, curr) : "—"}
+            </p>
+          </div>
+        ))}
+      </div>
+      {hasCurrConv && payment.exchange_rate != null && (
+        <div className="mt-3 border border-amber-200 bg-amber-50 p-3 text-sm">
+          <span className="font-black text-amber-800">Conversion rate: </span>
+          <span className="font-bold text-amber-700">1 {bidCurrency} = {payment.exchange_rate.toFixed(4)} {chargeCurr}</span>
+          <span className="ml-2 text-xs text-amber-600">(applied at time of payment)</span>
+        </div>
+      )}
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {payment.fuel_refund_amount != null && payment.fuel_refund_amount > 0 && (
+          <div className="border border-green-200 bg-green-50 p-3">
+            <p className="text-xs font-black uppercase tracking-widest text-green-700">Fuel refund issued</p>
+            <p className="mt-1 font-black text-green-700">{fmtCurr(payment.fuel_refund_amount, chargeCurr)}</p>
+            {payment.fuel_refund_stripe_id && <p className="mt-0.5 text-xs text-green-600/70">{payment.fuel_refund_stripe_id}</p>}
+          </div>
+        )}
+        {payment.cancellation_refund_amount != null && payment.cancellation_refund_amount > 0 && (
+          <div className="border border-red-200 bg-red-50 p-3">
+            <p className="text-xs font-black uppercase tracking-widest text-red-700">Cancellation refund issued</p>
+            <p className="mt-1 font-black text-red-700">{fmtCurr(payment.cancellation_refund_amount, chargeCurr)}</p>
+            {payment.cancellation_refund_stripe_id && <p className="mt-0.5 text-xs text-red-600/70">{payment.cancellation_refund_stripe_id}</p>}
+            {payment.cancelled_refunded_at && <p className="mt-0.5 text-xs text-red-600/70">{fmt(payment.cancelled_refunded_at)}</p>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
   const stored   = (bk.currency ?? "EUR") as Currency;
   const carHire  = Number(bk.car_hire_price ?? 0);
   const fuel     = Number(bk.fuel_price ?? 0);
   const commRate = (bk as any).commission_rate ?? 20;
-  const commAmt  = (bk as any).commission_amount != null
-    ? Number((bk as any).commission_amount)
-    : Math.max((carHire * commRate) / 100, 10);
-  const basePayout = (bk as any).partner_payout_amount != null
-    ? Number((bk as any).partner_payout_amount)
-    : Math.max(0, carHire - commAmt);
+  const commAmt  = Math.max((carHire * commRate) / 100, 10);
+  const basePayout = Math.max(0, carHire - commAmt);
   const isFull    = bk.refund_status === "full";
   const isPartial = bk.refund_status === "partial";
-
   const customerCarHireRefund = isFull ? carHire : 0;
   const customerFuelRefund    = fuel;
   const customerTotalRefund   = customerCarHireRefund + customerFuelRefund;
@@ -158,7 +220,6 @@ function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
           Refund type: <strong>{isFull ? "Full refund" : isPartial ? "Partial refund (within 48hrs of pickup)" : "No refund"}</strong>
         </p>
       </div>
-
       <div className="bg-white border border-red-100 p-4">
         <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-3">Original Booking Amounts</p>
         <div className="space-y-2">
@@ -169,7 +230,6 @@ function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
           <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2"><span className="text-black/60">Total collected from customer</span><span className="text-black">{fmtCurr(carHire + fuel, stored)}</span></div>
         </div>
       </div>
-
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="bg-white border border-red-200 p-4">
           <p className="text-xs font-black uppercase tracking-widest text-red-700 mb-3">Customer Refund</p>
@@ -202,10 +262,7 @@ function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
   return (
     <div className={`border p-6 ${bothConfirmed?"border-[#1a1a1a] bg-[#1a1a1a]":"border-amber-200 bg-amber-50"}`}>
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">📄</span>
-          <h3 className={`text-base font-black ${bothConfirmed?"text-white":"text-black"}`}>Insurance Documents</h3>
-        </div>
+        <div className="flex items-center gap-3"><span className="text-2xl">📄</span><h3 className={`text-base font-black ${bothConfirmed?"text-white":"text-black"}`}>Insurance Documents</h3></div>
         {bothConfirmed&&<span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Confirmed</span>}
       </div>
       <p className={`text-xs font-bold mb-4 ${bothConfirmed?"text-white/50":"text-black/50"}`}>Driver confirms handover at delivery. Customer confirms receipt. Both must agree.</p>
@@ -244,10 +301,7 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking: BookingRow; r
   const rateBadge = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
   return (
     <div className="bg-[#1a1a1a] p-8 text-white">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-black text-white">Booking Summary</h2>
-        <span className="border border-white/30 px-3 py-1 text-xs font-black text-white">Finalised</span>
-      </div>
+      <div className="flex items-center justify-between mb-4"><h2 className="text-xl font-black text-white">Booking Summary</h2><span className="border border-white/30 px-3 py-1 text-xs font-black text-white">Finalised</span></div>
       <div className="bg-white/10 p-5 mb-4">
         <p className="text-xs font-black uppercase tracking-widest text-white/50">Total booking value</p>
         <p className="mt-1 text-4xl font-black">{primary(totalAmt)} <span className="text-xl font-bold opacity-60">{sec(totalAmt)}</span></p>
@@ -282,7 +336,7 @@ function FuelStageCard({ title, booking, stage, locked }: { title:string; bookin
   const customerAt       = isC?booking.collection_confirmed_by_customer_at:booking.return_confirmed_by_customer_at;
   const customerNotes    = isC?booking.collection_customer_notes:booking.return_customer_notes;
   const savedPartnerFuel = isC?booking.collection_fuel_level_partner:booking.return_fuel_level_partner;
-  const effectiveFuel    = normalizeFuel(savedPartnerFuel)||normalizeFuel(driverFuel);
+  const effectiveFuelVal = normalizeFuel(savedPartnerFuel)||normalizeFuel(driverFuel);
   return (
     <div className={`border p-6 ${locked?"border-[#1a1a1a] bg-[#1a1a1a] text-white":"border-black/5 bg-white"}`}>
       <div className="flex items-center justify-between mb-4">
@@ -297,7 +351,7 @@ function FuelStageCard({ title, booking, stage, locked }: { title:string; bookin
         <p className={`text-xs font-black uppercase tracking-widest ${locked?"text-white/40":"text-black/40"}`}>Customer confirmed</p>
         {customerConfirmed?<><p className={`mt-1 text-lg font-black ${locked?"text-white":"text-black"}`}>{fuelLabel(customerFuel)} ✓</p><p className={`mt-1 text-xs ${locked?"text-white/40":"text-black/40"}`}>{fmt(customerAt)}</p>{customerNotes&&<p className={`mt-1 text-xs ${locked?"text-white/50":"text-black/50"}`}>Note: {customerNotes}</p>}</>:<p className={`mt-1 text-sm font-bold italic ${locked?"text-white/40":"text-black/40"}`}>Waiting for customer to confirm</p>}
       </div>
-      {locked&&<div className="border border-[#ff7a00]/30 bg-[#ff7a00]/10 p-3 text-sm font-black text-[#ff7a00]">✓ Both driver and customer agree on {fuelLabel(effectiveFuel)}</div>}
+      {locked&&<div className="border border-[#ff7a00]/30 bg-[#ff7a00]/10 p-3 text-sm font-black text-[#ff7a00]">✓ Both driver and customer agree on {fuelLabel(effectiveFuelVal)}</div>}
     </div>
   );
 }
@@ -380,10 +434,8 @@ export default function AdminBookingDetailPage() {
       {error&&<div className="border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
       {ok&&<div className="border border-black/10 bg-[#f0f0f0] p-3 text-sm font-bold text-black">{ok}</div>}
 
-      {/* Cancellation summary */}
       {isCancelled && <CancellationSummary bk={bk as any} rates={rates} />}
 
-      {/* Admin cancel */}
       {!isCancelled&&(
         <div className="border border-red-200 bg-red-50 p-6">
           <div className="flex items-start justify-between gap-4">
@@ -392,36 +444,24 @@ export default function AdminBookingDetailPage() {
               <p className="mt-1 text-sm font-semibold text-red-600">Admin cancellation always issues a full refund of {fmtCurr(refundTotal, stored)}. This cannot be undone.</p>
             </div>
             {!showCancel&&(
-              <button type="button" onClick={()=>setShowCancel(true)}
-                className="shrink-0 border border-red-300 bg-white px-4 py-2 text-sm font-black text-red-700 hover:bg-red-50 transition-colors">
-                Cancel Booking
-              </button>
+              <button type="button" onClick={()=>setShowCancel(true)} className="shrink-0 border border-red-300 bg-white px-4 py-2 text-sm font-black text-red-700 hover:bg-red-50 transition-colors">Cancel Booking</button>
             )}
           </div>
           {showCancel&&(
             <div className="mt-4 space-y-3">
               <div>
                 <label className="text-xs font-black uppercase tracking-widest text-red-700">Reason (optional)</label>
-                <textarea rows={3} value={cancelReason} onChange={e=>setCancelReason(e.target.value)}
-                  placeholder="e.g. Fraud, double booking, customer request…"
-                  className="mt-1 w-full border border-red-200 bg-white px-3 py-2.5 text-sm font-medium text-black outline-none focus:border-red-400 resize-none"/>
+                <textarea rows={3} value={cancelReason} onChange={e=>setCancelReason(e.target.value)} placeholder="e.g. Fraud, double booking, customer request…" className="mt-1 w-full border border-red-200 bg-white px-3 py-2.5 text-sm font-medium text-black outline-none focus:border-red-400 resize-none"/>
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={cancelBooking} disabled={cancelling}
-                  className="bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
-                  {cancelling?"Cancelling…":"Confirm Cancellation"}
-                </button>
-                <button type="button" onClick={()=>setShowCancel(false)} disabled={cancelling}
-                  className="border border-black/20 px-6 py-3 text-sm font-black text-black hover:bg-black/5 transition-colors">
-                  Keep Booking
-                </button>
+                <button type="button" onClick={cancelBooking} disabled={cancelling} className="bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50 transition-colors">{cancelling?"Cancelling…":"Confirm Cancellation"}</button>
+                <button type="button" onClick={()=>setShowCancel(false)} disabled={cancelling} className="border border-black/20 px-6 py-3 text-sm font-black text-black hover:bg-black/5 transition-colors">Keep Booking</button>
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Booking + Journey info */}
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="border border-black/5 bg-white p-6">
           <h2 className="text-lg font-black text-black mb-4">Booking Information</h2>
@@ -429,7 +469,18 @@ export default function AdminBookingDetailPage() {
             <Field label="Job No.">{String(bk.job_number??req?.job_number??"—")}</Field>
             <Field label="Status">{statusLabel(bk.booking_status)}</Field>
             <Field label="Partner">{bk.partner_company_name||"—"}</Field>
-            <Field label="Currency">{bk.currency??"EUR"}</Field>
+            <Field label="Bid Currency">{bk.currency??"EUR"}</Field>
+            {bk.charge_currency && bk.charge_currency !== bk.currency && (
+              <Field label="Charge Currency">
+                <span className="text-amber-700">{bk.charge_currency}</span>
+                <span className="ml-2 text-xs text-black/40">(customer paid in this currency)</span>
+              </Field>
+            )}
+            {bk.conversion_rate && bk.charge_currency && bk.charge_currency !== bk.currency && (
+              <Field label="Conversion Rate">
+                1 {bk.currency} = {Number(bk.conversion_rate).toFixed(4)} {bk.charge_currency}
+              </Field>
+            )}
             <Field label="Created">{fmt(bk.created_at)}</Field>
             <Field label="Driver">{bk.driver_name||"—"}</Field>
             <Field label="Driver phone">{bk.driver_phone||"—"}</Field>
@@ -458,9 +509,11 @@ export default function AdminBookingDetailPage() {
         </div>
       </div>
 
+      {/* Payment fees — always show */}
+      <PaymentFeesCard payment={data.payment} bidCurrency={stored} />
+
       {collectionLocked&&returnLocked&&<BookingSummaryCard booking={bk} rates={rates} isLive={rateIsLive}/>}
 
-      {/* Driver Audit Trail */}
       <div className="border border-black/5 bg-white p-6">
         <h2 className="text-lg font-black text-black mb-1">Driver Audit Trail</h2>
         <p className="text-xs font-bold text-black/40 mb-5">Permanently stamped when each driver confirms via their app — never editable.</p>
