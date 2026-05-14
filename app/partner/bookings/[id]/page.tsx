@@ -27,7 +27,7 @@ type BookingRow = {
   fuel_price: number | null; car_hire_price: number | null;
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
   commission_rate: number | null; commission_amount: number | null; partner_payout_amount: number | null;
-  currency: Currency;
+  currency: Currency; charge_currency: string | null; conversion_rate: number | null;
   cancelled_by: string | null; cancelled_at: string | null;
   cancellation_reason: string | null; refund_status: string | null;
   collection_confirmed_by_driver?: boolean | null; collection_confirmed_by_driver_at?: string | null;
@@ -46,7 +46,17 @@ type BookingRow = {
   insurance_docs_confirmed_by_customer?: boolean | null; insurance_docs_confirmed_by_customer_at?: string | null;
   delivery_driver_id?: string | null; delivery_driver_name?: string | null; delivery_confirmed_at?: string | null;
   collection_driver_id?: string | null; collection_driver_name?: string | null; collection_confirmed_at?: string | null;
+  payment_id?: string | null;
 };
+
+type PaymentData = {
+  stripe_fee: number | null; stripe_fee_currency: string | null;
+  exchange_rate: number | null; charge_currency: string | null;
+  amount_total: number | null; amount_car_hire: number | null; amount_fuel_deposit: number | null;
+  cancellation_refund_amount: number | null; cancellation_refund_stripe_id: string | null;
+  cancelled_refunded_at: string | null;
+  fuel_refund_amount: number | null; fuel_refund_stripe_id: string | null;
+} | null;
 
 type RequestRow = {
   id: string; job_number: number | null; customer_name: string | null;
@@ -59,16 +69,16 @@ type RequestRow = {
   vehicle_category_name: string | null; notes: string | null; status: string | null; created_at: string | null;
 };
 
-type BookingApiResponse = { booking: BookingRow; request: RequestRow | null; role: string | null };
+type BookingApiResponse = { booking: BookingRow; payment: PaymentData; request: RequestRow | null; role: string | null };
 type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
 
 const PRE_COLLECTION = ["confirmed","driver_assigned","en_route","arrived"];
-
 const inputCls = "w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-bold outline-none focus:border-black placeholder:text-black/30";
 const labelCls = "text-xs font-black uppercase tracking-widest text-black";
 
-function fmtCurr(amount: number, curr: Currency): string {
-  return new Intl.NumberFormat(CURRENCY_META[curr].locale,{style:"currency",currency:curr}).format(amount);
+function fmtCurr(amount: number, curr: Currency | string): string {
+  const locale = curr === "GBP" ? "en-GB" : curr === "USD" ? "en-US" : "es-ES";
+  return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(amount);
 }
 function toEur(amount: number, stored: Currency, rates: Rates): number {
   if (stored==="EUR") return amount;
@@ -94,7 +104,6 @@ function Amt({ amount, stored, rates }: { amount:number|null|undefined; stored:C
     </span>
   );
 }
-
 function normalizeFuel(v: unknown): string|null {
   if (!v) return null;
   const s=String(v).toLowerCase().trim();
@@ -161,125 +170,148 @@ function Field({ label, children }: { label:string; children:React.ReactNode }) 
   );
 }
 
-// ── Cancellation Financial Summary ────────────────────────────────────────────
+// ── Payment Fees Card ─────────────────────────────────────────────────────────
+function PaymentFeesCard({ payment, bidCurrency }: { payment: PaymentData; bidCurrency: Currency }) {
+  if (!payment) return null;
+  const chargeCurr  = (payment.charge_currency || bidCurrency) as Currency;
+  const hasCurrConv = chargeCurr !== bidCurrency;
+  const fmt         = (n: number, c: string) => fmtCurr(n, c);
+
+  return (
+    <div className="border border-black/10 bg-[#f8f8f8] p-6">
+      <h2 className="text-base font-black text-black mb-1">Payment & Fee Breakdown</h2>
+      <p className="text-xs font-bold text-black/40 mb-4">
+        Actual amounts charged to the customer via Stripe. All figures in charge currency ({chargeCurr}).
+      </p>
+      <div className="space-y-2">
+        {payment.amount_car_hire != null && (
+          <div className="flex justify-between text-sm">
+            <span className="font-semibold text-black/60">Car hire charged</span>
+            <span className="font-black text-black">{fmt(payment.amount_car_hire, chargeCurr)}</span>
+          </div>
+        )}
+        {payment.amount_fuel_deposit != null && (
+          <div className="flex justify-between text-sm">
+            <span className="font-semibold text-black/60">Fuel deposit charged</span>
+            <span className="font-black text-black">{fmt(payment.amount_fuel_deposit, chargeCurr)}</span>
+          </div>
+        )}
+        {payment.amount_total != null && (
+          <div className="flex justify-between text-sm border-t border-black/10 pt-2">
+            <span className="font-semibold text-black/60">Total charged to customer</span>
+            <span className="font-black text-black">{fmt(payment.amount_total, chargeCurr)}</span>
+          </div>
+        )}
+        {payment.stripe_fee != null && (
+          <div className="flex justify-between text-sm border-t border-black/10 pt-2">
+            <span className="font-semibold text-black/60">
+              Stripe processing fee
+              <span className="ml-1 text-xs text-black/40">(deducted from your payout)</span>
+            </span>
+            <span className="font-black text-amber-700">
+              − {fmt(payment.stripe_fee, payment.stripe_fee_currency || chargeCurr)}
+            </span>
+          </div>
+        )}
+        {hasCurrConv && payment.exchange_rate != null && (
+          <div className="flex justify-between text-sm">
+            <span className="font-semibold text-black/60">
+              Currency conversion
+              <span className="ml-1 text-xs text-black/40">({bidCurrency} → {chargeCurr})</span>
+            </span>
+            <span className="font-black text-amber-700">Rate: {payment.exchange_rate.toFixed(4)}</span>
+          </div>
+        )}
+        {payment.fuel_refund_amount != null && payment.fuel_refund_amount > 0 && (
+          <div className="flex justify-between text-sm border-t border-black/10 pt-2">
+            <span className="font-semibold text-black/60">
+              Fuel refund issued
+              {payment.fuel_refund_stripe_id && (
+                <span className="ml-1 text-xs text-black/30">({payment.fuel_refund_stripe_id})</span>
+              )}
+            </span>
+            <span className="font-black text-green-700">{fmt(payment.fuel_refund_amount, chargeCurr)}</span>
+          </div>
+        )}
+        {payment.cancellation_refund_amount != null && payment.cancellation_refund_amount > 0 && (
+          <div className="flex justify-between text-sm border-t border-black/10 pt-2">
+            <span className="font-semibold text-black/60">
+              Cancellation refund issued
+              {payment.cancellation_refund_stripe_id && (
+                <span className="ml-1 text-xs text-black/30">({payment.cancellation_refund_stripe_id})</span>
+              )}
+            </span>
+            <span className="font-black text-red-600">{fmt(payment.cancellation_refund_amount, chargeCurr)}</span>
+          </div>
+        )}
+      </div>
+      {hasCurrConv && (
+        <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
+          ⚠ The customer paid in {chargeCurr}. Your bid was in {bidCurrency}. A currency conversion was applied at the time of payment. See your partner terms for details on how conversion fees work.
+        </div>
+      )}
+      {payment.stripe_fee != null && (
+        <p className="mt-3 text-xs font-bold text-black/40">
+          Stripe fees are typically ~1.5% + 30¢ and are deducted before your payout is calculated. See your partner terms for full fee disclosure.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
-  const stored = bk.currency;
+  const stored     = bk.currency;
   const carHire    = Number(bk.car_hire_price||0);
   const fuel       = Number(bk.fuel_price||0);
   const commRate   = bk.commission_rate??20;
-  const commAmt    = bk.commission_amount!=null ? Number(bk.commission_amount) : Math.max((carHire*commRate)/100,10);
-  const basePayout = bk.partner_payout_amount!=null ? Number(bk.partner_payout_amount) : Math.max(0,carHire-commAmt);
+  const commAmt    = Math.max((carHire*commRate)/100,10);
+  const basePayout = Math.max(0,carHire-commAmt);
   const isFull     = bk.refund_status==="full";
   const isPartial  = bk.refund_status==="partial";
-
-  // What the customer gets back
   const customerCarHireRefund = isFull ? carHire : 0;
-  const customerFuelRefund    = fuel; // fuel always refunded on cancellation
+  const customerFuelRefund    = fuel;
   const customerTotalRefund   = customerCarHireRefund+customerFuelRefund;
-
-  // What the partner keeps
-  const partnerKeepsCarHire = isPartial ? carHire : 0;
-  const partnerKeepsComm    = isPartial ? commAmt : 0;
-  const partnerNetPayout    = isPartial ? basePayout : 0;
-
-  const cancelledByLabel = bk.cancelled_by==="customer" ? "Customer" : bk.cancelled_by==="partner" ? "Partner" : "Camel Global Admin";
-
+  const partnerKeepsCarHire   = isPartial ? carHire : 0;
+  const partnerKeepsComm      = isPartial ? commAmt : 0;
+  const partnerNetPayout      = isPartial ? basePayout : 0;
+  const cancelledByLabel      = bk.cancelled_by==="customer"?"Customer":bk.cancelled_by==="partner"?"Partner":"Camel Global Admin";
   return (
     <div className="border border-red-200 bg-red-50 p-6 space-y-4">
       <div>
         <p className="text-base font-black text-red-800">❌ Booking Cancelled</p>
         <p className="text-sm font-semibold text-red-600 mt-1">Cancelled by: <strong>{cancelledByLabel}</strong> on {fmt(bk.cancelled_at)}</p>
         {bk.cancellation_reason&&<p className="text-sm font-semibold text-red-600">Reason: {bk.cancellation_reason}</p>}
-        <p className="text-sm font-semibold text-red-600 mt-1">
-          Refund type: <strong>{isFull?"Full refund":isPartial?"Partial refund (within 48hrs of pickup)":"No refund"}</strong>
-        </p>
+        <p className="text-sm font-semibold text-red-600 mt-1">Refund type: <strong>{isFull?"Full refund":isPartial?"Partial refund (within 48hrs of pickup)":"No refund"}</strong></p>
       </div>
-
-      {/* Original booking amounts */}
       <div className="bg-white border border-red-100 p-4">
         <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-3">Original Booking Amounts</p>
         <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="font-semibold text-black/60">Car hire</span>
-            <span className="font-black text-black">{fmtCurr(carHire,stored)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="font-semibold text-black/60">Commission ({commRate}%)</span>
-            <span className="font-black text-amber-700">− {fmtCurr(commAmt,stored)}</span>
-          </div>
-          <div className="flex justify-between text-sm border-t border-black/10 pt-2">
-            <span className="font-semibold text-black/60">Your payout (excl. fuel)</span>
-            <span className="font-black text-black">{fmtCurr(basePayout,stored)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="font-semibold text-black/60">Full tank deposit</span>
-            <span className="font-black text-black">{fmtCurr(fuel,stored)}</span>
-          </div>
-          <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2">
-            <span className="text-black/60">Total collected from customer</span>
-            <span className="text-black">{fmtCurr(carHire+fuel,stored)}</span>
-          </div>
+          <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Car hire</span><span className="font-black text-black">{fmtCurr(carHire,stored)}</span></div>
+          <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Commission ({commRate}%)</span><span className="font-black text-amber-700">− {fmtCurr(commAmt,stored)}</span></div>
+          <div className="flex justify-between text-sm border-t border-black/10 pt-2"><span className="font-semibold text-black/60">Your payout (excl. fuel)</span><span className="font-black text-black">{fmtCurr(basePayout,stored)}</span></div>
+          <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Full tank deposit</span><span className="font-black text-black">{fmtCurr(fuel,stored)}</span></div>
+          <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2"><span className="text-black/60">Total collected from customer</span><span className="text-black">{fmtCurr(carHire+fuel,stored)}</span></div>
         </div>
       </div>
-
-      {/* After cancellation */}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="bg-white border border-red-200 p-4">
           <p className="text-xs font-black uppercase tracking-widest text-red-700 mb-3">Customer Refund</p>
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="font-semibold text-black/60">Car hire refund</span>
-              <span className={`font-black ${customerCarHireRefund>0?"text-green-700":"text-red-500"}`}>
-                {customerCarHireRefund>0?fmtCurr(customerCarHireRefund,stored):"Not refunded"}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="font-semibold text-black/60">Fuel deposit refund</span>
-              <span className="font-black text-green-700">{fmtCurr(customerFuelRefund,stored)}</span>
-            </div>
-            <div className="flex justify-between text-sm font-black border-t border-red-100 pt-2">
-              <span className="text-red-800">Total refund to customer</span>
-              <span className="text-red-800">{fmtCurr(customerTotalRefund,stored)}</span>
-            </div>
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Car hire refund</span><span className={`font-black ${customerCarHireRefund>0?"text-green-700":"text-red-500"}`}>{customerCarHireRefund>0?fmtCurr(customerCarHireRefund,stored):"Not refunded"}</span></div>
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Fuel deposit refund</span><span className="font-black text-green-700">{fmtCurr(customerFuelRefund,stored)}</span></div>
+            <div className="flex justify-between text-sm font-black border-t border-red-100 pt-2"><span className="text-red-800">Total refund to customer</span><span className="text-red-800">{fmtCurr(customerTotalRefund,stored)}</span></div>
           </div>
         </div>
-
         <div className={`p-4 border ${isPartial?"bg-amber-50 border-amber-200":"bg-white border-red-200"}`}>
           <p className="text-xs font-black uppercase tracking-widest text-black/60 mb-3">Your Financial Position</p>
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="font-semibold text-black/60">Car hire you keep</span>
-              <span className={`font-black ${partnerKeepsCarHire>0?"text-black":"text-red-500"}`}>
-                {partnerKeepsCarHire>0?fmtCurr(partnerKeepsCarHire,stored):"None"}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="font-semibold text-black/60">Commission payable</span>
-              <span className={`font-black ${partnerKeepsComm>0?"text-amber-700":"text-black/30"}`}>
-                {partnerKeepsComm>0?`− ${fmtCurr(partnerKeepsComm,stored)}`:"None"}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="font-semibold text-black/60">Fuel deposit (returned to customer)</span>
-              <span className="font-black text-black/40">— {fmtCurr(fuel,stored)}</span>
-            </div>
-            <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2">
-              <span className="text-black">Your net payout</span>
-              <span className={partnerNetPayout>0?"text-green-700":"text-red-600"}>
-                {partnerNetPayout>0?fmtCurr(partnerNetPayout,stored):`${fmtCurr(0,stored)} — no payout`}
-              </span>
-            </div>
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Car hire you keep</span><span className={`font-black ${partnerKeepsCarHire>0?"text-black":"text-red-500"}`}>{partnerKeepsCarHire>0?fmtCurr(partnerKeepsCarHire,stored):"None"}</span></div>
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Commission payable</span><span className={`font-black ${partnerKeepsComm>0?"text-amber-700":"text-black/30"}`}>{partnerKeepsComm>0?`− ${fmtCurr(partnerKeepsComm,stored)}`:"None"}</span></div>
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Fuel deposit (returned to customer)</span><span className="font-black text-black/40">— {fmtCurr(fuel,stored)}</span></div>
+            <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2"><span className="text-black">Your net payout</span><span className={partnerNetPayout>0?"text-green-700":"text-red-600"}>{partnerNetPayout>0?fmtCurr(partnerNetPayout,stored):`${fmtCurr(0,stored)} — no payout`}</span></div>
           </div>
-          {isPartial&&(
-            <p className="mt-3 text-xs font-bold text-amber-700 bg-amber-100 px-3 py-2">
-              ⚠ Customer cancelled within 48hrs of pickup — you retain the car hire fee minus commission.
-            </p>
-          )}
-          {isFull&&(
-            <p className="mt-3 text-xs font-bold text-red-700 bg-red-100 px-3 py-2">
-              Full refund issued — no payout due to you for this booking.
-            </p>
-          )}
+          {isPartial&&<p className="mt-3 text-xs font-bold text-amber-700 bg-amber-100 px-3 py-2">⚠ Customer cancelled within 48hrs of pickup — you retain the car hire fee minus commission.</p>}
+          {isFull&&<p className="mt-3 text-xs font-bold text-red-700 bg-red-100 px-3 py-2">Full refund issued — no payout due to you for this booking.</p>}
         </div>
       </div>
     </div>
@@ -293,10 +325,7 @@ function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
   return (
     <div className={`border p-6 ${bothConfirmed?"border-[#1a1a1a] bg-[#1a1a1a]":"border-black/10 bg-white"}`}>
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">📄</span>
-          <h3 className={`text-base font-black ${bothConfirmed?"text-white":"text-black"}`}>Insurance Documents</h3>
-        </div>
+        <div className="flex items-center gap-3"><span className="text-2xl">📄</span><h3 className={`text-base font-black ${bothConfirmed?"text-white":"text-black"}`}>Insurance Documents</h3></div>
         {bothConfirmed&&<span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Confirmed</span>}
       </div>
       <p className={`text-xs font-bold mb-4 ${bothConfirmed?"text-white/50":"text-black/50"}`}>Driver confirms handover at delivery. Customer confirms receipt. Both must agree.</p>
@@ -321,12 +350,12 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking:BookingRow; ra
   const stored: Currency    = booking.currency??"EUR";
   const secondary: Currency = stored==="USD"?"EUR":stored==="GBP"?"EUR":"GBP";
   const tertiary: Currency  = stored==="EUR"?"USD":stored==="GBP"?"USD":"GBP";
-  const carHireAmt  = Number(booking.car_hire_price||0);
-  const fullTankAmt = Number(booking.fuel_price||0);
-  const totalAmt    = Number(booking.amount||0);
-  const fuelCharge  = booking.fuel_charge??null;
-  const fuelRefund  = booking.fuel_refund??null;
-  const perQtrAmt   = fullTankAmt/4;
+  const carHireAmt   = Number(booking.car_hire_price||0);
+  const fullTankAmt  = Number(booking.fuel_price||0);
+  const totalAmt     = Number(booking.amount||0);
+  const fuelCharge   = booking.fuel_charge??null;
+  const fuelRefund   = booking.fuel_refund??null;
+  const perQtrAmt    = fullTankAmt/4;
   const usedQuarters = booking.fuel_used_quarters??null;
   const collFuel = normalizeFuel(booking.collection_fuel_level_partner)||normalizeFuel(booking.collection_fuel_level_driver)||normalizeFuel(booking.collection_fuel_level_customer);
   const retFuel  = normalizeFuel(booking.return_fuel_level_partner)||normalizeFuel(booking.return_fuel_level_driver)||normalizeFuel(booking.return_fuel_level_customer);
@@ -335,10 +364,7 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking:BookingRow; ra
   const rateBadge = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
   return (
     <div className="bg-[#1a1a1a] p-8 text-white">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-black text-white">Booking Summary</h2>
-        <span className="border border-white/30 px-3 py-1 text-xs font-black text-white">Finalised</span>
-      </div>
+      <div className="flex items-center justify-between mb-4"><h2 className="text-xl font-black text-white">Booking Summary</h2><span className="border border-white/30 px-3 py-1 text-xs font-black text-white">Finalised</span></div>
       <div className="bg-white/10 p-5 mb-4">
         <p className="text-xs font-black uppercase tracking-widest text-white/50">Total booking value</p>
         <p className="mt-1 text-4xl font-black">{primary(totalAmt)} <span className="text-xl font-bold opacity-60">{sec(totalAmt)}</span></p>
@@ -383,10 +409,7 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
   const hasOverride       = !!savedPartnerFuel&&savedPartnerFuel!==driverFuel;
   return (
     <div className={`border p-6 ${locked?"border-[#1a1a1a] bg-[#1a1a1a] text-white":"border-black/5 bg-white"}`}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className={`text-base font-black ${locked?"text-white":"text-black"}`}>{title}</h3>
-        {locked&&<span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Locked</span>}
-      </div>
+      <div className="flex items-center justify-between mb-4"><h3 className={`text-base font-black ${locked?"text-white":"text-black"}`}>{title}</h3>{locked&&<span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Locked</span>}</div>
       <div className={`border p-4 mb-3 ${driverConfirmed?"border-white/20 bg-white/10":"border-black/10 bg-[#f0f0f0]"}`}>
         <p className={`text-xs font-black uppercase tracking-widest ${locked?"text-white/40":"text-black/40"}`}>Driver recorded</p>
         {driverConfirmed&&driverFuel?<><p className={`mt-1 text-lg font-black ${locked?"text-white":"text-black"}`}>{fuelLabel(driverFuel)}</p><FuelBar level={driverFuel}/><p className={`mt-1 text-xs ${locked?"text-white/40":"text-black/40"}`}>{fmt(driverAt)}</p></>:<p className={`mt-1 text-sm font-bold italic ${locked?"text-white/40":"text-black/40"}`}>Driver has not yet recorded fuel level</p>}
@@ -452,9 +475,9 @@ export default function PartnerBookingDetailPage() {
   const [returnFuel,          setReturnFuel]          = useState<FuelLevel>("full");
   const [returnConfirmed,     setReturnConfirmed]     = useState(false);
   const [returnNotes,         setReturnNotes]         = useState("");
-  const [showCancel,     setShowCancel]     = useState(false);
-  const [cancelReason,   setCancelReason]   = useState("");
-  const [cancelling,     setCancelling]     = useState(false);
+  const [showCancel,   setShowCancel]   = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling,   setCancelling]   = useState(false);
 
   function hydrateForm(d: BookingApiResponse) {
     const b=d.booking;
@@ -487,8 +510,7 @@ export default function PartnerBookingDetailPage() {
       const res  = await fetch("/api/partner/drivers",{cache:"no-store",credentials:"include"});
       const json = await res.json().catch(()=>null);
       if (res.ok) setDrivers((json?.data||[]).filter((d:DriverRow)=>d.is_active));
-    } catch { setDrivers([]); }
-    finally { setLoadingDrivers(false); }
+    } catch { setDrivers([]); } finally { setLoadingDrivers(false); }
   }
 
   async function loadRates() {
@@ -518,8 +540,7 @@ export default function PartnerBookingDetailPage() {
       const json=await res.json().catch(()=>null);
       if (!res.ok) throw new Error(json?.error||"Failed to update.");
       setOk("Driver details saved."); await loadBooking(false,false);
-    } catch(e:any) { setError(e?.message||"Failed to update."); }
-    finally { setSavingSection(null); }
+    } catch(e:any) { setError(e?.message||"Failed to update."); } finally { setSavingSection(null); }
   }
 
   async function saveFuelSection(section:"collection"|"return") {
@@ -530,8 +551,7 @@ export default function PartnerBookingDetailPage() {
       const json=await res.json().catch(()=>null);
       if (!res.ok) throw new Error(json?.error||"Failed to update.");
       setOk(`${section==="collection"?"Delivery":"Collection"} fuel saved.`); await loadBooking(false,false);
-    } catch(e:any) { setError(e?.message||"Failed to update."); }
-    finally { setSavingSection(null); }
+    } catch(e:any) { setError(e?.message||"Failed to update."); } finally { setSavingSection(null); }
   }
 
   async function cancelBooking() {
@@ -543,8 +563,7 @@ export default function PartnerBookingDetailPage() {
       if (!res.ok) throw new Error(json?.error||"Failed to cancel booking.");
       setOk("Booking cancelled. All parties have been notified by email.");
       setShowCancel(false); await loadBooking(false,false);
-    } catch(e:any) { setError(e?.message||"Failed to cancel."); }
-    finally { setCancelling(false); }
+    } catch(e:any) { setError(e?.message||"Failed to cancel."); } finally { setCancelling(false); }
   }
 
   if (loading) return <div className="border border-black/5 bg-white p-8"><p className="text-sm font-bold text-black/50">Loading booking…</p></div>;
@@ -561,8 +580,6 @@ export default function PartnerBookingDetailPage() {
   const rateBadgeText    = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
   const commissionRate   = bk.commission_rate ?? 20;
   const carHire          = Number(bk.car_hire_price || 0);
-  // Always recalculate commission from bid currency car hire price (stored in bk.currency)
-  // commission_amount and partner_payout_amount on the booking may be in charge currency — don't use them
   const commissionAmount = Math.max((carHire * commissionRate) / 100, 10);
   const partnerPayout    = Math.max(0, carHire - commissionAmount);
   const isCancelled      = bk.booking_status==="cancelled";
@@ -581,10 +598,8 @@ export default function PartnerBookingDetailPage() {
         <Link href="/partner/bookings" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">Back to Bookings</Link>
       </div>
 
-      {/* Cancellation summary — replaces the simple banner */}
       {isCancelled && <CancellationSummary bk={bk} rates={rates} />}
 
-      {/* Cancel section — only if still cancellable */}
       {canCancel && (
         <div className="border border-red-200 bg-red-50 p-6">
           <div className="flex items-start justify-between gap-4">
@@ -592,9 +607,7 @@ export default function PartnerBookingDetailPage() {
               <h2 className="text-base font-black text-red-800">Cancel This Booking</h2>
               <p className="mt-1 text-sm font-semibold text-red-600">Cancelling as a partner always gives the customer a full refund. This cannot be undone.</p>
             </div>
-            {!showCancel&&(
-              <button type="button" onClick={()=>setShowCancel(true)} className="shrink-0 border border-red-300 bg-white px-4 py-2 text-sm font-black text-red-700 hover:bg-red-50 transition-colors">Cancel Booking</button>
-            )}
+            {!showCancel&&<button type="button" onClick={()=>setShowCancel(true)} className="shrink-0 border border-red-300 bg-white px-4 py-2 text-sm font-black text-red-700 hover:bg-red-50 transition-colors">Cancel Booking</button>}
           </div>
           {showCancel&&(
             <div className="mt-4 space-y-3">
@@ -611,7 +624,6 @@ export default function PartnerBookingDetailPage() {
         </div>
       )}
 
-      {/* Info cards */}
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="border border-black/5 bg-white p-6">
           <h2 className="text-lg font-black text-black mb-4">Booking Information</h2>
@@ -655,7 +667,9 @@ export default function PartnerBookingDetailPage() {
         </div>
       </div>
 
-      {/* Driver assignment — hide if cancelled */}
+      {/* Payment fees card — always show if payment data exists */}
+      <PaymentFeesCard payment={data.payment} bidCurrency={stored} />
+
       {!isCancelled&&(
         <div className="border border-black/5 bg-white p-6">
           <h2 className="text-lg font-black text-black mb-2">Driver Assignment</h2>
@@ -687,7 +701,6 @@ export default function PartnerBookingDetailPage() {
 
       {collectionLocked&&returnLocked&&<BookingSummaryCard booking={bk} rates={rates} isLive={rateIsLive}/>}
 
-      {/* Driver audit trail */}
       <div className="border border-black/5 bg-white p-6">
         <h2 className="text-lg font-black text-black mb-1">Driver Audit Trail</h2>
         <p className="text-xs font-bold text-black/40 mb-5">Exact record of who delivered and collected the vehicle and when.</p>
@@ -703,7 +716,6 @@ export default function PartnerBookingDetailPage() {
         </div>
       </div>
 
-      {/* Insurance + Fuel — hide if cancelled */}
       {!isCancelled&&(
         <>
           <div>

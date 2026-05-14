@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createRouteHandlerSupabaseClient,
-  createServiceRoleSupabaseClient,
-} from "@/lib/supabase/server";
+import { createRouteHandlerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 
 export async function GET(
   _req: NextRequest,
@@ -14,20 +11,13 @@ export async function GET(
     const authed = await createRouteHandlerSupabaseClient();
     const { data: userData, error: userErr } = await authed.auth.getUser();
     const email = (userData?.user?.email || "").toLowerCase().trim();
-
-    if (userErr || !email) {
-      return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-    }
+    if (userErr || !email) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
     const db = createServiceRoleSupabaseClient();
 
     const { data: adminRow } = await db
-      .from("admin_users")
-      .select("role")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (!adminRow || (adminRow.role !== "admin" && adminRow.role !== "super_admin")) {
+      .from("admin_users").select("role").eq("email", email).maybeSingle();
+    if (!adminRow || !["admin","super_admin"].includes(adminRow.role)) {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 
@@ -35,7 +25,8 @@ export async function GET(
       .from("partner_bookings")
       .select(`
         id, request_id, partner_user_id, winning_bid_id,
-        booking_status, amount, currency, fuel_price, car_hire_price,
+        booking_status, amount, currency, charge_currency, conversion_rate,
+        fuel_price, car_hire_price,
         fuel_used_quarters, fuel_charge, fuel_refund,
         commission_rate, commission_amount, partner_payout_amount,
         cancelled_by, cancelled_at, cancellation_reason, refund_status,
@@ -50,7 +41,8 @@ export async function GET(
         insurance_docs_confirmed_by_driver, insurance_docs_confirmed_by_driver_at,
         insurance_docs_confirmed_by_customer, insurance_docs_confirmed_by_customer_at,
         delivery_driver_id, delivery_driver_name, delivery_confirmed_at,
-        collection_driver_id, collection_driver_name, collection_confirmed_at
+        collection_driver_id, collection_driver_name, collection_confirmed_at,
+        payment_id
       `)
       .eq("id", id)
       .maybeSingle();
@@ -58,6 +50,52 @@ export async function GET(
     if (bookingErr) return NextResponse.json({ error: bookingErr.message }, { status: 400 });
     if (!bookingRow) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
+    // ── Payment data ────────────────────────────────────────────────────────
+    let paymentData: {
+      stripe_fee: number | null;
+      stripe_fee_currency: string | null;
+      exchange_rate: number | null;
+      charge_currency: string | null;
+      amount_total: number | null;
+      amount_car_hire: number | null;
+      amount_fuel_deposit: number | null;
+      cancellation_refund_amount: number | null;
+      cancellation_refund_stripe_id: string | null;
+      cancelled_refunded_at: string | null;
+      fuel_refund_amount: number | null;
+      fuel_refund_stripe_id: string | null;
+    } | null = null;
+
+    if (bookingRow.payment_id) {
+      const { data: pmtRow } = await db
+        .from("payments")
+        .select(`
+          stripe_fee, stripe_fee_currency, exchange_rate,
+          currency, amount_total, amount_car_hire, amount_fuel_deposit,
+          cancellation_refund_amount, cancellation_refund_stripe_id, cancelled_refunded_at,
+          fuel_refund_amount, fuel_refund_stripe_id
+        `)
+        .eq("id", bookingRow.payment_id)
+        .maybeSingle();
+      if (pmtRow) {
+        paymentData = {
+          stripe_fee:                    pmtRow.stripe_fee ?? null,
+          stripe_fee_currency:           pmtRow.stripe_fee_currency ?? null,
+          exchange_rate:                 pmtRow.exchange_rate ?? null,
+          charge_currency:               pmtRow.currency ?? null,
+          amount_total:                  pmtRow.amount_total ?? null,
+          amount_car_hire:               pmtRow.amount_car_hire ?? null,
+          amount_fuel_deposit:           pmtRow.amount_fuel_deposit ?? null,
+          cancellation_refund_amount:    pmtRow.cancellation_refund_amount ?? null,
+          cancellation_refund_stripe_id: pmtRow.cancellation_refund_stripe_id ?? null,
+          cancelled_refunded_at:         pmtRow.cancelled_refunded_at ?? null,
+          fuel_refund_amount:            pmtRow.fuel_refund_amount ?? null,
+          fuel_refund_stripe_id:         pmtRow.fuel_refund_stripe_id ?? null,
+        };
+      }
+    }
+
+    // ── Request ─────────────────────────────────────────────────────────────
     let requestRow = null;
     if (bookingRow.request_id) {
       const { data: reqData } = await db
@@ -81,10 +119,10 @@ export async function GET(
 
     return NextResponse.json({
       booking: { ...bookingRow, partner_company_name: profileRow?.company_name || null },
+      payment: paymentData,
       request: requestRow,
       role: adminRow.role,
     }, { status: 200 });
-
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
   }
