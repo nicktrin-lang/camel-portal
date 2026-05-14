@@ -12,14 +12,9 @@ export type CompleteBookingResult =
   | { ok: true; fuel_used_quarters: number; fuel_charge: number; fuel_refund: number; stripe_refund_id: string | null }
   | { ok: false; error: string; status: number };
 
-/**
- * Shared completion logic — called from both the update route (inline)
- * and the complete route (manual trigger). Uses service role only, no user auth needed.
- */
 export async function completeBooking(bookingId: string): Promise<CompleteBookingResult> {
   const db = createServiceRoleSupabaseClient();
 
-  // ── Load booking ────────────────────────────────────────────────────────────
   const { data: booking, error: bkErr } = await db
     .from("partner_bookings")
     .select(`
@@ -40,12 +35,10 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
     return { ok: false, error: "Booking is not yet completed", status: 400 };
   }
 
-  // Idempotency — already processed
   if (booking.payout_status === "ready" || booking.payout_status === "paid") {
     return { ok: true, already_processed: true };
   }
 
-  // ── Resolve effective fuel levels ───────────────────────────────────────────
   const collectionFuel =
     normalizeFuel(booking.collection_fuel_level_partner) ||
     normalizeFuel(booking.collection_fuel_level_driver);
@@ -67,7 +60,6 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   const { used_quarters, fuel_charge, fuel_refund } = fuelCalc;
 
-  // ── Load payment record ─────────────────────────────────────────────────────
   const { data: payment, error: pmtErr } = await db
     .from("payments")
     .select("id, stripe_payment_intent_id, amount_fuel_deposit, fuel_refunded_at")
@@ -76,7 +68,6 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (pmtErr) return { ok: false, error: pmtErr.message, status: 400 };
 
-  // No payment record = manually created test booking, skip Stripe refund but still mark ready
   if (!payment) {
     await db.from("partner_bookings").update({
       fuel_used_quarters: used_quarters,
@@ -89,12 +80,10 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
     return { ok: true, fuel_used_quarters: used_quarters, fuel_charge, fuel_refund, stripe_refund_id: null };
   }
 
-  // Idempotency — already refunded
   if (payment.fuel_refunded_at) {
     return { ok: true, already_processed: true };
   }
 
-  // ── Issue Stripe refund ─────────────────────────────────────────────────────
   let stripeRefundId: string | null = null;
   const refundCents = Math.round(fuel_refund * 100);
 
@@ -105,7 +94,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
         amount: refundCents,
         reason: "requested_by_customer",
         metadata: {
-          booking_id: bookingId,
+          booking_id:         bookingId,
           fuel_used_quarters: String(used_quarters),
           fuel_refund_amount: String(fuel_refund),
         },
@@ -119,7 +108,6 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   const now = new Date().toISOString();
 
-  // ── Update partner_bookings ─────────────────────────────────────────────────
   const { error: bkUpdateErr } = await db
     .from("partner_bookings")
     .update({ fuel_used_quarters: used_quarters, fuel_charge, fuel_refund, payout_status: "ready" })
@@ -127,20 +115,19 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (bkUpdateErr) return { ok: false, error: bkUpdateErr.message, status: 500 };
 
-  // ── Update payments ─────────────────────────────────────────────────────────
   const { error: pmtUpdateErr } = await db
     .from("payments")
     .update({
-      fuel_refund_amount: fuel_refund,
+      fuel_refund_amount:    fuel_refund,
       fuel_refund_stripe_id: stripeRefundId,
-      fuel_refunded_at: now,
-      payout_status: "ready",
+      fuel_refunded_at:      now,
+      payout_status:         "ready",
     })
     .eq("id", payment.id);
 
   if (pmtUpdateErr) return { ok: false, error: pmtUpdateErr.message, status: 500 };
 
-  // ── Load request + partner info for emails ──────────────────────────────────
+  // ── Load request + partner info for emails ──────────────────────────────
   const { data: request } = await db
     .from("customer_requests")
     .select("customer_name, customer_email, pickup_address, pickup_at")
@@ -149,17 +136,21 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   const { data: partnerProfile } = await db
     .from("partner_profiles")
-    .select("company_name")
+    .select("company_name, contact_name")
     .eq("user_id", booking.partner_user_id)
     .maybeSingle();
+
+  const { data: partnerAuthData } = await db.auth.admin.getUserById(booking.partner_user_id);
+  const partnerEmail = partnerAuthData?.user?.email || null;
 
   const currency    = booking.currency || "EUR";
   const fmt         = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(n);
   const jobNo       = booking.job_number ? `#${booking.job_number}` : "";
   const companyName = partnerProfile?.company_name || "the car hire company";
-  const siteUrl     = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
+  const siteUrl     = process.env.NEXT_PUBLIC_SITE_URL  || "https://camel-global.com";
+  const portalUrl   = process.env.NEXT_PUBLIC_PORTAL_URL || "https://portal.camel-global.com";
 
-  // ── Email customer ──────────────────────────────────────────────────────────
+  // ── Email customer ──────────────────────────────────────────────────────
   if (request?.customer_email) {
     await sendEmail({
       to: request.customer_email,
@@ -198,7 +189,39 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
     }).catch(e => console.error("Completion customer email failed:", e?.message));
   }
 
-  // ── Email admin ─────────────────────────────────────────────────────────────
+  // ── Email partner ───────────────────────────────────────────────────────
+  if (partnerEmail) {
+    await sendEmail({
+      to: partnerEmail,
+      subject: `Booking ${jobNo} completed — payout ready`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
+          <div style="background:#000;padding:20px 28px;">
+            <h2 style="color:#fff;margin:0;">Booking Completed</h2>
+            <p style="color:#999;margin:4px 0 0;font-size:13px;">Booking ${jobNo}</p>
+          </div>
+          <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
+            <p>Hi ${partnerProfile?.contact_name || companyName},</p>
+            <p>Booking ${jobNo} has been marked as completed. Your payout has been queued for the next monthly run.</p>
+            <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
+              <p style="margin:0 0 8px;font-weight:700;">Fuel Summary</p>
+              <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#666;">Collection fuel level</td><td style="text-align:right;">${collectionFuel}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Return fuel level</td><td style="text-align:right;">${returnFuel}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Fuel used</td><td style="text-align:right;">${used_quarters}/4 tank</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Fuel charge to customer</td><td style="text-align:right;">${fmt(fuel_charge)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Fuel refund to customer</td><td style="text-align:right;">${fmt(fuel_refund)}</td></tr>
+              </table>
+            </div>
+            <a href="${portalUrl}/partner/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">View Booking</a>
+            <p style="margin-top:24px;color:#999;font-size:13px;">The Camel Global Team</p>
+          </div>
+        </div>
+      `,
+    }).catch(e => console.error("Completion partner email failed:", e?.message));
+  }
+
+  // ── Email admin ─────────────────────────────────────────────────────────
   const adminEmails = String(process.env.CAMEL_ADMIN_EMAILS || "")
     .split(",").map(e => e.trim()).filter(Boolean);
 
