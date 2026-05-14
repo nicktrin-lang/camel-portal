@@ -104,17 +104,19 @@ function getMonthKey(value: string|null|undefined) {
 function getCurrentMonthKey() { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; }
 function getPreviousMonthKey() { const n=new Date(); n.setMonth(n.getMonth()-1); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; }
 
-function calcPayout(b: BookingRow): { hire:number; rate:number; commAmt:number; payout:number; fuelRefund:number } {
+function calcPayout(b: BookingRow): { hire:number; rate:number; commAmt:number; payout:number; fuelRefund:number; feeInBid:number } {
   const isCancelled  = String(b.booking_status||"").toLowerCase()==="cancelled";
   const refundStatus = b.refund_status||null;
   const fuel         = Number(b.fuel_price??0);
-  if (isCancelled&&refundStatus==="full") return { hire:0, rate:0, commAmt:0, payout:0, fuelRefund:fuel };
+  const bidCurr      = (b.currency??"EUR") as string;
+  const feeInBid     = stripeFeeInBidCurrency(b.stripe_fee, b.stripe_fee_currency, bidCurr, b.exchange_rate);
+  if (isCancelled&&refundStatus==="full") return { hire:0, rate:0, commAmt:0, payout:0, fuelRefund:fuel, feeInBid:0 };
   const hire    = Number(b.car_hire_price??0);
   const rate    = b.commission_rate??20;
   const commAmt = Math.max((hire*rate)/100, 10);
-  const payout  = Math.max(0, hire-commAmt);
+  const payout  = Math.max(0, hire-commAmt+Number(b.fuel_charge??0)-feeInBid);
   const fuelRefund = (isCancelled&&refundStatus==="partial") ? fuel : Number(b.fuel_refund??0);
-  return { hire, rate, commAmt, payout, fuelRefund };
+  return { hire, rate, commAmt, payout, fuelRefund, feeInBid };
 }
 
 function escapeXml(v: unknown): string {
