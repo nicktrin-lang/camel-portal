@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-const VERSION = "2026-05";
+const VERSION = "2026-05b";
 const EFFECTIVE_DATE = "1 May 2026";
 
 type Section = { title: string; clauses: string[] };
@@ -22,6 +22,9 @@ const TERMS: Section[] = [
       '"Fuel Charge" means the amount charged to a Customer for fuel consumed during a Booking, calculated in accordance with the Partner Operating Rules.',
       '"Partner Operating Rules" means the operational standards and conduct requirements published in the Partner account management section, as updated from time to time.',
       '"Services" means the marketplace facilitation, booking management, payment processing, and related services provided by Camel Global via the Platform.',
+      '"Stripe Processing Fee" means the payment processing fee charged by Stripe on each transaction, typically approximately 1.5% of the transaction amount plus a fixed charge of approximately €0.25 (or currency equivalent). The exact rate depends on the payment method and currencies involved.',
+      '"Bid Currency" means the currency in which the Partner submits their bid, which is the Partner\'s registered billing currency.',
+      '"Charge Currency" means the currency in which the Customer\'s payment card is charged, which is determined by the Customer\'s currency preference at the time of booking.',
     ],
   },
   {
@@ -94,6 +97,19 @@ const TERMS: Section[] = [
       "The Partner is solely responsible for accounting for and paying all taxes on income received through the Platform.",
       "In the event of a Customer refund dispute, the financial liability rests with the Partner.",
       "All fuel refunds owed to Customers are processed automatically by the Platform.",
+    ],
+  },
+  {
+    title: "7b. Stripe Processing Fees and Currency Conversion",
+    clauses: [
+      "All payments made by Customers through the Platform are processed by Stripe. Stripe charges a processing fee on each transaction. The Stripe Processing Fee is typically approximately 1.5% of the total transaction amount plus a fixed charge of approximately €0.25 (or currency equivalent). The exact rate may vary depending on the payment method used by the Customer and whether a currency conversion is involved. The actual Stripe fee applied to each Booking is visible on your booking detail page and in your reports.",
+      "The Stripe Processing Fee is deducted before your payout is calculated. Your net payout reflects the hire price minus commission, with the Stripe fee having already been deducted by Stripe from the gross payment received.",
+      "Customers may choose to pay in a different currency to the currency in which you submitted your bid (for example, a Customer paying in GBP for a bid submitted in EUR). When the Bid Currency and Charge Currency differ, Stripe applies a currency conversion at the time of payment.",
+      "When a currency conversion occurs, Stripe applies their prevailing exchange rate, which typically includes a conversion margin of approximately 2%. This conversion margin is separate from the Stripe Processing Fee and is applied in addition to it.",
+      "The exchange rate and any currency conversion applied to a Booking are recorded and visible on your booking detail page and in your reports and CSV exports. You can use this information to reconcile your income accurately.",
+      "Your monthly payout is always made in your registered billing currency (the currency you selected during onboarding). If the Customer paid in a different currency, any necessary conversion to your billing currency will have been applied by Stripe at the time the payment was processed. No additional conversion is applied at the time of payout.",
+      "The Partner acknowledges that exchange rates fluctuate and that Camel Global has no control over the rates applied by Stripe. Camel Global accepts no liability for any loss arising from currency fluctuations or conversion costs.",
+      "Where a Booking results in a refund (whether for cancellation or fuel), the refund is issued in the currency in which the Customer originally paid (the Charge Currency). Exchange rate movements between the time of payment and the time of refund may mean the refunded amount in the Partner's billing currency differs slightly from the original charge.",
     ],
   },
   {
@@ -271,11 +287,38 @@ export default function PartnerTermsPage() {
               ⬇ Download PDF
             </button>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { icon: "🏪", title: "Camel is a marketplace", body: "We are an intermediary. The hire contract is always between you and the customer." },
-              { icon: "💰", title: "Commission from 20%", body: "Standard rate is 20% on the hire price only. Fuel charges pass through to you at 100%. Minimum €10 per booking. Reduced rates available by agreement." },
-              { icon: "❌", title: "Cancellation policy", body: "Partner cancellations = full refund to customer. Customer cancels >48hrs = full refund, no payout. Customer cancels <48hrs = you keep hire fee minus commission. Fuel always refunded." },
+              {
+                icon: "🏪",
+                title: "Camel is a marketplace",
+                body: "We are an intermediary. The hire contract is always between you and the customer.",
+              },
+              {
+                icon: "💰",
+                title: "Commission from 20%",
+                body: "Standard rate is 20% on the hire price only. Fuel charges pass through to you at 100%. Minimum €10 per booking. Reduced rates available by agreement.",
+              },
+              {
+                icon: "❌",
+                title: "Cancellation policy",
+                body: "Partner cancellations = full refund to customer. Customer cancels >48hrs = full refund, no payout. Customer cancels <48hrs = you keep hire fee minus commission. Fuel always refunded.",
+              },
+              {
+                icon: "💳",
+                title: "Stripe processing fee",
+                body: "Stripe charges ~1.5% + €0.25 per transaction for payment processing. This fee is deducted before your payout is calculated. The exact fee for each booking is shown on your booking detail page and in your reports.",
+              },
+              {
+                icon: "🔄",
+                title: "Currency conversion",
+                body: "If a customer pays in a different currency to your bid, Stripe applies a conversion. Stripe's conversion rate typically includes a ~2% margin. The rate used is recorded on each booking. Your payout is always in your billing currency.",
+              },
+              {
+                icon: "📊",
+                title: "Full fee transparency",
+                body: "Every booking shows the Stripe fee, exchange rate (if applicable), and net payout in your reports and CSV exports so your accounts always reconcile.",
+              },
             ].map(({ icon, title, body }) => (
               <div key={title} className="bg-[#f0f0f0] p-4">
                 <div className="text-2xl mb-2">{icon}</div>
@@ -286,8 +329,34 @@ export default function PartnerTermsPage() {
           </div>
         </div>
 
+        {/* Fees callout box */}
+        <div className="border border-amber-200 bg-amber-50 p-6">
+          <p className="text-xs font-black uppercase tracking-widest text-amber-800 mb-2">Fee Summary — What affects your payout</p>
+          <div className="space-y-2 text-sm font-bold text-amber-900">
+            <div className="flex justify-between border-b border-amber-200 pb-2">
+              <span>Hire price (as bid)</span>
+              <span>e.g. €500.00</span>
+            </div>
+            <div className="flex justify-between text-amber-700">
+              <span>Camel commission (20%, min €10)</span>
+              <span>− €100.00</span>
+            </div>
+            <div className="flex justify-between text-amber-700">
+              <span>Stripe processing fee (~1.5% + €0.25 on total charged)</span>
+              <span>~ − €8.00</span>
+            </div>
+            <div className="flex justify-between border-t border-amber-300 pt-2 font-black text-amber-900">
+              <span>Your approximate net payout (excl. fuel)</span>
+              <span>~ €392.00</span>
+            </div>
+          </div>
+          <p className="mt-3 text-xs font-bold text-amber-700">
+            Fuel charges pass through 100% — no fees or commission apply to fuel. If a currency conversion occurs, Stripe&apos;s conversion rate (typically ~2% margin) is applied at the time of payment. Exact figures are always visible per booking in your portal.
+          </p>
+        </div>
+
         {TERMS.map(({ title, clauses }) => (
-          <div key={title} className="bg-white p-6">
+          <div key={title} className={`bg-white p-6 ${title === "7b. Stripe Processing Fees and Currency Conversion" ? "border-l-4 border-amber-400" : ""}`}>
             <h2 className="text-xs font-black uppercase tracking-widest text-black mb-4 pb-2 border-b border-black/10">{title}</h2>
             <ol className="space-y-3">
               {clauses.map((clause, i) => (
