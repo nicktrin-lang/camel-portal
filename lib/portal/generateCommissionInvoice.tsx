@@ -121,7 +121,7 @@ async function buildPdf(params: {
   // Load logo as base64
   let logoBase64: string | null = null;
   try {
-    const logoPath = path.join(process.cwd(), "public", "camel-logo.png");
+    const logoPath = path.join(process.cwd(), "public", "camel-invoice-logo.png");
     const logoBuffer = fs.readFileSync(logoPath);
     logoBase64 = `data:image/png;base64,${logoBuffer.toString("base64")}`;
   } catch { /* logo not critical */ }
