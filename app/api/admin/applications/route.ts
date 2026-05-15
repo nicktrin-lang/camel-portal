@@ -70,8 +70,8 @@ export async function GET() {
     const emailToUserId = new Map<string, string>();
 
     for (const user of authUsers?.users || []) {
-      const userEmail = String(user.email || "").toLowerCase().trim();
-      const authUserId = String(user.id || "").trim();
+      const userEmail  = String(user.email || "").toLowerCase().trim();
+      const authUserId = String(user.id    || "").trim();
       if (userEmail && authUserId && applicationEmails.includes(userEmail)) {
         emailToUserId.set(userEmail, authUserId);
       }
@@ -101,6 +101,7 @@ export async function GET() {
           base_address,
           base_lat,
           base_lng,
+          base_country,
           service_radius_km,
           default_currency
         `)
@@ -162,60 +163,55 @@ export async function GET() {
       const matchedUserId =
         String(row.user_id || "").trim() || emailToUserId.get(applicationEmail) || null;
 
-      const profile = matchedUserId ? profileMap.get(matchedUserId) || null : null;
-      const fleetCount = matchedUserId ? fleetCountMap.get(matchedUserId) || 0 : 0;
+      const profile     = matchedUserId ? profileMap.get(matchedUserId) || null : null;
+      const fleetCount  = matchedUserId ? fleetCountMap.get(matchedUserId)  || 0 : 0;
       const driverCount = matchedUserId ? driverCountMap.get(matchedUserId) || 0 : 0;
 
       const hasBaseAddress = hasText(profile?.base_address);
-      const hasBaseLat = hasValidNumber(profile?.base_lat);
-      const hasBaseLng = hasValidNumber(profile?.base_lng);
-      const hasRadius =
+      const hasBaseLat     = hasValidNumber(profile?.base_lat);
+      const hasBaseLng     = hasValidNumber(profile?.base_lng);
+      const hasRadius      =
         profile?.service_radius_km !== null &&
         profile?.service_radius_km !== undefined &&
         Number(profile.service_radius_km) > 0;
-      const hasFleet = fleetCount > 0;
-      const hasDriver = driverCount > 0;
+      const hasFleet    = fleetCount > 0;
+      const hasDriver   = driverCount > 0;
       const hasCurrency = hasText(profile?.default_currency);
 
       const isLiveProfile =
-        hasBaseAddress &&
-        hasBaseLat &&
-        hasBaseLng &&
-        hasRadius &&
-        hasFleet &&
-        hasDriver &&
-        hasCurrency;
+        hasBaseAddress && hasBaseLat && hasBaseLng &&
+        hasRadius && hasFleet && hasDriver && hasCurrency;
 
-      // Build missing list for display
       const missing: string[] = [];
-      if (!hasRadius) missing.push("service_radius_km");
-      if (!hasBaseAddress) missing.push("base_address");
+      if (!hasRadius)           missing.push("service_radius_km");
+      if (!hasBaseAddress)      missing.push("base_address");
       if (!hasBaseLat || !hasBaseLng) missing.push("base_location");
-      if (!hasFleet) missing.push("fleet");
-      if (!hasDriver) missing.push("driver");
-      if (!hasCurrency) missing.push("default_currency");
+      if (!hasFleet)            missing.push("fleet");
+      if (!hasDriver)           missing.push("driver");
+      if (!hasCurrency)         missing.push("default_currency");
 
       return {
-        id: row.id,
-        email: row.email || "",
+        id:           row.id,
+        email:        row.email || "",
         company_name: profile?.company_name || row.company_name || "",
-        contact_name: profile?.contact_name || row.full_name || "",
-        phone: profile?.phone || row.phone || "",
-        address: profile?.address || row.address || "",
-        role: profile?.role || "partner",
-        status: row.status || "pending",
-        created_at: row.created_at,
-        user_id: matchedUserId,
+        contact_name: profile?.contact_name || row.full_name   || "",
+        phone:        profile?.phone        || row.phone        || "",
+        address:      profile?.address      || row.address      || "",
+        role:         profile?.role         || "partner",
+        status:       row.status            || "pending",
+        created_at:   row.created_at,
+        user_id:      matchedUserId,
         is_live_profile: isLiveProfile,
-        live_profile: isLiveProfile,
+        live_profile:    isLiveProfile,
         missing,
-        fleet_count: fleetCount,
+        fleet_count:  fleetCount,
         driver_count: driverCount,
         service_radius_km: profile?.service_radius_km ?? null,
-        base_address: profile?.base_address || "",
-        base_lat: profile?.base_lat ?? null,
-        base_lng: profile?.base_lng ?? null,
-        default_currency: profile?.default_currency || null,
+        base_address:      profile?.base_address       || "",
+        base_lat:          profile?.base_lat           ?? null,
+        base_lng:          profile?.base_lng           ?? null,
+        partner_country:   profile?.base_country       || null,
+        default_currency:  profile?.default_currency   || null,
       };
     });
 

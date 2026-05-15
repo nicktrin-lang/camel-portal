@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
@@ -12,6 +12,8 @@ type ApprovalRow = {
   is_live_profile?: boolean | null; live_profile?: boolean | null;
   missing?: string[]; fleet_count?: number; driver_count?: number;
   default_currency?: string | null; created_at: string | null;
+  base_lat?: number | null; base_lng?: number | null;
+  partner_country?: string | null;
 };
 
 const PAGE_SIZE = 10;
@@ -50,17 +52,134 @@ function missingLabel(key: string) {
   return map[key] ?? key;
 }
 
+// ── Leaflet map component ─────────────────────────────────────────────────────
+type MapPartner = { id: string; company_name: string | null; address: string | null; lat: number; lng: number; is_live: boolean };
+
+function PartnerMap({ partners }: { partners: MapPartner[] }) {
+  const mapRef    = useRef<HTMLDivElement>(null);
+  const instanceRef = useRef<any>(null);
+  const markersRef  = useRef<any[]>([]);
+  const [ready, setReady] = useState(false);
+
+  // Load Leaflet CSS + JS once
+  useEffect(() => {
+    if ((window as any).L) { setReady(true); return; }
+
+    const link = document.createElement("link");
+    link.rel  = "stylesheet";
+    link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+    document.head.appendChild(link);
+
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    script.onload = () => setReady(true);
+    document.head.appendChild(script);
+  }, []);
+
+  // Init map once Leaflet is ready
+  useEffect(() => {
+    if (!ready || !mapRef.current || instanceRef.current) return;
+    const L = (window as any).L;
+    const map = L.map(mapRef.current, { zoomControl: true }).setView([40, 0], 4);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors",
+      maxZoom: 18,
+    }).addTo(map);
+    instanceRef.current = map;
+  }, [ready]);
+
+  // Update markers when partners changes
+  useEffect(() => {
+    if (!ready || !instanceRef.current) return;
+    const L   = (window as any).L;
+    const map = instanceRef.current;
+
+    // Clear old markers
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+
+    if (partners.length === 0) return;
+
+    const liveIcon = L.divIcon({
+      className: "",
+      html: `<div style="width:14px;height:14px;background:#16a34a;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>`,
+      iconSize: [14, 14], iconAnchor: [7, 7],
+    });
+    const notLiveIcon = L.divIcon({
+      className: "",
+      html: `<div style="width:14px;height:14px;background:#ff7a00;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>`,
+      iconSize: [14, 14], iconAnchor: [7, 7],
+    });
+
+    const bounds: [number, number][] = [];
+
+    for (const p of partners) {
+      const marker = L.marker([p.lat, p.lng], { icon: p.is_live ? liveIcon : notLiveIcon })
+        .bindPopup(`
+          <div style="font-family:sans-serif;min-width:160px">
+            <div style="font-weight:900;font-size:13px;margin-bottom:4px">${p.company_name || "Unknown"}</div>
+            <div style="font-size:11px;color:#555;margin-bottom:6px">${p.address || ""}</div>
+            <span style="display:inline-block;padding:2px 8px;font-size:10px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;background:${p.is_live ? "#f0fdf4" : "#fff7f0"};color:${p.is_live ? "#16a34a" : "#ff7a00"};border:1px solid ${p.is_live ? "#bbf7d0" : "#ffcba0"}">
+              ${p.is_live ? "✓ Live" : "Not live"}
+            </span>
+          </div>
+        `)
+        .addTo(map);
+      markersRef.current.push(marker);
+      bounds.push([p.lat, p.lng]);
+    }
+
+    if (bounds.length === 1) {
+      map.setView(bounds[0], 10);
+    } else if (bounds.length > 1) {
+      map.fitBounds(bounds, { padding: [40, 40] });
+    }
+  }, [ready, partners]);
+
+  // Invalidate size when container appears (sidebar layout can cause 0-width render)
+  useEffect(() => {
+    if (!instanceRef.current) return;
+    const t = setTimeout(() => instanceRef.current?.invalidateSize(), 200);
+    return () => clearTimeout(t);
+  }, [ready]);
+
+  return (
+    <div className="relative border border-black/10 bg-[#f0f0f0]" style={{ height: 420 }}>
+      {!ready && (
+        <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-black/40">
+          Loading map…
+        </div>
+      )}
+      <div ref={mapRef} style={{ height: "100%", width: "100%" }} />
+      {/* Legend */}
+      {ready && (
+        <div className="absolute bottom-4 left-4 z-[1000] flex flex-col gap-1.5 border border-black/10 bg-white px-3 py-2 shadow-sm">
+          <div className="flex items-center gap-2 text-xs font-black text-black">
+            <span className="inline-block h-3 w-3 rounded-full bg-green-600 border-2 border-white shadow" />
+            Live
+          </div>
+          <div className="flex items-center gap-2 text-xs font-black text-black">
+            <span className="inline-block h-3 w-3 rounded-full bg-[#ff7a00] border-2 border-white shadow" />
+            Approved / not live
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminApprovalsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router   = useRouter();
 
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState<string | null>(null);
-  const [rows,         setRows]         = useState<ApprovalRow[]>([]);
-  const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [liveFilter,   setLiveFilter]   = useState("all");
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState<string | null>(null);
+  const [rows,          setRows]          = useState<ApprovalRow[]>([]);
+  const [search,        setSearch]        = useState("");
+  const [statusFilter,  setStatusFilter]  = useState("all");
+  const [liveFilter,    setLiveFilter]    = useState("all");
+  const [countryFilter, setCountryFilter] = useState("all");
+  const [visibleCount,  setVisibleCount]  = useState(PAGE_SIZE);
 
   async function load() {
     setLoading(true); setError(null);
@@ -81,26 +200,53 @@ export default function AdminApprovalsPage() {
   }
 
   useEffect(() => { load(); }, []);
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search, statusFilter, liveFilter]);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search, statusFilter, liveFilter, countryFilter]);
+
+  // Unique countries for filter dropdown
+  const countries = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) {
+      if (r.partner_country) s.add(r.partner_country);
+    }
+    return Array.from(s).sort();
+  }, [rows]);
 
   const searchValue = normalizeText(search);
 
   const filteredRows = rows.filter(row => {
     if (searchValue) {
       const haystack = [row.company_name, row.contact_name, row.email, row.phone,
-        row.address, row.role, row.status, liveValue(row) ? "yes live true" : "no not live false"]
+        row.address, row.role, row.status, row.partner_country,
+        liveValue(row) ? "yes live true" : "no not live false"]
         .map(normalizeText).join(" ");
       if (!haystack.includes(searchValue)) return false;
     }
-    if (statusFilter !== "all" && normalizeText(row.status) !== normalizeText(statusFilter)) return false;
-    if (liveFilter === "yes" && !liveValue(row)) return false;
-    if (liveFilter === "no" && liveValue(row)) return false;
+    if (statusFilter  !== "all" && normalizeText(row.status)          !== normalizeText(statusFilter))  return false;
+    if (liveFilter    === "yes" && !liveValue(row))                                                      return false;
+    if (liveFilter    === "no"  &&  liveValue(row))                                                      return false;
+    if (countryFilter !== "all" && normalizeText(row.partner_country) !== normalizeText(countryFilter)) return false;
     return true;
   });
 
-  const visible = filteredRows.slice(0, visibleCount);
-  const hasMore = filteredRows.length > visibleCount;
+  // Map partners: approved rows that have lat/lng, respecting current filters
+  const mapPartners = useMemo<MapPartner[]>(() =>
+    filteredRows
+      .filter(r => normalizeText(r.status) === "approved" && r.base_lat != null && r.base_lng != null)
+      .map(r => ({
+        id:           r.id,
+        company_name: r.company_name,
+        address:      r.address,
+        lat:          Number(r.base_lat),
+        lng:          Number(r.base_lng),
+        is_live:      liveValue(r),
+      })),
+    [filteredRows]
+  );
 
+  const showMap = mapPartners.length > 0;
+
+  const visible      = filteredRows.slice(0, visibleCount);
+  const hasMore      = filteredRows.length > visibleCount;
   const totalPending  = filteredRows.filter(r => normalizeText(r.status) === "pending").length;
   const totalApproved = filteredRows.filter(r => normalizeText(r.status) === "approved").length;
   const totalLive     = filteredRows.filter(r => liveValue(r)).length;
@@ -130,11 +276,11 @@ export default function AdminApprovalsPage() {
             <h1 className="text-2xl font-black text-black">Partner Approvals</h1>
             <p className="mt-1 text-sm font-bold text-black/50">Review partner applications and current live profile details.</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-3 xl:max-w-[900px]">
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 xl:max-w-[960px]">
             <div>
               <label className="text-xs font-black uppercase tracking-widest text-black">Search</label>
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search company, contact, email, phone..."
+                placeholder="Company, contact, email…"
                 className="mt-1 w-full border border-black/10 bg-[#f0f0f0] px-4 py-2.5 text-sm font-bold outline-none focus:border-black placeholder:text-black/30" />
             </div>
             <div>
@@ -156,11 +302,20 @@ export default function AdminApprovalsPage() {
                 <option value="no">Not live</option>
               </select>
             </div>
+            <div>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Country</label>
+              <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)}
+                className="mt-1 w-full border border-black/10 bg-white px-4 py-2.5 text-sm font-bold outline-none focus:border-black">
+                <option value="all">All countries</option>
+                {countries.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
         </div>
 
         <div className="flex gap-3 mb-4">
-          <button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); setLiveFilter("all"); }}
+          <button type="button"
+            onClick={() => { setSearch(""); setStatusFilter("all"); setLiveFilter("all"); setCountryFilter("all"); }}
             className="border border-black/20 px-5 py-2.5 text-sm font-black text-black hover:bg-black/5 transition-colors">
             Clear Filters
           </button>
@@ -170,6 +325,22 @@ export default function AdminApprovalsPage() {
           </button>
         </div>
 
+        {/* Partner map — approved partners with coordinates */}
+        {showMap && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-xs font-black uppercase tracking-widest text-black/50">
+                Partner Map
+              </p>
+              <span className="border border-black/10 bg-[#f0f0f0] px-2 py-0.5 text-xs font-black text-black/60">
+                {mapPartners.length} approved partner{mapPartners.length !== 1 ? "s" : ""}
+                {countryFilter !== "all" ? ` · ${countryFilter}` : ""}
+              </span>
+            </div>
+            <PartnerMap partners={mapPartners} />
+          </div>
+        )}
+
         <p className="text-xs font-black uppercase tracking-widest text-black/40 mb-3">
           Showing <span className="text-black">{Math.min(visibleCount, filteredRows.length)}</span> of <span className="text-black">{filteredRows.length}</span> applications
         </p>
@@ -178,16 +349,16 @@ export default function AdminApprovalsPage() {
           <table className="min-w-full text-left text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Created","Company Name","Contact Name","Email","Phone","Address","Role","Status","Live Profile","Action"].map(h => (
+                {["Created","Company Name","Contact Name","Email","Phone","Address","Country","Role","Status","Live Profile","Action"].map(h => (
                   <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
               {loading ? (
-                <tr><td className="px-4 py-4 text-sm font-bold text-black/50" colSpan={10}>Loading…</td></tr>
+                <tr><td className="px-4 py-4 text-sm font-bold text-black/50" colSpan={11}>Loading…</td></tr>
               ) : visible.length === 0 ? (
-                <tr><td className="px-4 py-4 text-sm font-bold text-black/50" colSpan={10}>No partner applications found.</td></tr>
+                <tr><td className="px-4 py-4 text-sm font-bold text-black/50" colSpan={11}>No partner applications found.</td></tr>
               ) : visible.map((row, i) => (
                 <tr key={row.id} className={`align-top hover:bg-[#f0f0f0] transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"}`}>
                   <td className="px-4 py-3 font-bold text-black/50 whitespace-nowrap">{formatDateTime(row.created_at)}</td>
@@ -196,6 +367,7 @@ export default function AdminApprovalsPage() {
                   <td className="px-4 py-3 font-bold text-black/70">{row.email || "—"}</td>
                   <td className="px-4 py-3 font-bold text-black/70">{row.phone || "—"}</td>
                   <td className="px-4 py-3 font-bold text-black/70 max-w-[200px] truncate">{row.address || "—"}</td>
+                  <td className="px-4 py-3 font-bold text-black/70 whitespace-nowrap">{row.partner_country || "—"}</td>
                   <td className="px-4 py-3 font-bold text-black/70">{row.role || "Partner"}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`inline-flex border px-2 py-0.5 text-xs font-black capitalize ${statusPillClasses(row.status)}`}>
