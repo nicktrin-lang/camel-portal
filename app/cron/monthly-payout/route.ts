@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
-import { invoiceGenerator } from "@/lib/portal/invoiceGenerator";
+import { invoiceGenerator } from "@/lib/portal/generateCommissionInvoice";
 
 // Vercel cron — runs 1st of each month at 08:00 UTC
 // vercel.json: { "path": "/api/cron/monthly-payout", "schedule": "0 8 1 * *" }
