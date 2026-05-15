@@ -83,7 +83,7 @@ export async function POST(req: Request) {
 
     const { data: bookings, error: bkErr } = await db
       .from("partner_bookings")
-      .select("id, job_number, pickup_at, car_hire_price, commission_rate, currency, booking_status, refund_status, cancellation_reason")
+      .select("id, job_number, car_hire_price, commission_rate, currency, booking_status, refund_status, cancellation_reason")
       .eq("partner_user_id", partner_id)
       .in("booking_status", ["completed", "cancelled"])
       .gte("created_at", from)

@@ -621,7 +621,7 @@ type InvoiceRow = {
   generated_at: string; emailed_at: string | null; download_url: string | null;
 };
 
-function AdminInvoicesSection() {
+function AdminInvoicesSection({ partners }: { partners: [string, string][] }) {
   const [invoices,      setInvoices]      = useState<InvoiceRow[]>([]);
   const [invoiceLoading, setInvoiceLoading] = useState(true);
   const [invoiceError,  setInvoiceError]  = useState<string | null>(null);
@@ -631,8 +631,6 @@ function AdminInvoicesSection() {
   const [genMsg,        setGenMsg]        = useState<{ ok: boolean; text: string } | null>(null);
   const [monthFilter,   setMonthFilter]   = useState("all");
   const [partnerFilter, setPartnerFilter] = useState("all");
-
-  async function loadInvoices() {
     setInvoiceLoading(true); setInvoiceError(null);
     try {
       const params = new URLSearchParams();
@@ -1196,7 +1194,7 @@ export default function AdminReportsPage() {
       <PayoutStatusSection bookings={filteredBookings} />
 
       {/* Commission Invoices */}
-      <AdminInvoicesSection />
+      <AdminInvoicesSection partners={exportPartners} />
 
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h2 className="text-xl font-black text-black mb-4">Vehicle Category Breakdown</h2>
