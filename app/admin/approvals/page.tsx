@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import PartnersMap, { type MapPartner } from "./[id]/PartnersMap";
+import PartnersMap, { type MapPartner } from "./PartnersMap";
 
 type ApprovalRow = {
   id: string; user_id?: string | null; email: string | null;
