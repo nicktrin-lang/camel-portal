@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient, createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
-import { invoiceGenerator } from "@/lib/portal/invoiceGenerator";
+import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
 
-async function isAdmin(db: any, userId: string): Promise<boolean> {
-  const { data } = await db.from("admin_users").select("role").eq("user_id", userId).maybeSingle();
+async function isAdmin(db: any, email: string): Promise<boolean> {
+  const { data } = await db.from("admin_users").select("role").eq("email", email).maybeSingle();
   return data?.role === "admin" || data?.role === "super_admin";
 }
 
@@ -14,8 +14,11 @@ export async function GET(req: Request) {
     const { data: userData } = await authed.auth.getUser();
     if (!userData?.user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
+    const email = (userData.user.email || "").toLowerCase().trim();
+    if (!email) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
     const db = createServiceRoleSupabaseClient();
-    if (!(await isAdmin(db, userData.user.id))) {
+    if (!(await isAdmin(db, email))) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
@@ -72,12 +75,11 @@ export async function POST(req: Request) {
     const { data: userData } = await authed.auth.getUser();
     if (!userData?.user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-    const db = createServiceRoleSupabaseClient();
-    if (!(await isAdmin(db, userData.user.id))) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-    }
+    const email2 = (userData.user.email || "").toLowerCase().trim();
+    if (!email2) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-    const body = await req.json();
+    const db = createServiceRoleSupabaseClient();
+    if (!(await isAdmin(db, email2))) {
     const { partner_id, period_month } = body || {};
     if (!partner_id || !period_month) {
       return NextResponse.json({ error: "partner_id and period_month are required" }, { status: 400 });
@@ -101,10 +103,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No completed bookings found for this partner and period" }, { status: 400 });
     }
 
-    const result = await invoiceGenerator(partner_id, period_month, bookings);
+    const result = await generateCommissionInvoice(partner_id, period_month, bookings);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
 
-    return NextResponse.json({ ...result }, { status: 200 });
+    return NextResponse.json({ ok: true, ...result }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
   }
