@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
-import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
+import { commissionInvoiceGenerator } from "@/lib/portal/commissionInvoiceGenerator";
 
 // POST — partner triggers generation of their own invoice
 // Body: { period_month }  e.g. { period_month: "2026-05" }
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No completed bookings found for this period" }, { status: 400 });
     }
 
-    const result = await generateCommissionInvoice(user.id, period_month, bookings);
+    const result = await commissionInvoiceGenerator(user.id, period_month, bookings);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
 
     // Return signed download URL

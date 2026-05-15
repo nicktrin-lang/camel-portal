@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient, createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
-import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
+import { commissionInvoiceGenerator } from "@/lib/portal/commissionInvoiceGenerator";
 
 async function isAdmin(db: any, userId: string): Promise<boolean> {
   const { data } = await db.from("admin_users").select("role").eq("user_id", userId).maybeSingle();
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No completed bookings found for this partner and period" }, { status: 400 });
     }
 
-    const result = await generateCommissionInvoice(partner_id, period_month, bookings);
+    const result = await commissionInvoiceGenerator(partner_id, period_month, bookings);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
 
     return NextResponse.json({ ok: true, ...result }, { status: 200 });

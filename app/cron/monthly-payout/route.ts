@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
-import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
+import { commissionInvoiceGenerator } from "@/lib/portal/commissionInvoiceGenerator";
 
 // Vercel cron — runs 1st of each month at 08:00 UTC
 // vercel.json: { "path": "/api/cron/monthly-payout", "schedule": "0 8 1 * *" }
@@ -217,7 +217,7 @@ export async function GET(req: Request) {
       cancellation_reason: b.cancellation_reason,
     }));
 
-    const invoiceResult = await generateCommissionInvoice(partnerUserId, periodMonth, invoiceBookings);
+    const invoiceResult = await commissionInvoiceGenerator(partnerUserId, periodMonth, invoiceBookings);
     if (!invoiceResult.ok) {
       console.error(`monthly-payout: invoice generation failed for ${profile.company_name}:`, invoiceResult.error);
     } else {
