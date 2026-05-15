@@ -11,19 +11,28 @@ export async function GET() {
 
     const { data, error } = await db
       .from("commission_invoices")
-      .select("id, invoice_number, period_month, currency, total_commission, booking_count, storage_path, generated_at, emailed_at")
+      .select("id, invoice_number, partner_user_id, period_start, period_end, currency, subtotal, booking_count, storage_path, issued_at, emailed_at, status")
       .eq("partner_user_id", user.id)
-      .order("generated_at", { ascending: false });
+      .order("issued_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    // Generate signed URLs for each invoice
     const invoices = await Promise.all(
       (data || []).map(async (inv: any) => {
-        const { data: signedUrl } = await db.storage
-          .from("commission-invoices")
-          .createSignedUrl(inv.storage_path, 3600); // 1 hour
-        return { ...inv, download_url: signedUrl?.signedUrl || null };
+        let download_url = null;
+        if (inv.storage_path) {
+          const { data: signed } = await db.storage
+            .from("commission-invoices")
+            .createSignedUrl(inv.storage_path, 3600);
+          download_url = signed?.signedUrl || null;
+        }
+        return {
+          ...inv,
+          period_month:     inv.period_start ? inv.period_start.slice(0, 7) : null,
+          total_commission: inv.subtotal,
+          generated_at:     inv.issued_at,
+          download_url,
+        };
       })
     );
 

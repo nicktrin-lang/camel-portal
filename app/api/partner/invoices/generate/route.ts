@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
-import { invoiceGenerator } from "@/lib/portal/invoiceGenerator";
+import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
 
 // POST — partner triggers generation of their own invoice
 // Body: { period_month }  e.g. { period_month: "2026-05" }
@@ -19,11 +19,14 @@ export async function POST(req: Request) {
     const db = createServiceRoleSupabaseClient();
 
     // Check if invoice already exists for this period
+    const [year, month] = period_month.split("-").map(Number);
+    const periodStart = new Date(year, month - 1, 1).toISOString().slice(0, 10);
+
     const { data: existing } = await db
       .from("commission_invoices")
       .select("id, invoice_number, storage_path")
       .eq("partner_user_id", user.id)
-      .eq("period_month", period_month)
+      .eq("period_start", periodStart)
       .maybeSingle();
 
     if (existing) {
@@ -40,7 +43,6 @@ export async function POST(req: Request) {
     }
 
     // Fetch completed/cancelled bookings for this period
-    const [year, month] = period_month.split("-").map(Number);
     const from = new Date(year, month - 1, 1).toISOString();
     const to   = new Date(year, month, 1).toISOString();
 
@@ -57,7 +59,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No completed bookings found for this period" }, { status: 400 });
     }
 
-    const result = await invoiceGenerator(user.id, period_month, bookings);
+    const result = await generateCommissionInvoice(user.id, period_month, bookings);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
 
     // Return signed download URL
