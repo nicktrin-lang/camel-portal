@@ -81,7 +81,7 @@ cd ~/camel-customer && git add . && git commit -m "message" && git push origin m
 | `lib/portal/refreshPartnerLiveStatus.ts` | Core live status — checks all 7 requirements |
 | `lib/portal/triggerPartnerLiveRefresh.ts` | Triggers the live status refresh |
 | `lib/portal/operatingRules.ts` | Shared OPERATING_RULES data + downloadOperatingRulesPDF() |
-| `lib/portal/completeBooking.ts` | **NEW** Shared completion logic — Stripe fuel refund, payout_status=ready, emails |
+| `lib/portal/completeBooking.ts` | Shared completion logic — Stripe fuel refund, payout_status=ready, emails |
 | `lib/rateLimit.ts` | In-memory rate limiter — 3 req / 15 min per IP |
 | `lib/hcaptcha.ts` | Server-side hCaptcha token verification |
 | `lib/currency.ts` | All currency utilities — EUR, GBP, USD formatting + conversion |
@@ -94,29 +94,31 @@ cd ~/camel-customer && git add . && git commit -m "message" && git push origin m
 | `app/api/partner/stripe/connect/route.ts` | Creates Stripe Express account + returns onboarding URL |
 | `app/api/partner/stripe/status/route.ts` | Returns partner Stripe onboarding status |
 | `app/api/partner/stripe/dashboard-link/route.ts` | Returns Stripe Express dashboard login link |
-| `app/api/partner/bookings/[id]/complete/route.ts` | **NEW** Manual trigger for completion flow (fuel refund) |
+| `app/api/partner/bookings/[id]/complete/route.ts` | Manual trigger for completion flow (fuel refund) |
 | `app/api/webhooks/stripe/route.ts` | Portal webhook — handles `account.updated` (partner onboarding) |
 | `app/components/ChatWidget.tsx` | Floating AI chat widget — draggable (mouse + touch), streaming |
 | `app/components/Footer.tsx` | Smart footer — partner/admin/driver/customer variants |
 | `app/partner/onboarding/page.tsx` | 7-step onboarding — Location, Currency, Billing, Fleet, Drivers, Payouts (Stripe), Go Live |
 | `app/partner/settings/page.tsx` | Settings — payout management + Stripe Express link + delete account |
 | `app/partner/dashboard/page.tsx` | Dashboard — Stripe payout status banner + checklist |
-| `app/driver/jobs/page.tsx` | Driver jobs — light theme, expandable jobs, fuel recording. **Needs stat cards** |
+| `app/partner/reports/page.tsx` | Partner reports — revenue, commission, Stripe fees, fuel, payout status breakdown |
+| `app/admin/reports/page.tsx` | Admin reports — network-wide, partner breakdown, payout status breakdown |
+| `app/driver/jobs/page.tsx` | Driver jobs — light theme, expandable jobs, fuel recording, stat cards |
 
 ### Key Libraries & Files — Customer (`~/camel-customer`)
 | File | Purpose |
 |------|---------|
 | `lib/supabase-customer/browser.ts` | Supabase browser client (customers) |
 | `lib/supabase-customer/server.ts` | Exports `createCustomerServerClient()` and `createCustomerServiceRoleSupabaseClient()` |
-| `lib/serverCurrency.ts` | **NEW** Server-side currency conversion — fetches rates from frankfurter.app directly |
+| `lib/serverCurrency.ts` | Server-side currency conversion — fetches rates from frankfurter.app directly |
 | `app/api/chat/route.ts` | AI chat API — Camel Help widget (customer side) |
 | `app/api/chat/transcript/route.ts` | Emails chat transcript to customer |
-| `app/api/payments/create-intent/route.ts` | **UPDATED** Creates Stripe PaymentIntent in customer's currency, converts bid amounts if currencies differ |
-| `app/api/webhooks/stripe/route.ts` | **UPDATED** Customer webhook — stores bid currency on booking, charge currency on payment, captures Stripe fees |
+| `app/api/payments/create-intent/route.ts` | Creates Stripe PaymentIntent in customer's currency, converts bid amounts if currencies differ |
+| `app/api/webhooks/stripe/route.ts` | Customer webhook — stores bid currency on booking, charge currency on payment, captures Stripe fees |
 | `app/api/test-booking/bookings/[id]/cancel/route.ts` | Customer booking cancellation |
 | `app/checkout/[bid_id]/page.tsx` | Stripe Elements checkout page — card form, order summary, pay button |
 | `app/components/ChatWidget.tsx` | **Identical to portal version** — always update both |
-| `app/bookings/[id]/page.tsx` | Booking detail — shows charge_currency to customer |
+| `app/bookings/[id]/page.tsx` | Booking detail — shows charge_currency to customer, PDF receipt download on completed bookings |
 | `app/login/page.tsx` | Customer login — supports `?next=` redirect param |
 | `next.config.ts` | CSP headers — includes Stripe domains (js.stripe.com, *.stripe.com) |
 | `app/ClientRootLayout.tsx` | Global nav — suppressed on `/checkout` pages only |
@@ -190,14 +192,13 @@ Booking marked completed (all fuel levels matched, driver confirmed both stages)
 → Admin emailed with completion summary
 ```
 
-### Monthly payout (TODO — not yet built)
+### Monthly payout (working ✅)
 ```
 1st of month cron job
 → Finds all partner_bookings where payout_status = 'ready'
 → Groups by partner
 → Triggers one Stripe payout per partner (manual payout schedule)
-→ Generates commission invoice PDF (NTUK Ltd → partner, in partner billing currency)
-→ Emails invoice to partner
+→ Emails partner payout notification
 → Marks bookings payout_status = 'paid'
 ```
 
@@ -313,17 +314,21 @@ Booking marked completed (all fuel levels matched, driver confirmed both stages)
 |-----|-------------|
 | `v-stable-chat25` | Chat 25 — Stripe Connect partner onboarding, webhook, dashboard payout status, settings payout page |
 | `v-stable-chat26` | Chat 26 — fuel refund on completion, commission recalc fix, admin/partner reports fixed |
+| `v-stable-chat27` | Chat 27 — payout breakdown on reports, stripe fee fix in admin reports |
+| `v-stable-chat28` | Chat 28 — admin financial dashboard, stripe fee conversion fixes, dual-currency P&L, reports CSV fixes |
 
 ### Customer (`~/camel-customer`)
 | Tag | Description |
 |-----|-------------|
 | `v-stable-chat25` | Chat 25 — Stripe checkout, PaymentIntent split, CSP fix, booking confirmation flow, webhook booking creation |
 | `v-stable-chat26` | Chat 26 — currency fix (customer pays in their currency), bid vs charge currency split, Stripe fees captured, serverCurrency lib |
+| `v-stable-chat27` | Chat 27 — PDF receipts, booking confirmed emails, cancellation refunds |
+| `v-stable-chat28` | Chat 28 — no customer changes |
 
 ### Rollback
 ```bash
-cd ~/camel-portal && git checkout v-stable-chat26
-cd ~/camel-customer && git checkout v-stable-chat26
+cd ~/camel-portal && git checkout v-stable-chat28
+cd ~/camel-customer && git checkout v-stable-chat28
 ```
 
 ---
@@ -332,20 +337,20 @@ cd ~/camel-customer && git checkout v-stable-chat26
 - Customer booking flow — single homepage widget with currency selection
 - Guest booking flow — draft survives login/signup redirect, currency preserved
 - Partner bid submission and management
-- Driver job portal — light theme, expandable history, fuel recording, minimal footer
+- Driver job portal — light theme, expandable history, fuel recording, stat cards
 - Admin approval and account management
 - Full EUR / GBP / USD currency support — customer pays in their currency, partner sees bid currency
 - Full commission system — adjustable per partner, default 20%, min €10 floor, always recalculated from bid currency
 - Fuel level recording, charge/refund calculation (to nearest ¼ tank)
-- **Fuel refund on completion** — Stripe partial refund issued automatically, payout_status=ready
-- Email notifications + password reset on all portals
+- Fuel refund on completion — Stripe partial refund issued automatically, payout_status=ready
+- Email notifications — all 6 (booking confirmed: customer/partner/admin; completion: customer/admin; review reminder)
 - Live status system — 7 checks
 - Partner onboarding — 7 steps including Stripe Express payout setup
 - Security headers, rate limiting, hCaptcha on all forms
 - Customer profile RLS, cookie consent banner, GDPR soft delete
 - Photon address search across all address inputs
 - AI Chat Widget — both sites, logged-in only, draggable, streaming, transcript email
-- Booking cancellation — customer/partner/admin, 48hr rule, financial breakdowns
+- Booking cancellation — customer/partner/admin, 48hr rule, financial breakdowns, Stripe refunds
 - Portal homepage — full partner landing page
 - Branding overhaul — all partner and admin static pages
 - SEO — metadata, Open Graph, sitemaps, robots.txt
@@ -355,68 +360,41 @@ cd ~/camel-customer && git checkout v-stable-chat26
 - Customer checkout — Stripe Elements payment form at `/checkout/[bid_id]`
 - PaymentIntent with destination charge — commission split to Camel, net to partner
 - Stripe webhook — `payment_intent.succeeded` creates booking and payment record
-- **Stripe fees captured** — `stripe_fee`, `stripe_fee_currency`, `exchange_rate` on payments table
-- **Bid vs charge currency** — partner sees bid currency everywhere, customer sees charge currency
-- **Commission recalc** — all pages recalculate from bid currency, never use stored DB commission
+- Stripe fees captured — `stripe_fee`, `stripe_fee_currency`, `exchange_rate` on payments table
+- Bid vs charge currency — partner sees bid currency everywhere, customer sees charge currency
+- Commission recalc — all pages recalculate from bid currency, never use stored DB commission
 - Partner + admin bookings and reports pages — correct per-currency reconciliation + Excel export
+- Stripe fee visibility in reports — correctly converted to bid currency, shown in partner and admin reports and CSV exports
+- Stripe fee CSV column — shows bid currency not charge currency
+- Payout status breakdown — partner and admin reports show held/ready/paid counts and totals
 - Payment success banner — shown on booking page after successful payment
 - CSP headers — Stripe domains whitelisted
+- Partner terms — Stripe fee + currency conversion disclosure
+- Customer receipts — PDF download on completed bookings
+- Monthly payout cron — groups ready bookings by partner, triggers Stripe payout, marks paid
+- Partner booking detail — full payment & fee breakdown with correct currency conversion
+- Admin booking detail — full dual-currency P&L breakdown (bid + charge currency equivalent in brackets)
+- Admin financial dashboard — P&L summary per currency + filterable payments table on admin reports page
+- Admin reports net Camel income — shows commission only, Stripe fee shown separately
 
 ---
 
 ## What Still Needs Building
 
-### 1. Cancellation Stripe refunds (next priority)
-Currently cancellation records `refund_status` in DB but doesn't trigger actual Stripe refund.
-- Full refund (>48hrs or partner/admin cancel): refund full amount via Stripe
-- Partial refund (<48hrs customer cancel): refund fuel deposit only
-- Use `payments.stripe_payment_intent_id` to issue refund
-- Update `payments.cancellation_refund_amount` + `cancellation_refund_stripe_id` + `cancelled_refunded_at`
-
-### 2. Monthly payout cron
-- New cron route: `app/api/cron/monthly-payout/route.ts`
-- Runs 1st of each month
-- Groups `ready` bookings by partner
-- Triggers Stripe payout to partner's `stripe_account_id` in their billing currency
-- Generates commission invoice PDF
-- Emails invoice to partner
-- Marks bookings `paid`
-
-### 3. Commission invoice PDF generation
+### 1. Commission invoice PDF generation (deferred)
 - NTUK Ltd → partner
 - In partner's billing currency at live exchange rate
 - Line items: each booking that month
 - Auto-emailed on monthly payout run
 
-### 4. Email notifications (all missing)
-- Customer — no email when payment succeeds (booking confirmed)
-- Partner — no email when new booking created
-- Admin — no email when new booking created
-- Customer — completion email with fuel refund (coded, needs verifying it sends)
-- Admin — completion notification
-- Partner — completion notification
-
-### 5. Driver portal stat cards (quick fix)
-- 3 cards at top of driver jobs page: Awaiting Delivery / On Hire / Completed
-
-### 6. Customer receipts page
-- Completed bookings show: what was paid, fuel refund received, final amount
-- Downloadable PDF receipt per booking
-
-### 7. Stripe fee visibility in reports
-- `stripe_fee` captured in DB but not shown in any report
-- Should appear in partner reports and admin reports with clear labelling
-
-### 8. Partner terms update
-- Explain Stripe processing fees (~1.5% + 30c)
-- Currency conversion fee (~2% if applicable)
-- When conversion happens and who bears it
-- Payout currency = partner's billing currency
-
-### 9. Admin financial dashboard
+### 2. Admin financial dashboard (deferred)
 - View all payments, commissions, payouts, Stripe fees
 - Filter by partner, date range, status
 - Export to CSV/Excel
+
+### 3. Reports — paid vs unpaid history (quick win)
+- Payout status breakdown is on both reports pages (held/ready/paid counts + totals) ✅
+- Could add a drilldown table listing individual bookings per payout bucket
 
 ---
 
@@ -427,20 +405,38 @@ A collaborator works on the same `camel-portal` repo from a Windows machine (`C:
 
 ## Session Log
 
+### Chat 28 (Completed)
+**Admin financial dashboard, Stripe fee conversion fixes, dual-currency P&L**
+1. Admin financial dashboard added to admin reports page — P&L summary per currency (total revenue, commission, Stripe fees, net Camel income, partner payout, fuel refunds) + payments table with payout status and partner filters.
+2. Stripe fee currency conversion fixed across all pages — was dividing when should divide (£4.43 / 0.8662 = €5.11). Fixed `stripeFeeInBidCurrency` in partner reports and admin reports.
+3. Booking detail pages (partner + admin) — fixed `hasCurrConv` detection to use `stripe_fee_currency || payment.charge_currency || booking.charge_currency` fallback chain. Previously `stripe_fee_currency` was null so no conversion was applied.
+4. Admin booking detail `PaymentFeesCard` — full dual-currency P&L rewrite: Car hire, Fuel deposit, Total paid by customer, Commission, Fuel charge, Stripe fee, Fuel refund, Cancellation refund, Partner net payout. Bid currency amounts shown with charge currency equivalent in brackets.
+5. Partner booking detail `PaymentFeesCard` — same charge currency fallback fix applied.
+6. Admin reports "Net Camel" payments column — fixed to show commission only (not commission minus Stripe fee, which was double-counting since Stripe fee has its own column).
+7. Partner reports CSV — Stripe Fee Currency column was showing GBP (charge currency), fixed to show bid currency (EUR).
+8. Admin reports CSV — same fix applied.
+9. Stable tags `v-stable-chat28` on both repos.
+
+### Chat 27 (Completed)
+**Payout status breakdown on reports, Stripe fee fixes**
+1. `app/api/partner/bookings/route.ts` — `payout_status` confirmed in select and returned data object.
+2. `app/partner/reports/page.tsx` — payout status breakdown section (held/ready/paid) confirmed working.
+3. `app/admin/reports/page.tsx` — payout status breakdown section added + missing `stripeFeeInBidCurrency` function fixed (build was failing on Vercel).
+4. Both repos clean and deployed.
+
 ### Chat 26 (Completed)
 **Currency architecture, fuel refund, commission fixes**
 1. EUR + USD settlement currencies added to Camel's Stripe account (no code).
-2. Fuel refund on completion — `completeBooking()` extracted to shared lib, called inline from update route. Stripe partial refund fires correctly. Both test bookings verified in Stripe.
-3. Stripe fees captured — `stripe_fee`, `stripe_fee_currency`, `exchange_rate` added to payments table and populated in webhook.
-4. Currency fix — customer pays in `request.currency`, bid amounts converted server-side using `lib/serverCurrency.ts`. `create-intent` charges in customer currency.
-5. Bid vs charge currency split — `partner_bookings.currency` = bid currency (partner sees), `partner_bookings.charge_currency` = what customer paid, `payments.currency` = charge currency.
-6. Webhook updated — stores bid currency amounts on booking, charge currency amounts on payments.
-7. Commission recalc — all display pages (partner bookings, partner reports, admin bookings, admin reports, booking detail) recalculate commission from `car_hire_price` in bid currency. Never use stored `commission_amount`.
-8. Customer booking page — shows `charge_currency` not bid currency.
-9. Stable tags `v-stable-chat26` on both repos.
+2. Fuel refund on completion — `completeBooking()` extracted to shared lib, called inline from update route.
+3. Stripe fees captured — `stripe_fee`, `stripe_fee_currency`, `exchange_rate` added to payments table.
+4. Currency fix — customer pays in `request.currency`, bid amounts converted server-side.
+5. Bid vs charge currency split — `partner_bookings.currency` = bid, `charge_currency` = what customer paid.
+6. Commission recalc — all display pages recalculate from `car_hire_price` in bid currency.
+7. Customer booking page — shows `charge_currency`.
+8. Stable tags `v-stable-chat26` on both repos.
 
 ### Chat 25 (Completed)
-Stripe Connect full payment flow — partner onboarding, checkout, PaymentIntent split, webhook booking creation, all working and tested.
+Stripe Connect full payment flow — partner onboarding, checkout, PaymentIntent split, webhook booking creation.
 
 ### Chat 24c (Completed)
 SEO overhaul — metadata, Open Graph, sitemaps, robots.txt, airport keywords, alt text.
@@ -468,7 +464,7 @@ Address search, commission fixes, bug fixes.
 | 3 | Rate limiting | ✅ Done |
 | 4 | CAPTCHA at all sign-in points | ✅ Done |
 | 5 | Cookie acceptance banner | ✅ Done |
-| 6 | Partner & Admin finance pages | 🔄 Partial — reports correct, Stripe fees not shown |
+| 6 | Partner & Admin finance pages | ✅ Done — reports correct, Stripe fees shown, payout breakdown shown |
 | 7 | RLS audit | ✅ Done |
 | 8 | GDPR data deletion | ✅ Done |
 | 9 | Footer + policy pages | ✅ Done |
@@ -477,7 +473,7 @@ Address search, commission fixes, bug fixes.
 | 11b | Portal rebrand | ✅ Done |
 | 11c | Repo split | ✅ Done |
 | 11d | Google Analytics | ✅ Done |
-| 12 | Stripe Connect integration | 🔄 In progress — core flow + fuel refund done, cancellation refunds + payouts + invoices remaining |
+| 12 | Stripe Connect integration | ✅ Done — core flow, fuel refund, cancellation refunds, monthly payout cron all done |
 | 13 | Xero monthly commission endpoint | ⬜ Deferred |
 | 14 | DAC7 EU platform reporting | ⬜ Deferred |
 | 15 | Partner outreach agent | ✅ Done (collaborator) |
@@ -485,16 +481,9 @@ Address search, commission fixes, bug fixes.
 ---
 
 ## TODO Before Go-Live
-- [ ] Cancellation Stripe refunds — **next priority**
-- [ ] Monthly payout cron
-- [ ] Commission invoice PDF generation
-- [ ] Email notifications — all missing (see list above)
-- [ ] Driver portal stat cards (quick fix)
-- [ ] Customer booking receipts page
-- [ ] Stripe fee visibility in reports
-- [ ] Partner terms update — fee disclosure
-- [ ] Admin financial dashboard
-- [ ] Spanish translation — after Stripe complete
+- [ ] Commission invoice PDF generation — deferred
+- [ ] Admin financial dashboard — deferred
+- [ ] Spanish translation — after everything else
 - [ ] Delete legacy `camel-customers` Supabase project
 - [ ] Outreach: deduplicate database
 - [ ] Outreach: set up `e.camel-global.com` subdomain in Resend
@@ -530,4 +519,4 @@ git checkout v-tag-name
 
 ---
 
-*Last updated: Chat 26 — Currency architecture complete. Fuel refund working. Commission recalc fixed across all pages. Bid currency vs charge currency split implemented. Next: cancellation Stripe refunds, monthly payout cron, email notifications.*
+*Last updated: Chat 28 — Admin financial dashboard complete. Stripe fee currency conversion fixed across all pages and CSV exports. Dual-currency P&L on admin booking detail. Net Camel income column corrected. Both repos tagged v-stable-chat28. Pre-launch list is very short — Spanish translation is the only real blocker.*

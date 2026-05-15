@@ -171,6 +171,159 @@ type CurrencyTotals = {
   count:number; completed:number; cancelled:number;
 };
 
+// ── Payout Drilldown Table ────────────────────────────────────────────────────
+function PayoutDrilldownTable({ bookings }: { bookings: BookingRow[] }) {
+  const [visible, setVisible] = useState(15);
+  const cols = ["Job", "Partner", "Pickup Date", "Car Hire", "Commission", "Payout Amount", "Payout Status"];
+  return (
+    <div className="mt-4 border border-black/10 overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead className="bg-black/80 text-white">
+          <tr>
+            {cols.map(h => (
+              <th key={h} className="px-4 py-2.5 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-black/5">
+          {bookings.length === 0 ? (
+            <tr><td colSpan={7} className="px-4 py-4 text-sm text-black/40">No bookings in this bucket.</td></tr>
+          ) : bookings.slice(0, visible).map((b, i) => {
+            const { hire, commAmt, payout } = calcPayout(b);
+            const curr = b.currency ?? "EUR";
+            return (
+              <tr key={b.id} className={`hover:bg-[#f0f0f0] ${i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"}`}>
+                <td className="px-4 py-2.5 font-black text-black whitespace-nowrap">{b.job_number || "—"}</td>
+                <td className="px-4 py-2.5 text-black/70 whitespace-nowrap">{b.partner_company_name || "—"}</td>
+                <td className="px-4 py-2.5 text-black/60 whitespace-nowrap">{fmtDate(b.pickup_at) || fmtDate(b.created_at) || "—"}</td>
+                <td className="px-4 py-2.5 font-bold text-black/70 whitespace-nowrap">{fmtCurr(hire, curr)} <span className="text-xs font-normal text-black/40">{curr}</span></td>
+                <td className="px-4 py-2.5 font-black text-[#ff7a00] whitespace-nowrap">{fmtCurr(commAmt, curr)}</td>
+                <td className="px-4 py-2.5 font-black text-green-700 whitespace-nowrap">{fmtCurr(payout, curr)}</td>
+                <td className="px-4 py-2.5 whitespace-nowrap">
+                  <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${payoutPillClasses(b.payout_status)}`}>
+                    {b.payout_status || "—"}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {bookings.length > visible && (
+        <button type="button" onClick={() => setVisible(v => v + 15)}
+          className="w-full border-t border-black/10 bg-[#f8f8f8] py-2 text-xs font-black text-black/60 hover:bg-[#f0f0f0]">
+          ▼ Show more ({bookings.length - visible} remaining)
+        </button>
+      )}
+      {visible > 15 && bookings.length <= visible && (
+        <button type="button" onClick={() => setVisible(15)}
+          className="w-full border-t border-black/10 bg-[#f8f8f8] py-2 text-xs font-black text-black/60 hover:bg-[#f0f0f0]">
+          ▲ Show less
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Payout Status Breakdown (with drilldown + partner filter) ─────────────────
+function PayoutStatusSection({ bookings }: { bookings: BookingRow[] }) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [partnerFilter, setPartnerFilter] = useState("all");
+
+  const partners = useMemo(() => {
+    const s = new Map<string, string>();
+    for (const b of bookings) {
+      if (b.partner_user_id) s.set(b.partner_user_id, b.partner_company_name || b.partner_user_id);
+    }
+    return Array.from(s.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [bookings]);
+
+  const filtered = useMemo(() =>
+    partnerFilter === "all" ? bookings : bookings.filter(b => b.partner_user_id === partnerFilter),
+    [bookings, partnerFilter]
+  );
+
+  const held  = filtered.filter(b => b.payout_status === "held");
+  const ready = filtered.filter(b => b.payout_status === "ready");
+  const paid  = filtered.filter(b => b.payout_status === "paid");
+
+  if (bookings.filter(b => ["held","ready","paid"].includes(b.payout_status ?? "")).length === 0) return null;
+
+  const calcTotal = (rows: BookingRow[]) => {
+    const byCurr: Record<string, number> = {};
+    for (const b of rows) {
+      const curr = b.currency ?? "EUR";
+      const { payout } = calcPayout(b);
+      byCurr[curr] = (byCurr[curr] ?? 0) + payout;
+    }
+    return byCurr;
+  };
+
+  const buckets = [
+    { key:"held",  label:"Held",  desc:"Payment received — hire not yet complete",       rows:held,  totals:calcTotal(held),  color:"text-amber-700", bg:"border-amber-200 bg-amber-50",  btnBg:"border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-800" },
+    { key:"ready", label:"Ready", desc:"Hire complete — queued for next monthly payout",  rows:ready, totals:calcTotal(ready), color:"text-blue-700",  bg:"border-blue-200 bg-blue-50",    btnBg:"border-blue-300 bg-blue-100 hover:bg-blue-200 text-blue-800"   },
+    { key:"paid",  label:"Paid",  desc:"Payout transferred to partner Stripe account",    rows:paid,  totals:calcTotal(paid),  color:"text-green-700", bg:"border-green-200 bg-green-50",  btnBg:"border-green-300 bg-green-100 hover:bg-green-200 text-green-800" },
+  ];
+
+  return (
+    <div className="border border-black/10 bg-white p-6 md:p-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
+        <div>
+          <h2 className="text-xl font-black text-black mb-1">Payout Status</h2>
+          <p className="text-sm text-black/50">Network-wide breakdown of bookings by payout stage. Click a bucket to see individual bookings.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={partnerFilter}
+            onChange={e => { setPartnerFilter(e.target.value); setExpanded({}); }}
+            className="border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black"
+          >
+            <option value="all">All partners</option>
+            {partners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+          {partnerFilter !== "all" && (
+            <button type="button" onClick={() => { setPartnerFilter("all"); setExpanded({}); }}
+              className="border border-black/20 bg-white px-3 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        {buckets.map(({ key, label, desc, rows, totals, color, bg, btnBg }) => (
+          <div key={key} className={`border p-4 ${bg}`}>
+            <p className={`text-xs font-black uppercase tracking-widest ${color} mb-1`}>{label}</p>
+            <p className="text-3xl font-black text-black">{rows.length}</p>
+            <p className="text-xs font-bold text-black/40 mt-1 mb-3">{desc}</p>
+            {Object.entries(totals).filter(([, v]) => v > 0).map(([curr, val]) => (
+              <p key={curr} className={`text-sm font-black ${color}`}>{fmtCurr(val, curr)} {curr}</p>
+            ))}
+            {Object.keys(totals).length === 0 && <p className="text-sm font-bold text-black/30">—</p>}
+            {rows.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setExpanded(e => ({ ...e, [key]: !e[key] }))}
+                className={`mt-4 w-full border px-3 py-2 text-xs font-black uppercase tracking-widest transition-colors ${btnBg}`}
+              >
+                {expanded[key] ? "▲ Hide bookings" : `▼ Show ${rows.length} booking${rows.length !== 1 ? "s" : ""}`}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {buckets.map(({ key, rows }) =>
+        expanded[key] ? (
+          <div key={key} className="mt-4">
+            <PayoutDrilldownTable bookings={rows} />
+          </div>
+        ) : null
+      )}
+    </div>
+  );
+}
+
 function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotals; bookings:BookingRow[] }) {
   const [showAll, setShowAll] = useState(false);
   const { symbol } = CURRENCY_META[curr];
@@ -272,7 +425,6 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
   const [partnerFilter, setPartnerFilter] = useState<string>("all");
   const [dashVisible, setDashVisible] = useState(20);
 
-  // P&L per currency
   const plByCurr = useMemo(() => {
     const m: Record<string, { revenue:number; commission:number; stripeFees:number; partnerPayout:number; fuelCharge:number; fuelRefund:number; netCamel:number; count:number }> = {};
     for (const b of bookings) {
@@ -292,7 +444,6 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
     return m;
   }, [bookings]);
 
-  // Unique partners for filter
   const partners = useMemo(() => {
     const s = new Map<string,string>();
     for (const b of bookings) {
@@ -311,7 +462,6 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
 
   return (
     <div className="space-y-4">
-      {/* P&L summary cards per currency */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h2 className="text-xl font-black text-black mb-1">Financial Dashboard</h2>
         <p className="text-sm text-black/50 mb-5">Platform P&amp;L — all active bookings in the selected date range. Excludes cancelled bookings.</p>
@@ -346,7 +496,6 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
         })}
       </div>
 
-      {/* Payments table with filters */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
           <div>
@@ -845,48 +994,8 @@ export default function AdminReportsPage() {
         </div>
       </div>
 
-      {/* Payout Status Breakdown */}
-      {(() => {
-        const held  = filteredBookings.filter(b => b.payout_status === "held");
-        const ready = filteredBookings.filter(b => b.payout_status === "ready");
-        const paid  = filteredBookings.filter(b => b.payout_status === "paid");
-        const calcTotal = (rows: BookingRow[]) => {
-          const byCurr: Record<string, number> = {};
-          for (const b of rows) {
-            const curr = b.currency ?? "EUR";
-            const { payout } = calcPayout(b);
-            byCurr[curr] = (byCurr[curr] ?? 0) + payout;
-          }
-          return byCurr;
-        };
-        const heldTotals  = calcTotal(held);
-        const readyTotals = calcTotal(ready);
-        const paidTotals  = calcTotal(paid);
-        if (held.length===0&&ready.length===0&&paid.length===0) return null;
-        return (
-          <div className="border border-black/10 bg-white p-6 md:p-8">
-            <h2 className="text-xl font-black text-black mb-1">Payout Status</h2>
-            <p className="text-sm text-black/50 mb-4">Network-wide breakdown of bookings by payout stage.</p>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {[
-                { label:"Held",  desc:"Payment received — hire not yet complete",         bookings:held,  totals:heldTotals,  color:"text-amber-700", bg:"border-amber-200 bg-amber-50" },
-                { label:"Ready", desc:"Hire complete — queued for next monthly payout",   bookings:ready, totals:readyTotals, color:"text-blue-700",  bg:"border-blue-200 bg-blue-50"   },
-                { label:"Paid",  desc:"Payout transferred to partner Stripe account",     bookings:paid,  totals:paidTotals,  color:"text-green-700", bg:"border-green-200 bg-green-50" },
-              ].map(({ label, desc, bookings: bks, totals, color, bg }) => (
-                <div key={label} className={`border p-4 ${bg}`}>
-                  <p className={`text-xs font-black uppercase tracking-widest ${color} mb-1`}>{label}</p>
-                  <p className="text-3xl font-black text-black">{bks.length}</p>
-                  <p className="text-xs font-bold text-black/40 mt-1 mb-3">{desc}</p>
-                  {Object.entries(totals).filter(([_,v])=>v>0).map(([curr,val])=>(
-                    <p key={curr} className={`text-sm font-black ${color}`}>{fmtCurr(val,curr)} {curr}</p>
-                  ))}
-                  {Object.keys(totals).length===0&&<p className="text-sm font-bold text-black/30">—</p>}
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
+      {/* Payout Status with drilldown */}
+      <PayoutStatusSection bookings={filteredBookings} />
 
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h2 className="text-xl font-black text-black mb-4">Vehicle Category Breakdown</h2>
