@@ -217,7 +217,7 @@ export async function GET(req: Request) {
       cancellation_reason: b.cancellation_reason,
     }));
 
-    const invoiceResult = await invoiceGenerator(partnerUserId, periodMonth, invoiceBookings);
+    const invoiceResult = await generateCommissionInvoice(partnerUserId, periodMonth, invoiceBookings);
     if (!invoiceResult.ok) {
       console.error(`monthly-payout: invoice generation failed for ${profile.company_name}:`, invoiceResult.error);
     } else {
