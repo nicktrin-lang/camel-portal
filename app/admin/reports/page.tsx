@@ -58,6 +58,13 @@ type RequestRow = {
   created_at:string|null; expires_at:string|null;
 };
 
+type InvoiceRow = {
+  id:string; invoice_number:string; partner_user_id:string;
+  partner_company_name:string|null; period_month:string;
+  currency:string; total_commission:number; booking_count:number;
+  generated_at:string; emailed_at:string|null; download_url:string|null;
+};
+
 const QUARTER_LABELS: Record<number,string> = { 0:"Empty", 1:"¼ Tank", 2:"½ Tank", 3:"¾ Tank", 4:"Full Tank" };
 
 async function safeJson(res: Response): Promise<any> {
@@ -113,7 +120,7 @@ function getMonthKey(value: string|null|undefined) {
   if (isNaN(d.getTime())) return "";
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
 }
-function getCurrentMonthKey() { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; }
+function getCurrentMonthKey()  { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; }
 function getPreviousMonthKey() { const n=new Date(); n.setMonth(n.getMonth()-1); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; }
 
 function stripeFeeInBidCurrency(stripe_fee: number|null, stripe_fee_currency: string|null, bid_currency: string, exchange_rate: number|null): number {
@@ -175,13 +182,12 @@ type CurrencyTotals = {
 // ── Payout Drilldown Table ────────────────────────────────────────────────────
 function PayoutDrilldownTable({ bookings }: { bookings: BookingRow[] }) {
   const [visible, setVisible] = useState(15);
-  const cols = ["Job", "Partner", "Pickup Date", "Car Hire", "Commission", "Payout Amount", "Payout Status"];
   return (
     <div className="mt-4 border border-black/10 overflow-x-auto">
       <table className="min-w-full text-sm">
         <thead className="bg-black/80 text-white">
           <tr>
-            {cols.map(h => (
+            {["Job","Partner","Date","Car Hire","Commission","Payout Amount","Payout Status"].map(h => (
               <th key={h} className="px-4 py-2.5 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
             ))}
           </tr>
@@ -193,16 +199,16 @@ function PayoutDrilldownTable({ bookings }: { bookings: BookingRow[] }) {
             const { hire, commAmt, payout } = calcPayout(b);
             const curr = b.currency ?? "EUR";
             return (
-              <tr key={b.id} className={`hover:bg-[#f0f0f0] ${i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"}`}>
-                <td className="px-4 py-2.5 font-black text-black whitespace-nowrap">{b.job_number || "—"}</td>
-                <td className="px-4 py-2.5 text-black/70 whitespace-nowrap">{b.partner_company_name || "—"}</td>
-                <td className="px-4 py-2.5 text-black/60 whitespace-nowrap">{fmtDate(b.pickup_at) || fmtDate(b.created_at) || "—"}</td>
-                <td className="px-4 py-2.5 font-bold text-black/70 whitespace-nowrap">{fmtCurr(hire, curr)} <span className="text-xs font-normal text-black/40">{curr}</span></td>
-                <td className="px-4 py-2.5 font-black text-[#ff7a00] whitespace-nowrap">{fmtCurr(commAmt, curr)}</td>
-                <td className="px-4 py-2.5 font-black text-green-700 whitespace-nowrap">{fmtCurr(payout, curr)}</td>
+              <tr key={b.id} className={`hover:bg-[#f0f0f0] ${i%2===0?"bg-white":"bg-[#fafafa]"}`}>
+                <td className="px-4 py-2.5 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
+                <td className="px-4 py-2.5 text-black/70 whitespace-nowrap">{b.partner_company_name||"—"}</td>
+                <td className="px-4 py-2.5 text-black/60 whitespace-nowrap">{fmtDate(b.pickup_at||b.created_at)||"—"}</td>
+                <td className="px-4 py-2.5 font-bold text-black/70 whitespace-nowrap">{fmtCurr(hire,curr)} <span className="text-xs font-normal text-black/40">{curr}</span></td>
+                <td className="px-4 py-2.5 font-black text-[#ff7a00] whitespace-nowrap">{fmtCurr(commAmt,curr)}</td>
+                <td className="px-4 py-2.5 font-black text-green-700 whitespace-nowrap">{fmtCurr(payout,curr)}</td>
                 <td className="px-4 py-2.5 whitespace-nowrap">
                   <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${payoutPillClasses(b.payout_status)}`}>
-                    {b.payout_status || "—"}
+                    {b.payout_status||"—"}
                   </span>
                 </td>
               </tr>
@@ -211,7 +217,7 @@ function PayoutDrilldownTable({ bookings }: { bookings: BookingRow[] }) {
         </tbody>
       </table>
       {bookings.length > visible && (
-        <button type="button" onClick={() => setVisible(v => v + 15)}
+        <button type="button" onClick={() => setVisible(v => v+15)}
           className="w-full border-t border-black/10 bg-[#f8f8f8] py-2 text-xs font-black text-black/60 hover:bg-[#f0f0f0]">
           ▼ Show more ({bookings.length - visible} remaining)
         </button>
@@ -226,44 +232,44 @@ function PayoutDrilldownTable({ bookings }: { bookings: BookingRow[] }) {
   );
 }
 
-// ── Payout Status Breakdown (with drilldown + partner filter) ─────────────────
+// ── Payout Status Breakdown ───────────────────────────────────────────────────
 function PayoutStatusSection({ bookings }: { bookings: BookingRow[] }) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string,boolean>>({});
   const [partnerFilter, setPartnerFilter] = useState("all");
 
   const partners = useMemo(() => {
-    const s = new Map<string, string>();
+    const s = new Map<string,string>();
     for (const b of bookings) {
-      if (b.partner_user_id) s.set(b.partner_user_id, b.partner_company_name || b.partner_user_id);
+      if (b.partner_user_id) s.set(b.partner_user_id, b.partner_company_name||b.partner_user_id);
     }
-    return Array.from(s.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    return Array.from(s.entries()).sort((a,b) => a[1].localeCompare(b[1]));
   }, [bookings]);
 
   const filtered = useMemo(() =>
-    partnerFilter === "all" ? bookings : bookings.filter(b => b.partner_user_id === partnerFilter),
+    partnerFilter==="all" ? bookings : bookings.filter(b => b.partner_user_id===partnerFilter),
     [bookings, partnerFilter]
   );
 
-  const held  = filtered.filter(b => b.payout_status === "held");
-  const ready = filtered.filter(b => b.payout_status === "ready");
-  const paid  = filtered.filter(b => b.payout_status === "paid");
+  const held  = filtered.filter(b => b.payout_status==="held");
+  const ready = filtered.filter(b => b.payout_status==="ready");
+  const paid  = filtered.filter(b => b.payout_status==="paid");
 
-  if (bookings.filter(b => ["held","ready","paid"].includes(b.payout_status ?? "")).length === 0) return null;
+  if (bookings.filter(b => ["held","ready","paid"].includes(b.payout_status??"")).length===0) return null;
 
   const calcTotal = (rows: BookingRow[]) => {
-    const byCurr: Record<string, number> = {};
+    const byCurr: Record<string,number> = {};
     for (const b of rows) {
-      const curr = b.currency ?? "EUR";
+      const curr = b.currency??"EUR";
       const { payout } = calcPayout(b);
-      byCurr[curr] = (byCurr[curr] ?? 0) + payout;
+      byCurr[curr] = (byCurr[curr]??0) + payout;
     }
     return byCurr;
   };
 
   const buckets = [
-    { key:"held",  label:"Held",  desc:"Payment received — hire not yet complete",       rows:held,  totals:calcTotal(held),  color:"text-amber-700", bg:"border-amber-200 bg-amber-50",  btnBg:"border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-800" },
-    { key:"ready", label:"Ready", desc:"Hire complete — queued for next monthly payout",  rows:ready, totals:calcTotal(ready), color:"text-blue-700",  bg:"border-blue-200 bg-blue-50",    btnBg:"border-blue-300 bg-blue-100 hover:bg-blue-200 text-blue-800"   },
-    { key:"paid",  label:"Paid",  desc:"Payout transferred to partner Stripe account",    rows:paid,  totals:calcTotal(paid),  color:"text-green-700", bg:"border-green-200 bg-green-50",  btnBg:"border-green-300 bg-green-100 hover:bg-green-200 text-green-800" },
+    { key:"held",  label:"Held",  desc:"Payment received — hire not yet complete",      rows:held,  totals:calcTotal(held),  color:"text-amber-700", bg:"border-amber-200 bg-amber-50",  btnBg:"border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-800" },
+    { key:"ready", label:"Ready", desc:"Hire complete — queued for next monthly payout", rows:ready, totals:calcTotal(ready), color:"text-blue-700",  bg:"border-blue-200 bg-blue-50",    btnBg:"border-blue-300 bg-blue-100 hover:bg-blue-200 text-blue-800"   },
+    { key:"paid",  label:"Paid",  desc:"Payout transferred to partner Stripe account",   rows:paid,  totals:calcTotal(paid),  color:"text-green-700", bg:"border-green-200 bg-green-50",  btnBg:"border-green-300 bg-green-100 hover:bg-green-200 text-green-800" },
   ];
 
   return (
@@ -271,60 +277,203 @@ function PayoutStatusSection({ bookings }: { bookings: BookingRow[] }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
         <div>
           <h2 className="text-xl font-black text-black mb-1">Payout Status</h2>
-          <p className="text-sm text-black/50">Network-wide breakdown of bookings by payout stage. Click a bucket to see individual bookings.</p>
+          <p className="text-sm text-black/50">Network-wide breakdown by payout stage. Click a bucket to see individual bookings.</p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={partnerFilter}
-            onChange={e => { setPartnerFilter(e.target.value); setExpanded({}); }}
-            className="border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black"
-          >
+          <select value={partnerFilter} onChange={e => { setPartnerFilter(e.target.value); setExpanded({}); }}
+            className="border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
             <option value="all">All partners</option>
-            {partners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            {partners.map(([id,name]) => <option key={id} value={id}>{name}</option>)}
           </select>
-          {partnerFilter !== "all" && (
+          {partnerFilter!=="all" && (
             <button type="button" onClick={() => { setPartnerFilter("all"); setExpanded({}); }}
-              className="border border-black/20 bg-white px-3 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">
-              Clear
-            </button>
+              className="border border-black/20 bg-white px-3 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">Clear</button>
           )}
         </div>
       </div>
-
       <div className="grid gap-4 sm:grid-cols-3">
         {buckets.map(({ key, label, desc, rows, totals, color, bg, btnBg }) => (
           <div key={key} className={`border p-4 ${bg}`}>
             <p className={`text-xs font-black uppercase tracking-widest ${color} mb-1`}>{label}</p>
             <p className="text-3xl font-black text-black">{rows.length}</p>
             <p className="text-xs font-bold text-black/40 mt-1 mb-3">{desc}</p>
-            {Object.entries(totals).filter(([, v]) => v > 0).map(([curr, val]) => (
-              <p key={curr} className={`text-sm font-black ${color}`}>{fmtCurr(val, curr)} {curr}</p>
+            {Object.entries(totals).filter(([,v]) => v>0).map(([curr,val]) => (
+              <p key={curr} className={`text-sm font-black ${color}`}>{fmtCurr(val,curr)} {curr}</p>
             ))}
-            {Object.keys(totals).length === 0 && <p className="text-sm font-bold text-black/30">—</p>}
-            {rows.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setExpanded(e => ({ ...e, [key]: !e[key] }))}
-                className={`mt-4 w-full border px-3 py-2 text-xs font-black uppercase tracking-widest transition-colors ${btnBg}`}
-              >
-                {expanded[key] ? "▲ Hide bookings" : `▼ Show ${rows.length} booking${rows.length !== 1 ? "s" : ""}`}
+            {Object.keys(totals).length===0 && <p className="text-sm font-bold text-black/30">—</p>}
+            {rows.length>0 && (
+              <button type="button" onClick={() => setExpanded(e => ({ ...e, [key]: !e[key] }))}
+                className={`mt-4 w-full border px-3 py-2 text-xs font-black uppercase tracking-widest transition-colors ${btnBg}`}>
+                {expanded[key] ? "▲ Hide bookings" : `▼ Show ${rows.length} booking${rows.length!==1?"s":""}`}
               </button>
             )}
           </div>
         ))}
       </div>
-
-      {buckets.map(({ key, rows }) =>
-        expanded[key] ? (
-          <div key={key} className="mt-4">
-            <PayoutDrilldownTable bookings={rows} />
-          </div>
-        ) : null
-      )}
+      {buckets.map(({ key, rows }) => expanded[key] ? (
+        <div key={key} className="mt-4"><PayoutDrilldownTable bookings={rows} /></div>
+      ) : null)}
     </div>
   );
 }
 
+// ── Admin Invoices Section ────────────────────────────────────────────────────
+function AdminInvoicesSection({ partners }: { partners: [string,string][] }) {
+  const [invoices,       setInvoices]       = useState<InvoiceRow[]>([]);
+  const [invoiceLoading, setInvoiceLoading] = useState(true);
+  const [invoiceError,   setInvoiceError]   = useState<string|null>(null);
+  const [generating,     setGenerating]     = useState(false);
+  const [genPartnerId,   setGenPartnerId]   = useState("");
+  const [genMonth,       setGenMonth]       = useState("");
+  const [genMsg,         setGenMsg]         = useState<{ ok:boolean; text:string }|null>(null);
+  const [monthFilter,    setMonthFilter]    = useState("all");
+  const [partnerFilter,  setPartnerFilter]  = useState("all");
+
+  async function loadInvoices() {
+    setInvoiceLoading(true); setInvoiceError(null);
+    try {
+      const params = new URLSearchParams();
+      if (monthFilter  !=="all") params.set("month",      monthFilter);
+      if (partnerFilter!=="all") params.set("partner_id", partnerFilter);
+      const res  = await fetch(`/api/admin/invoices?${params}`, { cache:"no-store", credentials:"include" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error||"Failed to load invoices");
+      setInvoices(Array.isArray(json?.data) ? json.data : []);
+    } catch(e:any) {
+      setInvoiceError(e?.message||"Failed to load invoices");
+    } finally { setInvoiceLoading(false); }
+  }
+
+  useEffect(() => { loadInvoices(); }, [monthFilter, partnerFilter]);
+
+  const months = useMemo(() => {
+    const s = new Set<string>();
+    for (const inv of invoices) if (inv.period_month) s.add(inv.period_month);
+    return Array.from(s).sort().reverse();
+  }, [invoices]);
+
+  async function handleGenerate() {
+    if (!genPartnerId||!genMonth) { setGenMsg({ ok:false, text:"Select a partner and month." }); return; }
+    setGenerating(true); setGenMsg(null);
+    try {
+      const res  = await fetch("/api/admin/invoices", {
+        method:"POST", credentials:"include",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ partner_id:genPartnerId, period_month:genMonth }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error||"Generation failed");
+      setGenMsg({ ok:true, text:`Invoice ${json.invoice_number||""} generated successfully.` });
+      loadInvoices();
+    } catch(e:any) {
+      setGenMsg({ ok:false, text:e?.message||"Generation failed" });
+    } finally { setGenerating(false); }
+  }
+
+  return (
+    <div className="border border-black/10 bg-white p-6 md:p-8 space-y-6">
+      <div>
+        <h2 className="text-xl font-black text-black mb-1">Commission Invoices</h2>
+        <p className="text-sm text-black/50">NTUK Ltd commission invoices issued to partners. Auto-generated on monthly payout run.</p>
+      </div>
+
+      {/* On-demand generation */}
+      <div className="border border-black/10 bg-[#f8f8f8] p-4">
+        <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-3">Generate Invoice On-Demand</p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-xs font-black uppercase tracking-widest text-black/50">Partner</label>
+            <select value={genPartnerId} onChange={e => setGenPartnerId(e.target.value)}
+              className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+              <option value="">Select partner…</option>
+              {partners.map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-black uppercase tracking-widest text-black/50">Period (YYYY-MM)</label>
+            <input type="month" value={genMonth} onChange={e => setGenMonth(e.target.value)}
+              className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black" />
+          </div>
+          <button type="button" onClick={handleGenerate} disabled={generating}
+            className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-50">
+            {generating ? "Generating…" : "Generate PDF"}
+          </button>
+        </div>
+        {genMsg && (
+          <p className={`mt-3 text-sm font-bold ${genMsg.ok?"text-green-700":"text-red-600"}`}>{genMsg.text}</p>
+        )}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="text-xs font-black uppercase tracking-widest text-black/50">Month</label>
+          <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)}
+            className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+            <option value="all">All months</option>
+            {months.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-black uppercase tracking-widest text-black/50">Partner</label>
+          <select value={partnerFilter} onChange={e => setPartnerFilter(e.target.value)}
+            className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+            <option value="all">All partners</option>
+            {partners.map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </div>
+        {(monthFilter!=="all"||partnerFilter!=="all") && (
+          <button type="button" onClick={() => { setMonthFilter("all"); setPartnerFilter("all"); }}
+            className="border border-black/20 bg-white px-3 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">Clear</button>
+        )}
+      </div>
+
+      {invoiceError && <p className="text-sm font-bold text-red-600">{invoiceError}</p>}
+
+      <div className="overflow-x-auto border border-black/10">
+        <table className="min-w-full text-sm">
+          <thead className="bg-black text-white">
+            <tr>
+              {["Invoice #","Partner","Period","Currency","Commission","Bookings","Generated","Emailed","Download"].map(h => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-black/5">
+            {invoiceLoading ? (
+              <tr><td colSpan={9} className="px-4 py-4 text-sm text-black/40">Loading invoices…</td></tr>
+            ) : invoices.length===0 ? (
+              <tr><td colSpan={9} className="px-4 py-4 text-sm text-black/40">No invoices generated yet.</td></tr>
+            ) : invoices.map((inv,i) => (
+              <tr key={inv.id} className={`hover:bg-[#f0f0f0] ${i%2===0?"bg-white":"bg-[#fafafa]"}`}>
+                <td className="px-4 py-3 font-black text-black whitespace-nowrap">{inv.invoice_number}</td>
+                <td className="px-4 py-3 text-black/70 whitespace-nowrap">{inv.partner_company_name||"—"}</td>
+                <td className="px-4 py-3 text-black/70 whitespace-nowrap">{inv.period_month}</td>
+                <td className="px-4 py-3 text-black/60 whitespace-nowrap">{inv.currency}</td>
+                <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">{fmtCurr(inv.total_commission,inv.currency)}</td>
+                <td className="px-4 py-3 text-black/60">{inv.booking_count}</td>
+                <td className="px-4 py-3 text-black/50 whitespace-nowrap text-xs">{fmtDate(inv.generated_at)}</td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {inv.emailed_at
+                    ? <span className="inline-flex border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-black text-green-700">✓ Sent</span>
+                    : <span className="inline-flex border border-black/10 bg-[#f0f0f0] px-2 py-0.5 text-xs font-black text-black/40">Not sent</span>}
+                </td>
+                <td className="px-4 py-3">
+                  {inv.download_url
+                    ? <a href={inv.download_url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex bg-black px-3 py-1.5 text-xs font-black text-white hover:opacity-80">⬇ PDF</a>
+                    : <span className="text-xs text-black/30">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Currency section ──────────────────────────────────────────────────────────
 function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotals; bookings:BookingRow[] }) {
   const [showAll, setShowAll] = useState(false);
   const { symbol } = CURRENCY_META[curr];
@@ -371,7 +520,7 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
               const usedQ=b.fuel_used_quarters;
               const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
               const { commAmt, payout, rate, hire, fuelRefund, feeInBid } = calcPayout(b);
-              const hasCurrConv = b.charge_currency && b.charge_currency !== (b.currency ?? "EUR");
+              const hasCurrConv = b.charge_currency && b.charge_currency!==(b.currency??"EUR");
               return (
                 <tr key={b.id} className={`hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/50":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                   <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
@@ -380,21 +529,15 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
                   <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(b.booking_status)}`}>{String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
                   <td className={`px-4 py-3 ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,curr)}</td>
                   <td className="px-4 py-3">
-                    {isCancelled&&b.refund_status==="full"?(
-                      <span className="text-xs font-black text-red-400 line-through">{fmtCurr(commAmt,curr)}</span>
-                    ):(
-                      <><div className="text-xs font-black text-[#ff7a00]">{fmtCurr(commAmt,curr)}</div><div className="text-xs text-black/40">{rate}%</div></>
-                    )}
+                    {isCancelled&&b.refund_status==="full"
+                      ? <span className="text-xs font-black text-red-400 line-through">{fmtCurr(commAmt,curr)}</span>
+                      : <><div className="text-xs font-black text-[#ff7a00]">{fmtCurr(commAmt,curr)}</div><div className="text-xs text-black/40">{rate}%</div></>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {feeInBid > 0
-                      ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid, curr)}</span>
-                      : <span className="text-black/30">—</span>}
+                    {feeInBid>0 ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid,curr)}</span> : <span className="text-black/30">—</span>}
                   </td>
                   <td className="px-4 py-3 text-xs font-bold text-black/50 whitespace-nowrap">
-                    {hasCurrConv && b.conversion_rate
-                      ? <span title={`${b.currency} → ${b.charge_currency}`}>{Number(b.conversion_rate).toFixed(4)}</span>
-                      : "—"}
+                    {hasCurrConv&&b.conversion_rate ? <span title={`${b.currency} → ${b.charge_currency}`}>{Number(b.conversion_rate).toFixed(4)}</span> : "—"}
                   </td>
                   <td className="px-4 py-3 text-black/70">{fmtAmt(b.fuel_price,curr)}</td>
                   <td className="px-4 py-3 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
@@ -420,24 +563,24 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
   );
 }
 
-// ── Financial Dashboard section ───────────────────────────────────────────────
+// ── Financial Dashboard ───────────────────────────────────────────────────────
 function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
-  const [payoutFilter, setPayoutFilter] = useState<string>("all");
+  const [payoutFilter,  setPayoutFilter]  = useState<string>("all");
   const [partnerFilter, setPartnerFilter] = useState<string>("all");
-  const [dashVisible, setDashVisible] = useState(20);
+  const [dashVisible,   setDashVisible]   = useState(20);
 
   const plByCurr = useMemo(() => {
-    const m: Record<string, { revenue:number; commission:number; stripeFees:number; partnerPayout:number; fuelCharge:number; fuelRefund:number; netCamel:number; count:number }> = {};
+    const m: Record<string,{ revenue:number; commission:number; stripeFees:number; partnerPayout:number; fuelCharge:number; fuelRefund:number; netCamel:number; count:number }> = {};
     for (const b of bookings) {
-      if (String(b.booking_status||"").toLowerCase() === "cancelled") continue;
-      const curr = b.currency ?? "EUR";
+      if (String(b.booking_status||"").toLowerCase()==="cancelled") continue;
+      const curr = b.currency??"EUR";
       if (!m[curr]) m[curr] = { revenue:0, commission:0, stripeFees:0, partnerPayout:0, fuelCharge:0, fuelRefund:0, netCamel:0, count:0 };
       const { commAmt, payout, feeInBid, fuelRefund } = calcPayout(b);
-      m[curr].revenue      += Number(b.amount ?? 0);
+      m[curr].revenue      += Number(b.amount??0);
       m[curr].commission   += commAmt;
       m[curr].stripeFees   += feeInBid;
       m[curr].partnerPayout+= payout;
-      m[curr].fuelCharge   += Number(b.fuel_charge ?? 0);
+      m[curr].fuelCharge   += Number(b.fuel_charge??0);
       m[curr].fuelRefund   += fuelRefund;
       m[curr].netCamel     += commAmt - feeInBid;
       m[curr].count++;
@@ -448,14 +591,14 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
   const partners = useMemo(() => {
     const s = new Map<string,string>();
     for (const b of bookings) {
-      if (b.partner_user_id) s.set(b.partner_user_id, b.partner_company_name || b.partner_user_id);
+      if (b.partner_user_id) s.set(b.partner_user_id, b.partner_company_name||b.partner_user_id);
     }
     return Array.from(s.entries()).sort((a,b) => a[1].localeCompare(b[1]));
   }, [bookings]);
 
   const filtered = useMemo(() => bookings.filter(b => {
-    if (payoutFilter !== "all" && b.payout_status !== payoutFilter) return false;
-    if (partnerFilter !== "all" && b.partner_user_id !== partnerFilter) return false;
+    if (payoutFilter !=="all" && b.payout_status !==payoutFilter)  return false;
+    if (partnerFilter!=="all" && b.partner_user_id!==partnerFilter) return false;
     return true;
   }), [bookings, payoutFilter, partnerFilter]);
 
@@ -466,7 +609,7 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h2 className="text-xl font-black text-black mb-1">Financial Dashboard</h2>
         <p className="text-sm text-black/50 mb-5">Platform P&amp;L — all active bookings in the selected date range. Excludes cancelled bookings.</p>
-        {currencies.length === 0 ? (
+        {currencies.length===0 ? (
           <p className="text-sm text-black/40">No financial data for this period.</p>
         ) : currencies.map(curr => {
           const pl = plByCurr[curr];
@@ -478,17 +621,17 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
                 {[
-                  { label:"Total Revenue",    value:pl.revenue,       color:"text-black",        bg:"border-black/10 bg-[#f0f0f0]" },
-                  { label:"Car Hire",         value:pl.revenue - Number(plByCurr[curr]?.fuelCharge ?? 0), color:"text-black/70", bg:"border-black/10 bg-[#f0f0f0]" },
-                  { label:"Camel Commission", value:pl.commission,    color:"text-[#ff7a00]",    bg:"border-[#ff7a00]/20 bg-[#fff7f0]" },
-                  { label:"Stripe Fees",      value:pl.stripeFees,    color:"text-amber-700",    bg:"border-amber-200 bg-amber-50" },
-                  { label:"Net Camel Income", value:pl.netCamel,      color:pl.netCamel>=0?"text-green-700":"text-red-600", bg:pl.netCamel>=0?"border-green-200 bg-green-50":"border-red-200 bg-red-50" },
-                  { label:"Partner Payout",   value:pl.partnerPayout, color:"text-black/70",    bg:"border-black/10 bg-[#f0f0f0]" },
-                  { label:"Fuel Refunds",     value:pl.fuelRefund,    color:"text-black/50",     bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Total Revenue",    value:pl.revenue,                                        color:"text-black",     bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Car Hire",         value:pl.revenue - (plByCurr[curr]?.fuelCharge??0),     color:"text-black/70",  bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Camel Commission", value:pl.commission,                                     color:"text-[#ff7a00]", bg:"border-[#ff7a00]/20 bg-[#fff7f0]" },
+                  { label:"Stripe Fees",      value:pl.stripeFees,                                     color:"text-amber-700", bg:"border-amber-200 bg-amber-50" },
+                  { label:"Net Camel Income", value:pl.netCamel,                                       color:pl.netCamel>=0?"text-green-700":"text-red-600", bg:pl.netCamel>=0?"border-green-200 bg-green-50":"border-red-200 bg-red-50" },
+                  { label:"Partner Payout",   value:pl.partnerPayout,                                  color:"text-black/70",  bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Fuel Refunds",     value:pl.fuelRefund,                                     color:"text-black/50",  bg:"border-black/10 bg-[#f0f0f0]" },
                 ].map(({ label, value, color, bg }) => (
                   <div key={label} className={`border p-4 ${bg}`}>
                     <p className="text-xs font-black uppercase tracking-widest text-black/40 leading-tight mb-1">{label}</p>
-                    <p className={`text-base font-black ${color}`}>{fmtCurr(value, curr)}</p>
+                    <p className={`text-base font-black ${color}`}>{fmtCurr(value,curr)}</p>
                   </div>
                 ))}
               </div>
@@ -515,19 +658,15 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
             <select value={partnerFilter} onChange={e => { setPartnerFilter(e.target.value); setDashVisible(20); }}
               className="border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
               <option value="all">All partners</option>
-              {partners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              {partners.map(([id,name]) => <option key={id} value={id}>{name}</option>)}
             </select>
-            {(payoutFilter !== "all" || partnerFilter !== "all") && (
+            {(payoutFilter!=="all"||partnerFilter!=="all") && (
               <button type="button" onClick={() => { setPayoutFilter("all"); setPartnerFilter("all"); setDashVisible(20); }}
-                className="border border-black/20 bg-white px-3 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">
-                Clear
-              </button>
+                className="border border-black/20 bg-white px-3 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">Clear</button>
             )}
           </div>
         </div>
-        <p className="text-xs font-bold text-black/40 mb-3">
-          Showing {Math.min(dashVisible, filtered.length)} of {filtered.length} payments
-        </p>
+        <p className="text-xs font-bold text-black/40 mb-3">Showing {Math.min(dashVisible,filtered.length)} of {filtered.length} payments</p>
         <div className="overflow-x-auto border border-black/10">
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
@@ -538,57 +677,30 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {filtered.length === 0 ? (
+              {filtered.length===0 ? (
                 <tr><td colSpan={17} className="px-4 py-6 text-sm text-black/40">No payments match the current filters.</td></tr>
-              ) : filtered.slice(0, dashVisible).map((b, i) => {
-                const isCancelled = String(b.booking_status||"").toLowerCase() === "cancelled";
+              ) : filtered.slice(0,dashVisible).map((b,i) => {
+                const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
                 const { hire, commAmt, feeInBid, payout, fuelRefund } = calcPayout(b);
-                const netCamel = commAmt;
-                const hasCurrConv = b.charge_currency && b.charge_currency !== (b.currency ?? "EUR");
+                const hasCurrConv = b.charge_currency && b.charge_currency!==(b.currency??"EUR");
                 return (
                   <tr key={b.id} className={`hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/30":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                     <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
                     <td className="px-4 py-3 text-black/70 whitespace-nowrap">{b.partner_company_name||"—"}</td>
                     <td className="px-4 py-3 text-black/70 whitespace-nowrap">{b.customer_name||"—"}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(b.booking_status)}`}>
-                        {String(b.booking_status||"—").replaceAll("_"," ")}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${payoutPillClasses(b.payout_status)}`}>
-                        {b.payout_status||"—"}
-                      </span>
-                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(b.booking_status)}`}>{String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
+                    <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${payoutPillClasses(b.payout_status)}`}>{b.payout_status||"—"}</span></td>
                     <td className="px-4 py-3 text-xs font-bold text-black/60">{b.currency||"—"}</td>
                     <td className="px-4 py-3 text-xs font-bold text-black/60">{b.charge_currency||b.currency||"—"}</td>
-                    <td className={`px-4 py-3 font-bold whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>
-                      {fmtCurr(hire, b.currency??"EUR")}
-                    </td>
-                    <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">
-                      {isCancelled&&b.refund_status==="full" ? <span className="line-through text-red-400">{fmtCurr(commAmt,b.currency??"EUR")}</span> : fmtCurr(commAmt,b.currency??"EUR")}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {feeInBid > 0 ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid,b.currency??"EUR")}</span> : <span className="text-black/30">—</span>}
-                    </td>
-                    <td className={`px-4 py-3 font-black whitespace-nowrap ${netCamel >= 0 ? "text-green-700" : "text-red-600"}`}>
-                      {isCancelled&&b.refund_status==="full" ? <span className="text-black/30">—</span> : fmtCurr(netCamel,b.currency??"EUR")}
-                    </td>
-                    <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-black/70"}`}>
-                      {isCancelled&&b.refund_status==="full" ? fmtCurr(0,b.currency??"EUR") : fmtCurr(payout,b.currency??"EUR")}
-                    </td>
-                    <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">
-                      {Number(b.fuel_charge??0) > 0 ? fmtCurr(Number(b.fuel_charge),b.currency??"EUR") : <span className="text-black/30">—</span>}
-                    </td>
-                    <td className="px-4 py-3 font-black text-green-600 whitespace-nowrap">
-                      {fuelRefund > 0 ? fmtCurr(fuelRefund,b.currency??"EUR") : <span className="text-black/30">—</span>}
-                    </td>
-                    <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled?"text-red-400 line-through":"text-black"}`}>
-                      {fmtAmt(b.amount,b.currency)}
-                    </td>
-                    <td className="px-4 py-3 text-xs font-bold text-black/50 whitespace-nowrap">
-                      {hasCurrConv && b.conversion_rate ? Number(b.conversion_rate).toFixed(4) : "—"}
-                    </td>
+                    <td className={`px-4 py-3 font-bold whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,b.currency??"EUR")}</td>
+                    <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">{isCancelled&&b.refund_status==="full"?<span className="line-through text-red-400">{fmtCurr(commAmt,b.currency??"EUR")}</span>:fmtCurr(commAmt,b.currency??"EUR")}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{feeInBid>0?<span className="font-black text-amber-700">− {fmtCurr(feeInBid,b.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
+                    <td className={`px-4 py-3 font-black whitespace-nowrap ${commAmt>=0?"text-green-700":"text-red-600"}`}>{isCancelled&&b.refund_status==="full"?<span className="text-black/30">—</span>:fmtCurr(commAmt,b.currency??"EUR")}</td>
+                    <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-black/70"}`}>{isCancelled&&b.refund_status==="full"?fmtCurr(0,b.currency??"EUR"):fmtCurr(payout,b.currency??"EUR")}</td>
+                    <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">{Number(b.fuel_charge??0)>0?fmtCurr(Number(b.fuel_charge),b.currency??"EUR"):<span className="text-black/30">—</span>}</td>
+                    <td className="px-4 py-3 font-black text-green-600 whitespace-nowrap">{fuelRefund>0?fmtCurr(fuelRefund,b.currency??"EUR"):<span className="text-black/30">—</span>}</td>
+                    <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,b.currency)}</td>
+                    <td className="px-4 py-3 text-xs font-bold text-black/50 whitespace-nowrap">{hasCurrConv&&b.conversion_rate?Number(b.conversion_rate).toFixed(4):"—"}</td>
                     <td className="px-4 py-3 text-xs text-black/50 whitespace-nowrap">{fmtDate(b.created_at)}</td>
                   </tr>
                 );
@@ -596,13 +708,13 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
             </tbody>
           </table>
         </div>
-        {filtered.length > dashVisible && (
-          <button type="button" onClick={() => setDashVisible(v => v + 20)}
+        {filtered.length>dashVisible && (
+          <button type="button" onClick={() => setDashVisible(v => v+20)}
             className="mt-3 w-full border border-black/10 bg-[#f0f0f0] py-2.5 text-sm font-black text-black hover:bg-black/10">
-            ▼ Show more ({filtered.length - dashVisible} remaining)
+            ▼ Show more ({filtered.length-dashVisible} remaining)
           </button>
         )}
-        {dashVisible > 20 && filtered.length <= dashVisible && (
+        {dashVisible>20 && filtered.length<=dashVisible && (
           <button type="button" onClick={() => setDashVisible(20)}
             className="mt-3 w-full border border-black/10 bg-[#f0f0f0] py-2.5 text-sm font-black text-black hover:bg-black/10">
             ▲ Show less
@@ -613,196 +725,26 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
   );
 }
 
-// ── Admin Invoices Section ────────────────────────────────────────────────────
-type InvoiceRow = {
-  id: string; invoice_number: string; partner_user_id: string;
-  partner_company_name: string | null; period_month: string;
-  currency: string; total_commission: number; booking_count: number;
-  generated_at: string; emailed_at: string | null; download_url: string | null;
-};
-
-function AdminInvoicesSection({ partners }: { partners: [string, string][] }) {
-  const [invoices,      setInvoices]      = useState<InvoiceRow[]>([]);
-  const [invoiceLoading, setInvoiceLoading] = useState(true);
-  const [invoiceError,  setInvoiceError]  = useState<string | null>(null);
-  const [generating,    setGenerating]    = useState(false);
-  const [genPartnerId,  setGenPartnerId]  = useState("");
-  const [genMonth,      setGenMonth]      = useState("");
-  const [genMsg,        setGenMsg]        = useState<{ ok: boolean; text: string } | null>(null);
-  const [monthFilter,   setMonthFilter]   = useState("all");
-  const [partnerFilter, setPartnerFilter] = useState("all");
-    setInvoiceLoading(true); setInvoiceError(null);
-    try {
-      const params = new URLSearchParams();
-      if (monthFilter   !== "all") params.set("month",      monthFilter);
-      if (partnerFilter !== "all") params.set("partner_id", partnerFilter);
-      const res  = await fetch(`/api/admin/invoices?${params}`, { cache: "no-store", credentials: "include" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to load invoices");
-      setInvoices(Array.isArray(json?.data) ? json.data : []);
-    } catch (e: any) {
-      setInvoiceError(e?.message || "Failed to load invoices");
-    } finally { setInvoiceLoading(false); }
-  }
-
-  useEffect(() => { loadInvoices(); }, [monthFilter, partnerFilter]);
-
-  const partners = useMemo(() => {
-    const s = new Map<string, string>();
-    for (const inv of invoices) {
-      if (inv.partner_user_id) s.set(inv.partner_user_id, inv.partner_company_name || inv.partner_user_id);
-    }
-    return Array.from(s.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [invoices]);
-
-  const months = useMemo(() => {
-    const s = new Set<string>();
-    for (const inv of invoices) s.add(inv.period_month);
-    return Array.from(s).sort().reverse();
-  }, [invoices]);
-
-  async function handleGenerate() {
-    if (!genPartnerId || !genMonth) { setGenMsg({ ok: false, text: "Select a partner and month." }); return; }
-    setGenerating(true); setGenMsg(null);
-    try {
-      const res  = await fetch("/api/admin/invoices", {
-        method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ partner_id: genPartnerId, period_month: genMonth }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Generation failed");
-      setGenMsg({ ok: true, text: `Invoice ${json.invoice_number} generated successfully.` });
-      loadInvoices();
-    } catch (e: any) {
-      setGenMsg({ ok: false, text: e?.message || "Generation failed" });
-    } finally { setGenerating(false); }
-  }
-
-  return (
-    <div className="border border-black/10 bg-white p-6 md:p-8 space-y-6">
-      <div>
-        <h2 className="text-xl font-black text-black mb-1">Commission Invoices</h2>
-        <p className="text-sm text-black/50">NTUK Ltd commission invoices issued to partners. Auto-generated on monthly payout run.</p>
-      </div>
-
-      {/* On-demand generation */}
-      <div className="border border-black/10 bg-[#f8f8f8] p-4">
-        <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-3">Generate Invoice On-Demand</p>
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="text-xs font-black uppercase tracking-widest text-black/50">Partner</label>
-            <select value={genPartnerId} onChange={e => setGenPartnerId(e.target.value)}
-              className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
-              <option value="">Select partner…</option>
-              {partners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-black uppercase tracking-widest text-black/50">Period (YYYY-MM)</label>
-            <input type="month" value={genMonth} onChange={e => setGenMonth(e.target.value)}
-              className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black" />
-          </div>
-          <button type="button" onClick={handleGenerate} disabled={generating}
-            className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-50">
-            {generating ? "Generating…" : "Generate PDF"}
-          </button>
-        </div>
-        {genMsg && (
-          <p className={`mt-3 text-sm font-bold ${genMsg.ok ? "text-green-700" : "text-red-600"}`}>{genMsg.text}</p>
-        )}
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="text-xs font-black uppercase tracking-widest text-black/50">Month</label>
-          <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)}
-            className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
-            <option value="all">All months</option>
-            {months.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-black uppercase tracking-widest text-black/50">Partner</label>
-          <select value={partnerFilter} onChange={e => setPartnerFilter(e.target.value)}
-            className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
-            <option value="all">All partners</option>
-            {partners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-          </select>
-        </div>
-        {(monthFilter !== "all" || partnerFilter !== "all") && (
-          <button type="button" onClick={() => { setMonthFilter("all"); setPartnerFilter("all"); }}
-            className="border border-black/20 bg-white px-3 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">
-            Clear
-          </button>
-        )}
-      </div>
-
-      {invoiceError && <p className="text-sm font-bold text-red-600">{invoiceError}</p>}
-
-      <div className="overflow-x-auto border border-black/10">
-        <table className="min-w-full text-sm">
-          <thead className="bg-black text-white">
-            <tr>
-              {["Invoice #","Partner","Period","Currency","Commission","Bookings","Generated","Emailed","Download"].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-black/5">
-            {invoiceLoading ? (
-              <tr><td colSpan={9} className="px-4 py-4 text-sm text-black/40">Loading invoices…</td></tr>
-            ) : invoices.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-4 text-sm text-black/40">No invoices generated yet.</td></tr>
-            ) : invoices.map((inv, i) => (
-              <tr key={inv.id} className={`hover:bg-[#f0f0f0] ${i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"}`}>
-                <td className="px-4 py-3 font-black text-black whitespace-nowrap">{inv.invoice_number}</td>
-                <td className="px-4 py-3 text-black/70 whitespace-nowrap">{inv.partner_company_name || "—"}</td>
-                <td className="px-4 py-3 text-black/70 whitespace-nowrap">{inv.period_month}</td>
-                <td className="px-4 py-3 text-black/60 whitespace-nowrap">{inv.currency}</td>
-                <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">{fmtCurr(inv.total_commission, inv.currency)}</td>
-                <td className="px-4 py-3 text-black/60">{inv.booking_count}</td>
-                <td className="px-4 py-3 text-black/50 whitespace-nowrap text-xs">{fmtDate(inv.generated_at)}</td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {inv.emailed_at
-                    ? <span className="inline-flex border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-black text-green-700">✓ Sent</span>
-                    : <span className="inline-flex border border-black/10 bg-[#f0f0f0] px-2 py-0.5 text-xs font-black text-black/40">Not sent</span>}
-                </td>
-                <td className="px-4 py-3">
-                  {inv.download_url
-                    ? <a href={inv.download_url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex bg-black px-3 py-1.5 text-xs font-black text-white hover:opacity-80">⬇ PDF</a>
-                    : <span className="text-xs text-black/30">—</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function AdminReportsPage() {
   const supabase = useMemo(()=>createBrowserSupabaseClient(),[]);
   const router = useRouter();
 
-  const [loading,setLoading]=useState(true);
-  const [error,setError]=useState<string|null>(null);
-  const [requests,setRequests]=useState<RequestRow[]>([]);
-  const [bookings,setBookings]=useState<BookingRow[]>([]);
-  const [dateFrom,setDateFrom]=useState("");
-  const [dateTo,setDateTo]=useState("");
-  const [exportPartner,setExportPartner]=useState("all");
-  const [allBookingsVisible,setAllBookingsVisible]=useState(10);
+  const [loading,           setLoading]           = useState(true);
+  const [error,             setError]             = useState<string|null>(null);
+  const [requests,          setRequests]          = useState<RequestRow[]>([]);
+  const [bookings,          setBookings]          = useState<BookingRow[]>([]);
+  const [dateFrom,          setDateFrom]          = useState("");
+  const [dateTo,            setDateTo]            = useState("");
+  const [exportPartner,     setExportPartner]     = useState("all");
+  const [allBookingsVisible,setAllBookingsVisible] = useState(10);
 
   async function load() {
     setLoading(true); setError(null);
     try {
       const { data:userData, error:userErr } = await supabase.auth.getUser();
       if (userErr||!userData?.user) { router.replace("/partner/login?reason=not_authorized"); return; }
-      const adminRes = await fetch("/api/admin/is-admin",{cache:"no-store",credentials:"include"});
+      const adminRes  = await fetch("/api/admin/is-admin",{cache:"no-store",credentials:"include"});
       const adminJson = await safeJson(adminRes);
       if (!adminJson?.isAdmin) { router.replace("/partner/login?reason=not_authorized"); return; }
       const [reqRes,bkRes] = await Promise.all([
@@ -823,8 +765,8 @@ export default function AdminReportsPage() {
 
   useEffect(()=>{ load(); },[]);
 
-  const filteredRequests = requests.filter(r=>matchesDateRange(r.created_at,dateFrom,dateTo));
-  const filteredBookings = bookings.filter(r=>matchesDateRange(r.created_at,dateFrom,dateTo));
+  const filteredRequests  = requests.filter(r=>matchesDateRange(r.created_at,dateFrom,dateTo));
+  const filteredBookings  = bookings.filter(r=>matchesDateRange(r.created_at,dateFrom,dateTo));
   const completedBookings = filteredBookings.filter(r=>String(r.booking_status||"").toLowerCase()==="completed");
   const cancelledBookings = filteredBookings.filter(r=>String(r.booking_status||"").toLowerCase()==="cancelled");
 
@@ -889,43 +831,38 @@ export default function AdminReportsPage() {
     },new Map<string,{category:string;count:number}>())
   ).map(([,v])=>v).sort((a,b)=>b.count-a.count);
 
-  // All unique partners from full (unfiltered) bookings list for export dropdown
+  // All unique partners from full unfiltered bookings — used for export dropdown + invoice section
   const exportPartners = useMemo(() => {
     const s = new Map<string,string>();
     for (const b of bookings) {
-      if (b.partner_user_id) s.set(b.partner_user_id, b.partner_company_name || b.partner_user_id);
+      if (b.partner_user_id) s.set(b.partner_user_id, b.partner_company_name||b.partner_user_id);
     }
     return Array.from(s.entries()).sort((a,b) => a[1].localeCompare(b[1]));
   }, [bookings]);
 
   function exportExcel() {
     const dateStr = new Date().toISOString().split("T")[0];
-    const exportRows = exportPartner === "all"
+    const exportRows = exportPartner==="all"
       ? filteredBookings
-      : filteredBookings.filter(b => b.partner_user_id === exportPartner);
-    const partnerLabel = exportPartner === "all"
+      : filteredBookings.filter(b => b.partner_user_id===exportPartner);
+    const partnerLabel = exportPartner==="all"
       ? "all-partners"
-      : (exportPartners.find(([id]) => id === exportPartner)?.[1] ?? exportPartner).replace(/\s+/g, "-").toLowerCase();
+      : (exportPartners.find(([id]) => id===exportPartner)?.[1]??exportPartner).replace(/\s+/g,"-").toLowerCase();
     const filename = `camel-admin-report-${partnerLabel}-${dateStr}.xls`;
+
     const fuelHeaders = [
       "Job Number","Partner Company Name","Partner Country","Legal Company Name","Company Reg. No.","VAT / NIF Number",
-      "Customer","Customer Email","Customer Phone",
-      "Pickup Address","Dropoff Address",
-      "Scheduled Pickup At","Scheduled Dropoff At",
-      "Actual Pickup Date & Time","Actual Dropoff Date & Time","Completed Date",
-      "Vehicle","Driver","Driver Vehicle",
-      "Bid Currency","Charge Currency",
+      "Customer","Customer Email","Customer Phone","Pickup Address","Dropoff Address",
+      "Scheduled Pickup At","Scheduled Dropoff At","Actual Pickup Date & Time","Actual Dropoff Date & Time","Completed Date",
+      "Vehicle","Driver","Driver Vehicle","Bid Currency","Charge Currency",
       "Car Hire Price","Commission Rate (%)","Commission Amount",
       "Stripe Processing Fee","Stripe Fee Currency","Exchange Rate (Bid→Charge)",
       "Full Fuel Deposit","Collection Fuel (Driver)","Collection Fuel (Partner Override)",
-      "Return Fuel (Driver)","Return Fuel (Partner Override)",
-      "Quarters Used","Fuel Used Label",
-      "Fuel Charge to Customer","Fuel Refund to Customer",
-      "Total Booking Amount","Partner Payout",
+      "Return Fuel (Driver)","Return Fuel (Partner Override)","Quarters Used","Fuel Used Label",
+      "Fuel Charge to Customer","Fuel Refund to Customer","Total Booking Amount","Partner Payout",
       "Customer Collection Confirmed","Customer Return Confirmed",
       "Insurance Driver Confirmed","Insurance Customer Confirmed",
-      "Booking Status","Cancelled By","Cancelled At","Cancellation Reason","Refund Status",
-      "Created At",
+      "Booking Status","Cancelled By","Cancelled At","Cancellation Reason","Refund Status","Created At",
     ];
     const fuelRows = exportRows.map(b=>{
       const usedQ=b.fuel_used_quarters;
@@ -941,12 +878,9 @@ export default function AdminReportsPage() {
         fmtDateTime(b.delivery_confirmed_at),fmtDateTime(b.collection_confirmed_at),
         isCompleted?fmtDate(b.created_at):"",
         b.vehicle_category_name||"",b.driver_name||"",b.driver_vehicle||"",
-        b.currency||"EUR",
-        b.charge_currency||b.currency||"EUR",
+        b.currency||"EUR",b.charge_currency||b.currency||"EUR",
         hire,rate,commAmt,
-        feeInBid>0?feeInBid.toFixed(4):"",
-        b.currency||"EUR",
-        b.exchange_rate||b.conversion_rate||"",
+        feeInBid>0?feeInBid.toFixed(4):"",b.currency||"EUR",b.exchange_rate||b.conversion_rate||"",
         Number(b.fuel_price??0),
         b.collection_fuel_level_driver||"—",b.collection_fuel_level_partner||"—",
         b.return_fuel_level_driver||"—",b.return_fuel_level_partner||"—",
@@ -954,16 +888,11 @@ export default function AdminReportsPage() {
         usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—",
         Number(b.fuel_charge??0),fuelRefund,
         isCancelled?0:Number(b.amount??0),payout,
-        b.collection_confirmed_by_customer?"Yes":"No",
-        b.return_confirmed_by_customer?"Yes":"No",
-        b.insurance_docs_confirmed_by_driver?"Yes":"No",
-        b.insurance_docs_confirmed_by_customer?"Yes":"No",
-        b.booking_status||"",
-        b.cancelled_by||"",
+        b.collection_confirmed_by_customer?"Yes":"No",b.return_confirmed_by_customer?"Yes":"No",
+        b.insurance_docs_confirmed_by_driver?"Yes":"No",b.insurance_docs_confirmed_by_customer?"Yes":"No",
+        b.booking_status||"",b.cancelled_by||"",
         b.cancelled_at?fmtDateTime(b.cancelled_at):"",
-        b.cancellation_reason||"",
-        b.refund_status||"",
-        fmtDate(b.created_at),
+        b.cancellation_reason||"",b.refund_status||"",fmtDate(b.created_at),
       ];
     });
     const summaryHeaders = [
@@ -990,7 +919,8 @@ export default function AdminReportsPage() {
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
       const { hire, rate, commAmt, payout, fuelRefund, feeInBid } = calcPayout(b);
       return [
-        b.job_number||"",b.partner_company_name||"",b.partner_country||"",b.customer_name||"",b.booking_status||"",b.payout_status||"",
+        b.job_number||"",b.partner_company_name||"",b.partner_country||"",b.customer_name||"",
+        b.booking_status||"",b.payout_status||"",
         b.currency||"EUR",b.charge_currency||b.currency||"EUR",
         hire,rate,commAmt,feeInBid>0?feeInBid.toFixed(4):"",commAmt-feeInBid,
         b.exchange_rate||b.conversion_rate||"",
@@ -998,8 +928,7 @@ export default function AdminReportsPage() {
         usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—",
         Number(b.fuel_charge??0),fuelRefund,
         isCancelled?0:Number(b.amount??0),payout,
-        b.cancelled_by||"",
-        b.cancelled_at?fmtDateTime(b.cancelled_at):"",
+        b.cancelled_by||"",b.cancelled_at?fmtDateTime(b.cancelled_at):"",
         b.refund_status||"",
         b.insurance_docs_confirmed_by_driver&&b.insurance_docs_confirmed_by_customer?"Confirmed":"Pending",
         fmtDate(b.created_at),
@@ -1020,36 +949,37 @@ export default function AdminReportsPage() {
     <div className="space-y-6">
       {error&&<div className="border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
+      {/* Header + controls */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
+        <h2 className="text-2xl font-black text-black">Admin Reports</h2>
+        <p className="mt-1 text-sm text-black/50 mb-4">Full network-wide reconciliation including Stripe fees, currency conversions, cancellations, commission, and multi-currency revenue.</p>
+        <div className="flex flex-wrap items-end gap-3">
           <div>
-            <h2 className="text-2xl font-black text-black">Admin Reports</h2>
-            <p className="mt-1 text-sm text-black/50">Full network-wide reconciliation including Stripe fees, currency conversions, cancellations, commission, and multi-currency revenue.</p>
+            <label className="text-xs font-black uppercase tracking-widest text-black/60">Date from</label>
+            <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
+              className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm text-black outline-none focus:border-black"/>
           </div>
-          <div className="mt-4 flex flex-wrap items-end gap-3">
-            <div>
-              <label className="text-xs font-black uppercase tracking-widest text-black/60">Date from</label>
-              <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm text-black outline-none focus:border-black"/>
-            </div>
-            <div>
-              <label className="text-xs font-black uppercase tracking-widest text-black/60">Date to</label>
-              <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm text-black outline-none focus:border-black"/>
-            </div>
-            <div>
-              <label className="text-xs font-black uppercase tracking-widest text-black/60">Export partner</label>
-              <select
-                value={exportPartner}
-                onChange={e => setExportPartner(e.target.value)}
-                className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black"
-              >
-                <option value="all">All partners</option>
-                {exportPartners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-              </select>
-            </div>
-            <button type="button" onClick={exportExcel} className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90">⬇ Export Excel</button>
-            <button type="button" onClick={()=>{setDateFrom("");setDateTo("");setExportPartner("all");}} className="border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">Clear</button>
+          <div>
+            <label className="text-xs font-black uppercase tracking-widest text-black/60">Date to</label>
+            <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
+              className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm text-black outline-none focus:border-black"/>
           </div>
+          <div>
+            <label className="text-xs font-black uppercase tracking-widest text-black/60">Export partner</label>
+            <select value={exportPartner} onChange={e => setExportPartner(e.target.value)}
+              className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+              <option value="all">All partners</option>
+              {exportPartners.map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </div>
+          <button type="button" onClick={exportExcel}
+            className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90">⬇ Export Excel</button>
+          <button type="button" onClick={()=>{setDateFrom("");setDateTo("");setExportPartner("all");}}
+            className="border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">Clear</button>
+        </div>
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         {[
           { label:"Total Bookings", value:filteredBookings.length,  color:"text-black" },
@@ -1065,10 +995,11 @@ export default function AdminReportsPage() {
         ))}
       </div>
 
+      {/* Month stats */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {[
-          { label:"This Month Requests", value:filteredRequests.filter(r=>getMonthKey(r.created_at)===currentMonthKey).length, prev:filteredRequests.filter(r=>getMonthKey(r.created_at)===previousMonthKey).length },
-          { label:"This Month Bookings", value:filteredBookings.filter(r=>getMonthKey(r.created_at)===currentMonthKey).length, prev:filteredBookings.filter(r=>getMonthKey(r.created_at)===previousMonthKey).length },
+          { label:"This Month Requests", value:filteredRequests.filter(r=>getMonthKey(r.created_at)===currentMonthKey).length,  prev:filteredRequests.filter(r=>getMonthKey(r.created_at)===previousMonthKey).length },
+          { label:"This Month Bookings", value:filteredBookings.filter(r=>getMonthKey(r.created_at)===currentMonthKey).length,  prev:filteredBookings.filter(r=>getMonthKey(r.created_at)===previousMonthKey).length },
           { label:"Open Requests",       value:filteredRequests.filter(r=>String(r.status||"").toLowerCase()==="open").length, prev:null },
         ].map(({label,value,prev})=>(
           <div key={label} className="border border-black/10 bg-white p-5">
@@ -1079,7 +1010,6 @@ export default function AdminReportsPage() {
         ))}
       </div>
 
-      {/* Financial Dashboard */}
       <FinancialDashboard bookings={filteredBookings} />
 
       {/* All Bookings */}
@@ -1098,13 +1028,13 @@ export default function AdminReportsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {filteredBookings.length===0?(
+              {filteredBookings.length===0 ? (
                 <tr><td colSpan={17} className="px-4 py-4 text-black/50">No bookings found.</td></tr>
-              ):filteredBookings.slice(0,allBookingsVisible).map((b,i)=>{
+              ) : filteredBookings.slice(0,allBookingsVisible).map((b,i)=>{
                 const usedQ=b.fuel_used_quarters;
                 const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
                 const { commAmt, payout, rate, hire, fuelRefund, feeInBid } = calcPayout(b);
-                const hasCurrConv = b.charge_currency && b.charge_currency !== (b.currency ?? "EUR");
+                const hasCurrConv = b.charge_currency && b.charge_currency!==(b.currency??"EUR");
                 return (
                   <tr key={b.id} className={`hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/50":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                     <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
@@ -1113,20 +1043,12 @@ export default function AdminReportsPage() {
                     <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(b.booking_status)}`}>{String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
                     <td className={`px-4 py-3 ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,b.currency??"EUR")}</td>
                     <td className="px-4 py-3">
-                      {isCancelled&&b.refund_status==="full"?(
-                        <span className="text-xs font-black text-red-400 line-through">{fmtCurr(commAmt,b.currency??"EUR")}</span>
-                      ):(
-                        <><div className="text-xs font-black text-[#ff7a00]">{fmtCurr(commAmt,b.currency??"EUR")}</div><div className="text-xs text-black/40">{rate}%</div></>
-                      )}
+                      {isCancelled&&b.refund_status==="full"
+                        ? <span className="text-xs font-black text-red-400 line-through">{fmtCurr(commAmt,b.currency??"EUR")}</span>
+                        : <><div className="text-xs font-black text-[#ff7a00]">{fmtCurr(commAmt,b.currency??"EUR")}</div><div className="text-xs text-black/40">{rate}%</div></>}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {feeInBid > 0
-                        ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid, b.currency??"EUR")}</span>
-                        : <span className="text-black/30">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-xs font-bold text-black/50 whitespace-nowrap">
-                      {hasCurrConv && b.conversion_rate ? Number(b.conversion_rate).toFixed(4) : "—"}
-                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">{feeInBid>0?<span className="font-black text-amber-700">− {fmtCurr(feeInBid,b.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
+                    <td className="px-4 py-3 text-xs font-bold text-black/50 whitespace-nowrap">{hasCurrConv&&b.conversion_rate?Number(b.conversion_rate).toFixed(4):"—"}</td>
                     <td className="px-4 py-3 text-black/70">{fmtAmt(b.fuel_price,b.currency)}</td>
                     <td className="px-4 py-3 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                     <td className="px-4 py-3 font-black text-[#ff7a00]">{b.fuel_charge!==null?fmtAmt(b.fuel_charge,b.currency):"—"}</td>
@@ -1143,13 +1065,20 @@ export default function AdminReportsPage() {
           </table>
         </div>
         {filteredBookings.length>allBookingsVisible&&(
-          <button type="button" onClick={()=>setAllBookingsVisible(v=>v+10)} className="mt-3 w-full border border-black/10 bg-[#f0f0f0] py-2.5 text-sm font-black text-black hover:bg-black/10">▼ Show more ({filteredBookings.length-allBookingsVisible} remaining)</button>
+          <button type="button" onClick={()=>setAllBookingsVisible(v=>v+10)}
+            className="mt-3 w-full border border-black/10 bg-[#f0f0f0] py-2.5 text-sm font-black text-black hover:bg-black/10">
+            ▼ Show more ({filteredBookings.length-allBookingsVisible} remaining)
+          </button>
         )}
         {allBookingsVisible>10&&filteredBookings.length<=allBookingsVisible&&(
-          <button type="button" onClick={()=>setAllBookingsVisible(10)} className="mt-3 w-full border border-black/10 bg-[#f0f0f0] py-2.5 text-sm font-black text-black hover:bg-black/10">▲ Show less</button>
+          <button type="button" onClick={()=>setAllBookingsVisible(10)}
+            className="mt-3 w-full border border-black/10 bg-[#f0f0f0] py-2.5 text-sm font-black text-black hover:bg-black/10">
+            ▲ Show less
+          </button>
         )}
       </div>
 
+      {/* Currency sections */}
       {(["EUR","GBP","USD"] as Currency[]).map(curr=>{
         const t=revenuesByCurrency[curr];
         if (t.count===0) return null;
@@ -1157,6 +1086,7 @@ export default function AdminReportsPage() {
         return <AdminCurrencySection key={curr} curr={curr} t={t} bookings={currBookings}/>;
       })}
 
+      {/* Partner Breakdown */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h2 className="text-xl font-black text-black mb-1">Partner Breakdown</h2>
         <p className="text-sm text-black/50 mb-4">Revenue, commission, Stripe fees and payout performance by partner.</p>
@@ -1170,9 +1100,9 @@ export default function AdminReportsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {partnerBreakdown.length===0?(
+              {partnerBreakdown.length===0 ? (
                 <tr><td colSpan={9} className="px-4 py-4 text-black/50">No partner data.</td></tr>
-              ):partnerBreakdown.map((p,i)=>(
+              ) : partnerBreakdown.map((p,i)=>(
                 <tr key={i} className={`hover:bg-[#f0f0f0] ${i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                   <td className="px-4 py-3 font-black text-black">{p.name}</td>
                   <td className="px-4 py-3 text-black/70">{p.bookings}</td>
@@ -1190,12 +1120,11 @@ export default function AdminReportsPage() {
         </div>
       </div>
 
-      {/* Payout Status with drilldown */}
       <PayoutStatusSection bookings={filteredBookings} />
 
-      {/* Commission Invoices */}
       <AdminInvoicesSection partners={exportPartners} />
 
+      {/* Vehicle Category Breakdown */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h2 className="text-xl font-black text-black mb-4">Vehicle Category Breakdown</h2>
         <div className="overflow-x-auto border border-black/10">
@@ -1207,9 +1136,9 @@ export default function AdminReportsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {vehicleBreakdown.length===0?(
+              {vehicleBreakdown.length===0 ? (
                 <tr><td colSpan={2} className="px-4 py-4 text-black/50">No data.</td></tr>
-              ):vehicleBreakdown.map((r,i)=>(
+              ) : vehicleBreakdown.map((r,i)=>(
                 <tr key={r.category} className={`hover:bg-[#f0f0f0] ${i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                   <td className="px-4 py-3 font-black text-black">{r.category}</td>
                   <td className="px-4 py-3 text-black/70">{r.count}</td>
