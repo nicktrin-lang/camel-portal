@@ -174,33 +174,21 @@ function Field({ label, children }: { label:string; children:React.ReactNode }) 
 function PaymentFeesCard({ payment, bidCurrency, booking, rates }: { payment: PaymentData; bidCurrency: Currency; booking: BookingRow; rates: Rates }) {
   if (!payment) return null;
 
-  // Determine charge currency — check all sources
-  const chargeCurr = (
-    payment.charge_currency ||
-    payment.stripe_fee_currency ||
-    booking.charge_currency ||
-    bidCurrency
-  ) as string;
-  const hasCurrConv = chargeCurr.toUpperCase() !== bidCurrency.toUpperCase();
   const fmtB = (n: number) => fmtCurr(n, bidCurrency);
-  const fmtC = (n: number) => fmtCurr(n, chargeCurr);
 
-  // Convert stripe_fee from charge currency → bid currency using live rates
-  // Live rates are always EUR-based: rates.GBP = EUR→GBP, rates.USD = EUR→USD
-  // So to convert any currency to EUR: amount / rate
-  // To convert EUR to any currency: amount * rate
-  // General: fee_in_bid = fee_in_charge * (charge_rate / bid_rate)
-  // where EUR rate = 1, GBP rate = rates.GBP, USD rate = rates.USD
+  // Mirror exactly the same logic as partner reports stripeFeeInBidCurrency:
+  // — detect mismatch via stripe_fee_currency vs bidCurrency
+  // — convert by dividing by exchange_rate (which is stored as bid→charge rate)
+  const feeCurr     = payment.stripe_fee_currency ?? null;
+  const hasCurrConv = !!feeCurr && feeCurr.toUpperCase() !== bidCurrency.toUpperCase();
+  const chargeCurr  = (payment.charge_currency || booking.charge_currency || feeCurr || bidCurrency) as string;
+  const fmtC        = (n: number) => fmtCurr(n, chargeCurr);
+
   const feeInBid = (() => {
     if (!payment.stripe_fee || payment.stripe_fee <= 0) return 0;
     if (!hasCurrConv) return payment.stripe_fee;
-    const getRate = (c: string) => c.toUpperCase() === "EUR" ? 1 : c.toUpperCase() === "GBP" ? rates.GBP : c.toUpperCase() === "USD" ? rates.USD : null;
-    const chargeRate = getRate(chargeCurr);
-    const bidRate    = getRate(bidCurrency);
-    if (chargeRate && bidRate) return payment.stripe_fee * (bidRate / chargeRate);
-    // Fallback: stored exchange_rate is bid→charge, so divide to get bid
-    const storedRate = payment.exchange_rate || booking.conversion_rate;
-    if (storedRate && storedRate > 0) return payment.stripe_fee / storedRate;
+    const rate = payment.exchange_rate || booking.conversion_rate;
+    if (rate && rate > 0) return payment.stripe_fee / rate;
     return payment.stripe_fee;
   })();
 
