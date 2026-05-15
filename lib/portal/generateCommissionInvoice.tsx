@@ -232,7 +232,7 @@ async function buildPdf(params: {
           return (
             <View key={b.id} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
               <Text style={{ ...styles.tableCell, width: COL.job }}>{b.job_number || b.id.slice(0, 8)}</Text>
-              <Text style={{ ...styles.tableCell, width: COL.date }}>{fmtDate(b.pickup_at)}</Text>
+              
               <Text style={{ ...styles.tableCell, width: COL.desc, color: fullRefund ? "#aaa" : "#444" }}>{desc}</Text>
               <Text style={{ ...styles.tableCell, width: COL.rate, textAlign: "right" }}>{fullRefund ? "—" : `${rate}%`}</Text>
               <Text style={{ ...styles.tableCell, width: COL.hire, textAlign: "right", color: fullRefund ? "#aaa" : "#444" }}>
