@@ -138,14 +138,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 // ── Payment Fees Card (Admin) ──────────────────────────────────────────────────
-function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentData; bidCurrency: Currency; booking: BookingRow }) {
+function PaymentFeesCard({ payment, bidCurrency, booking, rates }: {
+  payment: PaymentData; bidCurrency: Currency; booking: BookingRow; rates: Rates;
+}) {
   if (!payment) return null;
+
+  // Detect currency conversion using stripe_fee_currency as the source of truth
   const feeCurr     = payment.stripe_fee_currency ?? null;
   const chargeCurr  = (payment.charge_currency || feeCurr || bidCurrency) as string;
   const hasCurrConv = !!feeCurr && feeCurr.toUpperCase() !== bidCurrency.toUpperCase();
-  const fmtB = (n: number) => fmtCurr(n, bidCurrency);
-  const fmtC = (n: number) => fmtCurr(n, chargeCurr);
 
+  // Convert stripe fee from charge currency → bid currency (exchange_rate = bid→charge, so divide)
   const feeInBid = (() => {
     if (!payment.stripe_fee || payment.stripe_fee <= 0) return 0;
     if (!hasCurrConv) return payment.stripe_fee;
@@ -153,78 +156,119 @@ function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentDa
     return payment.stripe_fee;
   })();
 
+  // All amounts in bid currency
   const hire       = Number(booking.car_hire_price ?? 0);
   const rate       = (booking as any).commission_rate ?? 20;
   const commAmt    = Math.max((hire * rate) / 100, 10);
+  const fuelDeposit = Number(booking.fuel_price ?? 0);
   const fuelCharge = Number(booking.fuel_charge ?? 0);
+  const fuelRefund = Number(booking.fuel_refund ?? payment.fuel_refund_amount ?? 0);
+  const totalPaid  = hire + fuelDeposit; // bid currency total customer paid (before conversion)
   const netPayout  = Math.max(0, hire - commAmt + fuelCharge - feeInBid);
+
+  // Helper: show bid amount + charge equivalent if currencies differ
+  const dual = (bidAmt: number) => {
+    if (!hasCurrConv || !payment.exchange_rate) return null;
+    const chargeAmt = bidAmt * payment.exchange_rate;
+    return fmtCurr(chargeAmt, chargeCurr);
+  };
+
+  // Row component
+  const Row = ({ label, bidAmt, color, prefix, note }: {
+    label: string; bidAmt: number | null; color?: string; prefix?: string; note?: string;
+  }) => {
+    if (bidAmt === null) return null;
+    const chargeEquiv = bidAmt !== 0 ? dual(Math.abs(bidAmt)) : null;
+    return (
+      <div className="flex items-center justify-between py-2.5 border-b border-black/5 last:border-0">
+        <span className="text-sm font-semibold text-black/60">
+          {label}
+          {note && <span className="ml-2 text-xs text-black/30">{note}</span>}
+        </span>
+        <div className="text-right">
+          <span className={`text-sm font-black ${color ?? "text-black"}`}>
+            {prefix}{fmtCurr(Math.abs(bidAmt), bidCurrency)}
+          </span>
+          {chargeEquiv && (
+            <span className="ml-2 text-xs font-bold text-black/40">({chargeEquiv})</span>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="border border-black/10 bg-[#f8f8f8] p-6">
       <h2 className="text-base font-black text-black mb-1">Payment & Fee Breakdown</h2>
-      <p className="text-xs font-bold text-black/40 mb-4">
-        All amounts shown in bid currency ({bidCurrency}).
-        {hasCurrConv && <span className="ml-1 text-amber-700">Customer paid in {feeCurr} — Stripe applied currency conversion.</span>}
-      </p>
-      <div className="space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="font-semibold text-black/60">Car hire</span>
-          <span className="font-black text-black">{fmtB(hire)}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="font-semibold text-black/60">Commission ({rate}%)</span>
-          <span className="font-black text-amber-700">− {fmtB(commAmt)}</span>
-        </div>
-        {fuelCharge > 0 && (
-          <div className="flex justify-between text-sm">
-            <span className="font-semibold text-black/60">Fuel charge</span>
-            <span className="font-black text-[#ff7a00]">+ {fmtB(fuelCharge)}</span>
-          </div>
-        )}
-        <div className="flex justify-between text-sm border-t border-black/10 pt-2">
-          <span className="font-semibold text-black/60">
-            Stripe fees (processing{hasCurrConv ? " + currency conversion" : ""})
-            <span className="ml-1 text-xs text-black/30">incl. in fee below</span>
+      <p className="text-xs font-bold text-black/40 mb-1">
+        All amounts in bid currency ({bidCurrency}).
+        {hasCurrConv && (
+          <span className="ml-1 text-amber-700">
+            Customer paid in {chargeCurr} — conversion rate: 1 {chargeCurr} = {(1 / (payment.exchange_rate ?? 1)).toFixed(5)} {bidCurrency}.
+            Charge currency equivalent shown in brackets.
           </span>
-          <span className="font-black text-amber-700">− {fmtB(feeInBid)}</span>
-        </div>
-        {payment.fuel_refund_amount != null && payment.fuel_refund_amount > 0 && (
-          <div className="flex justify-between text-sm">
-            <span className="font-semibold text-black/60">
-              Fuel refund to customer
-              {payment.fuel_refund_stripe_id && <span className="ml-1 text-xs text-black/30">({payment.fuel_refund_stripe_id})</span>}
-            </span>
-            <span className="font-black text-green-700">− {fmtC(payment.fuel_refund_amount)}</span>
+        )}
+      </p>
+
+      <div className="mt-4 bg-white border border-black/10 px-4 py-1">
+        <Row label="Car hire"         bidAmt={hire}       color="text-black" />
+        <Row label="Fuel deposit"     bidAmt={fuelDeposit} color="text-black" />
+        <div className="flex items-center justify-between py-2.5 border-b border-black/5 font-black">
+          <span className="text-sm text-black">Total paid by customer</span>
+          <div className="text-right">
+            <span className="text-sm text-black">{fmtCurr(totalPaid, bidCurrency)}</span>
+            {hasCurrConv && payment.amount_total != null && (
+              <span className="ml-2 text-xs font-bold text-black/40">({fmtCurr(payment.amount_total, chargeCurr)})</span>
+            )}
           </div>
+        </div>
+        <Row label={`Commission (${rate}%)`} bidAmt={commAmt}  color="text-amber-700" prefix="− " />
+        {fuelCharge > 0 && <Row label="Fuel charge to customer" bidAmt={fuelCharge} color="text-[#ff7a00]" prefix="+ " />}
+        <Row
+          label={`Stripe fees (processing${hasCurrConv ? " + currency conversion" : ""})`}
+          bidAmt={feeInBid}
+          color="text-amber-700"
+          prefix="− "
+          note={hasCurrConv ? `${fmtCurr(payment.stripe_fee ?? 0, chargeCurr)} in ${chargeCurr}` : undefined}
+        />
+        {fuelRefund > 0 && (
+          <Row
+            label="Fuel deposit refund to customer"
+            bidAmt={fuelRefund}
+            color="text-green-700"
+            prefix="− "
+            note={payment.fuel_refund_stripe_id ?? undefined}
+          />
         )}
         {payment.cancellation_refund_amount != null && payment.cancellation_refund_amount > 0 && (
-          <div className="flex justify-between text-sm">
-            <span className="font-semibold text-black/60">
-              Cancellation refund to customer
-              {payment.cancellation_refund_stripe_id && <span className="ml-1 text-xs text-black/30">({payment.cancellation_refund_stripe_id})</span>}
-            </span>
-            <span className="font-black text-red-600">− {fmtC(payment.cancellation_refund_amount)}</span>
-          </div>
+          <Row
+            label="Cancellation refund to customer"
+            bidAmt={payment.cancellation_refund_amount}
+            color="text-red-600"
+            prefix="− "
+            note={payment.cancellation_refund_stripe_id ?? undefined}
+          />
         )}
-        <div className="flex justify-between text-sm font-black border-t border-black pt-2 mt-2">
-          <span className="text-black">Partner net payout</span>
-          <span className="text-green-700">{fmtB(netPayout)}</span>
+        <div className="flex items-center justify-between py-3 mt-1 border-t-2 border-black">
+          <span className="text-sm font-black text-black">Partner net payout</span>
+          <span className="text-sm font-black text-green-700">{fmtCurr(netPayout, bidCurrency)}</span>
         </div>
       </div>
+
       {hasCurrConv && (
-        <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
-          ⚠ Customer paid in {feeCurr} ({feeCurr} → {bidCurrency}). The Stripe fee includes both the processing fee and the currency conversion fee. See your <a href="/partner/terms" className="underline">partner terms</a> for details.
+        <div className="mt-3 border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
+          ⚠ Customer paid in {chargeCurr}. Stripe applied a currency conversion ({chargeCurr} → {bidCurrency}).
+          The Stripe fee includes both the processing fee (~1.5% + €0.25) and the currency conversion fee (~2%).
         </div>
       )}
       {!hasCurrConv && (
         <p className="mt-3 text-xs font-bold text-black/40">
-          Stripe fees are typically ~1.5% + €0.25 per transaction.
+          Stripe fees are typically ~1.5% + €0.25 per transaction. No currency conversion applied.
         </p>
       )}
     </div>
   );
 }
-
 
 function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
   const stored   = (bk.currency ?? "EUR") as Currency;
@@ -541,8 +585,7 @@ export default function AdminBookingDetailPage() {
         </div>
       </div>
 
-      {/* Payment fees — always show */}
-      <PaymentFeesCard payment={data.payment} bidCurrency={stored} booking={bk} />
+      <PaymentFeesCard payment={data.payment} bidCurrency={stored} booking={bk} rates={rates} />
 
       {collectionLocked&&returnLocked&&<BookingSummaryCard booking={bk} rates={rates} isLive={rateIsLive}/>}
 
