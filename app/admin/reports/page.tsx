@@ -613,6 +613,179 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
   );
 }
 
+// ── Admin Invoices Section ────────────────────────────────────────────────────
+type InvoiceRow = {
+  id: string; invoice_number: string; partner_user_id: string;
+  partner_company_name: string | null; period_month: string;
+  currency: string; total_commission: number; booking_count: number;
+  generated_at: string; emailed_at: string | null; download_url: string | null;
+};
+
+function AdminInvoicesSection() {
+  const [invoices,      setInvoices]      = useState<InvoiceRow[]>([]);
+  const [invoiceLoading, setInvoiceLoading] = useState(true);
+  const [invoiceError,  setInvoiceError]  = useState<string | null>(null);
+  const [generating,    setGenerating]    = useState(false);
+  const [genPartnerId,  setGenPartnerId]  = useState("");
+  const [genMonth,      setGenMonth]      = useState("");
+  const [genMsg,        setGenMsg]        = useState<{ ok: boolean; text: string } | null>(null);
+  const [monthFilter,   setMonthFilter]   = useState("all");
+  const [partnerFilter, setPartnerFilter] = useState("all");
+
+  async function loadInvoices() {
+    setInvoiceLoading(true); setInvoiceError(null);
+    try {
+      const params = new URLSearchParams();
+      if (monthFilter   !== "all") params.set("month",      monthFilter);
+      if (partnerFilter !== "all") params.set("partner_id", partnerFilter);
+      const res  = await fetch(`/api/admin/invoices?${params}`, { cache: "no-store", credentials: "include" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Failed to load invoices");
+      setInvoices(Array.isArray(json?.data) ? json.data : []);
+    } catch (e: any) {
+      setInvoiceError(e?.message || "Failed to load invoices");
+    } finally { setInvoiceLoading(false); }
+  }
+
+  useEffect(() => { loadInvoices(); }, [monthFilter, partnerFilter]);
+
+  const partners = useMemo(() => {
+    const s = new Map<string, string>();
+    for (const inv of invoices) {
+      if (inv.partner_user_id) s.set(inv.partner_user_id, inv.partner_company_name || inv.partner_user_id);
+    }
+    return Array.from(s.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [invoices]);
+
+  const months = useMemo(() => {
+    const s = new Set<string>();
+    for (const inv of invoices) s.add(inv.period_month);
+    return Array.from(s).sort().reverse();
+  }, [invoices]);
+
+  async function handleGenerate() {
+    if (!genPartnerId || !genMonth) { setGenMsg({ ok: false, text: "Select a partner and month." }); return; }
+    setGenerating(true); setGenMsg(null);
+    try {
+      const res  = await fetch("/api/admin/invoices", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partner_id: genPartnerId, period_month: genMonth }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Generation failed");
+      setGenMsg({ ok: true, text: `Invoice ${json.invoice_number} generated successfully.` });
+      loadInvoices();
+    } catch (e: any) {
+      setGenMsg({ ok: false, text: e?.message || "Generation failed" });
+    } finally { setGenerating(false); }
+  }
+
+  return (
+    <div className="border border-black/10 bg-white p-6 md:p-8 space-y-6">
+      <div>
+        <h2 className="text-xl font-black text-black mb-1">Commission Invoices</h2>
+        <p className="text-sm text-black/50">NTUK Ltd commission invoices issued to partners. Auto-generated on monthly payout run.</p>
+      </div>
+
+      {/* On-demand generation */}
+      <div className="border border-black/10 bg-[#f8f8f8] p-4">
+        <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-3">Generate Invoice On-Demand</p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-xs font-black uppercase tracking-widest text-black/50">Partner</label>
+            <select value={genPartnerId} onChange={e => setGenPartnerId(e.target.value)}
+              className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+              <option value="">Select partner…</option>
+              {partners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-black uppercase tracking-widest text-black/50">Period (YYYY-MM)</label>
+            <input type="month" value={genMonth} onChange={e => setGenMonth(e.target.value)}
+              className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black" />
+          </div>
+          <button type="button" onClick={handleGenerate} disabled={generating}
+            className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-50">
+            {generating ? "Generating…" : "Generate PDF"}
+          </button>
+        </div>
+        {genMsg && (
+          <p className={`mt-3 text-sm font-bold ${genMsg.ok ? "text-green-700" : "text-red-600"}`}>{genMsg.text}</p>
+        )}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="text-xs font-black uppercase tracking-widest text-black/50">Month</label>
+          <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)}
+            className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+            <option value="all">All months</option>
+            {months.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-black uppercase tracking-widest text-black/50">Partner</label>
+          <select value={partnerFilter} onChange={e => setPartnerFilter(e.target.value)}
+            className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+            <option value="all">All partners</option>
+            {partners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </div>
+        {(monthFilter !== "all" || partnerFilter !== "all") && (
+          <button type="button" onClick={() => { setMonthFilter("all"); setPartnerFilter("all"); }}
+            className="border border-black/20 bg-white px-3 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">
+            Clear
+          </button>
+        )}
+      </div>
+
+      {invoiceError && <p className="text-sm font-bold text-red-600">{invoiceError}</p>}
+
+      <div className="overflow-x-auto border border-black/10">
+        <table className="min-w-full text-sm">
+          <thead className="bg-black text-white">
+            <tr>
+              {["Invoice #","Partner","Period","Currency","Commission","Bookings","Generated","Emailed","Download"].map(h => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-black/5">
+            {invoiceLoading ? (
+              <tr><td colSpan={9} className="px-4 py-4 text-sm text-black/40">Loading invoices…</td></tr>
+            ) : invoices.length === 0 ? (
+              <tr><td colSpan={9} className="px-4 py-4 text-sm text-black/40">No invoices generated yet.</td></tr>
+            ) : invoices.map((inv, i) => (
+              <tr key={inv.id} className={`hover:bg-[#f0f0f0] ${i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"}`}>
+                <td className="px-4 py-3 font-black text-black whitespace-nowrap">{inv.invoice_number}</td>
+                <td className="px-4 py-3 text-black/70 whitespace-nowrap">{inv.partner_company_name || "—"}</td>
+                <td className="px-4 py-3 text-black/70 whitespace-nowrap">{inv.period_month}</td>
+                <td className="px-4 py-3 text-black/60 whitespace-nowrap">{inv.currency}</td>
+                <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">{fmtCurr(inv.total_commission, inv.currency)}</td>
+                <td className="px-4 py-3 text-black/60">{inv.booking_count}</td>
+                <td className="px-4 py-3 text-black/50 whitespace-nowrap text-xs">{fmtDate(inv.generated_at)}</td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {inv.emailed_at
+                    ? <span className="inline-flex border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-black text-green-700">✓ Sent</span>
+                    : <span className="inline-flex border border-black/10 bg-[#f0f0f0] px-2 py-0.5 text-xs font-black text-black/40">Not sent</span>}
+                </td>
+                <td className="px-4 py-3">
+                  {inv.download_url
+                    ? <a href={inv.download_url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex bg-black px-3 py-1.5 text-xs font-black text-white hover:opacity-80">⬇ PDF</a>
+                    : <span className="text-xs text-black/30">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminReportsPage() {
   const supabase = useMemo(()=>createBrowserSupabaseClient(),[]);
   const router = useRouter();
@@ -1021,6 +1194,9 @@ export default function AdminReportsPage() {
 
       {/* Payout Status with drilldown */}
       <PayoutStatusSection bookings={filteredBookings} />
+
+      {/* Commission Invoices */}
+      <AdminInvoicesSection />
 
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h2 className="text-xl font-black text-black mb-4">Vehicle Category Breakdown</h2>

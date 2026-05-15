@@ -2,17 +2,25 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+type EmailAttachment = {
+  filename: string;
+  content: string;   // base64-encoded
+  encoding: "base64";
+};
+
 export async function sendEmail({
   to,
   subject,
   html,
+  attachments,
 }: {
   to: string;
   subject: string;
   html: string;
+  attachments?: EmailAttachment[];
 }) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
+  const from   = process.env.EMAIL_FROM;
 
   const cleanTo = String(to || "").trim().toLowerCase();
 
@@ -36,13 +44,16 @@ export async function sendEmail({
 
   console.log("📧 Sending email to:", cleanTo);
 
+  const body: Record<string, unknown> = { from, to: cleanTo, subject, html };
+  if (attachments?.length) body.attachments = attachments;
+
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from, to: cleanTo, subject, html }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -174,14 +185,9 @@ export async function sendReviewReminderEmail(
   jobNumber?: number | null,
   requestId?: string | null
 ) {
-  // Customer site URL — reviews live on camel-global.com, not the partner portal
-  const customerUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
-
-  // Deep link to the booking page. Login page supports ?next= and redirects after auth.
-  const destination = requestId
-    ? `/bookings/${requestId}`
-    : `/bookings`;
-  const reviewUrl = `${customerUrl}/login?next=${encodeURIComponent(destination)}`;
+  const customerUrl  = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
+  const destination  = requestId ? `/bookings/${requestId}` : `/bookings`;
+  const reviewUrl    = `${customerUrl}/login?next=${encodeURIComponent(destination)}`;
 
   return sendEmail({
     to,

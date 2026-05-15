@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
+import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
 
 // Vercel cron — runs 1st of each month at 08:00 UTC
 // vercel.json: { "path": "/api/cron/monthly-payout", "schedule": "0 8 1 * *" }
@@ -26,8 +27,13 @@ export async function GET(req: Request) {
   }
 
   const db = createServiceRoleSupabaseClient();
-  const now = new Date().toISOString();
-  const runLabel = new Date().toLocaleString("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const runLabel = now.toLocaleString("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
+
+  // Period month = previous month (cron runs on 1st, invoices cover the month just ended)
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const periodMonth = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
 
   // ── Fetch all ready bookings ─────────────────────────────────────────────
   const { data: bookings, error: bkErr } = await db
@@ -36,7 +42,8 @@ export async function GET(req: Request) {
       id, job_number, partner_user_id,
       car_hire_price, fuel_charge, commission_rate,
       currency, charge_currency, conversion_rate,
-      payout_status, payment_id
+      payout_status, payment_id,
+      pickup_at, booking_status, refund_status, cancellation_reason
     `)
     .eq("payout_status", "ready");
 
@@ -104,17 +111,15 @@ export async function GET(req: Request) {
     const payoutCurrency = (profile.default_currency || "EUR").toUpperCase();
 
     // ── Calculate total payout ─────────────────────────────────────────────
-    // All amounts are in bid currency (= partner's default_currency for matching partners)
-    // commission_rate on booking is stamped at acceptance — use that, not profile rate
     let totalPayout = 0;
     const bookingLines: string[] = [];
 
     for (const b of partnerBookings) {
-      const carHire      = Number(b.car_hire_price  || 0);
-      const fuelCharge   = Number(b.fuel_charge     || 0);
-      const commRate     = Number(b.commission_rate ?? profile.commission_rate ?? 20);
-      const commission   = calcCommission(carHire, commRate);
-      const payout       = calcPartnerPayout(carHire, commRate, fuelCharge);
+      const carHire    = Number(b.car_hire_price || 0);
+      const fuelCharge = Number(b.fuel_charge    || 0);
+      const commRate   = Number(b.commission_rate ?? profile.commission_rate ?? 20);
+      const commission = calcCommission(carHire, commRate);
+      const payout     = calcPartnerPayout(carHire, commRate, fuelCharge);
       totalPayout += payout;
 
       const jobNo = b.job_number ? `#${b.job_number}` : b.id.slice(0, 8);
@@ -139,15 +144,15 @@ export async function GET(req: Request) {
     let transferId: string | null = null;
     try {
       const transfer = await stripe.transfers.create({
-        amount: totalCents,
-        currency: payoutCurrency.toLowerCase(),
+        amount:      totalCents,
+        currency:    payoutCurrency.toLowerCase(),
         destination: profile.stripe_account_id,
         description: `Camel Global payout — ${runLabel} — ${partnerBookings.length} booking(s)`,
         metadata: {
           partner_user_id: partnerUserId,
           booking_count:   String(partnerBookings.length),
           payout_month:    runLabel,
-          booking_ids:     bookingIds.slice(0, 5).join(","), // Stripe metadata limit
+          booking_ids:     bookingIds.slice(0, 5).join(","),
         },
       });
       transferId = transfer.id;
@@ -157,7 +162,6 @@ export async function GET(req: Request) {
       skipped++;
       results.push({ partner: profile.company_name, status: `failed — ${stripeErr?.message}` });
 
-      // Email admin about failure
       for (const adminEmail of adminEmails) {
         await sendEmail({
           to: adminEmail,
@@ -179,9 +183,9 @@ export async function GET(req: Request) {
     const { error: bkUpdateErr } = await db
       .from("partner_bookings")
       .update({
-        payout_status:  "paid",
-        paid_out_at:    now,
-        payout_batch_id: transferId, // store Stripe transfer ID here for reference
+        payout_status:   "paid",
+        paid_out_at:     nowIso,
+        payout_batch_id: transferId,
       })
       .in("id", bookingIds);
 
@@ -193,17 +197,34 @@ export async function GET(req: Request) {
     if (paymentIds.length) {
       await db
         .from("payments")
-        .update({
-          payout_status: "paid",
-          paid_out_at:   now,
-        })
+        .update({ payout_status: "paid", paid_out_at: nowIso })
         .in("id", paymentIds);
     }
 
     payoutsTriggered++;
     results.push({ partner: profile.company_name, status: "paid", amount: totalPayout, currency: payoutCurrency });
 
-    // ── Email partner ──────────────────────────────────────────────────────
+    // ── Generate commission invoice ────────────────────────────────────────
+    const invoiceBookings = partnerBookings.map(b => ({
+      id:                  b.id,
+      job_number:          b.job_number,
+      pickup_at:           b.pickup_at,
+      car_hire_price:      b.car_hire_price,
+      commission_rate:     b.commission_rate,
+      currency:            b.currency,
+      booking_status:      b.booking_status,
+      refund_status:       b.refund_status,
+      cancellation_reason: b.cancellation_reason,
+    }));
+
+    const invoiceResult = await generateCommissionInvoice(partnerUserId, periodMonth, invoiceBookings);
+    if (!invoiceResult.ok) {
+      console.error(`monthly-payout: invoice generation failed for ${profile.company_name}:`, invoiceResult.error);
+    } else {
+      console.log(`monthly-payout: invoice ${invoiceResult.invoice_number} generated for ${profile.company_name}`);
+    }
+
+    // ── Email partner payout notification ─────────────────────────────────
     const { data: partnerAuthData } = await db.auth.admin.getUserById(partnerUserId);
     const partnerEmail = partnerAuthData?.user?.email || null;
     const fmt = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: payoutCurrency }).format(n);
@@ -220,7 +241,7 @@ export async function GET(req: Request) {
             </div>
             <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
               <p>Hi ${profile.contact_name || profile.company_name},</p>
-              <p>Your payout for <strong>${runLabel}</strong> has been processed.</p>
+              <p>Your payout for <strong>${runLabel}</strong> has been processed. Your commission invoice has been sent separately.</p>
               <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
                 <p style="margin:0 0 12px;font-weight:700;">Payout Summary</p>
                 <table style="width:100%;font-size:13px;border-collapse:collapse;">
@@ -230,7 +251,7 @@ export async function GET(req: Request) {
                   </tr>
                 </table>
               </div>
-              <p style="font-size:13px;color:#666;">The transfer has been sent to your Stripe account and should arrive within 2–5 business days depending on your bank.</p>
+              <p style="font-size:13px;color:#666;">The transfer has been sent to your Stripe account and should arrive within 2–5 business days.</p>
               <p style="font-size:13px;color:#666;">Stripe transfer reference: <code>${transferId}</code></p>
               <p style="margin-top:24px;color:#999;font-size:13px;">The Camel Global Team — NTUK Ltd</p>
             </div>
@@ -252,7 +273,7 @@ export async function GET(req: Request) {
               <strong>Currency:</strong> ${payoutCurrency}<br/>
               <strong>Bookings:</strong> ${partnerBookings.length}<br/>
               <strong>Stripe transfer:</strong> ${transferId}<br/>
-              <strong>Stripe account:</strong> ${profile.stripe_account_id}
+              <strong>Invoice:</strong> ${invoiceResult.invoice_number || "generation failed"}
             </p>
             <pre style="font-size:12px;background:#f4f4f4;padding:12px;">${bookingLines.join("\n")}</pre>
           </div>

@@ -53,6 +53,12 @@ type RequestRow = {
   created_at: string | null; expires_at: string | null;
 };
 
+type InvoiceRow = {
+  id: string; invoice_number: string; period_month: string;
+  currency: string; total_commission: number; booking_count: number;
+  generated_at: string; emailed_at: string | null; download_url: string | null;
+};
+
 const QUARTER_LABELS: Record<number, string> = { 0:"Empty", 1:"¼ Tank", 2:"½ Tank", 3:"¾ Tank", 4:"Full Tank" };
 
 async function safeJson(res: Response): Promise<any> {
@@ -89,7 +95,7 @@ function getMonthKey(value: string | null | undefined) {
   if (isNaN(d.getTime())) return "";
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
 }
-function getCurrentMonthKey() { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; }
+function getCurrentMonthKey()  { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; }
 function getPreviousMonthKey() { const n=new Date(); n.setMonth(n.getMonth()-1); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; }
 
 function escapeXml(v: unknown): string {
@@ -146,6 +152,7 @@ type CurrencyTotals = {
   count:number; completed:number; cancelled:number;
 };
 
+// ── Currency section ──────────────────────────────────────────────────────────
 function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotals; bookings:BookingRow[] }) {
   const [showAll, setShowAll] = useState(false);
   const { symbol } = CURRENCY_META[curr];
@@ -159,16 +166,16 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5 mb-4">
         {[
-          { label:"Total Bookings",      value:t.count,                isMoney:false },
-          { label:"Completed",           value:t.completed,            isMoney:false },
-          { label:"Cancelled",           value:t.cancelled,            isMoney:false },
-          { label:"Car Hire Revenue",    value:t.carHire,              isMoney:true  },
-          { label:"Camel Commission",    value:t.commissionTotal,      isMoney:true  },
-          { label:"Stripe Fees",         value:t.stripeFeeTotal,       isMoney:true  },
-          { label:"Your Net Payout",     value:t.partnerPayoutTotal,   isMoney:true  },
-          { label:"Fuel Charged",        value:t.fuelCharge,           isMoney:true  },
-          { label:"Fuel Refunds Issued", value:t.fuelRefund,           isMoney:true  },
-          { label:"Total Revenue",       value:t.total,                isMoney:true  },
+          { label:"Total Bookings",      value:t.count,              isMoney:false },
+          { label:"Completed",           value:t.completed,          isMoney:false },
+          { label:"Cancelled",           value:t.cancelled,          isMoney:false },
+          { label:"Car Hire Revenue",    value:t.carHire,            isMoney:true  },
+          { label:"Camel Commission",    value:t.commissionTotal,    isMoney:true  },
+          { label:"Stripe Fees",         value:t.stripeFeeTotal,     isMoney:true  },
+          { label:"Your Net Payout",     value:t.partnerPayoutTotal, isMoney:true  },
+          { label:"Fuel Charged",        value:t.fuelCharge,         isMoney:true  },
+          { label:"Fuel Refunds Issued", value:t.fuelRefund,         isMoney:true  },
+          { label:"Total Revenue",       value:t.total,              isMoney:true  },
         ].map(({label:lbl,value,isMoney})=>(
           <div key={lbl} className={`border p-4 ${lbl==="Cancelled"&&(value as number)>0?"border-red-200 bg-red-50":"border-black/5 bg-[#f0f0f0]"}`}>
             <p className="text-xs font-black uppercase tracking-widest text-black/40">{lbl}</p>
@@ -206,7 +213,7 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
                       : <><div className="text-xs font-black text-amber-700">− {fmtCurr(commAmt,curr)}</div><div className="text-xs font-bold text-black/40">{rate}%</div></>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {feeInBid > 0 ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid, curr)}</span> : <span className="text-black/30">—</span>}
+                    {feeInBid > 0 ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid,curr)}</span> : <span className="text-black/30">—</span>}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-xs font-bold text-black/50">
                     {hasCurrConv && b.conversion_rate ? <span title={`${b.currency} → ${b.charge_currency}`}>{Number(b.conversion_rate).toFixed(4)}</span> : "—"}
@@ -237,6 +244,139 @@ function CurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotal
   );
 }
 
+// ── Partner invoices section ──────────────────────────────────────────────────
+function PartnerInvoicesSection() {
+  const [invoices,   setInvoices]   = useState<InvoiceRow[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [genMonth,   setGenMonth]   = useState("");
+  const [genMsg,     setGenMsg]     = useState<{ ok: boolean; text: string; url?: string } | null>(null);
+
+  async function loadInvoices() {
+    setLoading(true); setError(null);
+    try {
+      const res  = await fetch("/api/partner/invoices", { cache: "no-store", credentials: "include" });
+      const json = await safeJson(res);
+      if (!res.ok) throw new Error(json?.error || "Failed to load invoices");
+      setInvoices(Array.isArray(json?.data) ? json.data : []);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load invoices");
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadInvoices(); }, []);
+
+  async function handleGenerate() {
+    if (!genMonth) { setGenMsg({ ok: false, text: "Please select a month." }); return; }
+    setGenerating(true); setGenMsg(null);
+    try {
+      const res  = await fetch("/api/partner/invoices/generate", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ period_month: genMonth }),
+      });
+      const json = await safeJson(res);
+      if (!res.ok) throw new Error(json?.error || "Generation failed");
+      const msg = json.already_exists
+        ? `Invoice ${json.invoice_number} already exists for this period.`
+        : `Invoice ${json.invoice_number} generated successfully.`;
+      setGenMsg({ ok: true, text: msg, url: json.download_url });
+      loadInvoices();
+    } catch (e: any) {
+      setGenMsg({ ok: false, text: e?.message || "Generation failed" });
+    } finally { setGenerating(false); }
+  }
+
+  return (
+    <div className="border border-black/5 bg-white p-6 space-y-5">
+      <div>
+        <h2 className="text-lg font-black text-black mb-1">Commission Invoices</h2>
+        <p className="text-sm font-bold text-black/40">
+          Invoices issued by NTUK Ltd (Camel Global) for commission on completed bookings.
+          Invoices are generated automatically after each monthly payout and emailed to you.
+        </p>
+      </div>
+
+      {/* On-demand generation */}
+      <div className="border border-black/10 bg-[#f8f8f8] p-4">
+        <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-3">Request an Invoice</p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-xs font-black uppercase tracking-widest text-black/50">Period</label>
+            <input
+              type="month"
+              value={genMonth}
+              onChange={e => setGenMonth(e.target.value)}
+              className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={generating}
+            className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {generating ? "Generating…" : "Generate PDF"}
+          </button>
+        </div>
+        {genMsg && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <p className={`text-sm font-bold ${genMsg.ok ? "text-green-700" : "text-red-600"}`}>{genMsg.text}</p>
+            {genMsg.ok && genMsg.url && (
+              <a
+                href={genMsg.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex bg-black px-3 py-1.5 text-xs font-black text-white hover:opacity-80 transition-opacity"
+              >
+                ⬇ Download PDF
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+
+      {error && <p className="text-sm font-bold text-red-600">{error}</p>}
+
+      <div className="overflow-x-auto border border-black/10">
+        <table className="min-w-full text-sm">
+          <thead className="bg-black text-white text-left">
+            <tr>
+              {["Invoice #","Period","Currency","Commission","Bookings","Generated","Download"].map(h => (
+                <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-black/5">
+            {loading ? (
+              <tr><td colSpan={7} className="px-4 py-4 text-sm font-bold text-black/40">Loading invoices…</td></tr>
+            ) : invoices.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-6 text-sm font-bold text-black/40">No invoices yet. Invoices are generated automatically after each monthly payout.</td></tr>
+            ) : invoices.map((inv, i) => (
+              <tr key={inv.id} className={`hover:bg-[#f0f0f0] transition-colors ${i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"}`}>
+                <td className="px-4 py-3 font-black text-black whitespace-nowrap">{inv.invoice_number}</td>
+                <td className="px-4 py-3 font-bold text-black/70 whitespace-nowrap">{inv.period_month}</td>
+                <td className="px-4 py-3 text-black/60 whitespace-nowrap">{inv.currency}</td>
+                <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">{fmtCurr(inv.total_commission, inv.currency)}</td>
+                <td className="px-4 py-3 text-black/60">{inv.booking_count}</td>
+                <td className="px-4 py-3 text-xs text-black/50 whitespace-nowrap">{fmtDate(inv.generated_at)}</td>
+                <td className="px-4 py-3">
+                  {inv.download_url
+                    ? <a href={inv.download_url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex bg-black px-3 py-1.5 text-xs font-black text-white hover:opacity-80 transition-opacity">⬇ PDF</a>
+                    : <span className="text-xs text-black/30">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function PartnerReportsPage() {
   const supabase = useMemo(()=>createBrowserSupabaseClient(),[]);
   const router   = useRouter();
@@ -469,15 +609,15 @@ export default function PartnerReportsPage() {
             <p className="text-sm font-bold text-black/40 mb-4">Breakdown of your bookings by payout stage.</p>
             <div className="grid gap-4 sm:grid-cols-3">
               {[
-                { label:"Held",  desc:"Payment received — hire not yet complete",       bks:held,  totals:heldTotals,  color:"text-amber-700", bg:"border-amber-200 bg-amber-50"  },
-                { label:"Ready", desc:"Hire complete — queued for next monthly payout", bks:ready, totals:readyTotals, color:"text-blue-700",  bg:"border-blue-200 bg-blue-50"    },
-                { label:"Paid",  desc:"Payout transferred to your Stripe account",      bks:paid,  totals:paidTotals,  color:"text-green-700", bg:"border-green-200 bg-green-50"  },
+                { label:"Held",  desc:"Payment received — hire not yet complete",       bks:held,  totals:heldTotals,  color:"text-amber-700", bg:"border-amber-200 bg-amber-50" },
+                { label:"Ready", desc:"Hire complete — queued for next monthly payout", bks:ready, totals:readyTotals, color:"text-blue-700",  bg:"border-blue-200 bg-blue-50"   },
+                { label:"Paid",  desc:"Payout transferred to your Stripe account",      bks:paid,  totals:paidTotals,  color:"text-green-700", bg:"border-green-200 bg-green-50" },
               ].map(({label,desc,bks,totals,color,bg})=>(
                 <div key={label} className={`border p-4 ${bg}`}>
                   <p className={`text-xs font-black uppercase tracking-widest mb-1 ${color}`}>{label}</p>
                   <p className="text-3xl font-black text-black">{bks.length}</p>
                   <p className="text-xs font-bold text-black/40 mt-1 mb-3">{desc}</p>
-                  {Object.entries(totals).filter(([_k,v])=>v>0).map(([curr,val])=>(
+                  {Object.entries(totals).filter(([,v])=>v>0).map(([curr,val])=>(
                     <p key={curr} className={`text-sm font-black ${color}`}>{fmtCurr(val,curr)} {curr}</p>
                   ))}
                   {Object.keys(totals).length===0&&<p className="text-sm font-bold text-black/30">—</p>}
@@ -488,6 +628,7 @@ export default function PartnerReportsPage() {
         );
       })()}
 
+      {/* Vehicle Category Breakdown */}
       <div className="border border-black/5 bg-white p-6">
         <h2 className="text-lg font-black text-black mb-4">Vehicle Category Breakdown</h2>
         <div className="overflow-x-auto border border-black/10">
@@ -511,6 +652,9 @@ export default function PartnerReportsPage() {
           </table>
         </div>
       </div>
+
+      {/* Commission Invoices */}
+      <PartnerInvoicesSection />
     </div>
   );
 }
