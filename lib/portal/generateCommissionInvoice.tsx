@@ -7,7 +7,7 @@ import path from "path";
 export type InvoiceBooking = {
   id: string;
   job_number: string | null;
-  pickup_at?: string | null;
+  pickup_at: string | null;
   car_hire_price: number | null;
   commission_rate: number | null;
   currency: string | null;
@@ -157,7 +157,7 @@ async function buildPdf(params: {
   });
 
   // Column widths (total ~515pt usable on A4)
-  const COL = { job: 55, date: 55, desc: 175, rate: 45, hire: 70, comm: 75 };
+  const COL = { job: 70, desc: 215, rate: 50, hire: 80, comm: 85 };
 
   const doc = (
     <Document>
@@ -169,7 +169,7 @@ async function buildPdf(params: {
         <View style={styles.header}>
           <View>
             <Text style={styles.invoiceTitle}>Commission Invoice</Text>
-            <Text style={styles.invoiceNum}>{invoiceNumber}</Text>
+            <Text style={styles.invoiceNum}>Invoice No. {invoiceNumber}</Text>
           </View>
           {logoBase64 && <Image src={logoBase64} style={styles.logo} />}
         </View>
@@ -209,7 +209,6 @@ async function buildPdf(params: {
         {/* Table header */}
         <View style={styles.tableHeader}>
           <Text style={{ ...styles.tableHeaderCell, width: COL.job }}>Job #</Text>
-          <Text style={{ ...styles.tableHeaderCell, width: COL.date }}>Pickup Date</Text>
           <Text style={{ ...styles.tableHeaderCell, width: COL.desc }}>Description</Text>
           <Text style={{ ...styles.tableHeaderCell, width: COL.rate, textAlign: "right" }}>Rate</Text>
           <Text style={{ ...styles.tableHeaderCell, width: COL.hire, textAlign: "right" }}>Car Hire</Text>
