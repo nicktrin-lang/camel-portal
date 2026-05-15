@@ -121,7 +121,7 @@ function downloadBlob(blob: Blob, filename: string) {
 function stripeFeeInBidCurrency(stripe_fee: number|null, stripe_fee_currency: string|null, bid_currency: string, exchange_rate: number|null): number {
   if (!stripe_fee || stripe_fee <= 0) return 0;
   if (!stripe_fee_currency || stripe_fee_currency.toUpperCase() === bid_currency.toUpperCase()) return stripe_fee;
-  if (exchange_rate && exchange_rate > 0) return stripe_fee / exchange_rate;
+  if (exchange_rate && exchange_rate > 0) return stripe_fee * exchange_rate;
   return stripe_fee;
 }
 

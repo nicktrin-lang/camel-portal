@@ -180,12 +180,15 @@ function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentDa
   const fmtB = (n: number) => fmtCurr(n, bidCurrency);
   const fmtC = (n: number) => fmtCurr(n, chargeCurr);
 
-  // Stripe fee: stored in charge currency, convert to bid currency
+  // Stripe fee: stored in charge currency (e.g. GBP), convert to bid currency (e.g. EUR)
+  // Stripe's exchange_rate on BalanceTransaction = charge_currency → settlement/bid currency
+  // So: fee_in_bid = stripe_fee * exchange_rate
+  // Fallback: use booking.conversion_rate which is stored as charge→bid rate too
   const feeInBid = (() => {
     if (!payment.stripe_fee || payment.stripe_fee <= 0) return 0;
     if (!hasCurrConv) return payment.stripe_fee;
     const rate = payment.exchange_rate || booking.conversion_rate;
-    if (rate && rate > 0) return payment.stripe_fee / rate;
+    if (rate && rate > 0) return payment.stripe_fee * rate;
     return payment.stripe_fee;
   })();
 
