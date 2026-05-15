@@ -622,6 +622,7 @@ export default function AdminReportsPage() {
   const [bookings,setBookings]=useState<BookingRow[]>([]);
   const [dateFrom,setDateFrom]=useState("");
   const [dateTo,setDateTo]=useState("");
+  const [exportPartner,setExportPartner]=useState("all");
   const [allBookingsVisible,setAllBookingsVisible]=useState(10);
 
   async function load() {
@@ -716,8 +717,24 @@ export default function AdminReportsPage() {
     },new Map<string,{category:string;count:number}>())
   ).map(([,v])=>v).sort((a,b)=>b.count-a.count);
 
+  // All unique partners from full (unfiltered) bookings list for export dropdown
+  const exportPartners = useMemo(() => {
+    const s = new Map<string,string>();
+    for (const b of bookings) {
+      if (b.partner_user_id) s.set(b.partner_user_id, b.partner_company_name || b.partner_user_id);
+    }
+    return Array.from(s.entries()).sort((a,b) => a[1].localeCompare(b[1]));
+  }, [bookings]);
+
   function exportExcel() {
     const dateStr = new Date().toISOString().split("T")[0];
+    const exportRows = exportPartner === "all"
+      ? filteredBookings
+      : filteredBookings.filter(b => b.partner_user_id === exportPartner);
+    const partnerLabel = exportPartner === "all"
+      ? "all-partners"
+      : (exportPartners.find(([id]) => id === exportPartner)?.[1] ?? exportPartner).replace(/\s+/g, "-").toLowerCase();
+    const filename = `camel-admin-report-${partnerLabel}-${dateStr}.xls`;
     const fuelHeaders = [
       "Job Number","Partner Company Name","Legal Company Name","Company Reg. No.","VAT / NIF Number",
       "Customer","Customer Email","Customer Phone",
@@ -738,7 +755,7 @@ export default function AdminReportsPage() {
       "Booking Status","Cancelled By","Cancelled At","Cancellation Reason","Refund Status",
       "Created At",
     ];
-    const fuelRows = filteredBookings.map(b=>{
+    const fuelRows = exportRows.map(b=>{
       const usedQ=b.fuel_used_quarters;
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
       const { hire, rate, commAmt, payout, fuelRefund, feeInBid } = calcPayout(b);
@@ -796,7 +813,7 @@ export default function AdminReportsPage() {
       "Exchange Rate","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Payout",
       "Cancelled By","Cancelled At","Refund Status","Insurance","Created At",
     ];
-    const allRows = filteredBookings.map(b=>{
+    const allRows = exportRows.map(b=>{
       const usedQ=b.fuel_used_quarters;
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
       const { hire, rate, commAmt, payout, fuelRefund, feeInBid } = calcPayout(b);
@@ -822,7 +839,7 @@ export default function AdminReportsPage() {
       { name:"Partner Breakdown",   headers:partnerHeaders, rows:partnerRows },
       { name:"All Bookings",        headers:allHeaders, rows:allRows },
     ]);
-    downloadBlob(blob,`camel-admin-report-${dateStr}.xls`);
+    downloadBlob(blob, filename);
   }
 
   if (loading) return <div className="border border-black/10 bg-white p-8"><p className="text-black/50">Loading reports…</p></div>;
@@ -848,9 +865,22 @@ export default function AdminReportsPage() {
             </div>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap gap-3">
+        <div className="mt-4 flex flex-wrap items-end gap-3">
           <button type="button" onClick={()=>{setDateFrom("");setDateTo("");}} className="border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">Clear Filters</button>
-          <button type="button" onClick={exportExcel} className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90">⬇ Export Excel</button>
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="text-xs font-black uppercase tracking-widest text-black/50">Export partner</label>
+              <select
+                value={exportPartner}
+                onChange={e => setExportPartner(e.target.value)}
+                className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black"
+              >
+                <option value="all">All partners</option>
+                {exportPartners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+            </div>
+            <button type="button" onClick={exportExcel} className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90">⬇ Export Excel</button>
+          </div>
         </div>
       </div>
 
