@@ -95,7 +95,7 @@ export async function POST(req: Request) {
     const result = await generateCommissionInvoice(partner_id, period_month, bookings);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
 
-    return NextResponse.json({ ok: true, ...result }, { status: 200 });
+    return NextResponse.json({ ...result }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
   }
