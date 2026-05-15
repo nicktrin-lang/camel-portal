@@ -7,7 +7,7 @@ import path from "path";
 export type InvoiceBooking = {
   id: string;
   job_number: string | null;
-  pickup_at: string | null;
+  pickup_at?: string | null;
   car_hire_price: number | null;
   commission_rate: number | null;
   currency: string | null;
