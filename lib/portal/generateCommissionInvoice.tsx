@@ -129,7 +129,7 @@ async function buildPdf(params: {
   const styles = StyleSheet.create({
     page:        { fontFamily: "Helvetica", fontSize: 9, color: "#222", padding: 40, backgroundColor: "#fff" },
     header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 },
-    logo:        { width: 90, height: 30, objectFit: "contain" },
+    logo:        { width: 180, height: 80, objectFit: "contain" },
     invoiceTitle:{ fontSize: 22, fontFamily: "Helvetica-Bold", color: "#000", marginBottom: 2 },
     invoiceNum:  { fontSize: 9, color: "#888" },
     section:     { flexDirection: "row", justifyContent: "space-between", marginBottom: 24 },
