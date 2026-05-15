@@ -607,7 +607,7 @@ export default function AdminReportsPage() {
         b.charge_currency||b.currency||"EUR",
         hire,rate,commAmt,
         feeInBid>0?feeInBid.toFixed(4):"",
-        b.stripe_fee_currency||"",
+        b.currency||"EUR",
         b.exchange_rate||b.conversion_rate||"",
         Number(b.fuel_price??0),
         b.collection_fuel_level_driver||"—",b.collection_fuel_level_partner||"—",
@@ -776,7 +776,7 @@ export default function AdminReportsPage() {
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {feeInBid > 0
-                        ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid, b.stripe_fee_currency||b.currency||"EUR")}</span>
+                        ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid, b.currency??"EUR")}</span>
                         : <span className="text-black/30">—</span>}
                     </td>
                     <td className="px-4 py-3 text-xs font-bold text-black/50 whitespace-nowrap">
