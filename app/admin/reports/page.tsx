@@ -78,6 +78,16 @@ function statusPillClasses(status?: string|null) {
   }
 }
 
+function payoutPillClasses(status?: string|null) {
+  switch(String(status||"").toLowerCase()) {
+    case "held":  return "border-amber-200 bg-amber-50 text-amber-700";
+    case "ready": return "border-blue-200 bg-blue-50 text-blue-700";
+    case "paid":  return "border-green-200 bg-green-50 text-green-700";
+    case "cancelled": return "border-red-200 bg-red-50 text-red-600";
+    default: return "border-black/10 bg-white text-black/50";
+  }
+}
+
 function insurancePill(driver: boolean, customer: boolean) {
   const both = driver&&customer;
   return (
@@ -256,6 +266,203 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
   );
 }
 
+// ── Financial Dashboard section ───────────────────────────────────────────────
+function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
+  const [payoutFilter, setPayoutFilter] = useState<string>("all");
+  const [partnerFilter, setPartnerFilter] = useState<string>("all");
+  const [dashVisible, setDashVisible] = useState(20);
+
+  // P&L per currency
+  const plByCurr = useMemo(() => {
+    const m: Record<string, { revenue:number; commission:number; stripeFees:number; partnerPayout:number; fuelCharge:number; fuelRefund:number; netCamel:number; count:number }> = {};
+    for (const b of bookings) {
+      if (String(b.booking_status||"").toLowerCase() === "cancelled") continue;
+      const curr = b.currency ?? "EUR";
+      if (!m[curr]) m[curr] = { revenue:0, commission:0, stripeFees:0, partnerPayout:0, fuelCharge:0, fuelRefund:0, netCamel:0, count:0 };
+      const { commAmt, payout, feeInBid, fuelRefund } = calcPayout(b);
+      m[curr].revenue      += Number(b.amount ?? 0);
+      m[curr].commission   += commAmt;
+      m[curr].stripeFees   += feeInBid;
+      m[curr].partnerPayout+= payout;
+      m[curr].fuelCharge   += Number(b.fuel_charge ?? 0);
+      m[curr].fuelRefund   += fuelRefund;
+      m[curr].netCamel     += commAmt - feeInBid;
+      m[curr].count++;
+    }
+    return m;
+  }, [bookings]);
+
+  // Unique partners for filter
+  const partners = useMemo(() => {
+    const s = new Map<string,string>();
+    for (const b of bookings) {
+      if (b.partner_user_id) s.set(b.partner_user_id, b.partner_company_name || b.partner_user_id);
+    }
+    return Array.from(s.entries()).sort((a,b) => a[1].localeCompare(b[1]));
+  }, [bookings]);
+
+  const filtered = useMemo(() => bookings.filter(b => {
+    if (payoutFilter !== "all" && b.payout_status !== payoutFilter) return false;
+    if (partnerFilter !== "all" && b.partner_user_id !== partnerFilter) return false;
+    return true;
+  }), [bookings, payoutFilter, partnerFilter]);
+
+  const currencies = Object.keys(plByCurr) as Currency[];
+
+  return (
+    <div className="space-y-4">
+      {/* P&L summary cards per currency */}
+      <div className="border border-black/10 bg-white p-6 md:p-8">
+        <h2 className="text-xl font-black text-black mb-1">Financial Dashboard</h2>
+        <p className="text-sm text-black/50 mb-5">Platform P&amp;L — all active bookings in the selected date range. Excludes cancelled bookings.</p>
+        {currencies.length === 0 ? (
+          <p className="text-sm text-black/40">No financial data for this period.</p>
+        ) : currencies.map(curr => {
+          const pl = plByCurr[curr];
+          return (
+            <div key={curr} className="mb-6 last:mb-0">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="border border-black bg-black px-2 py-0.5 text-xs font-black text-white">{curr}</span>
+                <span className="text-xs font-bold text-black/40">{pl.count} booking{pl.count!==1?"s":""}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+                {[
+                  { label:"Total Revenue",    value:pl.revenue,       color:"text-black",        bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Car Hire",         value:pl.revenue - Number(plByCurr[curr]?.fuelCharge ?? 0), color:"text-black/70", bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Camel Commission", value:pl.commission,    color:"text-[#ff7a00]",    bg:"border-[#ff7a00]/20 bg-[#fff7f0]" },
+                  { label:"Stripe Fees",      value:pl.stripeFees,    color:"text-amber-700",    bg:"border-amber-200 bg-amber-50" },
+                  { label:"Net Camel Income", value:pl.netCamel,      color:pl.netCamel>=0?"text-green-700":"text-red-600", bg:pl.netCamel>=0?"border-green-200 bg-green-50":"border-red-200 bg-red-50" },
+                  { label:"Partner Payout",   value:pl.partnerPayout, color:"text-black/70",    bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Fuel Refunds",     value:pl.fuelRefund,    color:"text-black/50",     bg:"border-black/10 bg-[#f0f0f0]" },
+                ].map(({ label, value, color, bg }) => (
+                  <div key={label} className={`border p-4 ${bg}`}>
+                    <p className="text-xs font-black uppercase tracking-widest text-black/40 leading-tight mb-1">{label}</p>
+                    <p className={`text-base font-black ${color}`}>{fmtCurr(value, curr)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Payments table with filters */}
+      <div className="border border-black/10 bg-white p-6 md:p-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-black text-black">Payments</h2>
+            <p className="text-sm text-black/50">All payments with commission, Stripe fees and payout status.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select value={payoutFilter} onChange={e => { setPayoutFilter(e.target.value); setDashVisible(20); }}
+              className="border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+              <option value="all">All payout statuses</option>
+              <option value="held">Held</option>
+              <option value="ready">Ready</option>
+              <option value="paid">Paid</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <select value={partnerFilter} onChange={e => { setPartnerFilter(e.target.value); setDashVisible(20); }}
+              className="border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+              <option value="all">All partners</option>
+              {partners.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+            {(payoutFilter !== "all" || partnerFilter !== "all") && (
+              <button type="button" onClick={() => { setPayoutFilter("all"); setPartnerFilter("all"); setDashVisible(20); }}
+                className="border border-black/20 bg-white px-3 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="text-xs font-bold text-black/40 mb-3">
+          Showing {Math.min(dashVisible, filtered.length)} of {filtered.length} payments
+        </p>
+        <div className="overflow-x-auto border border-black/10">
+          <table className="min-w-full text-sm">
+            <thead className="bg-black text-white">
+              <tr>
+                {["Job","Partner","Customer","Booking Status","Payout Status","Bid Curr","Charge Curr","Car Hire","Commission","Stripe Fee","Net Camel","Partner Payout","Fuel Charge","Fuel Refund","Total","Conv. Rate","Created"].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {filtered.length === 0 ? (
+                <tr><td colSpan={17} className="px-4 py-6 text-sm text-black/40">No payments match the current filters.</td></tr>
+              ) : filtered.slice(0, dashVisible).map((b, i) => {
+                const isCancelled = String(b.booking_status||"").toLowerCase() === "cancelled";
+                const { hire, commAmt, feeInBid, payout, fuelRefund } = calcPayout(b);
+                const netCamel = commAmt - feeInBid;
+                const hasCurrConv = b.charge_currency && b.charge_currency !== (b.currency ?? "EUR");
+                return (
+                  <tr key={b.id} className={`hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/30":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
+                    <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
+                    <td className="px-4 py-3 text-black/70 whitespace-nowrap">{b.partner_company_name||"—"}</td>
+                    <td className="px-4 py-3 text-black/70 whitespace-nowrap">{b.customer_name||"—"}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(b.booking_status)}`}>
+                        {String(b.booking_status||"—").replaceAll("_"," ")}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${payoutPillClasses(b.payout_status)}`}>
+                        {b.payout_status||"—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs font-bold text-black/60">{b.currency||"—"}</td>
+                    <td className="px-4 py-3 text-xs font-bold text-black/60">{b.charge_currency||b.currency||"—"}</td>
+                    <td className={`px-4 py-3 font-bold whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>
+                      {fmtCurr(hire, b.currency??"EUR")}
+                    </td>
+                    <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">
+                      {isCancelled&&b.refund_status==="full" ? <span className="line-through text-red-400">{fmtCurr(commAmt,b.currency??"EUR")}</span> : fmtCurr(commAmt,b.currency??"EUR")}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {feeInBid > 0 ? <span className="font-black text-amber-700">− {fmtCurr(feeInBid,b.currency??"EUR")}</span> : <span className="text-black/30">—</span>}
+                    </td>
+                    <td className={`px-4 py-3 font-black whitespace-nowrap ${netCamel >= 0 ? "text-green-700" : "text-red-600"}`}>
+                      {isCancelled&&b.refund_status==="full" ? <span className="text-black/30">—</span> : fmtCurr(netCamel,b.currency??"EUR")}
+                    </td>
+                    <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-black/70"}`}>
+                      {isCancelled&&b.refund_status==="full" ? fmtCurr(0,b.currency??"EUR") : fmtCurr(payout,b.currency??"EUR")}
+                    </td>
+                    <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">
+                      {Number(b.fuel_charge??0) > 0 ? fmtCurr(Number(b.fuel_charge),b.currency??"EUR") : <span className="text-black/30">—</span>}
+                    </td>
+                    <td className="px-4 py-3 font-black text-green-600 whitespace-nowrap">
+                      {fuelRefund > 0 ? fmtCurr(fuelRefund,b.currency??"EUR") : <span className="text-black/30">—</span>}
+                    </td>
+                    <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled?"text-red-400 line-through":"text-black"}`}>
+                      {fmtAmt(b.amount,b.currency)}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-bold text-black/50 whitespace-nowrap">
+                      {hasCurrConv && b.conversion_rate ? Number(b.conversion_rate).toFixed(4) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-black/50 whitespace-nowrap">{fmtDate(b.created_at)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {filtered.length > dashVisible && (
+          <button type="button" onClick={() => setDashVisible(v => v + 20)}
+            className="mt-3 w-full border border-black/10 bg-[#f0f0f0] py-2.5 text-sm font-black text-black hover:bg-black/10">
+            ▼ Show more ({filtered.length - dashVisible} remaining)
+          </button>
+        )}
+        {dashVisible > 20 && filtered.length <= dashVisible && (
+          <button type="button" onClick={() => setDashVisible(20)}
+            className="mt-3 w-full border border-black/10 bg-[#f0f0f0] py-2.5 text-sm font-black text-black hover:bg-black/10">
+            ▲ Show less
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminReportsPage() {
   const supabase = useMemo(()=>createBrowserSupabaseClient(),[]);
   const router = useRouter();
@@ -424,31 +631,31 @@ export default function AdminReportsPage() {
     const summaryHeaders = [
       "Currency","Total Bookings","Completed","Cancelled",
       "Total Revenue (excl. cancelled)","Car Hire Revenue",
-      "Camel Commission","Stripe Fees Total","Partner Payout Total",
+      "Camel Commission","Stripe Fees Total","Net Camel Income","Partner Payout Total",
       "Fuel Deposits","Fuel Charges Billed","Fuel Refunds Issued",
     ];
     const summaryRows = (["EUR","GBP","USD"] as Currency[]).map(curr=>{
       const t=revenuesByCurrency[curr];
-      return [`${curr} ${CURRENCY_META[curr].symbol}`,t.count,t.completed,t.cancelled,t.total,t.carHire,t.commissionTotal,t.stripeFeeTotal,t.partnerPayoutTotal,t.fuelDeposit,t.fuelCharge,t.fuelRefund];
+      const netCamel = t.commissionTotal - t.stripeFeeTotal;
+      return [`${curr} ${CURRENCY_META[curr].symbol}`,t.count,t.completed,t.cancelled,t.total,t.carHire,t.commissionTotal,t.stripeFeeTotal,netCamel,t.partnerPayoutTotal,t.fuelDeposit,t.fuelCharge,t.fuelRefund];
     });
-    const partnerHeaders = ["Partner","Total Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees","Partner Payout"];
-    const partnerRows = partnerBreakdown.map(p=>[p.name,p.bookings,p.completed,p.cancelled,p.revenue,p.commission,p.stripeFees,p.payout]);
+    const partnerHeaders = ["Partner","Total Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees","Net Camel Income","Partner Payout"];
+    const partnerRows = partnerBreakdown.map(p=>[p.name,p.bookings,p.completed,p.cancelled,p.revenue,p.commission,p.stripeFees,(p.commission-p.stripeFees),p.payout]);
     const allHeaders = [
-      "Job","Partner","Customer","Status","Bid Currency","Charge Currency",
-      "Car Hire","Commission Rate (%)","Commission Amount",
-      "Stripe Fee","Exchange Rate",
-      "Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Payout",
+      "Job","Partner","Customer","Booking Status","Payout Status","Bid Currency","Charge Currency",
+      "Car Hire","Commission Rate (%)","Commission Amount","Stripe Fee","Net Camel Income",
+      "Exchange Rate","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Payout",
       "Cancelled By","Cancelled At","Refund Status","Insurance","Created At",
     ];
     const allRows = filteredBookings.map(b=>{
       const usedQ=b.fuel_used_quarters;
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { hire, rate, commAmt, payout, fuelRefund } = calcPayout(b);
+      const { hire, rate, commAmt, payout, fuelRefund, feeInBid } = calcPayout(b);
       return [
-        b.job_number||"",b.partner_company_name||"",b.customer_name||"",b.booking_status||"",
+        b.job_number||"",b.partner_company_name||"",b.customer_name||"",b.booking_status||"",b.payout_status||"",
         b.currency||"EUR",b.charge_currency||b.currency||"EUR",
-        hire,rate,commAmt,
-        b.stripe_fee??"",b.exchange_rate||b.conversion_rate||"",
+        hire,rate,commAmt,feeInBid>0?feeInBid.toFixed(4):"",commAmt-feeInBid,
+        b.exchange_rate||b.conversion_rate||"",
         Number(b.fuel_price??0),
         usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—",
         Number(b.fuel_charge??0),fuelRefund,
@@ -526,6 +733,9 @@ export default function AdminReportsPage() {
           </div>
         ))}
       </div>
+
+      {/* Financial Dashboard */}
+      <FinancialDashboard bookings={filteredBookings} />
 
       {/* All Bookings */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
@@ -609,14 +819,14 @@ export default function AdminReportsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Partner","Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees","Partner Payout"].map(h=>(
+                {["Partner","Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees","Net Camel Income","Partner Payout"].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
               {partnerBreakdown.length===0?(
-                <tr><td colSpan={8} className="px-4 py-4 text-black/50">No partner data.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-4 text-black/50">No partner data.</td></tr>
               ):partnerBreakdown.map((p,i)=>(
                 <tr key={i} className={`hover:bg-[#f0f0f0] ${i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                   <td className="px-4 py-3 font-black text-black">{p.name}</td>
@@ -626,7 +836,8 @@ export default function AdminReportsPage() {
                   <td className="px-4 py-3 font-black text-black">{p.revenue.toFixed(2)}</td>
                   <td className="px-4 py-3 font-black text-[#ff7a00]">{p.commission.toFixed(2)}</td>
                   <td className="px-4 py-3 font-black text-amber-700">{p.stripeFees.toFixed(2)}</td>
-                  <td className="px-4 py-3 font-black text-green-700">{p.payout.toFixed(2)}</td>
+                  <td className="px-4 py-3 font-black text-green-700">{(p.commission-p.stripeFees).toFixed(2)}</td>
+                  <td className="px-4 py-3 font-black text-black/70">{p.payout.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
