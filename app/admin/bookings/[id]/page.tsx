@@ -143,9 +143,9 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: {
 }) {
   if (!payment) return null;
 
-  // Detect currency conversion using stripe_fee_currency as the source of truth
-  const feeCurr     = payment.stripe_fee_currency ?? null;
-  const chargeCurr  = (payment.charge_currency || feeCurr || bidCurrency) as string;
+  // Detect currency conversion — check all sources for charge currency
+  const feeCurr     = (payment.stripe_fee_currency || payment.charge_currency || booking.charge_currency || null);
+  const chargeCurr  = (feeCurr || bidCurrency) as string;
   const hasCurrConv = !!feeCurr && feeCurr.toUpperCase() !== bidCurrency.toUpperCase();
 
   // Convert stripe fee from charge currency → bid currency (exchange_rate = bid→charge, so divide)
