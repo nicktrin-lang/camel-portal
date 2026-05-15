@@ -140,8 +140,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // ── Payment Fees Card (Admin) ──────────────────────────────────────────────────
 function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentData; bidCurrency: Currency; booking: BookingRow }) {
   if (!payment) return null;
-  const chargeCurr  = (payment.charge_currency || bidCurrency) as string;
-  const hasCurrConv = chargeCurr.toUpperCase() !== bidCurrency.toUpperCase();
+  const feeCurr     = payment.stripe_fee_currency ?? null;
+  const chargeCurr  = (payment.charge_currency || feeCurr || bidCurrency) as string;
+  const hasCurrConv = !!feeCurr && feeCurr.toUpperCase() !== bidCurrency.toUpperCase();
   const fmtB = (n: number) => fmtCurr(n, bidCurrency);
   const fmtC = (n: number) => fmtCurr(n, chargeCurr);
 
