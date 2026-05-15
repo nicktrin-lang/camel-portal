@@ -203,7 +203,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: { payment: Pa
       <h2 className="text-base font-black text-black mb-1">Payment & Fee Breakdown</h2>
       <p className="text-xs font-bold text-black/40 mb-4">
         All amounts shown in your bid currency ({bidCurrency}).
-        {hasCurrConv && <span className="ml-1 text-amber-700">Customer paid in {chargeCurr} — Stripe applied currency conversion.</span>}
+        {hasCurrConv && <span className="ml-1 text-amber-700">Customer paid in {feeCurr} — Stripe applied currency conversion.</span>}
       </p>
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
@@ -252,7 +252,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: { payment: Pa
       </div>
       {hasCurrConv && (
         <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
-          ⚠ Customer paid in {chargeCurr}. Stripe applied a currency conversion. The Stripe fee includes both the processing fee and the currency conversion fee. See your <a href="/partner/terms" className="underline">partner terms</a> for details.
+          ⚠ Customer paid in {feeCurr}. Stripe applied a currency conversion ({feeCurr} → {bidCurrency}). The Stripe fee includes both the processing fee and the currency conversion fee. See your <a href="/partner/terms" className="underline">partner terms</a> for details.
         </div>
       )}
       {!hasCurrConv && (
