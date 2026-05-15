@@ -393,7 +393,7 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
               ) : filtered.slice(0, dashVisible).map((b, i) => {
                 const isCancelled = String(b.booking_status||"").toLowerCase() === "cancelled";
                 const { hire, commAmt, feeInBid, payout, fuelRefund } = calcPayout(b);
-                const netCamel = commAmt - feeInBid;
+                const netCamel = commAmt;
                 const hasCurrConv = b.charge_currency && b.charge_currency !== (b.currency ?? "EUR");
                 return (
                   <tr key={b.id} className={`hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/30":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
