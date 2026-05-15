@@ -171,24 +171,36 @@ function Field({ label, children }: { label:string; children:React.ReactNode }) 
 }
 
 // ── Payment Fees Card ─────────────────────────────────────────────────────────
-function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentData; bidCurrency: Currency; booking: BookingRow }) {
+function PaymentFeesCard({ payment, bidCurrency, booking, rates }: { payment: PaymentData; bidCurrency: Currency; booking: BookingRow; rates: Rates }) {
   if (!payment) return null;
 
-  // Use payment.charge_currency first, fall back to booking.charge_currency
-  const chargeCurr  = (payment.charge_currency || booking.charge_currency || bidCurrency) as string;
+  // Determine charge currency — check all sources
+  const chargeCurr = (
+    payment.charge_currency ||
+    payment.stripe_fee_currency ||
+    booking.charge_currency ||
+    bidCurrency
+  ) as string;
   const hasCurrConv = chargeCurr.toUpperCase() !== bidCurrency.toUpperCase();
   const fmtB = (n: number) => fmtCurr(n, bidCurrency);
   const fmtC = (n: number) => fmtCurr(n, chargeCurr);
 
-  // Stripe fee: stored in charge currency (e.g. GBP), convert to bid currency (e.g. EUR)
-  // Stripe's exchange_rate on BalanceTransaction = charge_currency → settlement/bid currency
-  // So: fee_in_bid = stripe_fee * exchange_rate
-  // Fallback: use booking.conversion_rate which is stored as charge→bid rate too
+  // Convert stripe_fee from charge currency → bid currency using live rates
+  // Live rates are always EUR-based: rates.GBP = EUR→GBP, rates.USD = EUR→USD
+  // So to convert any currency to EUR: amount / rate
+  // To convert EUR to any currency: amount * rate
+  // General: fee_in_bid = fee_in_charge * (charge_rate / bid_rate)
+  // where EUR rate = 1, GBP rate = rates.GBP, USD rate = rates.USD
   const feeInBid = (() => {
     if (!payment.stripe_fee || payment.stripe_fee <= 0) return 0;
     if (!hasCurrConv) return payment.stripe_fee;
-    const rate = payment.exchange_rate || booking.conversion_rate;
-    if (rate && rate > 0) return payment.stripe_fee * rate;
+    const getRate = (c: string) => c.toUpperCase() === "EUR" ? 1 : c.toUpperCase() === "GBP" ? rates.GBP : c.toUpperCase() === "USD" ? rates.USD : null;
+    const chargeRate = getRate(chargeCurr);
+    const bidRate    = getRate(bidCurrency);
+    if (chargeRate && bidRate) return payment.stripe_fee * (bidRate / chargeRate);
+    // Fallback: stored exchange_rate is bid→charge, so divide to get bid
+    const storedRate = payment.exchange_rate || booking.conversion_rate;
+    if (storedRate && storedRate > 0) return payment.stripe_fee / storedRate;
     return payment.stripe_fee;
   })();
 
@@ -250,9 +262,9 @@ function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentDa
           <span className="text-green-700">{fmtB(netPayout)}</span>
         </div>
       </div>
-      {hasCurrConv && (payment.exchange_rate || booking.conversion_rate) != null && (
+      {hasCurrConv && (
         <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
-          ⚠ Customer paid in {chargeCurr}. Stripe applied a conversion rate of {(payment.exchange_rate || booking.conversion_rate)!.toFixed(5)} ({chargeCurr} → {bidCurrency}). The Stripe fee includes both the processing fee and the currency conversion fee. See your <a href="/partner/terms" className="underline">partner terms</a> for details.
+          ⚠ Customer paid in {chargeCurr}. Stripe applied a currency conversion. The Stripe fee includes both the processing fee and the currency conversion fee. See your <a href="/partner/terms" className="underline">partner terms</a> for details.
         </div>
       )}
       {!hasCurrConv && (
@@ -683,7 +695,7 @@ export default function PartnerBookingDetailPage() {
         </div>
       </div>
 
-      <PaymentFeesCard payment={data.payment} bidCurrency={stored} booking={bk} />
+      <PaymentFeesCard payment={data.payment} bidCurrency={stored} booking={bk} rates={rates} />
 
       {!isCancelled&&(
         <div className="border border-black/5 bg-white p-6">
