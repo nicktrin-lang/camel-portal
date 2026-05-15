@@ -241,7 +241,7 @@ async function buildPdf(params: {
   return Buffer.from(arrayBuffer);
 }
 
-export async function generateCommissionInvoice(
+export async function invoiceGenerator(
   partnerUserId: string,
   periodMonth: string,
   bookings: InvoiceBooking[],
