@@ -71,7 +71,7 @@ export async function GET() {
     if (partnerUserIds.length > 0) {
       const { data: profileRows, error: profileErr } = await db
         .from("partner_profiles")
-        .select("user_id, company_name, phone, legal_company_name, vat_number, company_registration_number")
+        .select("user_id, company_name, phone, legal_company_name, vat_number, company_registration_number, base_country")
         .in("user_id", partnerUserIds);
       if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 400 });
       profileMap = new Map((profileRows || []).map((r: any) => [String(r.user_id), r]));
@@ -158,6 +158,7 @@ export async function GET() {
         partner_legal_company_name: partnerProfile?.legal_company_name || null,
         partner_vat_number: partnerProfile?.vat_number || null,
         partner_company_registration_number: partnerProfile?.company_registration_number || null,
+        partner_country: partnerProfile?.base_country || null,
         pickup_address: request?.pickup_address || null,
         dropoff_address: request?.dropoff_address || null,
         pickup_at: request?.pickup_at || null,

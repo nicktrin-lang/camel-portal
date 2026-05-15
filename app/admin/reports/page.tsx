@@ -27,6 +27,7 @@ type BookingRow = {
   id:string; request_id:string|null; partner_user_id:string|null;
   partner_company_name:string|null; partner_legal_company_name:string|null;
   partner_vat_number:string|null; partner_company_registration_number:string|null;
+  partner_country:string|null;
   booking_status:string|null; amount:number|string|null; currency:Currency|null;
   charge_currency:string|null; conversion_rate:number|null;
   car_hire_price:number|string|null; fuel_price:number|string|null;
@@ -736,7 +737,7 @@ export default function AdminReportsPage() {
       : (exportPartners.find(([id]) => id === exportPartner)?.[1] ?? exportPartner).replace(/\s+/g, "-").toLowerCase();
     const filename = `camel-admin-report-${partnerLabel}-${dateStr}.xls`;
     const fuelHeaders = [
-      "Job Number","Partner Company Name","Legal Company Name","Company Reg. No.","VAT / NIF Number",
+      "Job Number","Partner Company Name","Partner Country","Legal Company Name","Company Reg. No.","VAT / NIF Number",
       "Customer","Customer Email","Customer Phone",
       "Pickup Address","Dropoff Address",
       "Scheduled Pickup At","Scheduled Dropoff At",
@@ -761,7 +762,7 @@ export default function AdminReportsPage() {
       const { hire, rate, commAmt, payout, fuelRefund, feeInBid } = calcPayout(b);
       const isCompleted=String(b.booking_status||"").toLowerCase()==="completed";
       return [
-        b.job_number||"",b.partner_company_name||"",b.partner_legal_company_name||"",
+        b.job_number||"",b.partner_company_name||"",b.partner_country||"",b.partner_legal_company_name||"",
         b.partner_company_registration_number||"",b.partner_vat_number||"",
         b.customer_name||"",b.customer_email||"",b.customer_phone||"",
         b.pickup_address||"",b.dropoff_address||"",
@@ -808,7 +809,7 @@ export default function AdminReportsPage() {
     const partnerHeaders = ["Partner","Total Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees","Net Camel Income","Partner Payout"];
     const partnerRows = partnerBreakdown.map(p=>[p.name,p.bookings,p.completed,p.cancelled,p.revenue,p.commission,p.stripeFees,(p.commission-p.stripeFees),p.payout]);
     const allHeaders = [
-      "Job","Partner","Customer","Booking Status","Payout Status","Bid Currency","Charge Currency",
+      "Job","Partner","Partner Country","Customer","Booking Status","Payout Status","Bid Currency","Charge Currency",
       "Car Hire","Commission Rate (%)","Commission Amount","Stripe Fee","Net Camel Income",
       "Exchange Rate","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Payout",
       "Cancelled By","Cancelled At","Refund Status","Insurance","Created At",
@@ -818,7 +819,7 @@ export default function AdminReportsPage() {
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
       const { hire, rate, commAmt, payout, fuelRefund, feeInBid } = calcPayout(b);
       return [
-        b.job_number||"",b.partner_company_name||"",b.customer_name||"",b.booking_status||"",b.payout_status||"",
+        b.job_number||"",b.partner_company_name||"",b.partner_country||"",b.customer_name||"",b.booking_status||"",b.payout_status||"",
         b.currency||"EUR",b.charge_currency||b.currency||"EUR",
         hire,rate,commAmt,feeInBid>0?feeInBid.toFixed(4):"",commAmt-feeInBid,
         b.exchange_rate||b.conversion_rate||"",
@@ -849,27 +850,21 @@ export default function AdminReportsPage() {
       {error&&<div className="border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       <div className="border border-black/10 bg-white p-6 md:p-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-2xl font-black text-black">Admin Reports</h2>
             <p className="mt-1 text-sm text-black/50">Full network-wide reconciliation including Stripe fees, currency conversions, cancellations, commission, and multi-currency revenue.</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="mt-4 flex flex-wrap items-end gap-3">
             <div>
-              <label className="text-xs font-black uppercase tracking-widest text-black">Date from</label>
-              <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 w-full border border-black/20 bg-[#f0f0f0] p-3 text-sm text-black outline-none focus:border-black"/>
+              <label className="text-xs font-black uppercase tracking-widest text-black/60">Date from</label>
+              <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm text-black outline-none focus:border-black"/>
             </div>
             <div>
-              <label className="text-xs font-black uppercase tracking-widest text-black">Date to</label>
-              <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 w-full border border-black/20 bg-[#f0f0f0] p-3 text-sm text-black outline-none focus:border-black"/>
+              <label className="text-xs font-black uppercase tracking-widest text-black/60">Date to</label>
+              <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm text-black outline-none focus:border-black"/>
             </div>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <button type="button" onClick={()=>{setDateFrom("");setDateTo("");}} className="border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">Clear Filters</button>
-          <div className="flex flex-wrap items-end gap-2">
             <div>
-              <label className="text-xs font-black uppercase tracking-widest text-black/50">Export partner</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black/60">Export partner</label>
               <select
                 value={exportPartner}
                 onChange={e => setExportPartner(e.target.value)}
@@ -880,8 +875,8 @@ export default function AdminReportsPage() {
               </select>
             </div>
             <button type="button" onClick={exportExcel} className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90">⬇ Export Excel</button>
+            <button type="button" onClick={()=>{setDateFrom("");setDateTo("");setExportPartner("all");}} className="border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">Clear</button>
           </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
