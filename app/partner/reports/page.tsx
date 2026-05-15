@@ -355,7 +355,7 @@ export default function PartnerReportsPage() {
         b.vehicle_category_name||"",b.driver_name||"",b.driver_vehicle||"",
         b.currency||"EUR",b.charge_currency||b.currency||"EUR",
         hire,rate,commAmt,
-        feeInBid>0?feeInBid.toFixed(4):"",b.stripe_fee_currency||"",b.exchange_rate||b.conversion_rate||"",
+        feeInBid>0?feeInBid.toFixed(4):"",b.currency||"EUR",b.exchange_rate||b.conversion_rate||"",
         Number(b.fuel_price??0),
         b.collection_fuel_level_driver||"—",b.collection_fuel_level_partner||"—",
         b.return_fuel_level_driver||"—",b.return_fuel_level_partner||"—",
