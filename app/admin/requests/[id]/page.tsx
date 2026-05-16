@@ -16,6 +16,10 @@ type RequestData = {
   passengers: number;
   suitcases: number;
   hand_luggage: number;
+  sport_equipment: string | null;
+  driver_age: number | null;
+  additional_drivers: number;
+  additional_driver_ages: string | null;
   driver_age: number | null;
   additional_drivers: number;
   additional_driver_ages: string | null;
@@ -179,6 +183,17 @@ export default function AdminRequestDetailPage({
           <Field label="Passengers" value={String(data.request.passengers)} />
           <Field label="Suitcases" value={String(data.request.suitcases)} />
           <Field label="Hand luggage" value={String(data.request.hand_luggage)} />
+          <Field label="Sport equipment" value={
+            !data.request.sport_equipment || data.request.sport_equipment === "none" ? "None" :
+            ({ golf_single:"Golf clubs — 1 bag", golf_two:"Golf clubs — 2 bags", golf_three:"Golf clubs — 3 bags", golf_four:"Golf clubs — 4+ bags", skis_pair:"Skis / snowboard — 1 set", skis_two:"Skis / snowboard — 2 sets", skis_three:"Skis / snowboard — 3+ sets", bikes_one:"Bikes — 1", bikes_two:"Bikes — 2", bikes_three:"Bikes — 3+", other:"Other large equipment" } as Record<string,string>)[data.request.sport_equipment] || data.request.sport_equipment
+          } />
+          <Field label="Main driver age" value={String(data.request.driver_age ?? "—")} />
+          <Field label="Additional drivers" value={
+            data.request.additional_drivers > 0
+              ? `${data.request.additional_drivers} (ages: ${data.request.additional_driver_ages || "—"})`
+              : "None"
+          } />
+          <Field label="Requested vehicle" value={data.request.vehicle_category_name || "Any suitable vehicle"} />
           <Field label="Main driver age" value={String(data.request.driver_age ?? "—")} />
           <Field label="Additional drivers" value={
             data.request.additional_drivers > 0

@@ -66,6 +66,9 @@ type RequestRow = {
   journey_duration_minutes: number | null; passengers: number | null;
   suitcases: number | null; hand_luggage: number | null;
   sport_equipment: string | null;
+  driver_age: number | null;
+  additional_drivers: number;
+  additional_driver_ages: string | null;
   vehicle_category_name: string | null; notes: string | null; status: string | null; created_at: string | null;
 };
 
@@ -677,6 +680,12 @@ export default function PartnerBookingDetailPage() {
             <Field label="Passengers">{req?.passengers??"—"}</Field>
             <Field label="Suitcases">{req?.suitcases??"—"}</Field>
             <Field label="Sport equipment">{sportEquipmentLabel(req?.sport_equipment??null)}</Field>
+            <Field label="Main driver age">{req?.driver_age ?? "—"}</Field>
+            <Field label="Additional drivers">
+              {(req?.additional_drivers ?? 0) > 0
+                ? `${req!.additional_drivers} (ages: ${req!.additional_driver_ages || "—"})`
+                : "None"}
+            </Field>
             <Field label="Vehicle">{req?.vehicle_category_name||"—"}</Field>
             {req?.notes&&<Field label="Notes">{req.notes}</Field>}
           </div>
