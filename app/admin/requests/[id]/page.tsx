@@ -16,6 +16,9 @@ type RequestData = {
   passengers: number;
   suitcases: number;
   hand_luggage: number;
+  driver_age: number | null;
+  additional_drivers: number;
+  additional_driver_ages: string | null;
   vehicle_category_name: string | null;
   notes: string | null;
   status: string;
@@ -176,6 +179,12 @@ export default function AdminRequestDetailPage({
           <Field label="Passengers" value={String(data.request.passengers)} />
           <Field label="Suitcases" value={String(data.request.suitcases)} />
           <Field label="Hand luggage" value={String(data.request.hand_luggage)} />
+          <Field label="Main driver age" value={String(data.request.driver_age ?? "—")} />
+          <Field label="Additional drivers" value={
+            data.request.additional_drivers > 0
+              ? `${data.request.additional_drivers} (ages: ${data.request.additional_driver_ages || "—"})`
+              : "None"
+          } />
           <Field label="Requested vehicle" value={data.request.vehicle_category_name || "Any suitable vehicle"} />
           <Field label="Notes" value={data.request.notes} />
           <Field label="Status" value={data.request.status} />

@@ -46,7 +46,8 @@ export async function GET(
         pickup_address, dropoff_address, pickup_at, dropoff_at,
         journey_duration_minutes, passengers, suitcases, hand_luggage,
         sport_equipment, vehicle_category_slug, vehicle_category_name, notes,
-        status, created_at, expires_at
+        status, created_at, expires_at,
+        driver_age, additional_drivers, additional_driver_ages
       `)
       .eq("id", id)
       .maybeSingle();

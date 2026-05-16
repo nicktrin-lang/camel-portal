@@ -37,6 +37,9 @@ type RequestRow = {
   journey_duration_minutes: number | null; passengers: number;
   suitcases: number; hand_luggage: number;
   sport_equipment: string | null;
+  driver_age: number | null;
+  additional_drivers: number;
+  additional_driver_ages: string | null;
   vehicle_category_slug: string | null; vehicle_category_name: string | null;
   notes: string | null; status: string; created_at: string;
   expires_at: string | null; matched_status: string | null;
@@ -290,6 +293,12 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
             <Field label="Suitcases">{request.suitcases}</Field>
             <Field label="Hand luggage">{request.hand_luggage}</Field>
             <Field label="Sport equipment">{sportEquipmentLabel(request.sport_equipment)}</Field>
+            <Field label="Main driver age">{request.driver_age ?? "—"}</Field>
+            <Field label="Additional drivers">
+              {request.additional_drivers > 0
+                ? `${request.additional_drivers} (ages: ${request.additional_driver_ages || "—"})`
+                : "None"}
+            </Field>
             <Field label="Vehicle">{request.vehicle_category_name || "—"}</Field>
             <Field label="Notes">{request.notes || "—"}</Field>
             <Field label="Created">{fmtDateTime(request.created_at)}</Field>

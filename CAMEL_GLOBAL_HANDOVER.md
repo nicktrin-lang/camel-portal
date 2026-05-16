@@ -98,17 +98,22 @@ cd ~/camel-customer && git add . && git commit -m "message" && git push origin m
 | `app/api/partner/bookings/[id]/complete/route.ts` | Manual trigger for completion flow (fuel refund) |
 | `app/api/partner/invoices/route.ts` | GET — list partner's own invoices + signed download URLs |
 | `app/api/partner/invoices/generate/route.ts` | POST — partner triggers on-demand invoice generation |
+| `app/api/partner/suggestions/route.ts` | GET list own suggestions, POST submit new suggestion |
 | `app/api/admin/invoices/route.ts` | GET list all invoices (filter by partner/month) + POST on-demand generation (admin) |
+| `app/api/admin/suggestions/route.ts` | GET all suggestions (filter by status/category), PATCH update status/notes |
 | `app/api/webhooks/stripe/route.ts` | Portal webhook — handles `account.updated` (partner onboarding) |
 | `app/components/ChatWidget.tsx` | Floating AI chat widget — draggable (mouse + touch), streaming |
 | `app/components/Footer.tsx` | Smart footer — partner/admin/driver/customer variants |
+| `app/components/portal/PortalSidebar.tsx` | **Main sidebar used by all portal pages** — partner + admin nav, includes Suggestions |
 | `app/admin/approvals/page.tsx` | Partner approvals — country filter + approved partner map (react-leaflet) |
 | `app/admin/approvals/PartnersMap.tsx` | Multi-marker react-leaflet map — green=live, orange=approved/not live |
+| `app/admin/suggestions/page.tsx` | Admin suggestions — list all, filter by status/category, expand to update status + add notes |
 | `app/partner/onboarding/page.tsx` | 7-step onboarding — Location, Currency, Billing, Fleet, Drivers, Payouts (Stripe), Go Live |
 | `app/partner/settings/page.tsx` | Settings — payout management + Stripe Express link + delete account |
 | `app/partner/dashboard/page.tsx` | Dashboard — Stripe payout status banner + checklist |
 | `app/partner/reports/page.tsx` | Partner reports — revenue, commission, Stripe fees, fuel, payout status breakdown, commission invoices section |
-| `app/admin/reports/page.tsx` | Admin reports — network-wide, partner breakdown, payout status drilldown, commission invoices section — **NEEDS CLEAN REWRITE IN CHAT 30** |
+| `app/partner/suggestions/page.tsx` | Partner suggestions — submit form (title, category, description), view own submissions + status |
+| `app/admin/reports/page.tsx` | Admin reports — network-wide, partner breakdown, payout status drilldown, commission invoices section |
 | `app/driver/jobs/page.tsx` | Driver jobs — light theme, expandable jobs, fuel recording, stat cards |
 | `app/cron/monthly-payout/route.ts` | Monthly payout cron — Stripe transfers + generates commission invoice per partner |
 
@@ -118,17 +123,25 @@ cd ~/camel-customer && git add . && git commit -m "message" && git push origin m
 | `lib/supabase-customer/browser.ts` | Supabase browser client (customers) |
 | `lib/supabase-customer/server.ts` | Exports `createCustomerServerClient()` and `createCustomerServiceRoleSupabaseClient()` |
 | `lib/serverCurrency.ts` | Server-side currency conversion — fetches rates from frankfurter.app directly |
+| `lib/email.ts` | Resend email sender — supports `attachments` array (base64) — same pattern as portal |
+| `lib/portal/generateBookingReceiptPDF.tsx` | Booking receipt PDF generator — @react-pdf/renderer, A4, charge_currency, logo, driving licence note, uploads to `booking-receipts` Supabase Storage bucket, emails to customer |
 | `app/api/chat/route.ts` | AI chat API — Camel Help widget (customer side) |
 | `app/api/chat/transcript/route.ts` | Emails chat transcript to customer |
 | `app/api/payments/create-intent/route.ts` | Creates Stripe PaymentIntent in customer's currency, converts bid amounts if currencies differ |
-| `app/api/webhooks/stripe/route.ts` | Customer webhook — stores bid currency on booking, charge currency on payment, captures Stripe fees |
+| `app/api/webhooks/stripe/route.ts` | Customer webhook — creates booking, generates + emails booking receipt PDF, sends confirmation emails |
+| `app/api/test-booking/bookings/[id]/receipt/route.ts` | GET — returns signed URL for booking receipt PDF (Bearer token auth, uses customer DB client) |
 | `app/api/test-booking/bookings/[id]/cancel/route.ts` | Customer booking cancellation |
 | `app/checkout/[bid_id]/page.tsx` | Stripe Elements checkout page — card form, order summary, pay button |
 | `app/components/ChatWidget.tsx` | **Identical to portal version** — always update both |
-| `app/bookings/[id]/page.tsx` | Booking detail — shows charge_currency to customer, PDF receipt download on completed bookings |
+| `app/bookings/[id]/page.tsx` | Booking detail — receipt download button (all statuses), completion statement download (completed only), charge_currency throughout |
 | `app/login/page.tsx` | Customer login — supports `?next=` redirect param |
 | `next.config.ts` | CSP headers — includes Stripe domains (js.stripe.com, *.stripe.com) |
 | `app/ClientRootLayout.tsx` | Global nav — suppressed on `/checkout` pages only |
+
+---
+
+## Sidebar Architecture (CRITICAL)
+The portal uses **`PortalSidebar.tsx`** (`app/components/portal/PortalSidebar.tsx`) as the main sidebar for both partner and admin — NOT `PartnerSidebar.tsx` or `AdminSidebar.tsx`. Always edit `PortalSidebar.tsx` to add/change nav items. The other two sidebar files exist but are not actively used.
 
 ---
 
@@ -147,10 +160,9 @@ Every booking with a currency mismatch has TWO currencies:
 const commAmt = Math.max((car_hire_price * commission_rate) / 100, 10);
 const payout  = Math.max(0, car_hire_price - commAmt);
 ```
-This pattern is used in: partner/bookings/page.tsx, partner/reports/page.tsx, admin/bookings/page.tsx, admin/reports/page.tsx, partner/bookings/[id]/page.tsx.
 
 ### Stripe settlement currencies
-Camel's Stripe account settles in **EUR, GBP, and USD** — all three added. No unnecessary conversions when customer and partner use the same currency.
+Camel's Stripe account settles in **EUR, GBP, and USD** — all three added.
 
 ### Customer currency flow
 1. Customer selects currency on homepage → saved to `localStorage` as `camel_currency_pref`
@@ -184,13 +196,14 @@ Customer accepts bid → redirected to /checkout/[bid_id]
 → payment_intent.succeeded webhook fires to www.camel-global.com/api/webhooks/stripe
 → partner_bookings created with bid currency amounts + charge_currency stored separately
 → payments record created in charge currency with Stripe fee captured
+→ Booking receipt PDF generated + emailed to customer as attachment
 → Customer redirected to /bookings/[request_id]?payment=success
 ```
 
 ### At booking completion (working ✅)
 ```
-Booking marked completed (all fuel levels matched, driver confirmed both stages)
-→ completeBooking() called inline from update route
+Booking marked completed
+→ completeBooking() called
 → Fuel used calculated (quarters)
 → Stripe partial refund issued for unused fuel deposit
 → payments.fuel_refund_amount + fuel_refund_stripe_id + fuel_refunded_at updated
@@ -204,7 +217,7 @@ Booking marked completed (all fuel levels matched, driver confirmed both stages)
 1st of month cron job
 → Finds all partner_bookings where payout_status = 'ready'
 → Groups by partner
-→ Triggers one Stripe payout per partner (manual payout schedule)
+→ Triggers one Stripe payout per partner
 → Calls generateCommissionInvoice() per partner → PDF generated, stored, emailed
 → Emails partner payout notification
 → Marks bookings payout_status = 'paid'
@@ -215,13 +228,6 @@ Booking marked completed (all fuel levels matched, driver confirmed both stages)
 |----------|-------------|-------|---------|
 | `https://portal.camel-global.com/api/webhooks/stripe` | charming-victory | `account.updated` | Partner onboarding completion |
 | `https://www.camel-global.com/api/webhooks/stripe` | sophisticated-triumph | `payment_intent.succeeded` | Creates booking after payment |
-
-### Stripe env vars
-| Var | Portal | Customer |
-|-----|--------|----------|
-| `STRIPE_SECRET_KEY` | ✅ | ✅ |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | ✅ | ✅ |
-| `STRIPE_WEBHOOK_SECRET` | charming-victory secret | sophisticated-triumph secret |
 
 ---
 
@@ -262,32 +268,53 @@ Booking marked completed (all fuel levels matched, driver confirmed both stages)
 | `fuel_refund` | Fuel refund issued |
 | `payout_status` | `held` / `ready` / `paid` / `cancelled` |
 | `payment_id` | FK to payments table |
+| `receipt_storage_path` | Path to booking receipt PDF in `booking-receipts` bucket |
 
 ### `commission_invoices` — real column names (CRITICAL)
 | Column | Purpose |
 |--------|---------|
 | `id` | UUID PK |
 | `invoice_number` | e.g. `NTUK-2026-05-001` |
-| `partner_id` | Partner user UUID (also stored as `partner_user_id`) |
-| `partner_user_id` | Partner user UUID (added col — used for RLS + joins) |
-| `period_start` | First day of invoice period (date) e.g. `2026-05-01` |
-| `period_end` | Last day of invoice period (date) e.g. `2026-05-31` |
+| `partner_id` | Partner user UUID |
+| `partner_user_id` | Partner user UUID (used for RLS + joins) |
+| `period_start` | First day of invoice period |
+| `period_end` | Last day of invoice period |
 | `currency` | Partner billing currency |
 | `subtotal` | Commission total (no VAT) |
-| `total` | Grand total (currently same as subtotal — VAT pending) |
+| `total` | Grand total |
 | `vat_rate` | VAT rate (0 for now) |
 | `vat_amount` | VAT amount (0 for now) |
-| `booking_count` | Number of bookings on invoice (added col) |
-| `storage_path` | Supabase Storage path to PDF (added col) |
-| `issued_at` | When invoice was generated (added col) |
-| `emailed_at` | When invoice was emailed (added col) |
+| `booking_count` | Number of bookings on invoice |
+| `storage_path` | Supabase Storage path to PDF |
+| `issued_at` | When invoice was generated |
+| `emailed_at` | When invoice was emailed |
 | `status` | `issued` / `paid` |
 | `partner_name` | Snapshot of partner company name |
 | `partner_address` | Snapshot of partner address |
 | `partner_tax_id` | Snapshot of partner VAT/NIF |
 | `line_items` | JSON array of booking line items |
 
-**Note:** When querying for display, map: `subtotal` → `total_commission`, `issued_at` → `generated_at`, `period_start.slice(0,7)` → `period_month`
+### `partner_suggestions`
+| Column | Purpose |
+|--------|---------|
+| `id` | UUID PK |
+| `partner_user_id` | FK to auth.users |
+| `partner_name` | Snapshot of partner company name |
+| `title` | Suggestion title |
+| `category` | `feature` / `bug` / `improvement` |
+| `description` | Full description |
+| `status` | `submitted` / `reviewing` / `planned` / `done` |
+| `admin_notes` | Admin response (visible to partner) |
+| `created_at` | Timestamp |
+| `updated_at` | Timestamp |
+
+---
+
+## Supabase Storage Buckets
+| Bucket | Purpose |
+|--------|---------|
+| `commission-invoices` | Commission invoice PDFs — path: `{partner_user_id}/{period_month}/{invoice_number}.pdf` |
+| `booking-receipts` | Customer booking receipt PDFs — path: `{request_id}/booking-receipt-{job_number}.pdf` |
 
 ---
 
@@ -301,16 +328,30 @@ Booking marked completed (all fuel levels matched, driver confirmed both stages)
 - Generated by `lib/portal/generateCommissionInvoice.tsx` using `@react-pdf/renderer`
 - A4 format, orange top bar, NTUK Ltd header, partner address block, booking line items table, totals, VAT note, footer
 - Logo loaded from `public/camel-logo.png`
-- Stored in Supabase Storage bucket `commission-invoices` at path `{partner_user_id}/{period_month}/{invoice_number}.pdf`
+- Stored in Supabase Storage bucket `commission-invoices`
 - Emailed to partner as attachment via Resend
 
 ### Invoice number format
 `NTUK-YYYY-MM-NNN` e.g. `NTUK-2026-05-001` — sequential per month
 
-### Triggers
-- Auto: monthly payout cron calls `generateCommissionInvoice()` after each partner payout
-- On-demand admin: POST `/api/admin/invoices` with `{ partner_id, period_month }`
-- On-demand partner: POST `/api/partner/invoices/generate` with `{ period_month }`
+---
+
+## Booking Receipt PDF System
+
+### What it is
+- Generated server-side in the Stripe webhook after payment succeeds
+- Uses `@react-pdf/renderer` in `lib/portal/generateBookingReceiptPDF.tsx` (camel-customer)
+- Shows: Camel logo (`camel-invoice-logo.png`), booking ref, pickup/dropoff, vehicle, partner company, amount paid in **charge_currency**, fuel deposit, driving licence reminder
+- Stored in Supabase Storage bucket `booking-receipts`
+- Emailed to customer as PDF attachment immediately on payment
+- Download button on `/bookings/[id]` at ALL booking statuses — labelled "Booking Confirmation Receipt"
+- API route: `GET /api/test-booking/bookings/[id]/receipt` — uses Bearer token auth + customer DB client
+
+### Booking Completion Statement
+- Client-side PDF generated via `jsPDF` in `app/bookings/[id]/page.tsx`
+- Only shown on completed bookings
+- Uses **charge_currency** (what customer paid), has Camel logo
+- Button labelled "Booking Completion Statement"
 
 ---
 
@@ -333,7 +374,6 @@ Booking marked completed (all fuel levels matched, driver confirmed both stages)
 - Commission rate set per-partner in admin — stored on `partner_profiles.commission_rate`
 - Rate stamped on each booking at acceptance — never changes after that
 - Fuel charges pass through 100% to partner — no commission on fuel
-- **Commission always recalculated from bid currency `car_hire_price` for display** — never from stored `commission_amount`
 
 ---
 
@@ -374,20 +414,24 @@ Booking marked completed (all fuel levels matched, driver confirmed both stages)
 | `v-stable-chat27` | Chat 27 — payout breakdown on reports, stripe fee fix in admin reports |
 | `v-stable-chat28` | Chat 28 — admin financial dashboard, stripe fee conversion fixes, dual-currency P&L, reports CSV fixes |
 | `v-stable-chat29c` | Chat 29 — commission invoice PDF complete, full end to end working |
+| `v-stable-chat30a` | Chat 30a — booking receipt PDF, completion statement fixes complete |
+| `v-stable-chat30b` | Chat 30b — partner suggestions feature complete |
 
 ### Customer (`~/camel-customer`)
 | Tag | Description |
 |-----|-------------|
 | `v-stable-chat25` | Chat 25 — Stripe checkout, PaymentIntent split, CSP fix, booking confirmation flow, webhook booking creation |
-| `v-stable-chat26` | Chat 26 — currency fix (customer pays in their currency), bid vs charge currency split, Stripe fees captured, serverCurrency lib |
+| `v-stable-chat26` | Chat 26 — currency fix, bid vs charge currency split, Stripe fees captured |
 | `v-stable-chat27` | Chat 27 — PDF receipts, booking confirmed emails, cancellation refunds |
 | `v-stable-chat28` | Chat 28 — no customer changes |
 | `v-stable-chat29c` | Chat 29 — no customer changes |
+| `v-stable-chat30a` | Chat 30a — booking receipt PDF, completion statement fixes, email attachments |
+| `v-stable-chat30b` | Chat 30b — no customer changes |
 
 ### Rollback
 ```bash
-cd ~/camel-portal && git checkout v-stable-chat29c
-cd ~/camel-customer && git checkout v-stable-chat28
+cd ~/camel-portal && git checkout v-stable-chat30b
+cd ~/camel-customer && git checkout v-stable-chat30a
 ```
 
 ---
@@ -398,11 +442,11 @@ cd ~/camel-customer && git checkout v-stable-chat28
 - Partner bid submission and management
 - Driver job portal — light theme, expandable history, fuel recording, stat cards
 - Admin approval and account management
-- Full EUR / GBP / USD currency support — customer pays in their currency, partner sees bid currency
-- Full commission system — adjustable per partner, default 20%, min €10 floor, always recalculated from bid currency
+- Full EUR / GBP / USD currency support
+- Full commission system — adjustable per partner, default 20%, min €10 floor
 - Fuel level recording, charge/refund calculation (to nearest ¼ tank)
-- Fuel refund on completion — Stripe partial refund issued automatically, payout_status=ready
-- Email notifications — all 6 (booking confirmed: customer/partner/admin; completion: customer/admin; review reminder)
+- Fuel refund on completion — Stripe partial refund issued automatically
+- Email notifications — all (booking confirmed: customer/partner/admin; completion: customer/admin; review reminder)
 - Live status system — 7 checks
 - Partner onboarding — 7 steps including Stripe Express payout setup
 - Security headers, rate limiting, hCaptcha on all forms
@@ -413,66 +457,83 @@ cd ~/camel-customer && git checkout v-stable-chat28
 - Portal homepage — full partner landing page
 - Branding overhaul — all partner and admin static pages
 - SEO — metadata, Open Graph, sitemaps, robots.txt
-- Stripe Connect partner onboarding — Express account creation, hosted onboarding, webhook completion, dashboard link
-- Partner dashboard — Stripe payout status banner, setup checklist includes payouts
-- Partner settings — payout management section with Stripe Express link
-- Customer checkout — Stripe Elements payment form at `/checkout/[bid_id]`
-- PaymentIntent with destination charge — commission split to Camel, net to partner
-- Stripe webhook — `payment_intent.succeeded` creates booking and payment record
-- Stripe fees captured — `stripe_fee`, `stripe_fee_currency`, `exchange_rate` on payments table
-- Bid vs charge currency — partner sees bid currency everywhere, customer sees charge currency
-- Commission recalc — all pages recalculate from bid currency, never use stored DB commission
+- Stripe Connect partner onboarding — Express account creation, hosted onboarding, webhook completion
 - Partner + admin bookings and reports pages — correct per-currency reconciliation + Excel export
-- Stripe fee visibility in reports — correctly converted to bid currency, shown in partner and admin reports and CSV exports
-- Payout status breakdown — partner and admin reports show held/ready/paid counts and totals
-- Payout status drilldown — admin reports, click bucket to expand individual bookings, filterable by partner
-- Per-partner Excel export — admin reports, date range + partner filter, filename includes partner name
-- Partner country in CSV exports — `base_country` from `partner_profiles` included in all admin Excel exports
-- Partner approvals — country filter dropdown + react-leaflet map of approved partners (green=live, orange=not live)
-- Commission invoice PDF — `@react-pdf/renderer`, A4, stored in Supabase Storage, emailed on payout run
+- Stripe fees captured and shown in reports
+- Payout status breakdown — partner and admin reports
+- Partner approvals — country filter + react-leaflet map
+- Commission invoice PDF — stored in Supabase Storage, emailed on payout run
 - Monthly payout cron — generates invoice per partner after Stripe transfer
-- Partner reports — Commission Invoices section: list + on-demand generate + download
-- Admin reports — Commission Invoices section: list + on-demand generate + filter (PARTIALLY BROKEN — needs rewrite in Chat 30)
+- Partner reports — Commission Invoices section
+- Admin reports — Commission Invoices section
+- **Booking receipt PDF** — generated on payment, stored in `booking-receipts`, emailed to customer with attachment, downloadable from booking page at all statuses
+- **Booking Completion Statement** — renamed (was "Receipt"), uses charge_currency, has Camel logo, completed bookings only
+- **Partner Suggestions** — submit form, admin list/filter/update, emails to partner + admin, status tracking
 
 ---
 
-## What Needs Building in Chat 30 (PRIORITY ORDER)
+## What Needs Building in Chat 31 (PRIORITY ORDER)
 
-### 1. Booking Receipt PDF — camel-customer (NEW)
-- Generated server-side in Stripe webhook after payment succeeds
-- Uses `@react-pdf/renderer` (needs installing in camel-customer)
-- Shows: Camel logo (`camel-invoice-logo.png`), booking ref, pickup/dropoff, vehicle, partner company, amount paid in **charge_currency** (what customer actually paid), fuel deposit held, total
-- Emailed as PDF attachment to customer immediately on payment
-- Download button available on `/bookings/[id]` at ALL booking statuses
-- Label: "Booking Confirmation Receipt"
+### 1. Driver Age & Additional Drivers — both repos (DO FIRST)
+Customers must provide their age and any additional driver ages at point of booking. Car hire companies need this for insurance purposes.
 
-### 2. Booking Completion Statement fixes — camel-customer (EXISTING)
-- Currently called "Booking Receipt" — rename to "Booking Completion Statement"
-- Fix currency — currently shows bid currency (EUR), must show charge_currency (GBP) — what customer paid in
-- Add Camel logo (`camel-invoice-logo.png`) — currently shows "CAMEL GLOBAL" text only
-- Only shown on completed bookings (correct, keep as-is)
-- The `downloadReceipt()` function is in `/app/bookings/[id]/page.tsx` around line 151
+#### Database (run in Supabase SQL editor BEFORE starting Chat 31)
+```sql
+ALTER TABLE customer_requests
+  ADD COLUMN IF NOT EXISTS driver_age integer,
+  ADD COLUMN IF NOT EXISTS additional_drivers integer DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS additional_driver_ages text;
+```
+`additional_driver_ages` is a comma-separated string e.g. `"28,35"` — simple, no JSON needed.
 
-### 3. Partner Suggestions Feature — camel-portal (NEW)
-- Simple form in partner portal: title, category (Feature / Bug / Improvement), description
-- Stores to `partner_suggestions` table in Supabase
-- Admin sees all submissions, can mark as `reviewing` / `planned` / `done`
-- Partner gets confirmation email
-- New pages: `app/partner/suggestions/page.tsx`, `app/admin/suggestions/page.tsx`
-- New API routes: `app/api/partner/suggestions/route.ts`, `app/api/admin/suggestions/route.ts`
+#### Files to change — camel-customer
+- **`app/page.tsx`** (`CustomerHome`) — add to booking widget form:
+  - "Main driver age" — number input (18–99), required, goes in Row 3 alongside passengers/suitcases (make it a 5-col grid or add a new row)
+  - "Additional drivers" — select 0–4, default 0
+  - When additional_drivers > 0: show one age input per additional driver (e.g. "Additional driver 1 age", "Additional driver 2 age" etc.) — these are required if additional_drivers > 0
+  - Save all to `camel_booking_draft` in sessionStorage via `saveDraft()`
+  - Pass all to API in `handleBookNow()` fetch body
 
-### 4. Spanish Translation — both repos (LAST)
-- Only remaining pre-launch blocker
-- Do after everything above is done
+- **`app/book/page.tsx`** — read `driverAge`, `additionalDrivers`, `additionalDriverAges` from draft and pass to API in the fetch body
+
+- **`app/api/test-booking/requests/route.ts`** (POST) — accept and store:
+  - `driver_age` = `Number(body?.driver_age || 0)` — validate: must be >= 18
+  - `additional_drivers` = `Number(body?.additional_drivers || 0)` — clamp 0–4
+  - `additional_driver_ages` = `String(body?.additional_driver_ages || "").trim()` — comma-separated ages
+
+- **`app/api/test-booking/requests/[id]/route.ts`** (GET) — add to select: `driver_age, additional_drivers, additional_driver_ages` and return in `requestRow`
+
+- **`app/bookings/[id]/page.tsx`** — add to `RequestData` type and display in Booking Details card:
+  - "Main driver age: 35"
+  - "Additional drivers: 2 (ages: 28, 31)"
+
+#### Files to change — camel-portal
+- **`app/partner/requests/[id]/page.tsx`** — add to `RequestRow` type and display in Request Information panel alongside passengers/suitcases:
+  - "Main driver age: 35"
+  - "Additional drivers: 2 (ages: 28, 31)"
+
+- **`app/admin/requests/[id]/page.tsx`** — same as above, add to `RequestData` type and display in Request Information grid
+
+- **`app/api/admin/requests/[id]/route.ts`** — add `driver_age, additional_drivers, additional_driver_ages` to the select query (need to cat this file at start of Chat 31)
+- **`app/api/partner/requests/[id]/route.ts`** — same (need to cat this file at start of Chat 31)
+
+#### UX notes
+- Driver age field: validate >= 18 on submit, show error "Main driver must be 18 or over"
+- Additional driver ages: each must be >= 18, show error if any are under 18
+- On the booking widget, keep it clean — show additional driver age inputs only when additional_drivers > 0
+- In portal/admin, display clearly in the request info panel — partners need this for insurance
+
+### 2. Spanish Translation — both repos (DO AFTER DRIVER AGE)
+- All user-facing strings in camel-customer and camel-portal
+- Language toggle (EN / ES) — remember preference
+- Do customer site first, then portal
 
 ---
 
 ## What Still Needs Building (Lower Priority)
-- Spanish translation — do absolutely last
 - Commission invoice PDF — VAT number + 20% UK VAT once NTUK is VAT registered
 - Xero monthly commission endpoint — deferred
 - DAC7 EU platform reporting — deferred
-- Delete legacy `camel-customers` Supabase project
 - Outreach: deduplicate prospect database
 - Outreach: set up `e.camel-global.com` subdomain in Resend
 
@@ -485,66 +546,44 @@ A collaborator works on the same `camel-portal` repo from a Windows machine (`C:
 
 ## Session Log
 
+### Chat 30 (Completed)
+**Booking receipt PDF, completion statement fixes, partner suggestions**
+1. `lib/email.ts` — attachments support added to camel-customer (matching portal version)
+2. `lib/portal/generateBookingReceiptPDF.tsx` — new PDF generator in camel-customer. @react-pdf/renderer, A4, orange top bar, Camel logo, charge_currency, driving licence reminder note. Uploads to `booking-receipts` Supabase Storage. Emails to customer as attachment.
+3. `app/api/webhooks/stripe/route.ts` (camel-customer) — calls `sendBookingReceiptEmail()` after booking created (fire-and-forget)
+4. `app/api/test-booking/bookings/[id]/receipt/route.ts` — new GET route, Bearer token auth, customer DB client throughout, returns signed URL or regenerates
+5. `app/bookings/[id]/page.tsx` — added `ReceiptDownloadButton` (all statuses), renamed completion statement, fixed to use charge_currency, added Camel logo
+6. `partner_bookings.receipt_storage_path` column added via SQL
+7. `booking-receipts` Supabase Storage bucket created (private)
+8. `EMAIL_FROM` env var added to camel-customer-live on Vercel
+9. `camel-invoice-logo.png` copied to camel-customer/public/
+10. Partner suggestions feature — `app/api/partner/suggestions/route.ts`, `app/api/admin/suggestions/route.ts`, `app/partner/suggestions/page.tsx`, `app/admin/suggestions/page.tsx`
+11. `partner_suggestions` DB table created with RLS + service role policy
+12. `app/components/portal/PortalSidebar.tsx` — Suggestions added to both partner and admin nav (this is the REAL sidebar — not PartnerSidebar.tsx or AdminSidebar.tsx)
+13. Admin suggestions: fixed `getPortalUserRole()` return shape (returns `{user, role, error}` not just role string), fixed super_admin access
+14. Stable tags: `v-stable-chat30a`, `v-stable-chat30b`
+
 ### Chat 29 (Completed)
 **Payout drilldown, per-partner export, country filter, approvals map, commission invoice system**
-1. Admin reports: payout status drilldown — inline expand per bucket, partner filter
-2. Admin reports: per-partner Excel export with date range, partner country column in CSV
-3. Partner approvals: country filter + react-leaflet approved partner map (green=live, orange=not live)
-4. `app/api/partner/bookings/route.ts` — `base_country` added, returned as `partner_country`
-5. `app/api/admin/applications/route.ts` — `base_country` added, returned as `partner_country`
-6. Commission invoice system — full end to end working ✅:
-   - `lib/portal/generateCommissionInvoice.tsx` — A4 PDF via @react-pdf/renderer, Supabase Storage upload, DB insert, Resend email with PDF attachment. Atomic invoice numbering via `commission_invoice_seq` DB sequence + `nextval_commission_invoice()` SQL function
-   - `lib/email.ts` — attachments support added
-   - `app/api/partner/invoices/route.ts` — GET list + signed URLs
-   - `app/api/partner/invoices/generate/route.ts` — POST on-demand
-   - `app/api/admin/invoices/route.ts` — GET list all + POST on-demand
-   - `app/cron/monthly-payout/route.ts` — calls `generateCommissionInvoice()` after each Stripe transfer
-   - `app/partner/reports/page.tsx` — Commission Invoices section ✅
-   - `app/admin/reports/page.tsx` — Commission Invoices section ✅ (full clean rewrite)
-7. Invoice PDF: Camel logo (`camel-invoice-logo.png`), Invoice No. prefix, no pickup date column, orange top bar, VAT reverse charge note
-8. `commission_invoices` DB table FK constraint on `partner_id` dropped (was referencing unused `partners` table)
-9. Stable tags: `v-stable-chat29`, `v-stable-chat29b`, `v-stable-chat29c`
+1. Admin reports: payout status drilldown, per-partner Excel export, partner country column
+2. Partner approvals: country filter + react-leaflet map
+3. Commission invoice system — full end to end working
+4. Stable tags: `v-stable-chat29`, `v-stable-chat29b`, `v-stable-chat29c`
 
 ### Chat 28 (Completed)
 **Admin financial dashboard, Stripe fee conversion fixes, dual-currency P&L**
-1. Admin financial dashboard added to admin reports page — P&L summary per currency + payments table with payout status and partner filters.
-2. Stripe fee currency conversion fixed across all pages.
-3. Admin booking detail `PaymentFeesCard` — full dual-currency P&L rewrite.
-4. Partner booking detail `PaymentFeesCard` — charge currency fallback fix applied.
-5. Admin reports "Net Camel" payments column — fixed to show commission only.
-6. Partner + Admin reports CSV — Stripe Fee Currency column fixed to show bid currency.
-7. Stable tags `v-stable-chat28` on both repos.
 
 ### Chat 27 (Completed)
 **Payout status breakdown on reports, Stripe fee fixes**
-1. `payout_status` confirmed in bookings API select and returned data.
-2. Partner reports — payout status breakdown working.
-3. Admin reports — payout status breakdown added + `stripeFeeInBidCurrency` function fixed.
 
 ### Chat 26 (Completed)
 **Currency architecture, fuel refund, commission fixes**
-1. Fuel refund on completion — `completeBooking()` extracted to shared lib.
-2. Stripe fees captured on payments table.
-3. Currency fix — customer pays in `request.currency`, bid amounts converted server-side.
-4. Bid vs charge currency split implemented across all pages.
 
 ### Chat 25 (Completed)
-Stripe Connect full payment flow — partner onboarding, checkout, PaymentIntent split, webhook booking creation.
+Stripe Connect full payment flow.
 
-### Chat 24c (Completed)
-SEO overhaul — metadata, Open Graph, sitemaps, robots.txt, airport keywords, alt text.
-
-### Chat 24b (Completed)
-NTUK Ltd company details, email forwarders, driver footer fix, review email fix.
-
-### Chat 24 (Completed)
-Branding, portal homepage, driver fixes, chat widget touch drag.
-
-### Chat 23 (Completed)
-AI Chat Widget + Booking Cancellation System.
-
-### Chats 20–22 (Completed)
-Address search, commission fixes, bug fixes.
+### Chats 20–24 (Completed)
+Branding, SEO, chat widget, cancellation, address search, commission fixes.
 
 ---
 
@@ -557,20 +596,24 @@ Address search, commission fixes, bug fixes.
 | 3 | Rate limiting | ✅ Done |
 | 4 | CAPTCHA at all sign-in points | ✅ Done |
 | 5 | Cookie acceptance banner | ✅ Done |
-| 6 | Partner & Admin finance pages | ✅ Done — reports correct, Stripe fees shown, payout breakdown shown |
+| 6 | Partner & Admin finance pages | ✅ Done |
 | 7 | RLS audit | ✅ Done |
 | 8 | GDPR data deletion | ✅ Done |
 | 9 | Footer + policy pages | ✅ Done |
-| 10 | Spanish translation | ⬜ Todo — do last |
+| 10 | Spanish translation | ⬜ Todo — Chat 31 |
 | 11 | Customer booking site full UI overhaul | ✅ Done |
 | 11b | Portal rebrand | ✅ Done |
 | 11c | Repo split | ✅ Done |
 | 11d | Google Analytics | ✅ Done |
-| 12 | Stripe Connect integration | ✅ Done — core flow, fuel refund, cancellation refunds, monthly payout cron all done |
+| 12 | Stripe Connect integration | ✅ Done |
 | 13 | Xero monthly commission endpoint | ⬜ Deferred |
 | 14 | DAC7 EU platform reporting | ⬜ Deferred |
 | 15 | Partner outreach agent | ✅ Done (collaborator) |
-| 16 | Commission invoice PDF | ✅ Done (needs admin reports page fix in Chat 30) |
+| 16 | Commission invoice PDF | ✅ Done |
+| 17 | Booking receipt PDF | ✅ Done |
+| 18 | Partner suggestions | ✅ Done |
+| 19 | Driver age + additional drivers at booking | ⬜ Todo — Chat 31 |
+| 20 | Spanish translation | ⬜ Todo — Chat 31 (after #19) |
 
 ---
 
@@ -603,4 +646,4 @@ git checkout v-tag-name
 
 ---
 
-*Last updated: Chat 29c — Commission invoice PDF complete. Admin reports clean rewrite done. Outreach DB clean, legacy Supabase deleted. Next chat: booking receipt PDF, completion statement fixes, partner suggestions feature, then Spanish translation.*
+*Last updated: Chat 30b — Booking receipt PDF, completion statement fixes, partner suggestions all complete. Driver age + additional drivers feature fully specced for Chat 31. Spanish translation after that.*
