@@ -12,26 +12,28 @@ type Props = {
 };
 
 const partnerNavItems = [
-  { href: "/partner/dashboard", label: "Dashboard" },
-  { href: "/partner/account",   label: "Account Management" },
-  { href: "/partner/requests",  label: "Requests" },
-  { href: "/partner/bookings",  label: "Bookings" },
-  { href: "/partner/reports",   label: "Report Management" },
-  { href: "/partner/drivers",   label: "Drivers" },
-  { href: "/partner/fleet",     label: "Car Fleet" },
-  { href: "/partner/reviews",   label: "Reviews" },
-  { href: "/partner/settings",  label: "Settings" },
+  { href: "/partner/dashboard",   label: "Dashboard" },
+  { href: "/partner/account",     label: "Account Management" },
+  { href: "/partner/requests",    label: "Requests" },
+  { href: "/partner/bookings",    label: "Bookings" },
+  { href: "/partner/reports",     label: "Report Management" },
+  { href: "/partner/drivers",     label: "Drivers" },
+  { href: "/partner/fleet",       label: "Car Fleet" },
+  { href: "/partner/reviews",     label: "Reviews" },
+  { href: "/partner/settings",    label: "Settings" },
+  { href: "/partner/suggestions", label: "Suggestions" },
 ];
 
 function getAdminNavItems(role: PortalRole) {
   const items = [
-    { href: "/admin/accounts",  label: "Account Management" },
-    { href: "/admin/approvals", label: "Partner Approvals" },
-    { href: "/admin/requests",  label: "Requests" },
-    { href: "/admin/bookings",  label: "Bookings" },
-    { href: "/admin/reviews",   label: "Review Moderation" },
-    { href: "/admin/reports",   label: "Report Management" },
-    { href: "/admin/outreach",  label: "Partner Outreach" },
+    { href: "/admin/accounts",    label: "Account Management" },
+    { href: "/admin/approvals",   label: "Partner Approvals" },
+    { href: "/admin/requests",    label: "Requests" },
+    { href: "/admin/bookings",    label: "Bookings" },
+    { href: "/admin/reviews",     label: "Review Moderation" },
+    { href: "/admin/reports",     label: "Report Management" },
+    { href: "/admin/suggestions", label: "Suggestions" },
+    { href: "/admin/outreach",    label: "Partner Outreach" },
   ];
   if (role === "super_admin") items.push({ href: "/admin/users", label: "Admin Users" });
   return items;
