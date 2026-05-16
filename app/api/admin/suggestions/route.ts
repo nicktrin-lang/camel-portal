@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
+import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
 
 // ── GET — list all suggestions (admin) ───────────────────────────────────────
 export async function GET(req: NextRequest) {
-  const supabase = await createRouteHandlerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user, role } = await getPortalUserRole();
   if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
-
-  const role = await getPortalUserRole();
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const db = createServiceRoleSupabaseClient();
@@ -32,11 +29,8 @@ export async function GET(req: NextRequest) {
 
 // ── PATCH — update status / admin notes ──────────────────────────────────────
 export async function PATCH(req: NextRequest) {
-  const supabase = await createRouteHandlerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user, role } = await getPortalUserRole();
   if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
-
-  const role = await getPortalUserRole();
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json().catch(() => null);
