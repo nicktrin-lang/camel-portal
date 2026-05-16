@@ -94,7 +94,7 @@ export default function AdminRequestDetailPage({
 }) {
   const [requestId,   setRequestId]   = useState("");
   const [loading,     setLoading]     = useState(true);
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+
   const [error,       setError]       = useState<string | null>(null);
   const [ok,          setOk]          = useState<string | null>(null);
   const [data,        setData]        = useState<ResponseShape | null>(null);
@@ -126,23 +126,7 @@ export default function AdminRequestDetailPage({
 
   useEffect(() => { load(); }, [requestId]);
 
-  async function acceptBid(bidId: string) {
-    setAcceptingId(bidId); setError(null); setOk(null);
-    try {
-      const res  = await fetch("/api/admin/bids/accept", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ bid_id: bidId }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to accept bid.");
-      setOk("Bid accepted and booking created.");
-      await load();
-    } catch (e: any) {
-      setError(e?.message || "Failed to accept bid.");
-    } finally { setAcceptingId(null); }
-  }
+
 
   if (loading) {
     return (
@@ -246,21 +230,13 @@ export default function AdminRequestDetailPage({
                     ))}
                   </div>
 
-                  <div className="flex flex-wrap gap-2 xl:flex-col xl:items-end xl:pt-1">
-                    {accepted(bid) ? (
+                  {accepted(bid) && (
+                    <div className="flex xl:flex-col xl:items-end xl:pt-1">
                       <span className="border border-[#ff7a00] px-4 py-2 text-sm font-black text-[#ff7a00]">
                         ✓ Accepted
                       </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => acceptBid(bid.id)}
-                        disabled={!!acceptingId || req.status === "booked"}
-                        className="bg-[#ff7a00] px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-60">
-                        {acceptingId === bid.id ? "Accepting…" : "Accept Bid"}
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
