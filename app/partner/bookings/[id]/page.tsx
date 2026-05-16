@@ -214,6 +214,10 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: { payment: Pa
           <span className="font-black text-black">{fmtB(hire)}</span>
         </div>
         <div className="flex justify-between text-sm">
+          <span className="font-semibold text-black/60">Fuel deposit</span>
+          <span className="font-black text-black">{fmtB(Number(booking.fuel_price ?? 0))}</span>
+        </div>
+        <div className="flex justify-between text-sm">
           <span className="font-semibold text-black/60">Commission ({rate}%)</span>
           <span className="font-black text-amber-700">− {fmtB(commAmt)}</span>
         </div>
