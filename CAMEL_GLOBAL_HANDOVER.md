@@ -373,7 +373,7 @@ Booking marked completed (all fuel levels matched, driver confirmed both stages)
 | `v-stable-chat26` | Chat 26 — fuel refund on completion, commission recalc fix, admin/partner reports fixed |
 | `v-stable-chat27` | Chat 27 — payout breakdown on reports, stripe fee fix in admin reports |
 | `v-stable-chat28` | Chat 28 — admin financial dashboard, stripe fee conversion fixes, dual-currency P&L, reports CSV fixes |
-| `v-stable-chat29b` | Chat 29 — payout drilldown, per-partner export, country filter, approvals map, commission invoice system |
+| `v-stable-chat29c` | Chat 29 — commission invoice PDF complete, full end to end working |
 
 ### Customer (`~/camel-customer`)
 | Tag | Description |
@@ -382,11 +382,11 @@ Booking marked completed (all fuel levels matched, driver confirmed both stages)
 | `v-stable-chat26` | Chat 26 — currency fix (customer pays in their currency), bid vs charge currency split, Stripe fees captured, serverCurrency lib |
 | `v-stable-chat27` | Chat 27 — PDF receipts, booking confirmed emails, cancellation refunds |
 | `v-stable-chat28` | Chat 28 — no customer changes |
-| `v-stable-chat29b` | Chat 29 — no customer changes |
+| `v-stable-chat29c` | Chat 29 — no customer changes |
 
 ### Rollback
 ```bash
-cd ~/camel-portal && git checkout v-stable-chat29b
+cd ~/camel-portal && git checkout v-stable-chat29c
 cd ~/camel-customer && git checkout v-stable-chat28
 ```
 
@@ -436,25 +436,34 @@ cd ~/camel-customer && git checkout v-stable-chat28
 
 ---
 
-## What Needs Finishing in Chat 30 (PRIORITY)
+## What Needs Building in Chat 30 (PRIORITY ORDER)
 
-### 1. Admin reports page — clean rewrite (FIRST TASK)
-`app/admin/reports/page.tsx` is corrupted from partial updates. Needs full clean rewrite.
-Key issues to fix:
-- `AdminInvoicesSection` should receive `partners` as a prop from `exportPartners` (already built from bookings) — not derive its own list from invoices
-- `pickup_at` removed from booking select in invoice routes (already done via sed — verify)
-- The `AdminInvoicesSection` loadInvoices function had a duplicate `async function` removed mid-edit — whole component needs rewriting cleanly
-- Pass `partners={exportPartners}` to `<AdminInvoicesSection />` in the JSX
+### 1. Booking Receipt PDF — camel-customer (NEW)
+- Generated server-side in Stripe webhook after payment succeeds
+- Uses `@react-pdf/renderer` (needs installing in camel-customer)
+- Shows: Camel logo (`camel-invoice-logo.png`), booking ref, pickup/dropoff, vehicle, partner company, amount paid in **charge_currency** (what customer actually paid), fuel deposit held, total
+- Emailed as PDF attachment to customer immediately on payment
+- Download button available on `/bookings/[id]` at ALL booking statuses
+- Label: "Booking Confirmation Receipt"
 
-### 2. Test full invoice generation end to end
-- Admin: select partner + month → Generate PDF → confirm PDF downloads correctly
-- Partner: select month → Generate PDF → confirm PDF downloads correctly
-- Check email is sent with PDF attached
+### 2. Booking Completion Statement fixes — camel-customer (EXISTING)
+- Currently called "Booking Receipt" — rename to "Booking Completion Statement"
+- Fix currency — currently shows bid currency (EUR), must show charge_currency (GBP) — what customer paid in
+- Add Camel logo (`camel-invoice-logo.png`) — currently shows "CAMEL GLOBAL" text only
+- Only shown on completed bookings (correct, keep as-is)
+- The `downloadReceipt()` function is in `/app/bookings/[id]/page.tsx` around line 151
 
-### 3. Stable tag after Chat 30 fixes
-```bash
-cd ~/camel-portal && git tag -a v-stable-chat30 -m "Chat 30 — admin reports clean rewrite, invoice generation working" && git push origin v-stable-chat30
-```
+### 3. Partner Suggestions Feature — camel-portal (NEW)
+- Simple form in partner portal: title, category (Feature / Bug / Improvement), description
+- Stores to `partner_suggestions` table in Supabase
+- Admin sees all submissions, can mark as `reviewing` / `planned` / `done`
+- Partner gets confirmation email
+- New pages: `app/partner/suggestions/page.tsx`, `app/admin/suggestions/page.tsx`
+- New API routes: `app/api/partner/suggestions/route.ts`, `app/api/admin/suggestions/route.ts`
+
+### 4. Spanish Translation — both repos (LAST)
+- Only remaining pre-launch blocker
+- Do after everything above is done
 
 ---
 
@@ -478,26 +487,23 @@ A collaborator works on the same `camel-portal` repo from a Windows machine (`C:
 
 ### Chat 29 (Completed)
 **Payout drilldown, per-partner export, country filter, approvals map, commission invoice system**
-1. Admin reports: payout status drilldown — `PayoutStatusSection` component, inline expand per bucket, partner filter dropdown, `PayoutDrilldownTable` shows Job, Partner, Pickup Date, Car Hire, Commission, Payout Amount, Payout Status
-2. Admin reports: per-partner Excel export — `exportPartner` state, partner dropdown inline with date range controls, filename includes partner slug
-3. Admin reports: partner country column added to Fuel Reconciliation and All Bookings CSV sheets
-4. `app/api/partner/bookings/route.ts` — `base_country` added to partner_profiles select, returned as `partner_country`
-5. `app/api/admin/applications/route.ts` — `base_country` added to partner_profiles select, returned as `partner_country`
-6. Partner approvals page — country filter dropdown (4th filter), `CountryFilter` resets `expanded` state, `PayoutStatusSection` replaced old inline IIFE
-7. `app/admin/approvals/PartnersMap.tsx` — new multi-marker react-leaflet map component, `BoundsUpdater` uses `useMap()` to auto-fit bounds, custom div icons (green=live, orange=approved/not live), popup shows company name + address + live status
-8. Commission invoice system built:
-   - `lib/portal/generateCommissionInvoice.tsx` — PDF generator, Supabase Storage upload, DB insert, Resend email with PDF attachment
-   - `lib/email.ts` — added `attachments` support (base64 via Resend)
-   - `app/api/partner/invoices/route.ts` — GET list with signed URLs
-   - `app/api/partner/invoices/generate/route.ts` — POST on-demand generation
-   - `app/api/admin/invoices/route.ts` — GET list all + POST on-demand (admin)
+1. Admin reports: payout status drilldown — inline expand per bucket, partner filter
+2. Admin reports: per-partner Excel export with date range, partner country column in CSV
+3. Partner approvals: country filter + react-leaflet approved partner map (green=live, orange=not live)
+4. `app/api/partner/bookings/route.ts` — `base_country` added, returned as `partner_country`
+5. `app/api/admin/applications/route.ts` — `base_country` added, returned as `partner_country`
+6. Commission invoice system — full end to end working ✅:
+   - `lib/portal/generateCommissionInvoice.tsx` — A4 PDF via @react-pdf/renderer, Supabase Storage upload, DB insert, Resend email with PDF attachment. Atomic invoice numbering via `commission_invoice_seq` DB sequence + `nextval_commission_invoice()` SQL function
+   - `lib/email.ts` — attachments support added
+   - `app/api/partner/invoices/route.ts` — GET list + signed URLs
+   - `app/api/partner/invoices/generate/route.ts` — POST on-demand
+   - `app/api/admin/invoices/route.ts` — GET list all + POST on-demand
    - `app/cron/monthly-payout/route.ts` — calls `generateCommissionInvoice()` after each Stripe transfer
-   - `app/partner/reports/page.tsx` — `PartnerInvoicesSection` added at bottom (working ✅)
-   - `app/admin/reports/page.tsx` — `AdminInvoicesSection` added but CORRUPTED — needs clean rewrite in Chat 30
-9. `commission_invoices` DB table exists with real schema (see table above) — added cols: `partner_user_id`, `booking_count`, `storage_path`, `issued_at`, `emailed_at`
-10. Supabase Storage bucket `commission-invoices` created (private)
-11. `@react-pdf/renderer` installed in camel-portal
-12. Stable tags: `v-stable-chat29` (early), `v-stable-chat29b` (after invoice system)
+   - `app/partner/reports/page.tsx` — Commission Invoices section ✅
+   - `app/admin/reports/page.tsx` — Commission Invoices section ✅ (full clean rewrite)
+7. Invoice PDF: Camel logo (`camel-invoice-logo.png`), Invoice No. prefix, no pickup date column, orange top bar, VAT reverse charge note
+8. `commission_invoices` DB table FK constraint on `partner_id` dropped (was referencing unused `partners` table)
+9. Stable tags: `v-stable-chat29`, `v-stable-chat29b`, `v-stable-chat29c`
 
 ### Chat 28 (Completed)
 **Admin financial dashboard, Stripe fee conversion fixes, dual-currency P&L**
@@ -597,4 +603,4 @@ git checkout v-tag-name
 
 ---
 
-*Last updated: Chat 29 — Commission invoice PDF system built. Partner approvals map + country filter. Admin reports payout drilldown + per-partner export. Admin reports page AdminInvoicesSection is corrupted and needs a clean rewrite as first task in Chat 30. Both repos tagged v-stable-chat29b.*
+*Last updated: Chat 29c — Commission invoice PDF complete. Admin reports clean rewrite done. Outreach DB clean, legacy Supabase deleted. Next chat: booking receipt PDF, completion statement fixes, partner suggestions feature, then Spanish translation.*

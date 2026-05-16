@@ -6,14 +6,15 @@ import { usePathname } from "next/navigation";
 type Props = { open: boolean; onClose: () => void };
 
 const navItems = [
-  { href: "/admin",           label: "Dashboard" },
-  { href: "/admin/accounts",  label: "Account Management" },
-  { href: "/admin/approvals", label: "Partner Approvals" },
-  { href: "/admin/bookings",  label: "Bookings" },
-  { href: "/admin/requests",  label: "Requests" },
-  { href: "/admin/reviews", label: "Review Moderation" },
-  { href: "/admin/reports",   label: "Report Management" },
-  { href: "/admin/users",     label: "Admin Users" },
+  { href: "/admin",              label: "Dashboard" },
+  { href: "/admin/accounts",     label: "Account Management" },
+  { href: "/admin/approvals",    label: "Partner Approvals" },
+  { href: "/admin/bookings",     label: "Bookings" },
+  { href: "/admin/requests",     label: "Requests" },
+  { href: "/admin/reviews",      label: "Review Moderation" },
+  { href: "/admin/reports",      label: "Report Management" },
+  { href: "/admin/suggestions",  label: "Suggestions" },
+  { href: "/admin/users",        label: "Admin Users" },
 ];
 
 function isActive(pathname: string, href: string) {
