@@ -6,7 +6,7 @@ import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
 export async function GET(req: NextRequest) {
   const { user, role } = await getPortalUserRole();
   if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
-  if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (role !== "admin" && role !== "super_admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const db = createServiceRoleSupabaseClient();
 
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const { user, role } = await getPortalUserRole();
   if (!user) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
-  if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (role !== "admin" && role !== "super_admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   const { id, status, admin_notes } = body || {};
