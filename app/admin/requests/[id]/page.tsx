@@ -20,9 +20,6 @@ type RequestData = {
   driver_age: number | null;
   additional_drivers: number;
   additional_driver_ages: string | null;
-  driver_age: number | null;
-  additional_drivers: number;
-  additional_driver_ages: string | null;
   vehicle_category_name: string | null;
   notes: string | null;
   status: string;
@@ -68,6 +65,19 @@ function fmtDuration(minutes?: number | null) {
   return mins ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
+function sportEquipmentLabel(v: string | null): string {
+  if (!v || v === "none") return "None";
+  const map: Record<string, string> = {
+    golf_single: "Golf clubs — 1 bag", golf_two: "Golf clubs — 2 bags",
+    golf_three: "Golf clubs — 3 bags", golf_four: "Golf clubs — 4+ bags",
+    skis_pair: "Skis / snowboard — 1 set", skis_two: "Skis / snowboard — 2 sets",
+    skis_three: "Skis / snowboard — 3+ sets",
+    bikes_one: "Bikes — 1", bikes_two: "Bikes — 2", bikes_three: "Bikes — 3+",
+    other: "Other large equipment",
+  };
+  return map[v] || v;
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
@@ -82,12 +92,12 @@ export default function AdminRequestDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [requestId, setRequestId] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [requestId,   setRequestId]   = useState("");
+  const [loading,     setLoading]     = useState(true);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const [data, setData] = useState<ResponseShape | null>(null);
+  const [error,       setError]       = useState<string | null>(null);
+  const [ok,          setOk]          = useState<string | null>(null);
+  const [data,        setData]        = useState<ResponseShape | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -104,7 +114,7 @@ export default function AdminRequestDetailPage({
     if (!requestId) return;
     setLoading(true); setError(null);
     try {
-      const res = await fetch(`/api/admin/requests/${requestId}`, { method: "GET", cache: "no-store", credentials: "include" });
+      const res  = await fetch(`/api/admin/requests/${requestId}`, { method: "GET", cache: "no-store", credentials: "include" });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to load request.");
       setData(json as ResponseShape);
@@ -119,7 +129,7 @@ export default function AdminRequestDetailPage({
   async function acceptBid(bidId: string) {
     setAcceptingId(bidId); setError(null); setOk(null);
     try {
-      const res = await fetch("/api/admin/bids/accept", {
+      const res  = await fetch("/api/admin/bids/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -150,12 +160,13 @@ export default function AdminRequestDetailPage({
     );
   }
 
+  const req = data.request;
   const accepted = (bid: BidRow) => bid.status === "accepted";
 
   return (
     <div className="space-y-6">
       {error && <div className="border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-      {ok && <div className="border border-green-200 bg-green-50 p-3 text-sm text-green-700">{ok}</div>}
+      {ok    && <div className="border border-green-200 bg-green-50 p-3 text-sm text-green-700">{ok}</div>}
 
       <div className="flex items-center justify-between">
         <div>
@@ -172,37 +183,27 @@ export default function AdminRequestDetailPage({
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h2 className="text-xl font-black uppercase tracking-widest text-black">Request Information</h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <Field label="Customer" value={data.request.customer_name} />
-          <Field label="Email" value={data.request.customer_email} />
-          <Field label="Phone" value={data.request.customer_phone} />
-          <Field label="Pickup" value={data.request.pickup_address} />
-          <Field label="Dropoff" value={data.request.dropoff_address} />
-          <Field label="Pickup time" value={fmtDateTime(data.request.pickup_at)} />
-          <Field label="Dropoff time" value={fmtDateTime(data.request.dropoff_at)} />
-          <Field label="Journey duration" value={fmtDuration(data.request.journey_duration_minutes)} />
-          <Field label="Passengers" value={String(data.request.passengers)} />
-          <Field label="Suitcases" value={String(data.request.suitcases)} />
-          <Field label="Hand luggage" value={String(data.request.hand_luggage)} />
-          <Field label="Sport equipment" value={
-            !data.request.sport_equipment || data.request.sport_equipment === "none" ? "None" :
-            ({ golf_single:"Golf clubs — 1 bag", golf_two:"Golf clubs — 2 bags", golf_three:"Golf clubs — 3 bags", golf_four:"Golf clubs — 4+ bags", skis_pair:"Skis / snowboard — 1 set", skis_two:"Skis / snowboard — 2 sets", skis_three:"Skis / snowboard — 3+ sets", bikes_one:"Bikes — 1", bikes_two:"Bikes — 2", bikes_three:"Bikes — 3+", other:"Other large equipment" } as Record<string,string>)[data.request.sport_equipment] || data.request.sport_equipment
-          } />
-          <Field label="Main driver age" value={String(data.request.driver_age ?? "—")} />
+          <Field label="Customer"         value={req.customer_name} />
+          <Field label="Email"            value={req.customer_email} />
+          <Field label="Phone"            value={req.customer_phone} />
+          <Field label="Pickup"           value={req.pickup_address} />
+          <Field label="Dropoff"          value={req.dropoff_address} />
+          <Field label="Pickup time"      value={fmtDateTime(req.pickup_at)} />
+          <Field label="Dropoff time"     value={fmtDateTime(req.dropoff_at)} />
+          <Field label="Journey duration" value={fmtDuration(req.journey_duration_minutes)} />
+          <Field label="Passengers"       value={String(req.passengers)} />
+          <Field label="Suitcases"        value={String(req.suitcases)} />
+          <Field label="Hand luggage"     value={String(req.hand_luggage)} />
+          <Field label="Sport equipment"  value={sportEquipmentLabel(req.sport_equipment)} />
+          <Field label="Main driver age"  value={String(req.driver_age ?? "—")} />
           <Field label="Additional drivers" value={
-            data.request.additional_drivers > 0
-              ? `${data.request.additional_drivers} (ages: ${data.request.additional_driver_ages || "—"})`
+            req.additional_drivers > 0
+              ? `${req.additional_drivers} (ages: ${req.additional_driver_ages || "—"})`
               : "None"
           } />
-          <Field label="Requested vehicle" value={data.request.vehicle_category_name || "Any suitable vehicle"} />
-          <Field label="Main driver age" value={String(data.request.driver_age ?? "—")} />
-          <Field label="Additional drivers" value={
-            data.request.additional_drivers > 0
-              ? `${data.request.additional_drivers} (ages: ${data.request.additional_driver_ages || "—"})`
-              : "None"
-          } />
-          <Field label="Requested vehicle" value={data.request.vehicle_category_name || "Any suitable vehicle"} />
-          <Field label="Notes" value={data.request.notes} />
-          <Field label="Status" value={data.request.status} />
+          <Field label="Requested vehicle" value={req.vehicle_category_name || "Any suitable vehicle"} />
+          <Field label="Notes"            value={req.notes} />
+          <Field label="Status"           value={req.status} />
         </div>
       </div>
 
@@ -218,14 +219,13 @@ export default function AdminRequestDetailPage({
               <div key={bid.id} className={`border p-6 ${accepted(bid) ? "border-[#1a1a1a] bg-[#1a1a1a]" : "border-black/10 bg-white"}`}>
                 <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {/* Company name — large and prominent */}
                     <div className="sm:col-span-2 xl:col-span-3">
                       <p className={`text-xs font-black uppercase tracking-widest ${accepted(bid) ? "text-white/50" : "text-black/40"}`}>Company</p>
                       <p className={`mt-0.5 text-2xl font-black ${accepted(bid) ? "text-[#ff7a00]" : "text-black"}`}>
                         {bid.partner_company_name || "Partner"}
                       </p>
                     </div>
-                    {[
+                    {([
                       ["Contact",        bid.partner_contact_name],
                       ["Phone",          bid.partner_phone],
                       ["Address",        bid.partner_address],
@@ -238,7 +238,7 @@ export default function AdminRequestDetailPage({
                       ["Notes",          bid.notes],
                       ["Status",         bid.status],
                       ["Submitted",      fmtDateTime(bid.created_at)],
-                    ].map(([label, value]) => (
+                    ] as [string, string | null][]).map(([label, value]) => (
                       <div key={label}>
                         <p className={`text-xs font-black uppercase tracking-widest ${accepted(bid) ? "text-white/50" : "text-black/40"}`}>{label}</p>
                         <p className={`mt-0.5 text-sm font-black ${accepted(bid) ? "text-white" : "text-black"}`}>{value || "—"}</p>
@@ -255,7 +255,7 @@ export default function AdminRequestDetailPage({
                       <button
                         type="button"
                         onClick={() => acceptBid(bid.id)}
-                        disabled={!!acceptingId || data.request.status === "booked"}
+                        disabled={!!acceptingId || req.status === "booked"}
                         className="bg-[#ff7a00] px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-60">
                         {acceptingId === bid.id ? "Accepting…" : "Accept Bid"}
                       </button>
