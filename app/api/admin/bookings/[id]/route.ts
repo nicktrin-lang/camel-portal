@@ -104,7 +104,8 @@ export async function GET(
           id, job_number, customer_name, customer_email, customer_phone,
           pickup_address, dropoff_address, pickup_at, dropoff_at,
           journey_duration_minutes, passengers, suitcases, hand_luggage,
-          sport_equipment, vehicle_category_name, notes, status, created_at
+          sport_equipment, driver_age, additional_drivers, additional_driver_ages,
+          vehicle_category_name, notes, status, created_at
         `)
         .eq("id", bookingRow.request_id)
         .maybeSingle();
