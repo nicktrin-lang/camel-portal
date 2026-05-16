@@ -356,17 +356,17 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   if (request?.customer_email) {
     await sendEmail({
       to: request.customer_email,
-      subject: `Your booking ${jobNo} is complete — Camel Global`,
+      subject: `Your Camel Global booking is now completed - ${jobNo}`,
       html: `
         <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
           <div style="background:#000;padding:20px 28px;">
-            <h2 style="color:#fff;margin:0;">Booking Complete ✅</h2>
+            <h2 style="color:#fff;margin:0;">Booking completed</h2>
             <p style="color:#999;margin:4px 0 0;font-size:13px;">Booking ${jobNo}</p>
           </div>
           <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
             <p>Hi ${request.customer_name || "there"},</p>
-            <p>Thank you for booking with Camel Global. We hope your experience was exceptional with <strong>${companyName}</strong>.</p>
-            <p>Your booking ${jobNo} has now been completed. Please find your Booking Completion Statement attached to this email.</p>
+            <p>The Camel Global team thank you for your completed car hire with <strong>${companyName}</strong>. We hope your experience was everything you expected.</p>
+            <p>Please find your Booking Completion Statement attached to this email.</p>
             <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
               <p style="margin:0 0 8px;font-weight:700;">Fuel Summary</p>
               <table style="width:100%;font-size:14px;border-collapse:collapse;">
@@ -384,9 +384,9 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
                 : `<p style="margin:8px 0 0;font-size:13px;color:#666;">No fuel refund is due — the full tank deposit covered the fuel used.</p>`
               }
             </div>
-            <p style="font-size:13px;color:#666;">We hope to see you again soon. If you have any questions, please contact us at <a href="mailto:info@camel-global.com">info@camel-global.com</a>.</p>
+            <p style="font-size:13px;color:#666;">If you have any questions please contact us at <a href="mailto:info@camel-global.com">info@camel-global.com</a>. We look forward to welcoming you again.</p>
             <a href="${siteUrl}/bookings" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">View My Bookings</a>
-            <p style="margin-top:24px;color:#999;font-size:13px;">The Camel Global Team</p>
+            <p style="margin-top:24px;color:#999;font-size:13px;">Best Regards,<br/>The Camel Global Team</p>
           </div>
         </div>
       `,
