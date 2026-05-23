@@ -73,7 +73,6 @@ function StatementDocument({ d }: { d: StatementData }) {
   const fmt = (n: number) => new Intl.NumberFormat(locale,{style:"currency",currency:cur}).format(n);
   const ref = d.jobNumber ? `#${d.jobNumber}` : d.bookingId.slice(0,8).toUpperCase();
   const dateStr = new Date(d.issuedAt).toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
-  // car hire + fuel charge = what they actually owed (refund is separate transaction)
   const finalAmount = d.carHire + d.fuelCharge;
 
   return (
@@ -98,7 +97,6 @@ function StatementDocument({ d }: { d: StatementData }) {
             {ref} · {d.pickupAddress||"—"} · Settled in {cur}
           </Text>
 
-          {/* Booking details */}
           <View style={ps.section}>
             <Text style={ps.sectionHead}>Booking Details</Text>
             <View style={ps.row}><Text style={ps.rowLabel}>Booking reference</Text><Text style={ps.rowValue}>{ref}</Text></View>
@@ -110,7 +108,6 @@ function StatementDocument({ d }: { d: StatementData }) {
             <View style={ps.row}><Text style={ps.rowLabel}>Settlement currency</Text><Text style={ps.rowValue}>{cur}</Text></View>
           </View>
 
-          {/* Payment breakdown */}
           <View style={ps.section}>
             <Text style={ps.sectionHead}>Payment Breakdown</Text>
             <View style={ps.row}><Text style={ps.rowLabel}>Car hire</Text><Text style={ps.rowValue}>{fmt(d.carHire)}</Text></View>
@@ -118,7 +115,6 @@ function StatementDocument({ d }: { d: StatementData }) {
             <View style={ps.row}><Text style={ps.rowLabel}>Total paid</Text><Text style={ps.rowValue}>{fmt(d.totalPaid)}</Text></View>
           </View>
 
-          {/* Fuel settlement */}
           <View style={ps.section}>
             <Text style={ps.sectionHead}>Fuel Settlement</Text>
             <View style={ps.row}><Text style={ps.rowLabel}>Delivery fuel level</Text><Text style={ps.rowValue}>{fuelLabel(d.collectionFuel)}</Text></View>
@@ -128,7 +124,6 @@ function StatementDocument({ d }: { d: StatementData }) {
             <View style={ps.row}><Text style={ps.rowLabel}>Fuel refund to you</Text><Text style={ps.rowValue}>{d.fuelRefund>0?fmt(d.fuelRefund):"None"}</Text></View>
           </View>
 
-          {/* Final amount */}
           <View style={ps.totalBox}>
             <Text style={ps.totalLabel}>Final amount (car hire + fuel charge)</Text>
             <Text style={ps.totalValue}>{fmt(finalAmount)}</Text>
@@ -236,6 +231,22 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
     return { ok: true, already_processed: true };
   }
 
+  // ── Load partner info early — needed for refund metadata ─────────────────
+  const { data: partnerProfile } = await db
+    .from("partner_profiles")
+    .select("company_name, contact_name")
+    .eq("user_id", booking.partner_user_id)
+    .maybeSingle();
+
+  const currency    = booking.currency || "EUR";
+  const locale      = currency==="GBP"?"en-GB":currency==="USD"?"en-US":"es-ES";
+  const fmt         = (n: number) => new Intl.NumberFormat(locale, { style:"currency", currency }).format(n);
+  const fmtRaw      = (n: number) => `${currency} ${n.toFixed(2)}`;
+  const jobNo       = booking.job_number ? `#${booking.job_number}` : "";
+  const companyName = partnerProfile?.company_name || "the car hire company";
+  const siteUrl     = process.env.NEXT_PUBLIC_SITE_URL   || "https://camel-global.com";
+  const portalUrl   = process.env.NEXT_PUBLIC_PORTAL_URL || "https://portal.camel-global.com";
+
   let stripeRefundId: string | null = null;
   const refundCents = Math.round(fuel_refund * 100);
 
@@ -246,9 +257,16 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
         amount: refundCents,
         reason: "requested_by_customer",
         metadata: {
-          booking_id:         bookingId,
-          fuel_used_quarters: String(used_quarters),
-          fuel_refund_amount: String(fuel_refund),
+          refund_type:       "fuel_refund",
+          job_number:        jobNo,
+          booking_id:        bookingId,
+          partner_name:      companyName,
+          fuel_used:         QUARTER_LABELS[used_quarters] ?? `${used_quarters}/4 tank`,
+          delivery_fuel:     fuelLabel(collectionFuel),
+          collection_fuel:   fuelLabel(returnFuel),
+          full_tank_deposit: fmtRaw(fullTankPrice),
+          fuel_charge:       fmtRaw(fuel_charge),
+          fuel_refund:       fmtRaw(fuel_refund),
         },
       });
       stripeRefundId = refund.id;
@@ -279,39 +297,24 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (pmtUpdateErr) return { ok: false, error: pmtUpdateErr.message, status: 500 };
 
-  // ── Load request + partner info for emails ────────────────────────────────
+  // ── Load request for emails ───────────────────────────────────────────────
   const { data: request } = await db
     .from("customer_requests")
     .select("customer_name, customer_email, pickup_address, pickup_at, vehicle_category_name")
     .eq("id", booking.request_id)
     .maybeSingle();
 
-  const { data: partnerProfile } = await db
-    .from("partner_profiles")
-    .select("company_name, contact_name")
-    .eq("user_id", booking.partner_user_id)
-    .maybeSingle();
-
   const { data: partnerAuthData } = await db.auth.admin.getUserById(booking.partner_user_id);
   const partnerEmail = partnerAuthData?.user?.email || null;
-
-  const currency    = booking.currency || "EUR";
-  const locale      = currency==="GBP"?"en-GB":currency==="USD"?"en-US":"es-ES";
-  const fmt         = (n: number) => new Intl.NumberFormat(locale, { style:"currency", currency }).format(n);
-  const jobNo       = booking.job_number ? `#${booking.job_number}` : "";
-  const companyName = partnerProfile?.company_name || "the car hire company";
-  const siteUrl     = process.env.NEXT_PUBLIC_SITE_URL   || "https://camel-global.com";
-  const portalUrl   = process.env.NEXT_PUBLIC_PORTAL_URL || "https://portal.camel-global.com";
 
   const carHire    = Number(booking.car_hire_price || 0);
   const fuelDep    = Number(booking.fuel_price     || 0);
   const totalPaid  = Number(booking.amount         || carHire + fuelDep);
-  const finalAmount = carHire + fuel_charge; // car hire + fuel charge (refund is separate)
+  const finalAmount = carHire + fuel_charge;
 
   // ── Generate completion statement PDF ─────────────────────────────────────
   let statementBase64: string | null = null;
   try {
-    // Load logo
     let logoBase64: string | null = null;
     try {
       const logoUrl = `${siteUrl}/camel-invoice-logo.png`;
@@ -347,7 +350,6 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
     statementBase64 = pdfBuffer.toString("base64");
   } catch (pdfErr: any) {
     console.error("Completion statement PDF generation failed:", pdfErr?.message);
-    // Don't fail the whole completion — just send without attachment
   }
 
   const statementFilename = `Camel-Completion-Statement-${booking.job_number ?? bookingId.slice(0,8)}.pdf`;
