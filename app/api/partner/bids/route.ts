@@ -15,24 +15,22 @@ export async function POST(req: Request) {
       request_id, fleet_id, vehicle_category_slug, vehicle_category_name,
       car_hire_price, fuel_price, total_price,
       full_insurance_included, full_tank_included, notes,
-      currency,
+      currency, mileage_limit, security_deposit_notes,
     } = body;
 
     if (!request_id) return NextResponse.json({ error: "Missing request_id" }, { status: 400 });
 
     const db = createServiceRoleSupabaseClient();
 
-    // Get partner's currency from profile as fallback
     const { data: profileRow } = await db
       .from("partner_profiles")
       .select("default_currency")
       .eq("user_id", userId)
       .maybeSingle();
-    const bidCurrency: "EUR" | "GBP" = 
+    const bidCurrency: "EUR" | "GBP" =
       (currency === "EUR" || currency === "GBP") ? currency :
       (profileRow?.default_currency as "EUR" | "GBP") ?? "EUR";
 
-    // Check request exists and is open
     const { data: requestRow, error: requestErr } = await db
       .from("customer_requests")
       .select("id, status, expires_at")
@@ -46,7 +44,6 @@ export async function POST(req: Request) {
     const expired = requestRow.expires_at && new Date(requestRow.expires_at).getTime() <= Date.now();
     if (expired) return NextResponse.json({ error: "This request has expired" }, { status: 400 });
 
-    // Upsert bid
     const { data: existingBid } = await db
       .from("partner_bids")
       .select("id")
@@ -68,6 +65,8 @@ export async function POST(req: Request) {
           full_tank_included: !!full_tank_included,
           notes: notes || null,
           currency: bidCurrency,
+          mileage_limit: String(mileage_limit || "").trim() || null,
+          security_deposit_notes: String(security_deposit_notes || "").trim() || null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", existingBid.id);
@@ -88,6 +87,8 @@ export async function POST(req: Request) {
           full_tank_included: !!full_tank_included,
           notes: notes || null,
           currency: bidCurrency,
+          mileage_limit: String(mileage_limit || "").trim() || null,
+          security_deposit_notes: String(security_deposit_notes || "").trim() || null,
           status: "submitted",
         });
       if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 400 });

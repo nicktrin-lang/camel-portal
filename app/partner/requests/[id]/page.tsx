@@ -24,7 +24,6 @@ type ExistingBid = {
   total_price: number; full_insurance_included: boolean; full_tank_included: boolean;
   notes: string | null; status: string; created_at: string; currency: Currency;
   mileage_limit: string | null;
-  security_deposit_amount: number | null;
   security_deposit_notes: string | null;
 };
 
@@ -143,9 +142,8 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
   const [fullInsuranceIncluded, setFullInsuranceIncluded] = useState(true);
   const [fullTankIncluded,      setFullTankIncluded]      = useState(true);
   const [notes,                 setNotes]                 = useState("");
-  const [mileageLimit,          setMileageLimit]          = useState("");
-  const [securityDepositAmount, setSecurityDepositAmount] = useState("");
-  const [securityDepositNotes,  setSecurityDepositNotes]  = useState("");
+  const [mileageLimit,         setMileageLimit]         = useState("");
+  const [securityDepositNotes, setSecurityDepositNotes] = useState("");
 
   useEffect(() => { params.then(r => setRequestId(r.id)); }, [params]);
 
@@ -169,12 +167,11 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
         setFullTankIncluded(!!nextData.existingBid.full_tank_included);
         setNotes(nextData.existingBid.notes || "");
         setMileageLimit(nextData.existingBid.mileage_limit || "");
-        setSecurityDepositAmount(nextData.existingBid.security_deposit_amount != null ? String(nextData.existingBid.security_deposit_amount) : "");
         setSecurityDepositNotes(nextData.existingBid.security_deposit_notes || "");
       } else {
         setFleetId(nextData.fleetOptions?.[0]?.id || "");
         setCarHirePrice(""); setFuelPrice(""); setFullInsuranceIncluded(true); setFullTankIncluded(true);
-        setNotes(""); setMileageLimit(""); setSecurityDepositAmount(""); setSecurityDepositNotes("");
+        setNotes(""); setMileageLimit(""); setSecurityDepositNotes("");
       }
     } catch (e: any) { setError(e?.message || "Failed to load request."); setData(null); }
     finally { setLoading(false); }
@@ -202,8 +199,6 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
       const fuel     = Number(fuelPrice || 0);
       if (isNaN(carHire) || carHire < 0) throw new Error("Please enter a valid car hire price.");
       if (isNaN(fuel)    || fuel    < 0) throw new Error("Please enter a valid fuel price.");
-      const secDeposit = securityDepositAmount !== "" ? Number(securityDepositAmount) : 0;
-      if (isNaN(secDeposit) || secDeposit < 0) throw new Error("Please enter a valid security deposit amount.");
       const res = await fetch("/api/partner/bids", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -214,7 +209,6 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
           full_insurance_included: fullInsuranceIncluded, full_tank_included: fullTankIncluded,
           notes, currency: partnerCurrency,
           mileage_limit: mileageLimit.trim() || null,
-          security_deposit_amount: secDeposit > 0 ? secDeposit : 0,
           security_deposit_notes: securityDepositNotes.trim() || null,
         }),
       });
@@ -460,7 +454,7 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
                     onChange={e => {
                       setFullInsuranceIncluded(e.target.checked);
                       // Clear deposit fields if partner re-enables full insurance
-                      if (e.target.checked) { setSecurityDepositAmount(""); setSecurityDepositNotes(""); }
+                      if (e.target.checked) { setSecurityDepositNotes(""); }
                     }}
                     disabled={formDisabled} className="h-4 w-4 accent-[#ff7a00]" />
                   Full insurance included
@@ -473,54 +467,42 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
                 </label>
               </div>
 
-              {/* Mileage limit */}
-              <div>
-                <label className={labelCls}>Mileage limit <span className="font-semibold normal-case tracking-normal">(optional)</span></label>
-                <input
-                  type="text"
-                  value={mileageLimit}
-                  onChange={e => setMileageLimit(e.target.value)}
-                  disabled={formDisabled}
-                  placeholder="e.g. 200km/day, 1000km total, Unlimited"
-                  className={`mt-2 ${inputCls}`}
-                />
-                <p className="mt-1 text-xs font-semibold text-black/40">Leave blank for unlimited. If you apply a limit, state the terms clearly — e.g. excess charge per km.</p>
-              </div>
-
-              {/* Security deposit — only shown if full insurance is NOT included */}
-              {!fullInsuranceIncluded && (
-                <div className="border border-amber-200 bg-amber-50 p-4 space-y-4">
-                  <p className="text-xs font-black text-amber-800 uppercase tracking-widest">Security deposit</p>
-                  <p className="text-xs font-semibold text-amber-700">
-                    Because full insurance is not included in this bid, you may require a security deposit from the customer. This will be clearly shown to the customer before they accept.
+              {/* Additional terms — mileage limit + security deposit */}
+              <div className="border border-black/10 bg-[#f0f0f0] p-4 space-y-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-black mb-1">Additional terms <span className="font-semibold normal-case tracking-normal text-black/40">(optional)</span></p>
+                  <p className="text-xs font-semibold text-black/50">
+                    If your bid includes a mileage limit or requires a security deposit, you must state this clearly below.
+                    These are arrangements between you and the customer — Camel does not collect these payments.
+                    The customer will see these terms on your bid and must agree to them before accepting.
+                    <strong className="text-black"> A credit card (not debit) must be presented by the customer at collection for any deposit or mileage excess.</strong>
                   </p>
-                  <div>
-                    <label className={labelCls}>Deposit amount ({symbol}) <span className="font-semibold normal-case tracking-normal">(optional)</span></label>
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={securityDepositAmount}
-                      onChange={e => setSecurityDepositAmount(e.target.value)}
-                      disabled={formDisabled}
-                      placeholder="e.g. 500"
-                      className={`mt-2 ${inputCls} bg-white`}
-                    />
-                    <p className="mt-1 text-xs font-semibold text-black/40">Leave blank if no deposit is required.</p>
-                  </div>
-                  {Number(securityDepositAmount) > 0 && (
-                    <div>
-                      <label className={labelCls}>Deposit explanation</label>
-                      <textarea
-                        rows={3}
-                        value={securityDepositNotes}
-                        onChange={e => setSecurityDepositNotes(e.target.value)}
-                        disabled={formDisabled}
-                        placeholder="e.g. A refundable security deposit will be blocked on your credit card at collection and released within 7 days of return, subject to no damage."
-                        className={`mt-2 ${inputCls} resize-none bg-white`}
-                      />
-                    </div>
-                  )}
                 </div>
-              )}
+
+                <div>
+                  <label className={labelCls}>Mileage limit <span className="font-semibold normal-case tracking-normal text-black/40">(leave blank for unlimited)</span></label>
+                  <input
+                    type="text"
+                    value={mileageLimit}
+                    onChange={e => setMileageLimit(e.target.value)}
+                    disabled={formDisabled}
+                    placeholder="e.g. 200km/day — excess charged at €0.15/km payable at collection"
+                    className={`mt-2 ${inputCls} bg-white`}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelCls}>Security deposit <span className="font-semibold normal-case tracking-normal text-black/40">(leave blank if none required)</span></label>
+                  <input
+                    type="text"
+                    value={securityDepositNotes}
+                    onChange={e => setSecurityDepositNotes(e.target.value)}
+                    disabled={formDisabled}
+                    placeholder="e.g. €500 refundable deposit blocked on credit card at collection, released on return"
+                    className={`mt-2 ${inputCls} bg-white`}
+                  />
+                </div>
+              </div>
 
               <div>
                 <label className={labelCls}>Notes</label>
