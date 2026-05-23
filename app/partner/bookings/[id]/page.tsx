@@ -264,7 +264,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: { payment: Pa
       )}
       {!hasCurrConv && (
         <p className="mt-3 text-xs font-bold text-black/40">
-          Stripe fees are typically ~1.5% + €0.25 per transaction. See your <a href="/partner/terms" className="underline">partner terms</a> for full fee disclosure.
+          The Stripe processing fee varies by card type, issuing country and currency. See your <a href="/partner/terms" className="underline">partner terms</a> for full fee disclosure.
         </p>
       )}
     </div>

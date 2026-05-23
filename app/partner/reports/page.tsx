@@ -545,7 +545,7 @@ export default function PartnerReportsPage() {
           </div>
         </div>
         <div className="mt-4 border border-black/10 bg-[#f8f8f8] p-3 text-xs font-bold text-black/60">
-          ℹ Stripe processing fees (~1.5% + €0.25) are deducted before your payout is calculated. If your customer paid in a different currency to your bid, a conversion rate is shown. See your <a href="/partner/terms" className="underline text-black">partner terms</a> for full fee disclosure.
+          ℹ The Stripe processing fee is variable and deducted from your payout. It depends on your customer's card type, issuing country, and whether a currency conversion applied. Cross-currency payments attract a higher combined fee. See your <a href="/partner/terms" className="underline text-black">partner terms</a> for full fee disclosure.
         </div>
       </div>
 

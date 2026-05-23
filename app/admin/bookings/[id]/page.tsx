@@ -259,12 +259,12 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: {
       {hasCurrConv && (
         <div className="mt-3 border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
           ⚠ Customer paid in {chargeCurr}. Stripe applied a currency conversion ({chargeCurr} → {bidCurrency}).
-          The Stripe fee includes both the processing fee (~1.5% + €0.25) and the currency conversion fee (~2%).
+          The Stripe fee includes both the base processing fee and the currency conversion fee. Cross-currency payments attract a higher combined rate.
         </div>
       )}
       {!hasCurrConv && (
         <p className="mt-3 text-xs font-bold text-black/40">
-          Stripe fees are typically ~1.5% + €0.25 per transaction. No currency conversion applied.
+          The Stripe processing fee varies by card type and issuing country. No currency conversion applied on this booking.
         </p>
       )}
     </div>
