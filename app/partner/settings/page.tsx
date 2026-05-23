@@ -54,7 +54,7 @@ export default function PartnerSettingsPage() {
   async function openStripeDashboard() {
     setStripeLinking(true); setStripeError("");
     try {
-      const res  = await fetch("/api/partner/stripe/dashboard-link", { method: "POST", credentials: "include" });
+      const res  = await fetch("/api/partner/stripe/dashboard", { method: "POST", credentials: "include" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Failed to get dashboard link");
       window.open(json.url, "_blank");
