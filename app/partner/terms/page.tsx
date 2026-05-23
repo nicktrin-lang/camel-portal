@@ -83,6 +83,8 @@ const TERMS: Section[] = [
       "Partners may submit only one bid per customer request. Bids submitted after the bid window has closed will not be accepted.",
       "The Partner acknowledges that Customers have no obligation to accept any bid.",
       "Camel Global reserves the right to remove bids that appear inaccurate, incomplete, or in breach of these Terms.",
+      "Where the Partner applies a mileage limit or requires a security deposit, these must be clearly stated on the bid before the Customer accepts. The Partner is solely responsible for collecting any such amounts directly from the Customer at the point of vehicle handover. These payments are entirely outside the Camel Global payment system — Camel Global does not collect, hold, or process mileage charges or security deposits on behalf of Partners.",
+      "The Partner acknowledges that it is their sole responsibility to make their own arrangements for collecting any security deposit or mileage excess charge at the point of pickup or return. Camel Global accepts no liability for any failure by the Partner to collect such amounts, and no dispute arising from a security deposit or mileage charge is subject to Camel Global's dispute resolution process.",
     ],
   },
   {
