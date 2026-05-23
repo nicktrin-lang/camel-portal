@@ -457,7 +457,11 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
               <div className="flex flex-wrap gap-6">
                 <label className="flex items-center gap-3 text-sm font-black text-black cursor-pointer">
                   <input type="checkbox" checked={fullInsuranceIncluded}
-                    onChange={e => setFullInsuranceIncluded(e.target.checked)}
+                    onChange={e => {
+                      setFullInsuranceIncluded(e.target.checked);
+                      // Clear deposit fields if partner re-enables full insurance
+                      if (e.target.checked) { setSecurityDepositAmount(""); setSecurityDepositNotes(""); }
+                    }}
                     disabled={formDisabled} className="h-4 w-4 accent-[#ff7a00]" />
                   Full insurance included
                 </label>
@@ -483,34 +487,40 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
                 <p className="mt-1 text-xs font-semibold text-black/40">Leave blank for unlimited. If you apply a limit, state the terms clearly — e.g. excess charge per km.</p>
               </div>
 
-              {/* Security deposit */}
-              <div className="border border-black/10 bg-[#f0f0f0] p-4 space-y-4">
-                <div>
-                  <label className={labelCls}>Security deposit amount ({symbol}) <span className="font-semibold normal-case tracking-normal">(optional)</span></label>
-                  <input
-                    type="number" min="0" step="0.01"
-                    value={securityDepositAmount}
-                    onChange={e => setSecurityDepositAmount(e.target.value)}
-                    disabled={formDisabled}
-                    placeholder="e.g. 500"
-                    className={`mt-2 ${inputCls} bg-white`}
-                  />
-                  <p className="mt-1 text-xs font-semibold text-black/40">Enter 0 or leave blank if no security deposit is required.</p>
-                </div>
-                {(Number(securityDepositAmount) > 0) && (
+              {/* Security deposit — only shown if full insurance is NOT included */}
+              {!fullInsuranceIncluded && (
+                <div className="border border-amber-200 bg-amber-50 p-4 space-y-4">
+                  <p className="text-xs font-black text-amber-800 uppercase tracking-widest">Security deposit</p>
+                  <p className="text-xs font-semibold text-amber-700">
+                    Because full insurance is not included in this bid, you may require a security deposit from the customer. This will be clearly shown to the customer before they accept.
+                  </p>
                   <div>
-                    <label className={labelCls}>Deposit explanation</label>
-                    <textarea
-                      rows={3}
-                      value={securityDepositNotes}
-                      onChange={e => setSecurityDepositNotes(e.target.value)}
+                    <label className={labelCls}>Deposit amount ({symbol}) <span className="font-semibold normal-case tracking-normal">(optional)</span></label>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={securityDepositAmount}
+                      onChange={e => setSecurityDepositAmount(e.target.value)}
                       disabled={formDisabled}
-                      placeholder="e.g. A refundable security deposit will be blocked on your credit card at collection and released within 7 days of return, subject to no damage."
-                      className={`mt-2 ${inputCls} resize-none bg-white`}
+                      placeholder="e.g. 500"
+                      className={`mt-2 ${inputCls} bg-white`}
                     />
+                    <p className="mt-1 text-xs font-semibold text-black/40">Leave blank if no deposit is required.</p>
                   </div>
-                )}
-              </div>
+                  {Number(securityDepositAmount) > 0 && (
+                    <div>
+                      <label className={labelCls}>Deposit explanation</label>
+                      <textarea
+                        rows={3}
+                        value={securityDepositNotes}
+                        onChange={e => setSecurityDepositNotes(e.target.value)}
+                        disabled={formDisabled}
+                        placeholder="e.g. A refundable security deposit will be blocked on your credit card at collection and released within 7 days of return, subject to no damage."
+                        className={`mt-2 ${inputCls} resize-none bg-white`}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className={labelCls}>Notes</label>
