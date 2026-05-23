@@ -468,7 +468,7 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
                     If your bid includes a mileage limit or requires a security deposit, you must state this clearly below.
                     These are arrangements between you and the customer — Camel does not collect these payments.
                     The customer will see these terms on your bid and must agree to them before accepting.
-                    <strong className="text-black"> A credit card (not debit) must be presented by the customer at collection for any deposit or mileage excess.</strong>
+                    <strong className="text-black"> You must arrange collecting the deposit directly with the customer at the point of pickup.</strong>
                   </p>
                 </div>
 
