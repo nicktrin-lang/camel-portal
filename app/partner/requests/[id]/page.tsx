@@ -23,6 +23,9 @@ type ExistingBid = {
   vehicle_category_name: string | null; car_hire_price: number; fuel_price: number;
   total_price: number; full_insurance_included: boolean; full_tank_included: boolean;
   notes: string | null; status: string; created_at: string; currency: Currency;
+  mileage_limit: string | null;
+  security_deposit_amount: number | null;
+  security_deposit_notes: string | null;
 };
 
 type ExistingBooking = {
@@ -124,14 +127,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function PartnerRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [requestId,      setRequestId]      = useState("");
-  const [loading,        setLoading]        = useState(true);
-  const [saving,         setSaving]         = useState(false);
-  const [error,          setError]          = useState<string | null>(null);
-  const [ok,             setOk]             = useState<string | null>(null);
-  const [data,           setData]           = useState<ApiResponse | null>(null);
-  const [timeLabel,      setTimeLabel]      = useState("—");
-  const [expired,        setExpired]        = useState(false);
+  const [requestId,       setRequestId]       = useState("");
+  const [loading,         setLoading]         = useState(true);
+  const [saving,          setSaving]          = useState(false);
+  const [error,           setError]           = useState<string | null>(null);
+  const [ok,              setOk]              = useState<string | null>(null);
+  const [data,            setData]            = useState<ApiResponse | null>(null);
+  const [timeLabel,       setTimeLabel]       = useState("—");
+  const [expired,         setExpired]         = useState(false);
   const [partnerCurrency, setPartnerCurrency] = useState<Currency>("EUR");
 
   const [fleetId,               setFleetId]               = useState("");
@@ -140,6 +143,9 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
   const [fullInsuranceIncluded, setFullInsuranceIncluded] = useState(true);
   const [fullTankIncluded,      setFullTankIncluded]      = useState(true);
   const [notes,                 setNotes]                 = useState("");
+  const [mileageLimit,          setMileageLimit]          = useState("");
+  const [securityDepositAmount, setSecurityDepositAmount] = useState("");
+  const [securityDepositNotes,  setSecurityDepositNotes]  = useState("");
 
   useEffect(() => { params.then(r => setRequestId(r.id)); }, [params]);
 
@@ -162,9 +168,13 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
         setFullInsuranceIncluded(!!nextData.existingBid.full_insurance_included);
         setFullTankIncluded(!!nextData.existingBid.full_tank_included);
         setNotes(nextData.existingBid.notes || "");
+        setMileageLimit(nextData.existingBid.mileage_limit || "");
+        setSecurityDepositAmount(nextData.existingBid.security_deposit_amount != null ? String(nextData.existingBid.security_deposit_amount) : "");
+        setSecurityDepositNotes(nextData.existingBid.security_deposit_notes || "");
       } else {
         setFleetId(nextData.fleetOptions?.[0]?.id || "");
-        setCarHirePrice(""); setFuelPrice(""); setFullInsuranceIncluded(true); setFullTankIncluded(true); setNotes("");
+        setCarHirePrice(""); setFuelPrice(""); setFullInsuranceIncluded(true); setFullTankIncluded(true);
+        setNotes(""); setMileageLimit(""); setSecurityDepositAmount(""); setSecurityDepositNotes("");
       }
     } catch (e: any) { setError(e?.message || "Failed to load request."); setData(null); }
     finally { setLoading(false); }
@@ -188,10 +198,12 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
     try {
       const selectedFleet = data.fleetOptions.find(f => f.id === fleetId);
       if (!selectedFleet) throw new Error("Please select a vehicle from your fleet.");
-      const carHire = Number(carHirePrice || 0);
-      const fuel    = Number(fuelPrice || 0);
+      const carHire  = Number(carHirePrice || 0);
+      const fuel     = Number(fuelPrice || 0);
       if (isNaN(carHire) || carHire < 0) throw new Error("Please enter a valid car hire price.");
       if (isNaN(fuel)    || fuel    < 0) throw new Error("Please enter a valid fuel price.");
+      const secDeposit = securityDepositAmount !== "" ? Number(securityDepositAmount) : 0;
+      if (isNaN(secDeposit) || secDeposit < 0) throw new Error("Please enter a valid security deposit amount.");
       const res = await fetch("/api/partner/bids", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -201,6 +213,9 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
           car_hire_price: carHire, fuel_price: fuel, total_price: carHire + fuel,
           full_insurance_included: fullInsuranceIncluded, full_tank_included: fullTankIncluded,
           notes, currency: partnerCurrency,
+          mileage_limit: mileageLimit.trim() || null,
+          security_deposit_amount: secDeposit > 0 ? secDeposit : 0,
+          security_deposit_notes: securityDepositNotes.trim() || null,
         }),
       });
       const json = await res.json().catch(() => null);
@@ -225,6 +240,13 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
   const { symbol, label: currencyLabel } = CURRENCY_META[partnerCurrency];
   const commissionRate    = data.commissionRate ?? 20;
   const minimumCommission = data.minimumCommission ?? 10;
+
+  // Young driver info
+  const mainAge = request.driver_age;
+  const isYoungMain = mainAge != null && mainAge >= 21 && mainAge <= 24;
+  const addAges = (request.additional_driver_ages || "").split(",").map(a => Number(a.trim())).filter(n => !isNaN(n) && n > 0);
+  const hasYoungAdditional = addAges.some(n => n >= 21 && n <= 24);
+  const showYoungDriverAlert = isYoungMain || hasYoungAdditional;
 
   const partnerStatus = getPartnerHistoryStatus({
     requestStatus: request.status, expiresAt: request.expires_at,
@@ -304,6 +326,18 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
             <Field label="Created">{fmtDateTime(request.created_at)}</Field>
             <Field label="Expires at">{fmtDateTime(request.expires_at)}</Field>
           </div>
+
+          {/* Young driver alert for partner */}
+          {showYoungDriverAlert && (
+            <div className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-black text-amber-800 mb-1">⚠ Young driver (21–24) on this booking</p>
+              <p className="text-sm font-semibold text-amber-700">
+                {isYoungMain && `Main driver is aged ${mainAge}. `}
+                {hasYoungAdditional && `Additional driver(s) aged 21–24. `}
+                If you apply a young driver surcharge, please include it in your car hire price and mention it in your bid notes.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Bid section */}
@@ -336,6 +370,15 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
               <Field label="Total price">{fmtCurrency(existingBid.total_price, existingBid.currency ?? partnerCurrency)}</Field>
               <Field label="Full insurance included">{existingBid.full_insurance_included ? "Yes" : "No"}</Field>
               <Field label="Full tank included">{existingBid.full_tank_included ? "Yes" : "No"}</Field>
+              <Field label="Mileage limit">{existingBid.mileage_limit || "Unlimited"}</Field>
+              <Field label="Security deposit">
+                {existingBid.security_deposit_amount && existingBid.security_deposit_amount > 0
+                  ? fmtCurrency(existingBid.security_deposit_amount, existingBid.currency ?? partnerCurrency)
+                  : "None"}
+              </Field>
+              {existingBid.security_deposit_notes && (
+                <Field label="Deposit notes">{existingBid.security_deposit_notes}</Field>
+              )}
               <Field label="Notes">{existingBid.notes || "—"}</Field>
               <Field label="Submitted">{fmtDateTime(existingBid.created_at)}</Field>
               {existingBooking && (
@@ -426,12 +469,55 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
                 </label>
               </div>
 
+              {/* Mileage limit */}
+              <div>
+                <label className={labelCls}>Mileage limit <span className="font-semibold normal-case tracking-normal">(optional)</span></label>
+                <input
+                  type="text"
+                  value={mileageLimit}
+                  onChange={e => setMileageLimit(e.target.value)}
+                  disabled={formDisabled}
+                  placeholder="e.g. 200km/day, 1000km total, Unlimited"
+                  className={`mt-2 ${inputCls}`}
+                />
+                <p className="mt-1 text-xs font-semibold text-black/40">Leave blank for unlimited. If you apply a limit, state the terms clearly — e.g. excess charge per km.</p>
+              </div>
+
+              {/* Security deposit */}
+              <div className="border border-black/10 bg-[#f0f0f0] p-4 space-y-4">
+                <div>
+                  <label className={labelCls}>Security deposit amount ({symbol}) <span className="font-semibold normal-case tracking-normal">(optional)</span></label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={securityDepositAmount}
+                    onChange={e => setSecurityDepositAmount(e.target.value)}
+                    disabled={formDisabled}
+                    placeholder="e.g. 500"
+                    className={`mt-2 ${inputCls} bg-white`}
+                  />
+                  <p className="mt-1 text-xs font-semibold text-black/40">Enter 0 or leave blank if no security deposit is required.</p>
+                </div>
+                {(Number(securityDepositAmount) > 0) && (
+                  <div>
+                    <label className={labelCls}>Deposit explanation</label>
+                    <textarea
+                      rows={3}
+                      value={securityDepositNotes}
+                      onChange={e => setSecurityDepositNotes(e.target.value)}
+                      disabled={formDisabled}
+                      placeholder="e.g. A refundable security deposit will be blocked on your credit card at collection and released within 7 days of return, subject to no damage."
+                      className={`mt-2 ${inputCls} resize-none bg-white`}
+                    />
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className={labelCls}>Notes</label>
                 <textarea rows={4} value={notes} onChange={e => setNotes(e.target.value)}
                   disabled={formDisabled}
                   className={`mt-2 ${inputCls} resize-none`}
-                  placeholder="Optional notes for this bid" />
+                  placeholder="Optional notes for this bid (e.g. young driver surcharge included, pickup instructions)" />
               </div>
 
               <button type="submit" disabled={saving || formDisabled}
