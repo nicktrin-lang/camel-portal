@@ -74,20 +74,23 @@ cd ~/camel-customer && git add . && git commit -m "message" && git push origin m
 | `lib/portal/syncBookingStatuses.ts` | Booking status sync logic |
 | `lib/portal/refreshPartnerLiveStatus.ts` | Core live status — checks all 7 requirements |
 | `lib/portal/triggerPartnerLiveRefresh.ts` | Triggers the live status refresh |
-| `lib/portal/operatingRules.ts` | Shared OPERATING_RULES data + downloadOperatingRulesPDF() |
-| `lib/portal/completeBooking.tsx` | Shared completion logic — Stripe fuel refund, payout_status=ready, generates + emails completion statement PDF to customer |
+| `lib/portal/operatingRules.ts` | Shared OPERATING_RULES data + downloadOperatingRulesPDF(). Includes section 3b — mileage limits & security deposits |
+| `lib/portal/completeBooking.tsx` | Shared completion logic — Stripe fuel refund, payout_status=ready, generates + emails completion statement PDF to customer. Sends rich completion email with fuel summary, thank you message and PDF attachment |
 | `lib/portal/generateCommissionInvoice.tsx` | Commission invoice PDF generator |
 | `lib/rateLimit.ts` | In-memory rate limiter — 3 req / 15 min per IP |
 | `lib/hcaptcha.ts` | Server-side hCaptcha token verification |
 | `lib/currency.ts` | All currency utilities — EUR, GBP, USD formatting + conversion |
 | `lib/useCurrency.ts` | React hook — currency state, live rates, fmt helpers |
-| `lib/email.ts` | Resend email sender — all notification helpers. Supports `attachments` array (base64) |
-| `app/api/partner/bookings/[id]/route.ts` | Partner booking detail API — uses single customer DB client. Fetches customer_requests including driver_age, additional_drivers, additional_driver_ages |
-| `app/api/admin/bookings/[id]/route.ts` | Admin booking detail API — fetches customer_requests including driver_age, additional_drivers, additional_driver_ages |
-| `app/admin/requests/[id]/page.tsx` | Admin request detail — shows sport_equipment, driver_age, additional_drivers |
-| `app/admin/bookings/[id]/page.tsx` | Admin booking detail — Journey Information shows sport_equipment, driver_age, additional_drivers |
-| `app/partner/requests/[id]/page.tsx` | Partner request detail — shows sport_equipment, driver_age, additional_drivers |
-| `app/partner/bookings/[id]/page.tsx` | Partner booking detail — Journey Information shows sport_equipment, driver_age, additional_drivers. PaymentFeesCard shows fuel deposit |
+| `lib/email.ts` | Resend email sender — all notification helpers. Supports `attachments` array (base64). Contains old `sendCustomerBookingCompletedEmail` — NOT called anywhere, superseded by completeBooking.tsx |
+| `app/api/partner/bids/route.ts` | Partner bid submission — saves mileage_limit + security_deposit_notes |
+| `app/api/partner/requests/[id]/route.ts` | Partner request detail API — selects mileage_limit + security_deposit_notes from partner_bids |
+| `app/api/partner/bookings/[id]/route.ts` | Partner booking detail API |
+| `app/api/admin/bookings/[id]/route.ts` | Admin booking detail API |
+| `app/admin/requests/[id]/page.tsx` | Admin request detail |
+| `app/admin/bookings/[id]/page.tsx` | Admin booking detail |
+| `app/partner/requests/[id]/page.tsx` | Partner request detail — bid form includes mileage limit + security deposit (text fields, optional). Security deposit only shown when full insurance is NOT included. Young driver alert shown when driver aged 21–24 |
+| `app/partner/bookings/[id]/page.tsx` | Partner booking detail |
+| `app/partner/terms/page.tsx` | Partner T&Cs — includes clause on mileage/deposit collection responsibility. PDF generated dynamically from TERMS array |
 
 ### Key Libraries & Files — Customer (`~/camel-customer`)
 | File | Purpose |
@@ -95,22 +98,24 @@ cd ~/camel-customer && git add . && git commit -m "message" && git push origin m
 | `lib/supabase-customer/browser.ts` | Supabase browser client (customers) |
 | `lib/supabase-customer/server.ts` | Exports `createCustomerServerClient()` and `createCustomerServiceRoleSupabaseClient()` |
 | `lib/serverCurrency.ts` | Server-side currency conversion |
-| `lib/email.ts` | Resend email sender |
-| `lib/portal/generateBookingReceiptPDF.tsx` | Booking confirmation receipt PDF — includes passengers, suitcases, sport_equipment, driver_age, additional_drivers |
-| `lib/portal/generateCompletionStatementPDF.tsx` | Booking completion statement PDF generator — @react-pdf/renderer, matches receipt style exactly |
-| `app/api/test-booking/bookings/[id]/receipt/route.ts` | GET — returns signed URL for booking receipt. Uses ONLY createCustomerServiceRoleSupabaseClient for everything |
-| `app/api/test-booking/bookings/[id]/completion-statement/route.ts` | GET — returns signed URL for completion statement. Uses ONLY createCustomerServiceRoleSupabaseClient for everything (mirrors receipt route exactly) |
-| `app/api/test-booking/requests/route.ts` | POST — creates booking request, stores driver_age, additional_drivers, additional_driver_ages |
-| `app/api/test-booking/requests/[id]/route.ts` | GET — returns request including sport_equipment, driver_age, additional_drivers, additional_driver_ages |
-| `app/api/webhooks/stripe/route.ts` | Customer webhook — creates booking, generates receipt PDF, sends confirmation emails. Passes driver age fields to receipt PDF |
-| `app/bookings/[id]/page.tsx` | Booking detail — receipt + completion statement download buttons in white boxes with orange border. Completion statement only shown for completed bookings |
-| `app/page.tsx` | Customer homepage — booking widget includes main driver age (required, min 18) + additional drivers (0-4) with per-driver age inputs |
-| `app/book/page.tsx` | Auto-submit after login — passes driver age fields from draft to API |
+| `lib/email.ts` | Resend email sender. Contains old `sendCustomerBookingCompletedEmail` — NOT called anywhere, superseded by completeBooking.tsx in portal |
+| `lib/portal/generateBookingReceiptPDF.tsx` | Booking confirmation receipt PDF — includes passengers, suitcases, sport_equipment, driver_age, additional_drivers, mileage_limit, security_deposit_notes, and "What to bring" checklist section |
+| `lib/portal/generateCompletionStatementPDF.tsx` | Booking completion statement PDF generator |
+| `app/api/test-booking/bookings/[id]/receipt/route.ts` | GET — returns signed URL for booking receipt |
+| `app/api/test-booking/bookings/[id]/completion-statement/route.ts` | GET — returns signed URL for completion statement |
+| `app/api/test-booking/bookings/[id]/update/route.ts` | POST — customer confirms fuel/insurance. Does NOT send completion email (that is handled by completeBooking.tsx in portal) |
+| `app/api/test-booking/requests/route.ts` | POST — creates booking request. Min driver age validation is 21 |
+| `app/api/test-booking/requests/[id]/route.ts` | GET — returns request + bids (including mileage_limit, security_deposit_notes) + booking |
+| `app/api/webhooks/stripe/route.ts` | Customer webhook — creates booking, generates receipt PDF (with checklist + mileage/deposit), sends confirmation emails |
+| `app/bookings/[id]/page.tsx` | Booking detail — young driver warning, document checklist + mileage/deposit shown on confirmed booking. Bid cards show mileage limit and security deposit disclosure boxes |
+| `app/page.tsx` | Customer homepage — min driver age 21, young driver warning for 21–24, no document checklist (moved to confirmed booking only) |
+| `app/book/page.tsx` | Auto-submit after login |
+| `app/terms/page.tsx` | Customer T&Cs — section 5 young driver surcharge included in bid price, section 6 credit card only required if security deposit stated on bid, section 7 security deposit, section 8 mileage |
 
 ---
 
 ## CRITICAL: DB Client Rules
-**The customer Supabase project is used for ALL customer-facing API routes** — including queries to `partner_bookings`, `customer_requests`, `partner_profiles`, and `booking-receipts` storage bucket. Always use `createCustomerServiceRoleSupabaseClient` in `app/api/test-booking/**` routes. Never mix with `createServiceRoleSupabaseClient` (main/portal DB) in these routes.
+**The customer Supabase project is used for ALL customer-facing API routes** — always use `createCustomerServiceRoleSupabaseClient` in `app/api/test-booking/**` routes. Never mix with `createServiceRoleSupabaseClient` (main/portal DB) in these routes.
 
 ---
 
@@ -119,9 +124,9 @@ The portal uses **`PortalSidebar.tsx`** (`app/components/portal/PortalSidebar.ts
 
 ---
 
-## Driver Age Feature (Chat 31)
+## Driver Age Feature
 
-### Database columns (already migrated)
+### Database columns
 ```sql
 -- Already run — do not run again
 ALTER TABLE customer_requests
@@ -129,22 +134,43 @@ ALTER TABLE customer_requests
   ADD COLUMN IF NOT EXISTS additional_drivers integer DEFAULT 0,
   ADD COLUMN IF NOT EXISTS additional_driver_ages text;
 ```
-`additional_driver_ages` is comma-separated e.g. `"28,35"`.
 
 ### Validation rules
-- Main driver age: required, must be >= 18
-- Additional driver ages: each must be >= 18
+- Main driver age: required, must be >= 21
+- Additional driver ages: each must be >= 21
 - additional_drivers: 0–4
+- Drivers aged 21–24: young driver warning shown to customer and partner
 
-### Where displayed
-- Customer booking widget (homepage) — row 4 of the form
-- Customer booking detail page — Booking Details card
-- Partner request detail — Request Information panel
-- Partner booking detail — Journey Information panel
-- Admin request detail — Request Information grid
-- Admin booking detail — Journey Information panel
-- Booking confirmation receipt PDF
-- Booking completion statement PDF
+---
+
+## Mileage Limit & Security Deposit Feature
+
+### Database columns
+```sql
+-- Already run — do not run again
+ALTER TABLE partner_bids
+  ADD COLUMN IF NOT EXISTS mileage_limit text,
+  ADD COLUMN IF NOT EXISTS security_deposit_notes text;
+```
+
+### Rules
+- Both are free-text, optional fields on the partner bid form
+- Security deposit field only shown when full insurance is NOT included
+- Both are outside Camel's payment system — collected by partner directly at handover
+- Customer sees them as disclosure boxes on bid card before accepting
+- Shown again on confirmed booking "Additional Terms" section
+- Included in booking receipt PDF
+- If security deposit set: amber credit card row added to "What to bring" checklist on confirmed booking and receipt PDF
+- Partner operating rules section 3b covers partner responsibility for collection
+- Partner T&Cs clause 6.7/6.8 covers same
+- Customer T&Cs sections 7 and 8 cover customer-facing rules
+
+---
+
+## Completion Email Architecture (CRITICAL)
+- **`lib/portal/completeBooking.tsx`** sends the rich completion email to the customer — fuel summary, thank you message, PDF attachment
+- **`lib/email.ts`** in both repos contains an old `sendCustomerBookingCompletedEmail` function — this is NOT called anywhere and must not be used
+- **`app/api/test-booking/bookings/[id]/update/route.ts`** (customer) does NOT send any completion email — this was the source of a duplicate basic email bug, now fixed
 
 ---
 
@@ -182,7 +208,7 @@ Customer accepts bid → /checkout/[bid_id]
 → PaymentIntent created in customer's currency
 → Customer pays → webhook fires
 → partner_bookings + payments created
-→ Booking receipt PDF generated + emailed to customer
+→ Booking receipt PDF generated + emailed to customer (includes what to bring checklist)
 → Customer redirected to /bookings/[request_id]?payment=success
 ```
 
@@ -191,9 +217,8 @@ Customer accepts bid → /checkout/[bid_id]
 Booking marked completed
 → completeBooking() called (lib/portal/completeBooking.tsx)
 → Fuel refund calculated + Stripe partial refund issued
-→ Completion statement PDF generated (lib/portal/generateCompletionStatementPDF.tsx)
-→ PDF attached to customer completion email
-→ Customer email: "The Camel Global team thank you for your completed car hire..."
+→ Completion statement PDF generated
+→ Rich completion email sent to customer (fuel summary, thank you, PDF attached)
 → payout_status = 'ready'
 ```
 
@@ -220,23 +245,26 @@ Booking marked completed
 |-----|-------------|
 | `v-stable-chat30b` | Chat 30b — partner suggestions complete |
 | `v-stable-chat31` | Chat 31 — driver age, sport equipment everywhere, completion statement PDF, completion email |
+| `v-stable-chat32` | Chat 32 — min age 21, young driver warning, mileage/deposit on bids, document checklist, completion email fix, terms updated |
 
 ### Customer (`~/camel-customer`)
 | Tag | Description |
 |-----|-------------|
 | `v-stable-chat30a` | Chat 30a — booking receipt PDF, completion statement fixes |
-| `v-stable-chat31` | Chat 31 — driver age, sport equipment, completion statement download (signed URL), receipt PDF with journey details |
+| `v-stable-chat31` | Chat 31 — driver age, sport equipment, completion statement download |
+| `v-stable-chat32` | Chat 32 — min age 21, young driver warning, mileage/deposit on bids, document checklist on confirmed booking + receipt PDF, completion email fix, terms updated |
 
 ### Rollback
 ```bash
-cd ~/camel-portal && git checkout v-stable-chat31
-cd ~/camel-customer && git checkout v-stable-chat31
+cd ~/camel-portal && git checkout v-stable-chat32
+cd ~/camel-customer && git checkout v-stable-chat32
 ```
 
 ---
 
 ## What Is Working ✅
-- Customer booking flow — homepage widget with currency + driver age selection
+- Customer booking flow — homepage widget with currency + driver age selection (min 21)
+- Young driver warning (21–24) shown on homepage widget, booking page, partner request page
 - Guest booking flow — draft survives login/signup redirect
 - Partner bid submission and management
 - Driver job portal
@@ -251,16 +279,21 @@ cd ~/camel-customer && git checkout v-stable-chat31
 - Stripe Connect partner onboarding
 - Partner + admin bookings and reports
 - Commission invoice PDF
-- Booking receipt PDF — includes driver age, sport equipment, journey details
-- Booking Completion Statement PDF — server-side @react-pdf/renderer, matches receipt style, stored in booking-receipts bucket, downloadable via signed URL (works in incognito), attached to completion email
+- Booking receipt PDF — includes driver age, sport equipment, journey details, what to bring checklist, mileage/deposit if set
+- Booking Completion Statement PDF — server-side, stored in booking-receipts bucket, downloadable via signed URL, attached to completion email
+- Rich completion email — fuel summary, thank you message, PDF attached (sent by completeBooking.tsx only)
 - Partner suggestions feature
-- **Driver age + additional drivers** — captured at booking, displayed on all request/booking detail pages (customer, partner, admin), included in both PDFs
-- **Sport equipment** — displayed on all request/booking detail pages and both PDFs
-- Fuel deposit shown in partner payment fee breakdown
+- Driver age + additional drivers — captured at booking, displayed everywhere, included in both PDFs
+- Sport equipment — displayed everywhere and in both PDFs
+- Mileage limit + security deposit — optional text fields on partner bid, shown to customer on bid card and confirmed booking, included in receipt PDF
+- Document checklist — shown on confirmed booking page and in receipt PDF only (not on homepage)
+- Customer terms — updated for min age 21, young driver surcharge in bid, credit card only if deposit required
+- Partner terms — updated with mileage/deposit collection responsibility clauses
+- Partner operating rules — section 3b added covering mileage limits and security deposits
 
 ---
 
-## What Needs Building in Chat 32
+## What Needs Building in Chat 33
 
 ### 1. Spanish Translation (PRIORITY)
 - All user-facing strings in camel-customer and camel-portal
@@ -284,35 +317,32 @@ A collaborator works on `camel-portal` from Windows (`C:/dev/camel-portal`). He 
 
 ## Session Log
 
+### Chat 32 (Completed)
+**Min age 21, young driver warning, mileage/deposit on bids, document checklist, completion email fix, terms updated**
+
+1. `app/page.tsx` (customer) — min age 18→21, young driver warning for 21–24, document checklist removed from homepage entirely
+2. `app/api/test-booking/requests/route.ts` — server-side validation 18→21
+3. `app/bookings/[id]/page.tsx` — young driver warning, document checklist on confirmed booking only, bid cards show mileage/deposit disclosure boxes
+4. `app/partner/requests/[id]/page.tsx` (portal) — mileage limit + security deposit text fields on bid form; security deposit hidden when full insurance included; young driver alert for partner
+5. `app/api/partner/bids/route.ts` — saves mileage_limit + security_deposit_notes to DB
+6. `app/api/partner/requests/[id]/route.ts` — selects mileage_limit + security_deposit_notes from partner_bids
+7. `app/api/test-booking/requests/[id]/route.ts` (customer) — returns mileage_limit + security_deposit_notes on bids and passes through to confirmed booking
+8. `lib/portal/generateBookingReceiptPDF.tsx` — adds "What to bring" checklist section, mileage/deposit sections, passes fields from webhook
+9. `app/api/webhooks/stripe/route.ts` (customer) — passes mileage_limit + security_deposit_notes to receipt PDF
+10. `app/api/test-booking/bookings/[id]/update/route.ts` — removed duplicate basic completion email (was sending before completeBooking.tsx ran)
+11. `app/terms/page.tsx` (customer) — section 5 young driver in bid, section 6 credit card only if deposit required
+12. `app/partner/terms/page.tsx` — clauses 6.7/6.8 partner responsible for collecting mileage/deposit directly
+13. `lib/portal/operatingRules.ts` — section 3b added: mileage limits and security deposits
+14. DB migration: `partner_bids` — `mileage_limit text`, `security_deposit_notes text`
+15. Stable tags: `v-stable-chat32` on both repos
+
 ### Chat 31 (Completed)
 **Driver age, sport equipment, completion statement PDF, completion email**
-
-1. DB migration — `driver_age`, `additional_drivers`, `additional_driver_ages` added to `customer_requests`
-2. `app/page.tsx` (customer) — driver age + additional drivers added to booking widget (row 4), validation >= 18
-3. `app/book/page.tsx` — passes driver age fields from sessionStorage draft to API
-4. `app/api/test-booking/requests/route.ts` — POST stores driver age fields; GET selects them
-5. `app/api/test-booking/requests/[id]/route.ts` — adds `sport_equipment` + driver age fields to select
-6. `app/bookings/[id]/page.tsx` — full rewrite: driver age in Booking Details, completion statement in white box below summary card matching receipt button style, no jsPDF anywhere
-7. `lib/portal/generateCompletionStatementPDF.tsx` (customer) — new server-side PDF using @react-pdf/renderer, matches receipt style exactly
-8. `app/api/test-booking/bookings/[id]/completion-statement/route.ts` — new GET route, uses ONLY `createCustomerServiceRoleSupabaseClient` for everything (mirrors receipt route), stores PDF in `booking-receipts` bucket, returns signed URL
-9. `lib/portal/generateBookingReceiptPDF.tsx` — updated to include passengers, suitcases, sport_equipment, driver_age, additional_drivers in PDF
-10. `app/api/webhooks/stripe/route.ts` (customer) — passes driver age fields to receipt PDF
-11. `lib/portal/completeBooking.tsx` (portal) — renamed from .ts to .tsx (JSX support), generates completion statement PDF server-side, attaches to customer email, improved email copy
-12. `app/api/partner/bookings/[id]/route.ts` — customer_requests select includes driver_age, additional_drivers, additional_driver_ages
-13. `app/api/admin/bookings/[id]/route.ts` — same
-14. `app/partner/bookings/[id]/page.tsx` — Journey Information shows driver ages; PaymentFeesCard shows fuel deposit row
-15. `app/partner/requests/[id]/page.tsx` — shows driver ages
-16. `app/admin/requests/[id]/page.tsx` — full clean rewrite, shows sport_equipment + driver ages, no duplicates
-17. `app/admin/bookings/[id]/page.tsx` — Journey Information shows driver ages
-18. Stable tags: `v-stable-chat31` on both repos
 
 ### Chat 30 (Completed)
 **Booking receipt PDF, completion statement fixes, partner suggestions**
 
-### Chat 29 (Completed)
-**Payout drilldown, per-partner export, country filter, approvals map, commission invoice system**
-
-### Chats 20–28 (Completed)
+### Chats 20–29 (Completed)
 See previous handover docs.
 
 ---
@@ -343,4 +373,4 @@ git checkout v-tag-name
 
 ---
 
-*Last updated: Chat 31 — Driver age + additional drivers, sport equipment everywhere, completion statement PDF (server-side, signed URL, works in incognito), completion email with PDF attachment and improved wording. Spanish translation is Chat 32 priority.*
+*Last updated: Chat 32 — Min age 21, young driver warning, mileage limit + security deposit on bids (text disclosure, outside Camel payments), document checklist on confirmed booking + receipt PDF only, rich completion email fix (duplicate basic email removed), customer + partner terms + operating rules all updated.*
