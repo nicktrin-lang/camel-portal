@@ -365,14 +365,7 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
               <Field label="Full insurance included">{existingBid.full_insurance_included ? "Yes" : "No"}</Field>
               <Field label="Full tank included">{existingBid.full_tank_included ? "Yes" : "No"}</Field>
               <Field label="Mileage limit">{existingBid.mileage_limit || "Unlimited"}</Field>
-              <Field label="Security deposit">
-                {existingBid.security_deposit_amount && existingBid.security_deposit_amount > 0
-                  ? fmtCurrency(existingBid.security_deposit_amount, existingBid.currency ?? partnerCurrency)
-                  : "None"}
-              </Field>
-              {existingBid.security_deposit_notes && (
-                <Field label="Deposit notes">{existingBid.security_deposit_notes}</Field>
-              )}
+              <Field label="Security deposit">{existingBid.security_deposit_notes || "None"}</Field>
               <Field label="Notes">{existingBid.notes || "—"}</Field>
               <Field label="Submitted">{fmtDateTime(existingBid.created_at)}</Field>
               {existingBooking && (
