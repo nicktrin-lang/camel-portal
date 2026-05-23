@@ -174,7 +174,38 @@ ALTER TABLE partner_bids
 
 ---
 
-## Currency Architecture (CRITICAL)
+## Stripe Payment Architecture (CRITICAL)
+
+### Payment split — `application_fee_amount` model
+Since Chat 32b, payments use `application_fee_amount` instead of `transfer_data.amount`. This means:
+
+- **Camel always receives exactly the commission amount** — Stripe fee never reduces it
+- **Stripe fee is borne entirely by the partner** — deducted from partner payout
+- **Fuel refunds come from the partner's connected account balance** — not from Camel's balance
+- **Camel Stripe balance = sum of all commissions** — reconciles exactly with portal admin report "Net Camel Income"
+
+```
+Customer pays:           £300.00  (£200 car hire + £100 fuel)
+Camel gets:              £40.00   (20% commission — exact, always)
+Partner gets:            £260.00 − Stripe fee (e.g. £9.90) = £250.10
+On completion:           £50.00 fuel refund from partner's Stripe balance
+Partner final net:       £200.10
+```
+
+### Payment intent fields
+```typescript
+application_fee_amount: commissionCents,  // Camel's exact commission
+on_behalf_of: partnerProfile.stripe_account_id,
+transfer_data: { destination: partnerProfile.stripe_account_id },
+description: "Camel Global #JOB | Partner | Car hire + Fuel | Commission | Partner net",
+metadata: { job_number, partner_name, car_hire, fuel_deposit, camel_commission, partner_net, ... }
+```
+
+### Stripe fee notes
+- Rate is variable — depends on card type, issuing country, currency conversion
+- Cross-currency payments attract higher combined fee
+- Exact fee captured from `balance_transaction` in webhook and stored in `payments.stripe_fee`
+- Do NOT quote specific percentages anywhere — wording is "variable, depends on card type and currency"
 
 ### Two-currency model
 - `partner_bookings.currency` = **bid currency** — what partner quoted in
@@ -246,6 +277,7 @@ Booking marked completed
 | `v-stable-chat30b` | Chat 30b — partner suggestions complete |
 | `v-stable-chat31` | Chat 31 — driver age, sport equipment everywhere, completion statement PDF, completion email |
 | `v-stable-chat32` | Chat 32 — min age 21, young driver warning, mileage/deposit on bids, document checklist, completion email fix, terms updated |
+| `v-stable-chat32b` | Chat 32b — Stripe application_fee_amount, rich metadata, partner terms Stripe fee wording corrected |
 
 ### Customer (`~/camel-customer`)
 | Tag | Description |
@@ -253,11 +285,12 @@ Booking marked completed
 | `v-stable-chat30a` | Chat 30a — booking receipt PDF, completion statement fixes |
 | `v-stable-chat31` | Chat 31 — driver age, sport equipment, completion statement download |
 | `v-stable-chat32` | Chat 32 — min age 21, young driver warning, mileage/deposit on bids, document checklist on confirmed booking + receipt PDF, completion email fix, terms updated |
+| `v-stable-chat32b` | Chat 32b — Stripe application_fee_amount, rich payment intent description + metadata |
 
 ### Rollback
 ```bash
-cd ~/camel-portal && git checkout v-stable-chat32
-cd ~/camel-customer && git checkout v-stable-chat32
+cd ~/camel-portal && git checkout v-stable-chat32b
+cd ~/camel-customer && git checkout v-stable-chat32b
 ```
 
 ---
@@ -285,7 +318,10 @@ cd ~/camel-customer && git checkout v-stable-chat32
 - Partner suggestions feature
 - Driver age + additional drivers — captured at booking, displayed everywhere, included in both PDFs
 - Sport equipment — displayed everywhere and in both PDFs
-- Mileage limit + security deposit — optional text fields on partner bid, shown to customer on bid card and confirmed booking, included in receipt PDF
+- Stripe payment split — `application_fee_amount` ensures Camel gets exact commission, Stripe fee borne by partner, fuel refunds from partner balance
+- Rich Stripe metadata on every payment intent and fuel refund for full reconciliation
+- Stripe dashboard descriptions labelled with job number, partner, all amounts
+- Partner terms version `2026-06a` — Stripe fee wording corrected across all files, no specific percentages quoted anywhere
 - Document checklist — shown on confirmed booking page and in receipt PDF only (not on homepage)
 - Customer terms — updated for min age 21, young driver surcharge in bid, credit card only if deposit required
 - Partner terms — updated with mileage/deposit collection responsibility clauses
@@ -317,7 +353,16 @@ A collaborator works on `camel-portal` from Windows (`C:/dev/camel-portal`). He 
 
 ## Session Log
 
-### Chat 32 (Completed)
+### Chat 32b (Completed)
+**Stripe payment architecture fix, rich metadata, fee wording corrected**
+
+1. `app/api/payments/create-intent/route.ts` (customer) — switched from `transfer_data.amount` to `application_fee_amount` + `on_behalf_of`. Camel now receives exact commission. Stripe fee borne by partner. Added rich `description` and full metadata to payment intent for Stripe dashboard reconciliation.
+2. `lib/portal/completeBooking.tsx` (portal) — enriched Stripe refund metadata: `refund_type`, `job_number`, `partner_name`, `fuel_used`, `delivery_fuel`, `collection_fuel`, `fuel_charge`, `fuel_refund`
+3. `app/partner/terms/page.tsx` — full rewrite, version `2026-06a`. Removed all `~1.5% + €0.25` wording. Stripe fee described as variable. Clause 7.3 updated — Stripe fee borne by partner, Camel retains commission in full. Fee summary box updated.
+4. `app/partner/bookings/[id]/page.tsx` — Stripe fee note updated, removed percentage
+5. `app/admin/bookings/[id]/page.tsx` — Stripe fee notes updated, removed percentages
+6. `app/partner/reports/page.tsx` — info note updated, removed percentage
+7. Stable tags: `v-stable-chat32b` on both repos
 **Min age 21, young driver warning, mileage/deposit on bids, document checklist, completion email fix, terms updated**
 
 1. `app/page.tsx` (customer) — min age 18→21, young driver warning for 21–24, document checklist removed from homepage entirely
@@ -373,4 +418,4 @@ git checkout v-tag-name
 
 ---
 
-*Last updated: Chat 32 — Min age 21, young driver warning, mileage limit + security deposit on bids (text disclosure, outside Camel payments), document checklist on confirmed booking + receipt PDF only, rich completion email fix (duplicate basic email removed), customer + partner terms + operating rules all updated.*
+*Last updated: Chat 32b — Stripe switched to application_fee_amount (Camel gets exact commission, Stripe fee borne by partner, fuel refunds from partner balance), rich Stripe metadata for reconciliation, partner terms Stripe fee wording corrected across all files (no percentages quoted), version 2026-06a.*
