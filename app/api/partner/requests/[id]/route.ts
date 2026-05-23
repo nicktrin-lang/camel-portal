@@ -66,7 +66,7 @@ export async function GET(
     // Check for existing bid
     const { data: bidRow } = await db
       .from("partner_bids")
-      .select("id, fleet_id, vehicle_category_slug, vehicle_category_name, car_hire_price, fuel_price, total_price, full_insurance_included, full_tank_included, notes, status, created_at, currency")
+     .select("id, fleet_id, vehicle_category_slug, vehicle_category_name, car_hire_price, fuel_price, total_price, full_insurance_included, full_tank_included, notes, status, created_at, currency, mileage_limit, security_deposit_notes")
       .eq("request_id", id)
       .eq("partner_user_id", userId)
       .order("created_at", { ascending: false })
