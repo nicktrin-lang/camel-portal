@@ -36,6 +36,18 @@ export const OPERATING_RULES = [
     ],
   },
   {
+    section: "3b. Mileage Limits & Security Deposits",
+    rules: [
+      "Where a partner applies a mileage limit to a booking, this must be clearly stated on the bid at the time of submission. The mileage terms must include the limit and the excess charge per kilometre so the customer can make an informed decision before accepting.",
+      "Where a partner requires a security deposit, this must be clearly stated on the bid at the time of submission, including the deposit amount and the conditions under which it will be held and released.",
+      "Mileage limits and security deposits are entirely outside of the Camel Global payment system. Camel Global does not collect, process, or hold these amounts on behalf of partners under any circumstances.",
+      "The partner is solely responsible for collecting any mileage excess charge or security deposit directly from the customer at the point of vehicle handover or return. It is the partner's responsibility to ensure they have the means to take this payment at that location.",
+      "Partners must not use cash as the only means of collecting a security deposit. A credit card terminal or equivalent electronic payment method must be available at the point of handover where a deposit is required.",
+      "Any dispute between a partner and customer relating to a mileage charge or security deposit is a matter between those two parties directly. Camel Global is not liable for, and will not mediate, disputes arising from amounts collected outside the platform.",
+      "Failure to disclose a mileage limit or security deposit on the bid — where one is subsequently demanded from the customer at collection — is a breach of these rules and may result in immediate account suspension.",
+    ],
+  },
+  {
     section: "4. Vehicle Standards",
     rules: [
       "All vehicles offered must be roadworthy, legally registered, and fully insured at the time of hire.",
