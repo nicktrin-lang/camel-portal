@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
+import { sendCustomerBidReceivedEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
 
     const { data: requestRow, error: requestErr } = await db
       .from("customer_requests")
-      .select("id, status, expires_at")
+      .select("id, status, expires_at, job_number, customer_email")
       .eq("id", request_id)
       .maybeSingle();
 
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (existingBid) {
+      // Update existing bid — no email (avoid spamming customer on every edit)
       const { error: updateErr } = await db
         .from("partner_bids")
         .update({
@@ -72,6 +74,7 @@ export async function POST(req: Request) {
         .eq("id", existingBid.id);
       if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
     } else {
+      // New bid — insert then notify customer
       const { error: insertErr } = await db
         .from("partner_bids")
         .insert({
@@ -92,6 +95,15 @@ export async function POST(req: Request) {
           status: "submitted",
         });
       if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 400 });
+
+      // Send bid notification email to customer (fire and forget — don't fail the request if email fails)
+      if (requestRow.customer_email) {
+        sendCustomerBidReceivedEmail(
+          requestRow.customer_email,
+          requestRow.job_number ?? null,
+          requestRow.id,
+        ).catch(e => console.error("Failed to send bid received email:", e));
+      }
     }
 
     return NextResponse.json({ ok: true }, { status: 200 });
