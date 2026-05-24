@@ -146,48 +146,73 @@ export async function sendAccountLiveEmail(to: string) {
   });
 }
 
-export async function sendCustomerBidReceivedEmail(to: string, jobNumber?: number | null) {
-  const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
+// FIX: was incorrectly linking to portal. Now links to customer site /bookings/[requestId].
+// requestId is the customer_requests.id — matches the /bookings/[id] route on the customer site.
+export async function sendCustomerBidReceivedEmail(
+  to: string,
+  jobNumber?: number | null,
+  requestId?: string | null
+) {
+  const customerUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
+  const bookingUrl  = requestId
+    ? `${customerUrl}/bookings/${requestId}`
+    : `${customerUrl}/bookings`;
   return sendEmail({
     to,
-    subject: `A new partner bid has been received${jobNumber ? ` for booking ${jobNumber}` : ""}`,
+    subject: `A new partner bid has been received${jobNumber ? ` for booking #${jobNumber}` : ""}`,
     html: `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
-        <h2>New partner bid received</h2>
-        <p>A partner has submitted a bid for your booking request${jobNumber ? ` <strong>${jobNumber}</strong>` : ""}.</p>
-        <p>You can now log in and review the bid details.</p>
-        <p><a href="${baseUrl}/test-booking/requests">View your requests</a></p>
-        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
+      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
+        <div style="background:#000; padding:24px 32px;">
+          <h2 style="color:#fff; margin:0;">You have a new bid ⭐</h2>
+        </div>
+        <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
+          <p>Hi,</p>
+          <p>A car hire company has submitted a bid for your booking request${jobNumber ? ` <strong>#${jobNumber}</strong>` : ""}.</p>
+          <p>Log in to view the full price breakdown and accept the offer that suits you best.</p>
+          <p style="margin:24px 0;">
+            <a href="${bookingUrl}"
+              style="background:#ff7a00; color:#fff; padding:12px 28px; text-decoration:none; font-weight:700; display:inline-block; font-family: system-ui, Arial, sans-serif;">
+              View Bid →
+            </a>
+          </p>
+          <p style="margin-top:32px; color:#888; font-size:14px;">Best regards,<br/><strong style="color:#222;">The Camel Global Team</strong></p>
+        </div>
       </div>
     `,
   });
 }
 
+// NOT CALLED — superseded by lib/portal/completeBooking.tsx which sends the rich completion email
+// with fuel summary and PDF attachment. Do not call this function.
 export async function sendCustomerBookingCompletedEmail(to: string, jobNumber?: number | null) {
-  const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
+  const customerUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
   return sendEmail({
     to,
-    subject: `Your Camel Global booking is now completed${jobNumber ? ` - ${jobNumber}` : ""}`,
+    subject: `Your Camel Global booking is now completed${jobNumber ? ` - #${jobNumber}` : ""}`,
     html: `
       <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
         <h2>Booking completed</h2>
-        <p>Your booking${jobNumber ? ` <strong>${jobNumber}</strong>` : ""} has now been marked as completed.</p>
+        <p>Your booking${jobNumber ? ` <strong>#${jobNumber}</strong>` : ""} has now been marked as completed.</p>
         <p>The vehicle return has been confirmed.</p>
-        <p><a href="${baseUrl}/test-booking/requests">View booking details</a></p>
+        <p><a href="${customerUrl}/bookings">View booking details</a></p>
         <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
       </div>
     `,
   });
 }
 
+// FIX: was routing via /login?next=... which sent customers to the portal login page.
+// Now links directly to the booking page on the customer site with #review anchor.
+// If the customer is not logged in, the booking page handles the redirect to customer login itself.
 export async function sendReviewReminderEmail(
   to: string,
   jobNumber?: number | null,
   requestId?: string | null
 ) {
-  const customerUrl  = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
-  const destination  = requestId ? `/bookings/${requestId}` : `/bookings`;
-  const reviewUrl    = `${customerUrl}/login?next=${encodeURIComponent(destination)}`;
+  const customerUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
+  const reviewUrl   = requestId
+    ? `${customerUrl}/bookings/${requestId}#review`
+    : `${customerUrl}/bookings`;
 
   return sendEmail({
     to,
