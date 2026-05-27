@@ -159,8 +159,10 @@ function sportEquipmentLabel(v: string|null): string {
 function effectiveFuel(driverFuel: unknown, partnerFuel: unknown): string|null {
   return normalizeFuel(partnerFuel)||normalizeFuel(driverFuel);
 }
-function isLocked(opts: { driverOrPartnerFuel:string|null; customerConfirmed:boolean|null|undefined; customerFuel:string|null|undefined }): boolean {
-  return !!opts.driverOrPartnerFuel&&!!opts.customerConfirmed&&normalizeFuel(opts.customerFuel)===opts.driverOrPartnerFuel;
+// FIX: lock is based on driver+customer agreement only.
+// Partner override affects fuel calculation display but NOT the lock state.
+function isLocked(opts: { driverFuel:string|null; customerConfirmed:boolean|null|undefined; customerFuel:string|null|undefined }): boolean {
+  return !!opts.driverFuel && !!opts.customerConfirmed && normalizeFuel(opts.customerFuel) === opts.driverFuel;
 }
 const QUARTER_LABELS: Record<number,string> = { 0:"Empty",1:"¼ Tank",2:"½ Tank",3:"¾ Tank",4:"Full Tank" };
 
@@ -178,10 +180,6 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: { payment: Pa
   if (!payment) return null;
 
   const fmtB = (n: number) => fmtCurr(n, bidCurrency);
-
-  // Mirror exactly the same logic as partner reports stripeFeeInBidCurrency:
-  // — detect mismatch via stripe_fee_currency vs bidCurrency
-  // — convert by dividing by exchange_rate (which is stored as bid→charge rate)
   const feeCurr     = payment.stripe_fee_currency ?? null;
   const hasCurrConv = !!feeCurr && feeCurr.toUpperCase() !== bidCurrency.toUpperCase();
   const chargeCurr  = (payment.charge_currency || booking.charge_currency || feeCurr || bidCurrency) as string;
@@ -587,8 +585,9 @@ export default function PartnerBookingDetailPage() {
   const { symbol, label: currLabel } = CURRENCY_META[stored];
   const collEffective    = effectiveFuel(bk.collection_fuel_level_driver,bk.collection_fuel_level_partner);
   const retEffective     = effectiveFuel(bk.return_fuel_level_driver,bk.return_fuel_level_partner);
-  const collectionLocked = isLocked({driverOrPartnerFuel:collEffective,customerConfirmed:bk.collection_confirmed_by_customer,customerFuel:bk.collection_fuel_level_customer});
-  const returnLocked     = isLocked({driverOrPartnerFuel:retEffective,customerConfirmed:bk.return_confirmed_by_customer,customerFuel:bk.return_fuel_level_customer});
+  // FIX: lock uses driver fuel only — partner override does not affect lock state
+  const collectionLocked = isLocked({ driverFuel: normalizeFuel(bk.collection_fuel_level_driver), customerConfirmed: bk.collection_confirmed_by_customer, customerFuel: bk.collection_fuel_level_customer });
+  const returnLocked     = isLocked({ driverFuel: normalizeFuel(bk.return_fuel_level_driver),     customerConfirmed: bk.return_confirmed_by_customer,      customerFuel: bk.return_fuel_level_customer });
   const rateBadgeText    = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
   const commissionRate   = bk.commission_rate ?? 20;
   const carHire          = Number(bk.car_hire_price || 0);

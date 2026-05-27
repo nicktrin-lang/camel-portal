@@ -138,18 +138,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-// ── Payment Fees Card (Admin) ──────────────────────────────────────────────────
 function PaymentFeesCard({ payment, bidCurrency, booking, rates }: {
   payment: PaymentData; bidCurrency: Currency; booking: BookingRow; rates: Rates;
 }) {
   if (!payment) return null;
 
-  // Detect currency conversion — check all sources for charge currency
   const feeCurr     = (payment.stripe_fee_currency || payment.charge_currency || booking.charge_currency || null);
   const chargeCurr  = (feeCurr || bidCurrency) as string;
   const hasCurrConv = !!feeCurr && feeCurr.toUpperCase() !== bidCurrency.toUpperCase();
 
-  // Convert stripe fee from charge currency → bid currency (exchange_rate = bid→charge, so divide)
   const feeInBid = (() => {
     if (!payment.stripe_fee || payment.stripe_fee <= 0) return 0;
     if (!hasCurrConv) return payment.stripe_fee;
@@ -157,24 +154,20 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: {
     return payment.stripe_fee;
   })();
 
-  // All amounts in bid currency
-  const hire       = Number(booking.car_hire_price ?? 0);
-  const rate       = (booking as any).commission_rate ?? 20;
-  const commAmt    = Math.max((hire * rate) / 100, 10);
+  const hire        = Number(booking.car_hire_price ?? 0);
+  const rate        = (booking as any).commission_rate ?? 20;
+  const commAmt     = Math.max((hire * rate) / 100, 10);
   const fuelDeposit = Number(booking.fuel_price ?? 0);
-  const fuelCharge = Number(booking.fuel_charge ?? 0);
-  const fuelRefund = Number(booking.fuel_refund ?? payment.fuel_refund_amount ?? 0);
-  const totalPaid  = hire + fuelDeposit; // bid currency total customer paid (before conversion)
-  const netPayout  = Math.max(0, hire - commAmt + fuelCharge - feeInBid);
+  const fuelCharge  = Number(booking.fuel_charge ?? 0);
+  const fuelRefund  = Number(booking.fuel_refund ?? payment.fuel_refund_amount ?? 0);
+  const totalPaid   = hire + fuelDeposit;
+  const netPayout   = Math.max(0, hire - commAmt + fuelCharge - feeInBid);
 
-  // Helper: show bid amount + charge equivalent if currencies differ
   const dual = (bidAmt: number) => {
     if (!hasCurrConv || !payment.exchange_rate) return null;
-    const chargeAmt = bidAmt * payment.exchange_rate;
-    return fmtCurr(chargeAmt, chargeCurr);
+    return fmtCurr(bidAmt * payment.exchange_rate, chargeCurr);
   };
 
-  // Row component
   const Row = ({ label, bidAmt, color, prefix, note }: {
     label: string; bidAmt: number | null; color?: string; prefix?: string; note?: string;
   }) => {
@@ -190,9 +183,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: {
           <span className={`text-sm font-black ${color ?? "text-black"}`}>
             {prefix}{fmtCurr(Math.abs(bidAmt), bidCurrency)}
           </span>
-          {chargeEquiv && (
-            <span className="ml-2 text-xs font-bold text-black/40">({chargeEquiv})</span>
-          )}
+          {chargeEquiv && <span className="ml-2 text-xs font-bold text-black/40">({chargeEquiv})</span>}
         </div>
       </div>
     );
@@ -210,10 +201,9 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: {
           </span>
         )}
       </p>
-
       <div className="mt-4 bg-white border border-black/10 px-4 py-1">
-        <Row label="Car hire"         bidAmt={hire}       color="text-black" />
-        <Row label="Fuel deposit"     bidAmt={fuelDeposit} color="text-black" />
+        <Row label="Car hire"     bidAmt={hire}        color="text-black" />
+        <Row label="Fuel deposit" bidAmt={fuelDeposit} color="text-black" />
         <div className="flex items-center justify-between py-2.5 border-b border-black/5 font-black">
           <span className="text-sm text-black">Total paid by customer</span>
           <div className="text-right">
@@ -223,43 +213,30 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: {
             )}
           </div>
         </div>
-        <Row label={`Commission (${rate}%)`} bidAmt={commAmt}  color="text-amber-700" prefix="− " />
+        <Row label={`Commission (${rate}%)`} bidAmt={commAmt}   color="text-amber-700" prefix="− " />
         {fuelCharge > 0 && <Row label="Fuel charge to customer" bidAmt={fuelCharge} color="text-[#ff7a00]" prefix="+ " />}
         <Row
           label={`Stripe fees (processing${hasCurrConv ? " + currency conversion" : ""})`}
-          bidAmt={feeInBid}
-          color="text-amber-700"
-          prefix="− "
+          bidAmt={feeInBid} color="text-amber-700" prefix="− "
           note={hasCurrConv ? `${fmtCurr(payment.stripe_fee ?? 0, chargeCurr)} in ${chargeCurr}` : undefined}
         />
         {fuelRefund > 0 && (
-          <Row
-            label="Fuel deposit refund to customer"
-            bidAmt={fuelRefund}
-            color="text-green-700"
-            prefix="− "
-            note={payment.fuel_refund_stripe_id ?? undefined}
-          />
+          <Row label="Fuel deposit refund to customer" bidAmt={fuelRefund} color="text-green-700" prefix="− "
+            note={payment.fuel_refund_stripe_id ?? undefined} />
         )}
         {payment.cancellation_refund_amount != null && payment.cancellation_refund_amount > 0 && (
-          <Row
-            label="Cancellation refund to customer"
-            bidAmt={payment.cancellation_refund_amount}
-            color="text-red-600"
-            prefix="− "
-            note={payment.cancellation_refund_stripe_id ?? undefined}
-          />
+          <Row label="Cancellation refund to customer" bidAmt={payment.cancellation_refund_amount}
+            color="text-red-600" prefix="− " note={payment.cancellation_refund_stripe_id ?? undefined} />
         )}
         <div className="flex items-center justify-between py-3 mt-1 border-t-2 border-black">
           <span className="text-sm font-black text-black">Partner net payout</span>
           <span className="text-sm font-black text-green-700">{fmtCurr(netPayout, bidCurrency)}</span>
         </div>
       </div>
-
       {hasCurrConv && (
         <div className="mt-3 border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
           ⚠ Customer paid in {chargeCurr}. Stripe applied a currency conversion ({chargeCurr} → {bidCurrency}).
-          The Stripe fee includes both the base processing fee and the currency conversion fee. Cross-currency payments attract a higher combined rate.
+          The Stripe fee includes both the base processing fee and the currency conversion fee.
         </div>
       )}
       {!hasCurrConv && (
@@ -271,7 +248,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: {
   );
 }
 
-function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
+function CancellationSummary({ bk }: { bk: BookingRow }) {
   const stored   = (bk.currency ?? "EUR") as Currency;
   const carHire  = Number(bk.car_hire_price ?? 0);
   const fuel     = Number(bk.fuel_price ?? 0);
@@ -362,7 +339,7 @@ function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
 }
 
 function BookingSummaryCard({ booking, rates, isLive }: { booking: BookingRow; rates: Rates; isLive: boolean }) {
-  const stored: Currency   = booking.currency??"EUR";
+  const stored: Currency    = booking.currency??"EUR";
   const secondary: Currency = stored==="USD"?"EUR":stored==="GBP"?"EUR":"GBP";
   const tertiary: Currency  = stored==="EUR"?"USD":stored==="GBP"?"USD":"GBP";
   const carHireAmt  = Number(booking.car_hire_price||0);
@@ -405,11 +382,11 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking: BookingRow; r
 }
 
 function FuelStageCard({ title, booking, stage, locked }: { title:string; booking:BookingRow; stage:"collection"|"return"; locked:boolean }) {
-  const isC           = stage==="collection";
+  const isC              = stage==="collection";
   const driverConfirmed  = isC?!!booking.collection_confirmed_by_driver:!!booking.return_confirmed_by_driver;
   const driverFuel       = isC?booking.collection_fuel_level_driver:booking.return_fuel_level_driver;
   const driverAt         = isC?booking.collection_confirmed_by_driver_at:booking.return_confirmed_by_driver_at;
-  const customerConfirmed = isC?!!booking.collection_confirmed_by_customer:!!booking.return_confirmed_by_customer;
+  const customerConfirmed= isC?!!booking.collection_confirmed_by_customer:!!booking.return_confirmed_by_customer;
   const customerFuel     = isC?booking.collection_fuel_level_customer:booking.return_fuel_level_customer;
   const customerAt       = isC?booking.collection_confirmed_by_customer_at:booking.return_confirmed_by_customer_at;
   const customerNotes    = isC?booking.collection_customer_notes:booking.return_customer_notes;
@@ -490,10 +467,9 @@ export default function AdminBookingDetailPage() {
   const bk  = data.booking;
   const req = data.request;
   const stored: Currency = (bk.currency==="EUR"||bk.currency==="GBP"||bk.currency==="USD")?bk.currency:"EUR";
-  const collEffective    = normalizeFuel(bk.collection_fuel_level_partner)||normalizeFuel(bk.collection_fuel_level_driver);
-  const retEffective     = normalizeFuel(bk.return_fuel_level_partner)||normalizeFuel(bk.return_fuel_level_driver);
-  const collectionLocked = !!collEffective&&!!bk.collection_confirmed_by_customer&&normalizeFuel(bk.collection_fuel_level_customer)===collEffective;
-  const returnLocked     = !!retEffective&&!!bk.return_confirmed_by_customer&&normalizeFuel(bk.return_fuel_level_customer)===retEffective;
+  // FIX: lock uses driver+customer agreement only — partner override does not affect lock state
+  const collectionLocked = !!normalizeFuel(bk.collection_fuel_level_driver) && !!bk.collection_confirmed_by_customer && normalizeFuel(bk.collection_fuel_level_customer) === normalizeFuel(bk.collection_fuel_level_driver);
+  const returnLocked     = !!normalizeFuel(bk.return_fuel_level_driver)     && !!bk.return_confirmed_by_customer     && normalizeFuel(bk.return_fuel_level_customer)     === normalizeFuel(bk.return_fuel_level_driver);
   const isCancelled      = bk.booking_status==="cancelled";
   const carHire          = Number(bk.car_hire_price||0);
   const fuel             = Number(bk.fuel_price||0);
@@ -512,7 +488,7 @@ export default function AdminBookingDetailPage() {
       {error&&<div className="border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
       {ok&&<div className="border border-black/10 bg-[#f0f0f0] p-3 text-sm font-bold text-black">{ok}</div>}
 
-      {isCancelled && <CancellationSummary bk={bk as any} rates={rates} />}
+      {isCancelled && <CancellationSummary bk={bk as any} />}
 
       {!isCancelled&&(
         <div className="border border-red-200 bg-red-50 p-6">
@@ -554,9 +530,7 @@ export default function AdminBookingDetailPage() {
                 : <span className="text-black/60">{bk.currency??"EUR"} — same as bid, no conversion fee</span>}
             </Field>
             {bk.conversion_rate && bk.charge_currency && bk.charge_currency.toUpperCase() !== (bk.currency??"EUR").toUpperCase() && (
-              <Field label="Conversion Rate">
-                1 {bk.charge_currency} = {Number(bk.conversion_rate).toFixed(5)} {bk.currency}
-              </Field>
+              <Field label="Conversion Rate">1 {bk.charge_currency} = {Number(bk.conversion_rate).toFixed(5)} {bk.currency}</Field>
             )}
             <Field label="Created">{fmt(bk.created_at)}</Field>
             <Field label="Driver">{bk.driver_name||"—"}</Field>
