@@ -51,8 +51,8 @@ export async function POST() {
         .eq("user_id", user.id);
     }
 
-    // Generate onboarding link
-    const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://portal.camel-global.com";
+    // FIX: use PORTAL_BASE_URL not NEXT_PUBLIC_SITE_URL — Stripe return URLs must go to portal domain
+    const origin = process.env.PORTAL_BASE_URL || "https://portal.camel-global.com";
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: `${origin}/partner/onboarding?stripe=refresh`,

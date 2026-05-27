@@ -19,8 +19,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://portal.camel-global.com";
-  const redirect = redirectTo ?? siteUrl + "/partner/reset-password";
+  // FIX: use PORTAL_BASE_URL not NEXT_PUBLIC_SITE_URL — partner reset must go to portal domain
+  const portalUrl  = process.env.PORTAL_BASE_URL ?? "https://portal.camel-global.com";
+  const redirect   = redirectTo ?? portalUrl + "/partner/reset-password";
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
