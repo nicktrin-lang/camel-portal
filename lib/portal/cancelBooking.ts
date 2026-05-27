@@ -16,10 +16,21 @@ export type CancelBookingResult =
  * Issues the Stripe refund for a cancelled booking and records it on the payments table.
  * Must be called AFTER the booking row has already been marked cancelled.
  *
+ * Uses application_fee_amount model:
+ *   - refund_application_fee: true  → Camel's commission is returned to the partner
+ *   - reverse_transfer: true        → the transfer to the partner is reversed
+ * This means the refund comes from the partner's connected account balance,
+ * not from Camel's platform balance.
+ *
+ * For fuel_only refunds (within 48hrs), only the fuel deposit is refunded.
+ * The car hire fee stays with the partner (minus commission which Camel keeps).
+ * So we do NOT reverse the transfer — only refund the fuel amount from the platform,
+ * and do NOT refund the application fee (Camel keeps commission).
+ *
  * refund_type:
  *   "full"      — refund car hire + fuel deposit  (admin/partner cancel, or customer >48hrs)
  *   "fuel_only" — refund fuel deposit only         (customer cancel <48hrs)
- *   "none"      — no refund (e.g. booking had no payment record)
+ *   "none"      — no refund
  */
 export async function cancelBookingRefund(
   bookingId: string,
@@ -55,12 +66,12 @@ export async function cancelBookingRefund(
     return { ok: true, already_processed: true };
   }
 
-  const carHireAmount  = Number(payment.amount_car_hire   || 0);
-  const fuelDepAmount  = Number(payment.amount_fuel_deposit || 0);
+  const carHireAmount = Number(payment.amount_car_hire    || 0);
+  const fuelDepAmount = Number(payment.amount_fuel_deposit || 0);
 
   const refundAmount = refundType === "full"
     ? carHireAmount + fuelDepAmount
-    : fuelDepAmount; // fuel_only
+    : fuelDepAmount; // fuel_only — car hire non-refundable
 
   const refundCents = Math.round(refundAmount * 100);
 
@@ -68,17 +79,42 @@ export async function cancelBookingRefund(
 
   if (refundCents > 0 && payment.stripe_payment_intent_id) {
     try {
-      const refund = await stripe.refunds.create({
-        payment_intent: payment.stripe_payment_intent_id,
-        amount: refundCents,
-        reason: "requested_by_customer",
-        metadata: {
-          booking_id: bookingId,
-          refund_type: refundType,
-          refund_amount: String(refundAmount),
-        },
-      });
-      stripeRefundId = refund.id;
+      if (refundType === "full") {
+        // Full refund: reverse the transfer and return the application fee.
+        // Refund comes from the partner's connected account balance.
+        // Camel's commission (application_fee) is returned to the partner automatically.
+        const refund = await stripe.refunds.create({
+          payment_intent:        payment.stripe_payment_intent_id,
+          amount:                refundCents,
+          reason:                "requested_by_customer",
+          refund_application_fee: true,
+          reverse_transfer:       true,
+          metadata: {
+            booking_id:    bookingId,
+            refund_type:   refundType,
+            refund_amount: String(refundAmount),
+          },
+        });
+        stripeRefundId = refund.id;
+      } else {
+        // fuel_only: customer cancelled within 48hrs.
+        // Refund only the fuel deposit from the platform account.
+        // Do NOT reverse the transfer — partner keeps the car hire fee.
+        // Do NOT refund the application fee — Camel keeps the commission.
+        const refund = await stripe.refunds.create({
+          payment_intent:        payment.stripe_payment_intent_id,
+          amount:                refundCents,
+          reason:                "requested_by_customer",
+          refund_application_fee: false,
+          reverse_transfer:       false,
+          metadata: {
+            booking_id:    bookingId,
+            refund_type:   refundType,
+            refund_amount: String(refundAmount),
+          },
+        });
+        stripeRefundId = refund.id;
+      }
     } catch (err: any) {
       console.error("Stripe cancellation refund error:", err?.message);
       return { ok: false, error: `Stripe refund failed: ${err?.message}`, status: 500 };
@@ -90,10 +126,10 @@ export async function cancelBookingRefund(
   const { error: pmtUpdateErr } = await db
     .from("payments")
     .update({
-      cancellation_refund_amount: refundAmount,
+      cancellation_refund_amount:    refundAmount,
       cancellation_refund_stripe_id: stripeRefundId,
-      cancelled_refunded_at: now,
-      payout_status: "cancelled",
+      cancelled_refunded_at:         now,
+      payout_status:                 "cancelled",
     })
     .eq("id", payment.id);
 
