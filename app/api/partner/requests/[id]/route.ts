@@ -66,7 +66,7 @@ export async function GET(
     // Check for existing bid
     const { data: bidRow } = await db
       .from("partner_bids")
-     .select("id, fleet_id, vehicle_category_slug, vehicle_category_name, car_hire_price, fuel_price, total_price, full_insurance_included, full_tank_included, notes, status, created_at, currency, mileage_limit, security_deposit_notes")
+      .select("id, fleet_id, vehicle_category_slug, vehicle_category_name, car_hire_price, fuel_price, total_price, full_insurance_included, full_tank_included, notes, status, created_at, currency, mileage_limit, security_deposit_notes")
       .eq("request_id", id)
       .eq("partner_user_id", userId)
       .order("created_at", { ascending: false })
@@ -80,22 +80,20 @@ export async function GET(
       .eq("winning_bid_id", bidRow.id)
       .maybeSingle() : { data: null };
 
-    // Get fleet options matching the request vehicle category
+    // Get all active fleet options — show all categories, not just the requested one.
+    // The customer's vehicle_category_slug is a preference, not a hard requirement.
+    // Partners should be able to bid with any of their active fleet vehicles.
     const { data: fleetRows } = await db
       .from("partner_fleet")
       .select("id, category_slug, category_name, max_passengers, max_suitcases, max_hand_luggage, service_level")
       .eq("user_id", userId)
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .order("category_name", { ascending: true });
 
-    const fleetOptions = (fleetRows || [])
-      .filter(f =>
-        !requestRow.vehicle_category_slug ||
-        f.category_slug === requestRow.vehicle_category_slug
-      )
-      .map(f => ({
-        ...f,
-        label: `${f.category_name} · ${f.max_passengers} pax · ${f.max_suitcases} suitcases`,
-      }));
+    const fleetOptions = (fleetRows || []).map(f => ({
+      ...f,
+      label: `${f.category_name} · ${f.max_passengers} pax · ${f.max_suitcases} suitcases`,
+    }));
 
     return NextResponse.json({
       request: { ...requestRow, matched_status: matchRow?.match_status || null },
