@@ -68,39 +68,16 @@ function fmtAmount(amount: number | string | null, currency: string | null) {
   const locale = curr === "GBP" ? "en-GB" : curr === "USD" ? "en-US" : "es-ES";
   return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(num);
 }
-function fmtCurr(amount: number, currency: string) {
-  const locale = currency === "GBP" ? "en-GB" : currency === "USD" ? "en-US" : "es-ES";
-  return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
-}
 
-// Convert stripe_fee (in charge currency) to bid currency using Stripe's exchange_rate
-// exchange_rate from Stripe balance transaction = charge_currency → settlement (bid) currency rate
-// So: fee_in_bid = stripe_fee / exchange_rate (if exchange_rate is charge→bid)
-// If same currency, no conversion needed.
-function stripeFeeInBidCurrency(
-  stripe_fee: number | null,
-  stripe_fee_currency: string | null,
-  bid_currency: string,
-  exchange_rate: number | null
-): number {
-  if (!stripe_fee || stripe_fee <= 0) return 0;
-  if (!stripe_fee_currency || stripe_fee_currency.toUpperCase() === bid_currency.toUpperCase()) {
-    return stripe_fee;
-  }
-  // Different currencies — convert using Stripe's exchange rate
-  if (exchange_rate && exchange_rate > 0) return stripe_fee / exchange_rate;
-  return stripe_fee; // fallback if no rate
-}
-
+// Stripe fee is borne by Camel (platform) — not deducted from partner net payout.
+// stripe_fee data is kept in the type for API compatibility but not shown to partners.
 function calcNetPayout(r: BookingRow): number {
   const isCancelled = String(r.booking_status || "").toLowerCase() === "cancelled";
   if (isCancelled && r.refund_status === "full") return 0;
-  const hire      = Number(r.car_hire_price ?? 0);
-  const rate      = r.commission_rate ?? 20;
-  const commAmt   = Math.max((hire * rate) / 100, 10);
-  const basePayout = Math.max(0, hire - commAmt);
-  const feeInBid  = stripeFeeInBidCurrency(r.stripe_fee, r.stripe_fee_currency, r.currency ?? "EUR", r.exchange_rate);
-  return Math.max(0, basePayout + Number(r.fuel_charge ?? 0) - feeInBid);
+  const hire     = Number(r.car_hire_price ?? 0);
+  const rate     = r.commission_rate ?? 20;
+  const commAmt  = Math.max((hire * rate) / 100, 10);
+  return Math.max(0, hire - commAmt + Number(r.fuel_charge ?? 0));
 }
 
 function statusPill(status?: string | null) {
@@ -189,16 +166,14 @@ function downloadExcel(rows: BookingRow[]) {
     "Actual Pickup Date & Time","Actual Dropoff Date & Time","Completed Date","Duration",
     "Bid Currency","Charge Currency",
     "Car Hire Price","Commission Rate (%)","Commission Amount",
-    "Stripe Fee (in bid currency)","Stripe Fee Currency","Stripe Exchange Rate",
     "Fuel Deposit","Fuel Charge","Fuel Refund",
-    "Total Amount","Net Payout (after all fees)",
+    "Total Amount","Net Payout",
     "Created At","Cancelled By","Cancelled At","Cancellation Reason","Refund Status",
   ];
   const exRows = rows.map(r => {
     const hire      = Number(r.car_hire_price ?? 0);
     const rate      = r.commission_rate ?? 20;
     const commAmt   = Math.max((hire * rate) / 100, 10);
-    const feeInBid  = stripeFeeInBidCurrency(r.stripe_fee, r.stripe_fee_currency, r.currency ?? "EUR", r.exchange_rate);
     const netPayout = calcNetPayout(r);
     const isCompleted = String(r.booking_status || "").toLowerCase() === "completed";
     return [
@@ -214,9 +189,6 @@ function downloadExcel(rows: BookingRow[]) {
       r.currency ?? "EUR",
       r.charge_currency ?? r.currency ?? "EUR",
       hire, rate, commAmt,
-      feeInBid > 0 ? feeInBid.toFixed(4) : "",
-      r.stripe_fee_currency ?? "",
-      r.exchange_rate ?? "",
       r.fuel_price ?? "", r.fuel_charge ?? "", r.fuel_refund ?? "",
       r.amount ?? "", netPayout.toFixed(2),
       fmtDateTimeStr(r.created_at), r.cancelled_by ?? "",
@@ -336,7 +308,7 @@ export default function PartnerBookingsPage() {
             <div key={curr} className="border border-black/5 bg-white p-5">
               <p className="text-xs font-black uppercase tracking-widest text-black/40">Net Payout ({label})</p>
               <p className={`mt-2 text-2xl font-black ${amt > 0 ? "text-black" : "text-black/20"}`}>{formatted}</p>
-              <p className="text-xs font-bold text-black/30 mt-0.5">after all fees</p>
+              <p className="text-xs font-bold text-black/30 mt-0.5">after commission</p>
             </div>
           );
         })}
@@ -351,7 +323,7 @@ export default function PartnerBookingsPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-black text-white text-left">
                 <tr>
-                  {["Currency","Bookings","Completed","Gross Revenue","Net Payout (after fees)"].map(h => (
+                  {["Currency","Bookings","Completed","Gross Revenue","Net Payout"].map(h => (
                     <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-widest">{h}</th>
                   ))}
                 </tr>
@@ -399,7 +371,7 @@ export default function PartnerBookingsPage() {
                     {[
                       "Job No.", ...(adminMode ? ["Partner"] : []),
                       "Customer","Status","Driver","Pickup","Pickup Time","Vehicle",
-                      "Bid Curr","Car Hire","Commission","Stripe Fee","Fuel Charge","Fuel Refund","Net Payout","Created",
+                      "Bid Curr","Car Hire","Commission","Fuel Charge","Fuel Refund","Net Payout","Created",
                     ].map(h => (
                       <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
@@ -407,10 +379,9 @@ export default function PartnerBookingsPage() {
                 </thead>
                 <tbody className="divide-y divide-black/5">
                   {visible.map((row, i) => {
-                    const hire      = Number(row.car_hire_price ?? 0);
-                    const rate      = row.commission_rate ?? 20;
-                    const commAmt   = Math.max((hire * rate) / 100, 10);
-                    const feeInBid  = stripeFeeInBidCurrency(row.stripe_fee, row.stripe_fee_currency, row.currency ?? "EUR", row.exchange_rate);
+                    const hire    = Number(row.car_hire_price ?? 0);
+                    const rate    = row.commission_rate ?? 20;
+                    const commAmt = Math.max((hire * rate) / 100, 10);
                     const netPayout = calcNetPayout(row);
                     const hasCurrConv = row.charge_currency && row.charge_currency !== (row.currency ?? "EUR");
                     return (
@@ -446,11 +417,6 @@ export default function PartnerBookingsPage() {
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="text-xs font-black text-amber-700">− {fmtAmount(commAmt, row.currency)}</div>
                           <div className="text-xs font-bold text-black/40">{rate}%</div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {feeInBid > 0
-                            ? <span className="text-xs font-black text-amber-700">− {fmtCurr(feeInBid, row.currency ?? "EUR")}</span>
-                            : <span className="text-black/30 text-xs">—</span>}
                         </td>
                         <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">
                           {row.fuel_charge != null ? fmtAmount(Number(row.fuel_charge), row.currency) : "—"}
