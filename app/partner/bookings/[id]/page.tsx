@@ -406,12 +406,16 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
         <h3 className={`text-base font-black ${titleCol}`}>{title}</h3>
         {locked&&<span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Locked</span>}
       </div>
-      {/* Driver recorded row */}
-      <div className={`border p-4 mb-3 ${rowBgFill(driverConfirmed&&!!driverFuel)}`}>
-        <p className={`text-xs font-black uppercase tracking-widest ${labelCol}`}>Driver recorded</p>
-        {driverConfirmed&&driverFuel
-          ? <><p className={`mt-1 text-lg font-black ${valueCol}`}>{fuelLabel(driverFuel)}</p><FuelBar level={driverFuel}/><p className={`mt-1 text-xs ${labelCol}`}>{fmt(driverAt)}</p></>
-          : <p className={`mt-1 text-sm font-bold italic ${italicCol}`}>Driver has not yet recorded fuel level</p>}
+      {/* Driver recorded / office override row */}
+      <div className={`border p-4 mb-3 ${rowBgFill((driverConfirmed&&!!driverFuel)||!!savedPartnerFuel)}`}>
+        <p className={`text-xs font-black uppercase tracking-widest ${labelCol}`}>
+          {savedPartnerFuel ? "Office override" : "Driver recorded"}
+        </p>
+        {savedPartnerFuel
+          ? <><p className={`mt-1 text-lg font-black ${valueCol}`}>{fuelLabel(savedPartnerFuel)}</p><FuelBar level={savedPartnerFuel}/><p className={`mt-1 text-xs text-[#ff7a00]`}>⚠ Set by office{savedPartnerAt ? ` at ${fmt(savedPartnerAt)}` : ""}</p>{driverFuel&&<p className={`mt-1 text-xs ${labelCol}`}>Driver recorded: {fuelLabel(driverFuel)}</p>}</>
+          : driverConfirmed&&driverFuel
+            ? <><p className={`mt-1 text-lg font-black ${valueCol}`}>{fuelLabel(driverFuel)}</p><FuelBar level={driverFuel}/><p className={`mt-1 text-xs ${labelCol}`}>{fmt(driverAt)}</p></>
+            : <p className={`mt-1 text-sm font-bold italic ${italicCol}`}>Driver has not yet recorded fuel level</p>}
       </div>
       {/* Customer confirmed row */}
       <div className={`border p-4 mb-3 ${rowBgFill(customerConfirmed)}`}>
