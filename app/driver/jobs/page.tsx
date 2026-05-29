@@ -16,9 +16,11 @@ type DriverJob = {
   collection_confirmed_by_driver?: boolean | null;
   collection_confirmed_by_driver_at?: string | null;
   collection_fuel_level_driver?: string | null;
+  collection_fuel_level_partner?: string | null;
   return_confirmed_by_driver?: boolean | null;
   return_confirmed_by_driver_at?: string | null;
   return_fuel_level_driver?: string | null;
+  return_fuel_level_partner?: string | null;
   insurance_docs_confirmed_by_driver?: boolean | null;
   insurance_docs_confirmed_by_driver_at?: string | null;
   insurance_docs_confirmed_by_customer?: boolean | null;
@@ -34,8 +36,31 @@ const FUEL_BARS: Record<FuelLevel, number> = {
   full: 4, "3/4": 3, half: 2, quarter: 1, empty: 0,
 };
 
-function FuelBar({ level }: { level: FuelLevel }) {
-  const filled = FUEL_BARS[level] ?? 0;
+function normalizeFuel(v: unknown): string | null {
+  if (!v) return null;
+  const s = String(v).toLowerCase().trim();
+  if (s === "empty") return "empty";
+  if (s === "quarter") return "quarter";
+  if (s === "half") return "half";
+  if (s === "three_quarter" || s === "3/4") return "3/4";
+  if (s === "full") return "full";
+  return null;
+}
+
+function fuelDisplayLabel(v: unknown): string {
+  switch (normalizeFuel(v)) {
+    case "empty": return "Empty";
+    case "quarter": return "¼ Tank";
+    case "half": return "½ Tank";
+    case "3/4": return "¾ Tank";
+    case "full": return "Full Tank";
+    default: return "—";
+  }
+}
+
+function FuelBar({ level }: { level: string | null }) {
+  const n = normalizeFuel(level);
+  const filled = n ? (FUEL_BARS[n as FuelLevel] ?? 0) : 0;
   return (
     <div className="flex gap-1 mt-2">
       {[0,1,2,3].map(i => (
@@ -86,7 +111,7 @@ export default function DriverJobsPage() {
   const [error,         setError]         = useState<string | null>(null);
   const [expandedJob,   setExpandedJob]   = useState<string | null>(null);
   const [confirmingJob, setConfirmingJob] = useState<string | null>(null);
-  const [fuelLevels,    setFuelLevels]    = useState<Record<string, FuelLevel>>({});
+  const [fuelInputs,    setFuelInputs]    = useState<Record<string, FuelLevel>>({});
   const [confirmError,  setConfirmError]  = useState<string | null>(null);
   const [confirmOk,     setConfirmOk]     = useState<string | null>(null);
   const [lastLoaded,    setLastLoaded]    = useState<Date | null>(null);
@@ -125,7 +150,6 @@ export default function DriverJobsPage() {
   const completedJobs = useMemo(() => jobs.filter(j => j.booking_status.toLowerCase() === "completed"), [jobs]);
   const cancelledJobs = useMemo(() => jobs.filter(j => j.booking_status.toLowerCase() === "cancelled"), [jobs]);
 
-  // Stat card counts
   const awaitingDelivery = useMemo(() => jobs.filter(j => ["confirmed","driver_assigned","en_route","arrived"].includes(j.booking_status.toLowerCase())).length, [jobs]);
   const onHire           = useMemo(() => jobs.filter(j => ["collected","returned"].includes(j.booking_status.toLowerCase())).length, [jobs]);
   const completedCount   = completedJobs.length;
@@ -149,7 +173,6 @@ export default function DriverJobsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
 
-      {/* Page header */}
       <div className="bg-black px-6 py-5 flex items-center justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">Driver Portal</p>
@@ -165,7 +188,6 @@ export default function DriverJobsPage() {
         </div>
       </div>
 
-      {/* ── Stat cards ── */}
       <div className="grid grid-cols-3 gap-3">
         {[
           { label:"Awaiting Delivery", value:awaitingDelivery, color:"text-[#ff7a00]", border:"border-[#ff7a00]/20 bg-white" },
@@ -190,15 +212,21 @@ export default function DriverJobsPage() {
         </div>
       ) : (
         <>
-          {/* Active jobs */}
           {activeJobs.length > 0 && (
             <div className="space-y-3">
               <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] px-1">Active Jobs</p>
               {activeJobs.map(job => {
                 const isExpanded   = expandedJob === job.booking_id;
-                const collFuel     = fuelLevels[`coll_${job.booking_id}`] as FuelLevel | undefined;
-                const retFuel      = fuelLevels[`ret_${job.booking_id}`]  as FuelLevel | undefined;
-                const isConfirming = confirmingJob === job.booking_id;
+                const collFuelInput = fuelInputs[`coll_${job.booking_id}`] as FuelLevel | undefined;
+                const retFuelInput  = fuelInputs[`ret_${job.booking_id}`]  as FuelLevel | undefined;
+                const isConfirming  = confirmingJob === job.booking_id;
+
+                // Effective fuel: partner override wins if set
+                const effectiveCollFuel = normalizeFuel(job.collection_fuel_level_partner) || normalizeFuel(job.collection_fuel_level_driver);
+                const effectiveRetFuel  = normalizeFuel(job.return_fuel_level_partner)     || normalizeFuel(job.return_fuel_level_driver);
+                const collPartnerOverride = !!normalizeFuel(job.collection_fuel_level_partner);
+                const retPartnerOverride  = !!normalizeFuel(job.return_fuel_level_partner);
+
                 return (
                   <div key={job.booking_id} className="bg-white border border-black/5">
                     <button type="button" onClick={() => setExpandedJob(isExpanded ? null : job.booking_id)}
@@ -251,7 +279,7 @@ export default function DriverJobsPage() {
                           </a>
                         )}
 
-                        {/* Insurance */}
+                        {/* ── Insurance ── */}
                         <div className={`border p-4 ${job.insurance_docs_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                           <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">📄 Insurance Documents</p>
                           {job.insurance_docs_confirmed_by_driver ? (
@@ -267,30 +295,43 @@ export default function DriverJobsPage() {
                           )}
                         </div>
 
-                        {/* Delivery fuel */}
+                        {/* ── Delivery fuel ── */}
                         <div className={`border p-4 ${job.collection_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                           <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">⛽ Delivery Fuel Level</p>
                           {job.collection_confirmed_by_driver ? (
                             <>
-                              <p className="text-sm font-black text-green-700">✓ Recorded: {FUEL_LABELS[job.collection_fuel_level_driver as FuelLevel] || job.collection_fuel_level_driver}</p>
+                              <p className="text-sm font-black text-green-700">✓ You recorded: {fuelDisplayLabel(job.collection_fuel_level_driver)}</p>
                               <p className="text-xs text-black/30 mt-1">{fmt(job.collection_confirmed_by_driver_at)}</p>
-                              {job.collection_fuel_level_driver && <FuelBar level={job.collection_fuel_level_driver as FuelLevel}/>}
+                              {job.collection_fuel_level_driver && <FuelBar level={job.collection_fuel_level_driver}/>}
+                              {collPartnerOverride && normalizeFuel(job.collection_fuel_level_partner) !== normalizeFuel(job.collection_fuel_level_driver) && (
+                                <div className="mt-3 border border-amber-200 bg-amber-50 px-3 py-2">
+                                  <p className="text-xs font-black text-amber-700">⚠ Office override in effect: {fuelDisplayLabel(job.collection_fuel_level_partner)}</p>
+                                  <p className="text-xs font-bold text-amber-600 mt-0.5">The office has set a different fuel level. The customer will confirm the office value.</p>
+                                </div>
+                              )}
                             </>
                           ) : (
                             <>
+                              {/* Show office override notice even before driver records */}
+                              {collPartnerOverride && (
+                                <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2">
+                                  <p className="text-xs font-black text-amber-700">⚠ Office has set: {fuelDisplayLabel(job.collection_fuel_level_partner)}</p>
+                                  <p className="text-xs font-bold text-amber-600 mt-0.5">You can still record your own reading below — the office value will be used unless you record a different one.</p>
+                                </div>
+                              )}
                               <p className="text-sm font-bold text-black/60 mb-3">Record the fuel level when you deliver the vehicle.</p>
                               <div className="grid grid-cols-5 gap-2 mb-3">
                                 {FUEL_OPTIONS.map(opt => (
                                   <button key={opt} type="button"
-                                    onClick={() => setFuelLevels(f => ({ ...f, [`coll_${job.booking_id}`]: opt }))}
-                                    className={`py-2.5 text-xs font-black transition-colors ${collFuel === opt ? "bg-[#ff7a00] text-white" : "bg-white text-black/60 border border-black/10 hover:border-black/30"}`}>
+                                    onClick={() => setFuelInputs(f => ({ ...f, [`coll_${job.booking_id}`]: opt }))}
+                                    className={`py-2.5 text-xs font-black transition-colors ${collFuelInput === opt ? "bg-[#ff7a00] text-white" : "bg-white text-black/60 border border-black/10 hover:border-black/30"}`}>
                                     {FUEL_LABELS[opt]}
                                   </button>
                                 ))}
                               </div>
-                              {collFuel && <FuelBar level={collFuel}/>}
-                              <button type="button" disabled={!collFuel || isConfirming}
-                                onClick={() => confirmAction(job.booking_id, "collection", collFuel)}
+                              {collFuelInput && <FuelBar level={collFuelInput}/>}
+                              <button type="button" disabled={!collFuelInput || isConfirming}
+                                onClick={() => confirmAction(job.booking_id, "collection", collFuelInput)}
                                 className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
                                 {isConfirming ? "Saving…" : "✓ Confirm delivery fuel"}
                               </button>
@@ -298,30 +339,44 @@ export default function DriverJobsPage() {
                           )}
                         </div>
 
-                        {/* Collection fuel */}
+                        {/* ── Collection fuel (return) ── */}
                         <div className={`border p-4 ${job.return_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                           <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">⛽ Collection Fuel Level</p>
                           {job.return_confirmed_by_driver ? (
                             <>
-                              <p className="text-sm font-black text-green-700">✓ Recorded: {FUEL_LABELS[job.return_fuel_level_driver as FuelLevel] || job.return_fuel_level_driver}</p>
+                              <p className="text-sm font-black text-green-700">✓ You recorded: {fuelDisplayLabel(job.return_fuel_level_driver)}</p>
                               <p className="text-xs text-black/30 mt-1">{fmt(job.return_confirmed_by_driver_at)}</p>
-                              {job.return_fuel_level_driver && <FuelBar level={job.return_fuel_level_driver as FuelLevel}/>}
+                              {job.return_fuel_level_driver && <FuelBar level={job.return_fuel_level_driver}/>}
+                              {retPartnerOverride && normalizeFuel(job.return_fuel_level_partner) !== normalizeFuel(job.return_fuel_level_driver) && (
+                                <div className="mt-3 border border-amber-200 bg-amber-50 px-3 py-2">
+                                  <p className="text-xs font-black text-amber-700">⚠ Office override in effect: {fuelDisplayLabel(job.return_fuel_level_partner)}</p>
+                                  <p className="text-xs font-bold text-amber-600 mt-0.5">The office has set a different fuel level. The customer will confirm the office value.</p>
+                                </div>
+                              )}
                             </>
                           ) : (
                             <>
+                              {/* Show office override — this is the key fix for the blank collection fuel */}
+                              {retPartnerOverride ? (
+                                <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2">
+                                  <p className="text-xs font-black text-amber-700">⚠ Office has recorded: {fuelDisplayLabel(job.return_fuel_level_partner)}</p>
+                                  <p className="text-xs font-bold text-amber-600 mt-0.5">The office has set this fuel level. You can still record your own reading below.</p>
+                                  <FuelBar level={job.return_fuel_level_partner}/>
+                                </div>
+                              ) : null}
                               <p className="text-sm font-bold text-black/60 mb-3">Record the fuel level when you collect the vehicle back.</p>
                               <div className="grid grid-cols-5 gap-2 mb-3">
                                 {FUEL_OPTIONS.map(opt => (
                                   <button key={opt} type="button"
-                                    onClick={() => setFuelLevels(f => ({ ...f, [`ret_${job.booking_id}`]: opt }))}
-                                    className={`py-2.5 text-xs font-black transition-colors ${retFuel === opt ? "bg-[#ff7a00] text-white" : "bg-white text-black/60 border border-black/10 hover:border-black/30"}`}>
+                                    onClick={() => setFuelInputs(f => ({ ...f, [`ret_${job.booking_id}`]: opt }))}
+                                    className={`py-2.5 text-xs font-black transition-colors ${retFuelInput === opt ? "bg-[#ff7a00] text-white" : "bg-white text-black/60 border border-black/10 hover:border-black/30"}`}>
                                     {FUEL_LABELS[opt]}
                                   </button>
                                 ))}
                               </div>
-                              {retFuel && <FuelBar level={retFuel}/>}
-                              <button type="button" disabled={!retFuel || isConfirming}
-                                onClick={() => confirmAction(job.booking_id, "return", retFuel)}
+                              {retFuelInput && <FuelBar level={retFuelInput}/>}
+                              <button type="button" disabled={!retFuelInput || isConfirming}
+                                onClick={() => confirmAction(job.booking_id, "return", retFuelInput)}
                                 className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
                                 {isConfirming ? "Saving…" : "✓ Confirm collection fuel"}
                               </button>
@@ -336,12 +391,13 @@ export default function DriverJobsPage() {
             </div>
           )}
 
-          {/* Completed & Cancelled jobs */}
           {(completedJobs.length > 0 || cancelledJobs.length > 0) && (
             <div className="space-y-2">
               <p className="text-xs font-black uppercase tracking-widest text-black/30 px-1">Completed & Cancelled</p>
               {[...completedJobs, ...cancelledJobs].map(job => {
                 const isExpanded = expandedJob === job.booking_id;
+                const effectiveCollFuel = normalizeFuel(job.collection_fuel_level_partner) || normalizeFuel(job.collection_fuel_level_driver);
+                const effectiveRetFuel  = normalizeFuel(job.return_fuel_level_partner)     || normalizeFuel(job.return_fuel_level_driver);
                 return (
                   <div key={job.booking_id} className="bg-white border border-black/5">
                     <button type="button" onClick={() => setExpandedJob(isExpanded ? null : job.booking_id)}
@@ -379,13 +435,15 @@ export default function DriverJobsPage() {
                         <div className="grid grid-cols-2 gap-3">
                           <div className="border border-black/10 bg-[#f0f0f0] p-3">
                             <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">⛽ Delivery fuel</p>
-                            <p className="text-sm font-bold text-black">{job.collection_fuel_level_driver ? FUEL_LABELS[job.collection_fuel_level_driver as FuelLevel] || job.collection_fuel_level_driver : "—"}</p>
-                            {job.collection_confirmed_by_driver && job.collection_fuel_level_driver && <FuelBar level={job.collection_fuel_level_driver as FuelLevel}/>}
+                            <p className="text-sm font-bold text-black">{fuelDisplayLabel(effectiveCollFuel)}</p>
+                            {effectiveCollFuel && <FuelBar level={effectiveCollFuel}/>}
+                            {normalizeFuel(job.collection_fuel_level_partner) && <p className="text-xs font-bold text-amber-600 mt-1">Office recorded</p>}
                           </div>
                           <div className="border border-black/10 bg-[#f0f0f0] p-3">
                             <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">⛽ Collection fuel</p>
-                            <p className="text-sm font-bold text-black">{job.return_fuel_level_driver ? FUEL_LABELS[job.return_fuel_level_driver as FuelLevel] || job.return_fuel_level_driver : "—"}</p>
-                            {job.return_confirmed_by_driver && job.return_fuel_level_driver && <FuelBar level={job.return_fuel_level_driver as FuelLevel}/>}
+                            <p className="text-sm font-bold text-black">{fuelDisplayLabel(effectiveRetFuel)}</p>
+                            {effectiveRetFuel && <FuelBar level={effectiveRetFuel}/>}
+                            {normalizeFuel(job.return_fuel_level_partner) && <p className="text-xs font-bold text-amber-600 mt-1">Office recorded</p>}
                           </div>
                         </div>
                         <div className={`border p-3 ${job.insurance_docs_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>

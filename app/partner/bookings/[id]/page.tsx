@@ -388,16 +388,37 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
   const savedPartnerAt    = isC?booking.collection_confirmed_by_partner_at:booking.return_confirmed_by_partner_at;
   const hasOverride       = !!savedPartnerFuel && savedPartnerFuel !== driverFuel;
   const effective         = effectiveFuel(driverFuel, savedPartnerFuel);
+
+  // Colours — locked = dark theme, unlocked = white/light theme throughout
+  const cardBg     = locked ? "border-[#1a1a1a] bg-[#1a1a1a]"  : "border-black/5 bg-white";
+  const titleCol   = locked ? "text-white"                       : "text-black";
+  const labelCol   = locked ? "text-white/40"                    : "text-black/40";
+  const valueCol   = locked ? "text-white"                       : "text-black";
+  const italicCol  = locked ? "text-white/40"                    : "text-black/40";
+  const noteCol    = locked ? "text-white/50"                    : "text-black/50";
+  const rowBgFill  = (filled: boolean) => locked
+    ? (filled ? "border-white/20 bg-white/10" : "border-white/10 bg-white/5")
+    : (filled ? "border-black/20 bg-[#f0f0f0]" : "border-black/10 bg-[#f0f0f0]");
+
   return (
-    <div className={`border p-6 ${locked?"border-[#1a1a1a] bg-[#1a1a1a] text-white":"border-black/5 bg-white"}`}>
-      <div className="flex items-center justify-between mb-4"><h3 className={`text-base font-black ${locked?"text-white":"text-black"}`}>{title}</h3>{locked&&<span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Locked</span>}</div>
-      <div className={`border p-4 mb-3 ${driverConfirmed?"border-white/20 bg-white/10":"border-black/10 bg-[#f0f0f0]"}`}>
-        <p className={`text-xs font-black uppercase tracking-widest ${locked?"text-white/40":"text-black/40"}`}>Driver recorded</p>
-        {driverConfirmed&&driverFuel?<><p className={`mt-1 text-lg font-black ${locked?"text-white":"text-black"}`}>{fuelLabel(driverFuel)}</p><FuelBar level={driverFuel}/><p className={`mt-1 text-xs ${locked?"text-white/40":"text-black/40"}`}>{fmt(driverAt)}</p></>:<p className={`mt-1 text-sm font-bold italic ${locked?"text-white/40":"text-black/40"}`}>Driver has not yet recorded fuel level</p>}
+    <div className={`border p-6 ${cardBg}`}>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className={`text-base font-black ${titleCol}`}>{title}</h3>
+        {locked&&<span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Locked</span>}
       </div>
-      <div className={`border p-4 mb-3 ${customerConfirmed?"border-white/20 bg-white/10":"border-black/10 bg-[#f0f0f0]"}`}>
-        <p className={`text-xs font-black uppercase tracking-widest ${locked?"text-white/40":"text-black/40"}`}>Customer confirmed</p>
-        {customerConfirmed?<><p className={`mt-1 text-lg font-black ${locked?"text-white":"text-black"}`}>{fuelLabel(customerFuel)} ✓</p><p className={`mt-1 text-xs ${locked?"text-white/40":"text-black/40"}`}>{fmt(customerAt)}</p>{customerNotes&&<p className={`mt-1 text-xs ${locked?"text-white/50":"text-black/50"}`}>Note: {customerNotes}</p>}</>:<p className={`mt-1 text-sm font-bold italic ${locked?"text-white/40":"text-black/40"}`}>Waiting for customer to confirm</p>}
+      {/* Driver recorded row */}
+      <div className={`border p-4 mb-3 ${rowBgFill(driverConfirmed&&!!driverFuel)}`}>
+        <p className={`text-xs font-black uppercase tracking-widest ${labelCol}`}>Driver recorded</p>
+        {driverConfirmed&&driverFuel
+          ? <><p className={`mt-1 text-lg font-black ${valueCol}`}>{fuelLabel(driverFuel)}</p><FuelBar level={driverFuel}/><p className={`mt-1 text-xs ${labelCol}`}>{fmt(driverAt)}</p></>
+          : <p className={`mt-1 text-sm font-bold italic ${italicCol}`}>Driver has not yet recorded fuel level</p>}
+      </div>
+      {/* Customer confirmed row */}
+      <div className={`border p-4 mb-3 ${rowBgFill(customerConfirmed)}`}>
+        <p className={`text-xs font-black uppercase tracking-widest ${labelCol}`}>Customer confirmed</p>
+        {customerConfirmed
+          ? <><p className={`mt-1 text-lg font-black ${valueCol}`}>{fuelLabel(customerFuel)} ✓</p><p className={`mt-1 text-xs ${labelCol}`}>{fmt(customerAt)}</p>{customerNotes&&<p className={`mt-1 text-xs ${noteCol}`}>Note: {customerNotes}</p>}</>
+          : <p className={`mt-1 text-sm font-bold italic ${italicCol}`}>Waiting for customer to confirm</p>}
       </div>
       {locked?(
         <div className="border border-[#ff7a00]/30 bg-[#ff7a00]/10 p-3 text-sm font-black text-[#ff7a00]">✓ Both driver and customer agree on {fuelLabel(effective)}</div>
