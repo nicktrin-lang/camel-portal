@@ -361,7 +361,7 @@ export default function DriverJobsPage() {
                                 <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2">
                                   <p className="text-xs font-black text-amber-700">⚠ Office has recorded: {fuelDisplayLabel(job.return_fuel_level_partner)}</p>
                                   <p className="text-xs font-bold text-amber-600 mt-0.5">The office has set this fuel level. You can still record your own reading below.</p>
-                                  <FuelBar level={job.return_fuel_level_partner}/>
+                                  <FuelBar level={job.return_fuel_level_partner ?? null}/>
                                 </div>
                               ) : null}
                               <p className="text-sm font-bold text-black/60 mb-3">Record the fuel level when you collect the vehicle back.</p>
