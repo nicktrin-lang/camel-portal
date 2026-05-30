@@ -344,7 +344,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   try {
     let logoBase64: string | null = null;
     try {
-      const logoUrl = `https://camel-global.com/camel-invoice-logo.png`;
+      const logoUrl = `https://www.camel-global.com/camel-invoice-logo.png`;
       const logoRes = await fetch(logoUrl);
       if (logoRes.ok) {
         const buf = await logoRes.arrayBuffer();
