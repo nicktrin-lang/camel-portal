@@ -240,8 +240,11 @@ function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentDa
         )}
         <div className="flex justify-between text-sm font-black border-t border-black pt-2 mt-2">
           <span className="text-black">Your net payout</span>
-          <span className="text-green-700">{fmtB(netPayout)}</span>
+          <span className={netPayout > 0 ? "text-green-700" : "text-black/40"}>{fmtB(netPayout)}</span>
         </div>
+        {isCancelled && isFullRefund && (
+          <p className="text-xs font-bold text-red-600 mt-2">Full refund issued to customer — no payout due for this booking.</p>
+        )}
       </div>
       <p className="mt-3 text-xs font-bold text-black/40">
         Stripe processing fees are covered by Camel Global and are not deducted from your payout. See your{" "}
