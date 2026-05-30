@@ -188,8 +188,8 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: { payment: Pa
   if (!payment) return null;
   const fmtB = (n: number) => fmtCurr(n, bidCurrency);
   const feeCurr     = payment.stripe_fee_currency ?? null;
-  const hasCurrConv = !!feeCurr && feeCurr.toUpperCase() !== bidCurrency.toUpperCase();
-  const chargeCurr  = (payment.charge_currency || booking.charge_currency || feeCurr || bidCurrency) as string;
+  const hasCurrConv = false;
+  const chargeCurr = bidCurrency;
   const fmtC        = (n: number) => fmtCurr(n, chargeCurr);
   const feeInBid = (() => {
     if (!payment.stripe_fee || payment.stripe_fee <= 0) return 0;

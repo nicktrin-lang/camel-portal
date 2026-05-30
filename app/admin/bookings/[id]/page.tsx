@@ -143,9 +143,9 @@ function PaymentFeesCard({ payment, bidCurrency, booking, rates }: {
 }) {
   if (!payment) return null;
 
-  const feeCurr     = (payment.stripe_fee_currency || payment.charge_currency || booking.charge_currency || null);
+  const feeCurr = payment.stripe_fee_currency ?? null;
   const chargeCurr  = (feeCurr || bidCurrency) as string;
-  const hasCurrConv = !!feeCurr && feeCurr.toUpperCase() !== bidCurrency.toUpperCase();
+  const hasCurrConv = false;
 
   const feeInBid = (() => {
     if (!payment.stripe_fee || payment.stripe_fee <= 0) return 0;
