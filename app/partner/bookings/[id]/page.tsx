@@ -242,7 +242,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentDa
           <span className="text-black">Your net payout</span>
           <span className={netPayout > 0 ? "text-green-700" : "text-black/40"}>{fmtB(netPayout)}</span>
         </div>
-        {(cancelled && fullRefund) && (
+        {(booking.booking_status === "cancelled" && booking.refund_status === "full") && (
           <p className="text-xs font-bold text-red-600 mt-2">Full refund issued to customer — no payout due for this booking.</p>
         )}
       </div>
