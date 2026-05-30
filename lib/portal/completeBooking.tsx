@@ -1,5 +1,7 @@
 import Stripe from "stripe";
 import React from "react";
+import fs from "fs";
+import path from "path";
 import {
   Document, Page, Text, View, Image, StyleSheet, renderToBuffer,
 } from "@react-pdf/renderer";
@@ -176,6 +178,16 @@ function StatementDocument({ d }: { d: StatementData }) {
   );
 }
 
+function getLogoBase64(): string | null {
+  try {
+    const logoPath = path.join(process.cwd(), "public", "camel-invoice-logo.png");
+    return fs.readFileSync(logoPath).toString("base64");
+  } catch (e) {
+    console.warn("completeBooking: could not read logo from disk", e);
+    return null;
+  }
+}
+
 async function generateCompletionStatementPDF(d: StatementData): Promise<Buffer> {
   return renderToBuffer(<StatementDocument d={d} />);
 }
@@ -324,8 +336,16 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (pmtUpdateErr) return { ok: false, error: pmtUpdateErr.message, status: 500 };
 
-  // ── Load request from DB ─────────────────────────────────────────────────
-  const { data: request } = await db
+  // ── Load request from customer DB ────────────────────────────────────────
+  const customerDb = (() => {
+    const { createClient } = require("@supabase/supabase-js");
+    return createClient(
+      process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
+      process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
+    );
+  })();
+
+  const { data: request } = await customerDb
     .from("customer_requests")
     .select("customer_name, customer_email, pickup_address, dropoff_address, pickup_at, dropoff_at, journey_duration_minutes, vehicle_category_name")
     .eq("id", booking.request_id)
@@ -339,19 +359,9 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   const totalPaid  = Number(booking.amount         || carHire + fuelDep);
   const finalAmount = carHire + fuel_charge;
 
-  // ── Generate completion statement PDF ─────────────────────────────────────
+  // ── Generate completion statement PDF — read logo from disk ───────────────
   let statementBase64: string | null = null;
   try {
-    let logoBase64: string | null = null;
-    try {
-      const logoUrl = `https://www.camel-global.com/camel-invoice-logo.png`;
-      const logoRes = await fetch(logoUrl);
-      if (logoRes.ok) {
-        const buf = await logoRes.arrayBuffer();
-        logoBase64 = Buffer.from(buf).toString("base64");
-      }
-    } catch { /* logo optional */ }
-
     const statementData: StatementData = {
       jobNumber:       booking.job_number,
       bookingId,
@@ -373,7 +383,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
       fuelCharge:      fuel_charge,
       fuelRefund:      fuel_refund,
       issuedAt:        now,
-      logoBase64,
+      logoBase64:      getLogoBase64(),
     };
 
     const pdfBuffer = await generateCompletionStatementPDF(statementData);
