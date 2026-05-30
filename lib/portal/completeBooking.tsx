@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import React from "react";
 import fs from "fs";
 import path from "path";
+import { createClient } from "@supabase/supabase-js";
 import {
   Document, Page, Text, View, Image, StyleSheet, renderToBuffer,
 } from "@react-pdf/renderer";
@@ -12,6 +13,13 @@ import { sendEmail } from "@/lib/email";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-04-22.dahlia" as any,
 });
+
+function createCustomerServiceRoleClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
+    process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
 
 // ── PDF styles ────────────────────────────────────────────────────────────────
 const ps = StyleSheet.create({
@@ -337,26 +345,22 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   if (pmtUpdateErr) return { ok: false, error: pmtUpdateErr.message, status: 500 };
 
   // ── Load request from customer DB ────────────────────────────────────────
-  const customerDb = (() => {
-    const { createClient } = require("@supabase/supabase-js");
-    return createClient(
-      process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
-      process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
-    );
-  })();
+  const customerDb = createCustomerServiceRoleClient();
 
-  const { data: request } = await customerDb
+  const { data: request, error: reqErr } = await customerDb
     .from("customer_requests")
     .select("customer_name, customer_email, pickup_address, dropoff_address, pickup_at, dropoff_at, journey_duration_minutes, vehicle_category_name")
     .eq("id", booking.request_id)
     .maybeSingle();
 
+  if (reqErr) console.error("completeBooking: customer_requests fetch failed", reqErr.message);
+
   const { data: partnerAuthData } = await db.auth.admin.getUserById(booking.partner_user_id);
   const partnerEmail = partnerAuthData?.user?.email || null;
 
-  const carHire    = Number(booking.car_hire_price || 0);
-  const fuelDep    = Number(booking.fuel_price     || 0);
-  const totalPaid  = Number(booking.amount         || carHire + fuelDep);
+  const carHire     = Number(booking.car_hire_price || 0);
+  const fuelDep     = Number(booking.fuel_price     || 0);
+  const totalPaid   = Number(booking.amount         || carHire + fuelDep);
   const finalAmount = carHire + fuel_charge;
 
   // ── Generate completion statement PDF — read logo from disk ───────────────
@@ -365,13 +369,13 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
     const statementData: StatementData = {
       jobNumber:       booking.job_number,
       bookingId,
-      customerName:    request?.customer_name || null,
-      pickupAddress:   request?.pickup_address || null,
-      dropoffAddress:  request?.dropoff_address || null,
-      pickupAt:        request?.pickup_at || null,
-      dropoffAt:       request?.dropoff_at || null,
+      customerName:    request?.customer_name    || null,
+      pickupAddress:   request?.pickup_address   || null,
+      dropoffAddress:  request?.dropoff_address  || null,
+      pickupAt:        request?.pickup_at        || null,
+      dropoffAt:       request?.dropoff_at       || null,
       durationMinutes: request?.journey_duration_minutes || null,
-      vehicleCategory: request?.vehicle_category_name || null,
+      vehicleCategory: request?.vehicle_category_name   || null,
       companyName,
       currency,
       carHire,
@@ -440,6 +444,8 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
         }],
       } : {}),
     }).catch(e => console.error("Completion customer email failed:", e?.message));
+  } else {
+    console.error("completeBooking: no customer_email found for request", booking.request_id);
   }
 
   // ── Email partner ─────────────────────────────────────────────────────────
