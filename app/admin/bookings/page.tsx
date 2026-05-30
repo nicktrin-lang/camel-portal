@@ -93,7 +93,7 @@ function matchesDateRange(value: string | null | undefined, from: string, to: st
   return true;
 }
 
-// Convert stripe_fee (in charge currency) → bid currency using Stripe's exchange_rate
+// Stripe fee in bid currency — for Camel reconciliation only
 function stripeFeeInBidCurrency(
   stripe_fee: number | null,
   stripe_fee_currency: string | null,
@@ -106,22 +106,35 @@ function stripeFeeInBidCurrency(
   return stripe_fee;
 }
 
-function calcPayout(b: BookingRow): { hire: number; rate: number; commAmt: number; payout: number; fuelRefund: number; feeInBid: number } {
+// Payout calc — Stripe fee is Camel's cost, NOT deducted from partner payout
+function calcPayout(b: BookingRow): {
+  hire: number; rate: number; commAmt: number;
+  partnerPayout: number;  // partner gets: car hire − commission + fuel charge (no Stripe deduction)
+  camelNetComm: number;   // Camel keeps: commission − Stripe fee
+  fuelRefund: number;
+  feeInBid: number;
+} {
   const isCancelled  = String(b.booking_status || "").toLowerCase() === "cancelled";
   const refundStatus = b.refund_status || null;
   const fuel         = Number(b.fuel_price ?? 0);
   const bidCurr      = (b.currency ?? "EUR") as string;
   const feeInBid     = stripeFeeInBidCurrency(b.stripe_fee, b.stripe_fee_currency, bidCurr, b.exchange_rate);
 
-  if (isCancelled && refundStatus === "full") return { hire:0, rate:0, commAmt:0, payout:0, fuelRefund:fuel, feeInBid:0 };
+  if (isCancelled && refundStatus === "full") {
+    return { hire:0, rate:0, commAmt:0, partnerPayout:0, camelNetComm:0, fuelRefund:fuel, feeInBid:0 };
+  }
 
-  const hire      = Number(b.car_hire_price ?? 0);
-  const rate      = b.commission_rate ?? 20;
-  const commAmt   = Math.max((hire * rate) / 100, 10);
-  const basePayout = Math.max(0, hire - commAmt);
-  const payout    = Math.max(0, basePayout + Number(b.fuel_charge ?? 0) - feeInBid);
-  const fuelRefund = (isCancelled && refundStatus === "partial") ? fuel : Number(b.fuel_refund ?? 0);
-  return { hire, rate, commAmt, payout, fuelRefund, feeInBid };
+  const hire         = Number(b.car_hire_price ?? 0);
+  const rate         = b.commission_rate ?? 20;
+  const commAmt      = Math.max((hire * rate) / 100, 10);
+  const fuelCharge   = Number(b.fuel_charge ?? 0);
+  // Partner payout: car hire minus commission plus any fuel charge retained — Stripe fee is NOT their cost
+  const partnerPayout = Math.max(0, hire - commAmt + fuelCharge);
+  // Camel net commission: what Camel actually keeps after paying Stripe
+  const camelNetComm  = Math.max(0, commAmt - feeInBid);
+  const fuelRefund    = (isCancelled && refundStatus === "partial") ? fuel : Number(b.fuel_refund ?? 0);
+
+  return { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid };
 }
 
 function revenuesByCurrency(rows: BookingRow[]): Record<Currency, number> {
@@ -165,7 +178,7 @@ const PAGE_SIZE = 10;
 
 type CurrencyTotals = {
   total:number; carHire:number; fuelCharge:number; fuelRefund:number;
-  commissionTotal:number; partnerPayoutTotal:number; stripeFeeTotal:number;
+  commissionTotal:number; partnerPayoutTotal:number; stripeFeeTotal:number; camelNetCommTotal:number;
   count:number; completed:number; cancelled:number;
 };
 
@@ -180,18 +193,19 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
         <span className="border border-black bg-black px-3 py-1 text-sm font-black text-white">{symbol} {curr}</span>
         <h2 className="text-xl font-black text-black">Revenue &amp; Fuel Reconciliation</h2>
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5 mb-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6 mb-4">
         {[
-          { label:"Total Bookings",   value:t.count,              isMoney:false },
-          { label:"Completed",        value:t.completed,          isMoney:false },
-          { label:"Cancelled",        value:t.cancelled,          isMoney:false },
-          { label:"Total Revenue",    value:t.total,              isMoney:true  },
-          { label:"Car Hire Revenue", value:t.carHire,            isMoney:true  },
-          { label:"Stripe Fees",      value:t.stripeFeeTotal,     isMoney:true  },
-          { label:"Fuel Charged",     value:t.fuelCharge,         isMoney:true  },
-          { label:"Fuel Refunded",    value:t.fuelRefund,         isMoney:true  },
-          { label:"Camel Commission", value:t.commissionTotal,    isMoney:true  },
-          { label:"Partner Payout",   value:t.partnerPayoutTotal, isMoney:true  },
+          { label:"Total Bookings",      value:t.count,              isMoney:false },
+          { label:"Completed",           value:t.completed,          isMoney:false },
+          { label:"Cancelled",           value:t.cancelled,          isMoney:false },
+          { label:"Total Revenue",       value:t.total,              isMoney:true  },
+          { label:"Car Hire Revenue",    value:t.carHire,            isMoney:true  },
+          { label:"Stripe Fees",         value:t.stripeFeeTotal,     isMoney:true  },
+          { label:"Fuel Charged",        value:t.fuelCharge,         isMoney:true  },
+          { label:"Fuel Refunded",       value:t.fuelRefund,         isMoney:true  },
+          { label:"Camel Commission",    value:t.commissionTotal,    isMoney:true  },
+          { label:"Camel Net Income",    value:t.camelNetCommTotal,  isMoney:true  },
+          { label:"Partner Payout",      value:t.partnerPayoutTotal, isMoney:true  },
         ].map(({ label:lbl, value, isMoney }) => (
           <div key={lbl} className={`border p-4 ${lbl==="Cancelled"&&(value as number)>0?"border-red-200 bg-red-50":"border-black/10 bg-[#f0f0f0]"}`}>
             <p className="text-xs font-black uppercase tracking-widest text-black/50">{lbl}</p>
@@ -205,7 +219,7 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
         <table className="min-w-full text-sm">
           <thead className="bg-black text-white">
             <tr>
-              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Net Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                 <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -214,7 +228,7 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
             {visible.map((b,i)=>{
               const usedQ=b.fuel_used_quarters;
               const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-              const { commAmt, payout, rate, hire, fuelRefund, feeInBid } = calcPayout(b);
+              const { commAmt, partnerPayout, camelNetComm, rate, hire, fuelRefund, feeInBid } = calcPayout(b);
               return (
                 <tr key={b.id} onClick={()=>router.push(`/admin/bookings/${b.id}`)}
                   className={`cursor-pointer hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/50":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
@@ -233,13 +247,18 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
                       ? <span className="text-xs font-black text-amber-700">− {fmtCurr(feeInBid,curr)}</span>
                       : <span className="text-black/30">—</span>}
                   </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {isCancelled&&b.refund_status==="full"
+                      ? <span className="text-black/30">—</span>
+                      : <span className="text-xs font-black text-green-700">{fmtCurr(camelNetComm,curr)}</span>}
+                  </td>
                   <td className="px-4 py-3 text-black/70">{fmtAmt(b.fuel_price,curr)}</td>
                   <td className="px-4 py-3 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                   <td className="px-4 py-3 font-black text-[#ff7a00]">{b.fuel_charge!==null?fmtAmt(b.fuel_charge,curr):"—"}</td>
                   <td className="px-4 py-3 font-black text-green-700">{fuelRefund>0?fmtCurr(fuelRefund,curr):"—"}</td>
                   <td className={`px-4 py-3 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,curr)}</td>
                   <td className={`px-4 py-3 font-black ${isCancelled&&b.refund_status==="full"?"text-red-400":"text-green-700"}`}>
-                    {isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(payout,curr)}
+                    {isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(partnerPayout,curr)}
                   </td>
                   <td className="px-4 py-3 text-xs text-black/60">{b.cancelled_by||"—"}</td>
                   <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDateTime(b.cancelled_at):"—"}</td>
@@ -306,23 +325,24 @@ export default function AdminBookingsPage() {
 
   const currencyTotals = useMemo(()=>{
     const t: Record<Currency,CurrencyTotals> = {
-      EUR:{total:0,carHire:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,count:0,completed:0,cancelled:0},
-      GBP:{total:0,carHire:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,count:0,completed:0,cancelled:0},
-      USD:{total:0,carHire:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,count:0,completed:0,cancelled:0},
+      EUR:{total:0,carHire:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,count:0,completed:0,cancelled:0},
+      GBP:{total:0,carHire:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,count:0,completed:0,cancelled:0},
+      USD:{total:0,carHire:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,count:0,completed:0,cancelled:0},
     };
     for (const b of filtered) {
       const c: Currency=(b.currency as Currency)??"EUR";
       if (!t[c]) continue;
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { commAmt, payout, hire, fuelRefund, feeInBid } = calcPayout(b);
+      const { commAmt, partnerPayout, camelNetComm, hire, fuelRefund, feeInBid } = calcPayout(b);
       t[c].count++;
       if (!isCancelled) {
         t[c].total              += Number(b.amount??0);
         t[c].carHire            += hire;
         t[c].fuelCharge         += Number(b.fuel_charge??0);
         t[c].commissionTotal    += commAmt;
-        t[c].partnerPayoutTotal += payout;
+        t[c].partnerPayoutTotal += partnerPayout;
         t[c].stripeFeeTotal     += feeInBid;
+        t[c].camelNetCommTotal  += camelNetComm;
       }
       t[c].fuelRefund += fuelRefund;
       if (isCancelled) t[c].cancelled++;
@@ -348,11 +368,11 @@ export default function AdminBookingsPage() {
       "Actual Pickup Date & Time","Actual Dropoff Date & Time","Completed Date",
       "Vehicle","Driver","Driver Vehicle","Bid Currency","Charge Currency",
       "Car Hire Price","Commission Rate (%)","Commission Amount",
-      "Stripe Fee (in bid currency)","Stripe Fee Currency","Stripe Exchange Rate",
+      "Stripe Fee (Camel cost)","Stripe Fee Currency","Camel Net Commission (after Stripe)",
       "Full Fuel Deposit","Collection Fuel (Driver)","Collection Fuel (Partner Override)",
       "Return Fuel (Driver)","Return Fuel (Partner Override)",
       "Quarters Used","Fuel Used Label","Fuel Charge to Customer","Fuel Refund to Customer",
-      "Total Booking Amount","Net Payout (after all fees)",
+      "Total Booking Amount","Partner Net Payout",
       "Customer Collection Confirmed","Customer Return Confirmed",
       "Insurance Driver Confirmed","Insurance Customer Confirmed",
       "Booking Status","Cancelled By","Cancelled At","Cancellation Reason","Refund Status","Created At",
@@ -360,7 +380,7 @@ export default function AdminBookingsPage() {
     const fuelRows=filtered.map(b=>{
       const usedQ=b.fuel_used_quarters;
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { hire, rate, commAmt, payout, fuelRefund, feeInBid } = calcPayout(b);
+      const { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid } = calcPayout(b);
       const isCompleted=String(b.booking_status||"").toLowerCase()==="completed";
       return [
         b.job_number||"",b.partner_company_name||"",b.partner_legal_company_name||"",
@@ -372,15 +392,15 @@ export default function AdminBookingsPage() {
         isCompleted?fmtDate(b.created_at):"",
         b.vehicle_category_name||"",b.driver_name||"",b.driver_vehicle||"",
         b.currency||"EUR",b.charge_currency||b.currency||"EUR",
-        hire,rate,commAmt,
-        feeInBid>0?feeInBid.toFixed(4):"",b.stripe_fee_currency||"",b.exchange_rate||"",
+        hire, rate, commAmt,
+        feeInBid>0?Number(feeInBid.toFixed(4)):"", b.stripe_fee_currency||"", camelNetComm>0?Number(camelNetComm.toFixed(2)):"",
         Number(b.fuel_price??0),
         b.collection_fuel_level_driver||"—",b.collection_fuel_level_partner||"—",
         b.return_fuel_level_driver||"—",b.return_fuel_level_partner||"—",
         usedQ!==null&&usedQ!==undefined?usedQ:"—",
         usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—",
         Number(b.fuel_charge??0),fuelRefund,
-        isCancelled?0:Number(b.amount??0),payout,
+        isCancelled?0:Number(b.amount??0), partnerPayout,
         b.collection_confirmed_by_customer?"Yes":"No",b.return_confirmed_by_customer?"Yes":"No",
         b.insurance_docs_confirmed_by_driver?"Yes":"No",b.insurance_docs_confirmed_by_customer?"Yes":"No",
         b.booking_status||"",b.cancelled_by||"",
@@ -388,19 +408,54 @@ export default function AdminBookingsPage() {
         b.cancellation_reason||"",b.refund_status||"",fmtDate(b.created_at),
       ];
     });
-    const summaryHeaders=["Currency","Total Bookings","Completed","Cancelled","Total Revenue (excl. cancelled)","Car Hire Revenue","Camel Commission","Stripe Fees (bid currency)","Partner Net Payout","Fuel Charges Billed","Fuel Refunds Issued"];
+    const summaryHeaders=[
+      "Currency","Total Bookings","Completed","Cancelled",
+      "Total Revenue (excl. cancelled)","Car Hire Revenue",
+      "Camel Commission","Stripe Fees (Camel cost)","Camel Net Income (after Stripe)",
+      "Partner Net Payout","Fuel Charges Billed","Fuel Refunds Issued",
+    ];
     const summaryRows=(["EUR","GBP","USD"] as Currency[]).map(curr=>{
       const t=currencyTotals[curr];
-      return [`${curr} ${CURRENCY_CONFIG[curr].symbol}`,t.count,t.completed,t.cancelled,t.total,t.carHire,t.commissionTotal,t.stripeFeeTotal,t.partnerPayoutTotal,t.fuelCharge,t.fuelRefund];
+      return [
+        `${curr} ${CURRENCY_CONFIG[curr].symbol}`,
+        t.count, t.completed, t.cancelled,
+        t.total, t.carHire,
+        t.commissionTotal, t.stripeFeeTotal, t.camelNetCommTotal,
+        t.partnerPayoutTotal, t.fuelCharge, t.fuelRefund,
+      ];
     });
-    const allHeaders=["Job","Partner","Customer","Status","Bid Currency","Charge Currency","Car Hire","Commission Rate (%)","Commission Amount","Stripe Fee (bid currency)","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Net Payout","Cancelled By","Cancelled At","Refund Status","Insurance","Created At"];
+    const allHeaders=[
+      "Job","Partner","Customer","Status","Bid Currency",
+      "Car Hire","Commission Rate (%)","Commission Amount",
+      "Stripe Fee (Camel cost)","Camel Net Income",
+      "Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund",
+      "Total","Partner Net Payout",
+      "Cancelled By","Cancelled At","Refund Status","Insurance","Created At",
+    ];
     const allRows=filtered.map(b=>{
       const usedQ=b.fuel_used_quarters;
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { hire, rate, commAmt, payout, fuelRefund, feeInBid } = calcPayout(b);
-      return [b.job_number||"",b.partner_company_name||"",b.customer_name||"",b.booking_status||"",b.currency||"EUR",b.charge_currency||b.currency||"EUR",hire,rate,commAmt,feeInBid>0?feeInBid.toFixed(4):"",Number(b.fuel_price??0),usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—",Number(b.fuel_charge??0),fuelRefund,isCancelled?0:Number(b.amount??0),payout,b.cancelled_by||"",b.cancelled_at?fmtDateTime(b.cancelled_at):"",b.refund_status||"",b.insurance_docs_confirmed_by_driver&&b.insurance_docs_confirmed_by_customer?"Confirmed":"Pending",fmtDate(b.created_at)];
+      const { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid } = calcPayout(b);
+      return [
+        b.job_number||"", b.partner_company_name||"", b.customer_name||"", b.booking_status||"",
+        b.currency||"EUR",
+        hire, rate, commAmt,
+        feeInBid>0?Number(feeInBid.toFixed(4)):"", camelNetComm>0?Number(camelNetComm.toFixed(2)):"",
+        Number(b.fuel_price??0),
+        usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—",
+        Number(b.fuel_charge??0), fuelRefund,
+        isCancelled?0:Number(b.amount??0), partnerPayout,
+        b.cancelled_by||"", b.cancelled_at?fmtDateTime(b.cancelled_at):"",
+        b.refund_status||"",
+        b.insurance_docs_confirmed_by_driver&&b.insurance_docs_confirmed_by_customer?"Confirmed":"Pending",
+        fmtDate(b.created_at),
+      ];
     });
-    const blob=buildXls([{name:"Fuel Reconciliation",headers:fuelHeaders,rows:fuelRows},{name:"Currency Summary",headers:summaryHeaders,rows:summaryRows},{name:"All Bookings",headers:allHeaders,rows:allRows}]);
+    const blob=buildXls([
+      {name:"Fuel Reconciliation", headers:fuelHeaders, rows:fuelRows},
+      {name:"Currency Summary",    headers:summaryHeaders, rows:summaryRows},
+      {name:"All Bookings",        headers:allHeaders, rows:allRows},
+    ]);
     downloadBlob(blob,`camel-admin-bookings-${dateStr}.xls`);
   }
 
@@ -473,16 +528,16 @@ export default function AdminBookingsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Net Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {visible.length===0?(<tr><td colSpan={16} className="px-4 py-4 text-black/50">No bookings found.</td></tr>):visible.map((row,i)=>{
+              {visible.length===0?(<tr><td colSpan={17} className="px-4 py-4 text-black/50">No bookings found.</td></tr>):visible.map((row,i)=>{
                 const usedQ=row.fuel_used_quarters;
                 const isCancelled=String(row.booking_status||"").toLowerCase()==="cancelled";
-                const { commAmt, payout, rate, hire, fuelRefund, feeInBid } = calcPayout(row);
+                const { commAmt, partnerPayout, camelNetComm, rate, hire, fuelRefund, feeInBid } = calcPayout(row);
                 return (
                   <tr key={row.id} onClick={()=>router.push(`/admin/bookings/${row.id}`)} className={`cursor-pointer transition-colors hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/50":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                     <td className="px-4 py-4 font-black text-black whitespace-nowrap">{row.job_number||"—"}</td>
@@ -492,12 +547,13 @@ export default function AdminBookingsPage() {
                     <td className={`px-4 py-4 ${isCancelled&&row.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,row.currency??"EUR")}</td>
                     <td className="px-4 py-4">{isCancelled&&row.refund_status==="full"?(<span className="text-xs font-black text-red-400 line-through">{fmtCurr(commAmt,row.currency??"EUR")}</span>):(<><div className="text-xs font-black text-[#ff7a00]">{fmtCurr(commAmt,row.currency??"EUR")}</div><div className="text-xs text-black/40">{rate}%</div></>)}</td>
                     <td className="px-4 py-4 whitespace-nowrap">{feeInBid>0?<span className="text-xs font-black text-amber-700">− {fmtCurr(feeInBid,row.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
+                    <td className="px-4 py-4 whitespace-nowrap">{isCancelled&&row.refund_status==="full"?<span className="text-black/30">—</span>:<span className="text-xs font-black text-green-700">{fmtCurr(camelNetComm,row.currency??"EUR")}</span>}</td>
                     <td className="px-4 py-4 text-black/70">{fmtAmt(row.fuel_price,row.currency)}</td>
                     <td className="px-4 py-4 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                     <td className="px-4 py-4 font-black text-[#ff7a00]">{row.fuel_charge!==null?fmtAmt(row.fuel_charge,row.currency):"—"}</td>
                     <td className="px-4 py-4 font-black text-green-600">{fuelRefund>0?fmtCurr(fuelRefund,row.currency??"EUR"):"—"}</td>
                     <td className={`px-4 py-4 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(row.amount,row.currency)}</td>
-                    <td className={`px-4 py-4 font-black ${isCancelled&&row.refund_status==="full"?"text-red-600":"text-green-700"}`}>{isCancelled&&row.refund_status==="full"?fmtCurr(0,row.currency??"EUR"):fmtCurr(payout,row.currency??"EUR")}</td>
+                    <td className={`px-4 py-4 font-black ${isCancelled&&row.refund_status==="full"?"text-red-600":"text-green-700"}`}>{isCancelled&&row.refund_status==="full"?fmtCurr(0,row.currency??"EUR"):fmtCurr(partnerPayout,row.currency??"EUR")}</td>
                     <td className="px-4 py-4 text-xs text-black/60">{row.cancelled_by||"—"}</td>
                     <td className="px-4 py-4 text-xs text-black/60 whitespace-nowrap">{row.cancelled_at?fmtDateTime(row.cancelled_at):"—"}</td>
                     <td className="px-4 py-4">{insurancePill(row.insurance_docs_confirmed_by_driver,row.insurance_docs_confirmed_by_customer)}</td>
