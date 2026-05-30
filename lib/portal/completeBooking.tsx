@@ -4,15 +4,6 @@ import {
   Document, Page, Text, View, Image, StyleSheet, renderToBuffer,
 } from "@react-pdf/renderer";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
-
-function createCustomerServiceRoleClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
-    process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false }, db: { schema: "public" } }
-  );
-}
 import { calculateFuelCharge, normalizeFuel } from "@/lib/portal/calculateFuelCharge";
 import { sendEmail } from "@/lib/email";
 
@@ -333,9 +324,8 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (pmtUpdateErr) return { ok: false, error: pmtUpdateErr.message, status: 500 };
 
-  // ── Load request from customer DB (different Supabase project) ──────────
-  const customerDb = createCustomerServiceRoleClient();
-  const { data: request } = await customerDb
+  // ── Load request from DB ─────────────────────────────────────────────────
+  const { data: request } = await db
     .from("customer_requests")
     .select("customer_name, customer_email, pickup_address, dropoff_address, pickup_at, dropoff_at, journey_duration_minutes, vehicle_category_name")
     .eq("id", booking.request_id)
