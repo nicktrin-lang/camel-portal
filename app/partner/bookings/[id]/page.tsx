@@ -193,7 +193,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentDa
   const fuelCharge = Number(booking.fuel_charge ?? 0);
   // Net payout = car hire − commission + any fuel charge retained
   // Stripe fee is borne by Camel (via application_fee_amount model) — NOT deducted from partner
-  const netPayout  = Math.max(0, hire - commAmt + fuelCharge);
+  const netPayout  = (booking.booking_status === "cancelled" && booking.refund_status === "full") ? 0 : Math.max(0, hire - commAmt + fuelCharge);
 
   return (
     <div className="border border-black/10 bg-[#f8f8f8] p-6">
