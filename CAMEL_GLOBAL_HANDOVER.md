@@ -85,11 +85,14 @@ cd ~/camel-customer && git add . && git commit -m "message" && git push origin m
 | `app/api/partner/bids/route.ts` | Partner bid submission — saves mileage_limit + security_deposit_notes |
 | `app/api/partner/requests/[id]/route.ts` | Partner request detail API — selects mileage_limit + security_deposit_notes from partner_bids |
 | `app/api/partner/bookings/[id]/route.ts` | Partner booking detail API |
+| `app/api/partner/bookings/[id]/update/route.ts` | Partner booking update — fuel override, driver assignment, lock logic |
+| `app/api/driver/jobs/route.ts` | Driver jobs API — returns all booking fields including partner fuel overrides |
 | `app/api/admin/bookings/[id]/route.ts` | Admin booking detail API |
 | `app/admin/requests/[id]/page.tsx` | Admin request detail |
 | `app/admin/bookings/[id]/page.tsx` | Admin booking detail |
 | `app/partner/requests/[id]/page.tsx` | Partner request detail — bid form includes mileage limit + security deposit (text fields, optional). Security deposit only shown when full insurance is NOT included. Young driver alert shown when driver aged 21–24 |
-| `app/partner/bookings/[id]/page.tsx` | Partner booking detail |
+| `app/partner/bookings/[id]/page.tsx` | Partner booking detail — fuel tracking with office override, lock logic uses effective fuel |
+| `app/driver/jobs/page.tsx` | Driver jobs page — shows office override fuel with amber notice |
 | `app/partner/terms/page.tsx` | Partner T&Cs — includes clause on mileage/deposit collection responsibility. PDF generated dynamically from TERMS array |
 
 ### Key Libraries & Files — Customer (`~/camel-customer`)
@@ -103,11 +106,12 @@ cd ~/camel-customer && git add . && git commit -m "message" && git push origin m
 | `lib/portal/generateCompletionStatementPDF.tsx` | Booking completion statement PDF generator |
 | `app/api/test-booking/bookings/[id]/receipt/route.ts` | GET — returns signed URL for booking receipt |
 | `app/api/test-booking/bookings/[id]/completion-statement/route.ts` | GET — returns signed URL for completion statement |
-| `app/api/test-booking/bookings/[id]/update/route.ts` | POST — customer confirms fuel/insurance. Does NOT send completion email (that is handled by completeBooking.tsx in portal) |
+| `app/api/test-booking/bookings/[id]/update/route.ts` | POST — customer confirms fuel/insurance. Uses effective fuel (partner override OR driver reading). Gates on effective fuel existing, not just driver confirmed. Does NOT send completion email. |
 | `app/api/test-booking/requests/route.ts` | POST — creates booking request. Min driver age validation is 21 |
-| `app/api/test-booking/requests/[id]/route.ts` | GET — returns request + bids (including mileage_limit, security_deposit_notes) + booking |
+| `app/api/test-booking/requests/[id]/route.ts` | GET — returns request + bids (including mileage_limit, security_deposit_notes) + booking including all partner fuel override fields |
 | `app/api/webhooks/stripe/route.ts` | Customer webhook — creates booking, generates receipt PDF (with checklist + mileage/deposit), sends confirmation emails |
-| `app/bookings/[id]/page.tsx` | Booking detail — young driver warning, document checklist + mileage/deposit shown on confirmed booking. Bid cards show mileage limit and security deposit disclosure boxes |
+| `app/api/auth/send-customer-reset-email/route.ts` | Customer password reset — uses admin client + sendEmail (Resend), bypasses Supabase email templates entirely |
+| `app/bookings/[id]/page.tsx` | Booking detail — shows effective fuel (partner override OR driver), customer can confirm once either is set, amber badge when office override active |
 | `app/page.tsx` | Customer homepage — min driver age 21, young driver warning for 21–24, no document checklist (moved to confirmed booking only) |
 | `app/book/page.tsx` | Auto-submit after login |
 | `app/terms/page.tsx` | Customer T&Cs — section 5 young driver surcharge included in bid price, section 6 credit card only required if security deposit stated on bid, section 7 security deposit, section 8 mileage |
@@ -116,6 +120,42 @@ cd ~/camel-customer && git add . && git commit -m "message" && git push origin m
 
 ## CRITICAL: DB Client Rules
 **The customer Supabase project is used for ALL customer-facing API routes** — always use `createCustomerServiceRoleSupabaseClient` in `app/api/test-booking/**` routes. Never mix with `createServiceRoleSupabaseClient` (main/portal DB) in these routes.
+
+**There is only ONE Supabase project** (`camel-global`) shared by both portal and customer auth. The customer client uses different env vars (`NEXT_PUBLIC_CUSTOMER_SUPABASE_URL`) but points to the same project.
+
+---
+
+## Supabase URL Configuration (CRITICAL)
+**Site URL:** `https://test.camel-global.com` — set to customer site so password reset fallback lands on customer, not portal.
+
+**Redirect URLs include:**
+- All portal login/reset URLs (`portal.camel-global.com/partner/login` etc.)
+- `https://portal.camel-global.com/**`
+- `https://test.camel-global.com/**`
+- `https://test.camel-global.com/reset-password`
+
+**Do not change the Site URL back to portal** — this was done in Chat 35 to fix customer password reset landing on the partner portal homepage. The portal reset still works because all portal URLs are in the redirect list.
+
+---
+
+## Fuel Override Architecture (CRITICAL — implemented Chat 35)
+
+### The rule
+**Effective fuel = partner override (`collection_fuel_level_partner`) if set, else driver reading (`collection_fuel_level_driver`).** This applies everywhere — customer page display, lock logic, customer confirmation, partner page display, driver app display.
+
+### Lock logic
+A fuel stage locks when: **effective fuel exists AND customer has confirmed AND customer fuel matches effective fuel.**
+- Driver confirming is NOT required for lock — partner override alone is sufficient for customer to confirm.
+
+### Files implementing this
+| File | What it does |
+|------|-------------|
+| `app/api/partner/bookings/[id]/update/route.ts` | `effectiveCollectionFuel = partner || driver`. Lock check uses effective. |
+| `app/api/test-booking/bookings/[id]/update/route.ts` | Gates on effective fuel existing (not just driver confirmed). Sets `collection_fuel_level_customer` to effective fuel on confirm. |
+| `app/api/driver/jobs/route.ts` | Returns `collection_fuel_level_partner` and `return_fuel_level_partner` in job objects. |
+| `app/partner/bookings/[id]/page.tsx` | `isLocked()` uses effective fuel. FuelStageCard shows partner override in top row when set. Unlocked state uses light/black colours, locked uses dark theme. |
+| `app/bookings/[id]/page.tsx` (customer) | `effectiveCollFuel`/`effectiveRetFuel` computed at render. `collEffectiveReady` = driver confirmed OR partner override set. `FuelConfirmCard` receives effective fuel and shows "Office recorded" badge when override active. |
+| `app/driver/jobs/page.tsx` | Shows amber notice when office has set override, both before and after driver records. Completed jobs show effective fuel. |
 
 ---
 
@@ -194,7 +234,7 @@ Partner final net:       £200.10
 
 ### Payment intent fields
 ```typescript
-application_fee_amount: commissionCents,  // Camel's exact commission
+application_fee_amount: commissionCents,
 on_behalf_of: partnerProfile.stripe_account_id,
 transfer_data: { destination: partnerProfile.stripe_account_id },
 description: "Camel Global #JOB | Partner | Car hire + Fuel | Commission | Partner net",
@@ -205,7 +245,7 @@ metadata: { job_number, partner_name, car_hire, fuel_deposit, camel_commission, 
 - Rate is variable — depends on card type, issuing country, currency conversion
 - Cross-currency payments attract higher combined fee
 - Exact fee captured from `balance_transaction` in webhook and stored in `payments.stripe_fee`
-- Do NOT quote specific percentages anywhere — wording is "variable, depends on card type and currency"
+- Do NOT quote specific percentages anywhere
 
 ### Two-currency model
 - `partner_bookings.currency` = **bid currency** — what partner quoted in
@@ -278,6 +318,8 @@ Booking marked completed
 | `v-stable-chat31` | Chat 31 — driver age, sport equipment everywhere, completion statement PDF, completion email |
 | `v-stable-chat32` | Chat 32 — min age 21, young driver warning, mileage/deposit on bids, document checklist, completion email fix, terms updated |
 | `v-stable-chat32b` | Chat 32b — Stripe application_fee_amount, rich metadata, partner terms Stripe fee wording corrected |
+| `v-stable-fuel-override-complete` | Chat 35 — full fuel override flow working across all three portals |
+| `v-stable-chat36-pre` | Chat 36 — single currency model, charge_currency display removed |
 
 ### Customer (`~/camel-customer`)
 | Tag | Description |
@@ -286,11 +328,13 @@ Booking marked completed
 | `v-stable-chat31` | Chat 31 — driver age, sport equipment, completion statement download |
 | `v-stable-chat32` | Chat 32 — min age 21, young driver warning, mileage/deposit on bids, document checklist on confirmed booking + receipt PDF, completion email fix, terms updated |
 | `v-stable-chat32b` | Chat 32b — Stripe application_fee_amount, rich payment intent description + metadata |
+| `v-stable-fuel-override-complete` | Chat 35 — full fuel override flow working, customer password reset fixed |
+| `v-stable-chat36-pre` | Chat 36 — single currency model, CurrencySelector removed, homepage Book Now layout improved |
 
 ### Rollback
 ```bash
-cd ~/camel-portal && git checkout v-stable-chat32b
-cd ~/camel-customer && git checkout v-stable-chat32b
+cd ~/camel-portal && git checkout v-stable-chat36-pre
+cd ~/camel-customer && git checkout v-stable-chat36-pre
 ```
 
 ---
@@ -300,13 +344,16 @@ cd ~/camel-customer && git checkout v-stable-chat32b
 - Young driver warning (21–24) shown on homepage widget, booking page, partner request page
 - Guest booking flow — draft survives login/signup redirect
 - Partner bid submission and management
-- Driver job portal
+- Driver job portal — shows office fuel override with amber notice
 - Admin approval and account management
 - Full EUR / GBP / USD currency support
 - Full commission system — adjustable per partner, default 20%, min €10 floor
-- Fuel level recording, charge/refund calculation
+- Fuel level recording — driver OR office can record, effective fuel = partner override || driver reading
+- Office fuel override — partner admin can override driver fuel reading; customer sees and confirms effective value; driver app shows amber notice when override set
+- Fuel charge/refund calculation
 - Fuel refund on completion — Stripe partial refund issued automatically
 - Email notifications — all (booking confirmed, completion, review reminder)
+- Customer password reset — sends via Resend (not Supabase email), lands on customer site
 - Live status system — 7 checks
 - Partner onboarding — 7 steps including Stripe Express
 - Stripe Connect partner onboarding
@@ -329,9 +376,14 @@ cd ~/camel-customer && git checkout v-stable-chat32b
 
 ---
 
-## What Needs Building in Chat 33
+## What Needs Building in Chat 37
 
-### 1. Spanish Translation (PRIORITY)
+### 1. Homepage Book Now layout (carry over from Chat 36)
+- On desktop: Book Now should sit in the driver age row right columns when no additional drivers selected
+- Needs to be verified visually after Chat 36 deploy — may already be working
+- If not, rewrite the driver age + Book Now section cleanly in one go
+
+### 2. Spanish Translation (PRIORITY)
 - All user-facing strings in camel-customer and camel-portal
 - Language toggle (EN / ES) — remember preference in localStorage
 - Do customer site first, then portal
@@ -353,33 +405,35 @@ A collaborator works on `camel-portal` from Windows (`C:/dev/camel-portal`). He 
 
 ## Session Log
 
+### Chat 36 (Completed)
+**Single currency model — customer always pays in partner bid currency**
+
+1. `app/api/payments/create-intent/route.ts` (customer) — removed all currency conversion. Customer charged in `bid.currency` directly. No `convertCurrency` calls.
+2. `app/api/webhooks/stripe/route.ts` (customer) — `currency = charge_currency = bid_currency`, `conversion_rate = 1` always. Simplified fee data storage.
+3. `app/api/test-booking/bookings/[id]/completion-statement/route.ts` (customer) — uses `bk.currency` not `bk.charge_currency`. This was the root cause of the completion statement showing wrong currency.
+4. `app/api/test-booking/bookings/[id]/receipt/route.ts` (customer) — same, uses `bk.currency`.
+5. `app/page.tsx` (customer) — removed `CurrencySelector` import and component entirely. Removed `currency` field from booking request submission. Book Now layout improved — sits in driver age row on desktop when no additional drivers selected.
+6. `app/bookings/[id]/page.tsx` (customer) — removed all `BidAmount`/`BookingAmount` conversion components. All amounts shown in `bk.currency` directly.
+7. `app/partner/bookings/[id]/page.tsx` (portal) — `hasCurrConv = false`, `chargeCurr = bidCurrency`. Removes Stripe currency conversion warning.
+8. `app/admin/bookings/[id]/page.tsx` (portal) — same.
+9. `lib/serverCurrency.ts` (customer) — no longer called anywhere (kept in place but unused).
+10. `app/api/currency/rate/route.ts` (customer) — no longer called anywhere (kept in place but unused).
+11. Stable tags: `v-stable-chat36-pre` on both repos.
+
+1. `app/api/partner/bookings/[id]/update/route.ts` (portal) — `isLocked()` uses effective fuel (partner override || driver). `effectiveCollectionFuel`/`effectiveReturnFuel` used for lock check and status advancement.
+2. `app/partner/bookings/[id]/page.tsx` (portal) — `isLocked()` accepts `partnerFuel`, uses effective fuel. `FuelStageCard` shows partner override in top row when set, with "Set by office" label and driver reading shown below. Unlocked state correctly uses dark text on light background.
+3. `app/api/test-booking/bookings/[id]/update/route.ts` (customer) — `isFuelLocked()` uses effective fuel. Customer confirmation gates on effective fuel existing (not just driver confirmed). `collection_fuel_level_customer` set to effective fuel on confirm.
+4. `app/bookings/[id]/page.tsx` (customer) — `FuelConfirmCard` redesigned with `effectiveFuel`, `effectiveReady`, `partnerOverrideActive` props. Shows "Office recorded" label and amber badge when override active. Customer can confirm once either driver or office has recorded.
+5. `app/api/driver/jobs/route.ts` (portal) — added `collection_fuel_level_partner` and `return_fuel_level_partner` to returned job objects (were selected from DB but never returned).
+6. `app/driver/jobs/page.tsx` (portal) — shows amber notice when office override set, both before and after driver records. Completed jobs show effective fuel with "Office recorded" label.
+7. **Supabase URL Configuration** — Site URL changed to `https://test.camel-global.com`. Added `https://test.camel-global.com/**` and `https://test.camel-global.com/reset-password` to redirect URLs. Portal redirect URLs unchanged — portal reset still works.
+8. Stable tags: `v-stable-fuel-override-complete` on both repos.
+
 ### Chat 32b (Completed)
 **Stripe payment architecture fix, rich metadata, fee wording corrected**
 
-1. `app/api/payments/create-intent/route.ts` (customer) — switched from `transfer_data.amount` to `application_fee_amount` + `on_behalf_of`. Camel now receives exact commission. Stripe fee borne by partner. Added rich `description` and full metadata to payment intent for Stripe dashboard reconciliation.
-2. `lib/portal/completeBooking.tsx` (portal) — enriched Stripe refund metadata: `refund_type`, `job_number`, `partner_name`, `fuel_used`, `delivery_fuel`, `collection_fuel`, `fuel_charge`, `fuel_refund`
-3. `app/partner/terms/page.tsx` — full rewrite, version `2026-06a`. Removed all `~1.5% + €0.25` wording. Stripe fee described as variable. Clause 7.3 updated — Stripe fee borne by partner, Camel retains commission in full. Fee summary box updated.
-4. `app/partner/bookings/[id]/page.tsx` — Stripe fee note updated, removed percentage
-5. `app/admin/bookings/[id]/page.tsx` — Stripe fee notes updated, removed percentages
-6. `app/partner/reports/page.tsx` — info note updated, removed percentage
-7. Stable tags: `v-stable-chat32b` on both repos
+### Chat 32 (Completed)
 **Min age 21, young driver warning, mileage/deposit on bids, document checklist, completion email fix, terms updated**
-
-1. `app/page.tsx` (customer) — min age 18→21, young driver warning for 21–24, document checklist removed from homepage entirely
-2. `app/api/test-booking/requests/route.ts` — server-side validation 18→21
-3. `app/bookings/[id]/page.tsx` — young driver warning, document checklist on confirmed booking only, bid cards show mileage/deposit disclosure boxes
-4. `app/partner/requests/[id]/page.tsx` (portal) — mileage limit + security deposit text fields on bid form; security deposit hidden when full insurance included; young driver alert for partner
-5. `app/api/partner/bids/route.ts` — saves mileage_limit + security_deposit_notes to DB
-6. `app/api/partner/requests/[id]/route.ts` — selects mileage_limit + security_deposit_notes from partner_bids
-7. `app/api/test-booking/requests/[id]/route.ts` (customer) — returns mileage_limit + security_deposit_notes on bids and passes through to confirmed booking
-8. `lib/portal/generateBookingReceiptPDF.tsx` — adds "What to bring" checklist section, mileage/deposit sections, passes fields from webhook
-9. `app/api/webhooks/stripe/route.ts` (customer) — passes mileage_limit + security_deposit_notes to receipt PDF
-10. `app/api/test-booking/bookings/[id]/update/route.ts` — removed duplicate basic completion email (was sending before completeBooking.tsx ran)
-11. `app/terms/page.tsx` (customer) — section 5 young driver in bid, section 6 credit card only if deposit required
-12. `app/partner/terms/page.tsx` — clauses 6.7/6.8 partner responsible for collecting mileage/deposit directly
-13. `lib/portal/operatingRules.ts` — section 3b added: mileage limits and security deposits
-14. DB migration: `partner_bids` — `mileage_limit text`, `security_deposit_notes text`
-15. Stable tags: `v-stable-chat32` on both repos
 
 ### Chat 31 (Completed)
 **Driver age, sport equipment, completion statement PDF, completion email**
@@ -418,4 +472,4 @@ git checkout v-tag-name
 
 ---
 
-*Last updated: Chat 32b — Stripe switched to application_fee_amount (Camel gets exact commission, Stripe fee borne by partner, fuel refunds from partner balance), rich Stripe metadata for reconciliation, partner terms Stripe fee wording corrected across all files (no percentages quoted), version 2026-06a.*
+*Last updated: Chat 36 — Single currency model implemented (customer always pays in partner bid currency). CurrencySelector removed. Completion statement currency bug fixed. Homepage Book Now layout improved. Stable tags v-stable-chat36-pre on both repos.*

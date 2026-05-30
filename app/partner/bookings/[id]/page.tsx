@@ -157,12 +157,10 @@ function sportEquipmentLabel(v: string|null): string {
   return map[v]||v;
 }
 
-// Effective fuel = partner override if set, else driver reading
 function effectiveFuel(driverFuel: unknown, partnerFuel: unknown): string|null {
   return normalizeFuel(partnerFuel) || normalizeFuel(driverFuel);
 }
 
-// Lock = effective fuel exists AND customer confirmed AND customer fuel matches effective
 function isLocked(opts: {
   driverFuel: string|null;
   partnerFuel: string|null|undefined;
@@ -184,57 +182,71 @@ function Field({ label, children }: { label:string; children:React.ReactNode }) 
   );
 }
 
-function PaymentFeesCard({ payment, bidCurrency, booking, rates }: { payment: PaymentData; bidCurrency: Currency; booking: BookingRow; rates: Rates }) {
+function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentData; bidCurrency: Currency; booking: BookingRow }) {
   if (!payment) return null;
   const fmtB = (n: number) => fmtCurr(n, bidCurrency);
-  const feeCurr     = payment.stripe_fee_currency ?? null;
-  const hasCurrConv = false;
-  const chargeCurr = bidCurrency;
-  const fmtC        = (n: number) => fmtCurr(n, chargeCurr);
-  const feeInBid = (() => {
-    if (!payment.stripe_fee || payment.stripe_fee <= 0) return 0;
-    if (!hasCurrConv) return payment.stripe_fee;
-    const rate = payment.exchange_rate || booking.conversion_rate;
-    if (rate && rate > 0) return payment.stripe_fee / rate;
-    return payment.stripe_fee;
-  })();
+
   const hire       = Number(booking.car_hire_price ?? 0);
   const rate       = booking.commission_rate ?? 20;
   const commAmt    = Math.max((hire * rate) / 100, 10);
+  const fuelDeposit = Number(booking.fuel_price ?? 0);
   const fuelCharge = Number(booking.fuel_charge ?? 0);
-  const netPayout  = Math.max(0, hire - commAmt + fuelCharge - feeInBid);
+  // Net payout = car hire − commission + any fuel charge retained
+  // Stripe fee is borne by Camel (via application_fee_amount model) — NOT deducted from partner
+  const netPayout  = Math.max(0, hire - commAmt + fuelCharge);
+
   return (
     <div className="border border-black/10 bg-[#f8f8f8] p-6">
       <h2 className="text-base font-black text-black mb-1">Payment & Fee Breakdown</h2>
       <p className="text-xs font-bold text-black/40 mb-4">
-        All amounts shown in your bid currency ({bidCurrency}).
-        {hasCurrConv && <span className="ml-1 text-amber-700">Customer paid in {feeCurr} — Stripe applied currency conversion.</span>}
+        All amounts shown in your bid currency ({bidCurrency}). Customer always pays in bid currency — no conversion fee applies.
       </p>
       <div className="space-y-2">
-        <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Car hire</span><span className="font-black text-black">{fmtB(hire)}</span></div>
-        <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Fuel deposit</span><span className="font-black text-black">{fmtB(Number(booking.fuel_price ?? 0))}</span></div>
-        <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Commission ({rate}%)</span><span className="font-black text-amber-700">− {fmtB(commAmt)}</span></div>
-        {fuelCharge > 0 && <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">Fuel charge</span><span className="font-black text-[#ff7a00]">+ {fmtB(fuelCharge)}</span></div>}
-        <div className="flex justify-between text-sm border-t border-black/10 pt-2">
-          <span className="font-semibold text-black/60">Stripe fees (processing{hasCurrConv ? " + currency conversion" : ""})<span className="ml-1 text-xs text-black/30">incl. in fee below</span></span>
-          <span className="font-black text-amber-700">− {fmtB(feeInBid)}</span>
+        <div className="flex justify-between text-sm">
+          <span className="font-semibold text-black/60">Car hire</span>
+          <span className="font-black text-black">{fmtB(hire)}</span>
         </div>
+        <div className="flex justify-between text-sm">
+          <span className="font-semibold text-black/60">Fuel deposit</span>
+          <span className="font-black text-black">{fmtB(fuelDeposit)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="font-semibold text-black/60">Commission ({rate}%)</span>
+          <span className="font-black text-amber-700">− {fmtB(commAmt)}</span>
+        </div>
+        {fuelCharge > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="font-semibold text-black/60">Fuel charge (retained from deposit)</span>
+            <span className="font-black text-[#ff7a00]">+ {fmtB(fuelCharge)}</span>
+          </div>
+        )}
         {payment.fuel_refund_amount != null && payment.fuel_refund_amount > 0 && (
           <div className="flex justify-between text-sm">
-            <span className="font-semibold text-black/60">Fuel refund to customer{payment.fuel_refund_stripe_id && <span className="ml-1 text-xs text-black/30">({payment.fuel_refund_stripe_id})</span>}</span>
-            <span className="font-black text-green-700">− {fmtC(payment.fuel_refund_amount)}</span>
+            <span className="font-semibold text-black/60">
+              Fuel refund to customer
+              {payment.fuel_refund_stripe_id && <span className="ml-1 text-xs text-black/30">({payment.fuel_refund_stripe_id})</span>}
+            </span>
+            <span className="font-black text-green-700">− {fmtB(payment.fuel_refund_amount)}</span>
           </div>
         )}
         {payment.cancellation_refund_amount != null && payment.cancellation_refund_amount > 0 && (
           <div className="flex justify-between text-sm">
-            <span className="font-semibold text-black/60">Cancellation refund to customer{payment.cancellation_refund_stripe_id && <span className="ml-1 text-xs text-black/30">({payment.cancellation_refund_stripe_id})</span>}</span>
-            <span className="font-black text-red-600">− {fmtC(payment.cancellation_refund_amount)}</span>
+            <span className="font-semibold text-black/60">
+              Cancellation refund to customer
+              {payment.cancellation_refund_stripe_id && <span className="ml-1 text-xs text-black/30">({payment.cancellation_refund_stripe_id})</span>}
+            </span>
+            <span className="font-black text-red-600">− {fmtB(payment.cancellation_refund_amount)}</span>
           </div>
         )}
-        <div className="flex justify-between text-sm font-black border-t border-black pt-2 mt-2"><span className="text-black">Your net payout</span><span className="text-green-700">{fmtB(netPayout)}</span></div>
+        <div className="flex justify-between text-sm font-black border-t border-black pt-2 mt-2">
+          <span className="text-black">Your net payout</span>
+          <span className="text-green-700">{fmtB(netPayout)}</span>
+        </div>
       </div>
-      {hasCurrConv && <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">⚠ Customer paid in {feeCurr}. Stripe applied a currency conversion ({feeCurr} → {bidCurrency}). The Stripe fee includes both the processing fee and the currency conversion fee. See your <a href="/partner/terms" className="underline">partner terms</a> for details.</div>}
-      {!hasCurrConv && <p className="mt-3 text-xs font-bold text-black/40">The Stripe processing fee varies by card type, issuing country and currency. See your <a href="/partner/terms" className="underline">partner terms</a> for full fee disclosure.</p>}
+      <p className="mt-3 text-xs font-bold text-black/40">
+        Stripe processing fees are covered by Camel Global and are not deducted from your payout. See your{" "}
+        <a href="/partner/terms" className="underline">partner terms</a> for full details.
+      </p>
     </div>
   );
 }
@@ -389,7 +401,6 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
   const hasOverride       = !!savedPartnerFuel && savedPartnerFuel !== driverFuel;
   const effective         = effectiveFuel(driverFuel, savedPartnerFuel);
 
-  // Colours — locked = dark theme, unlocked = white/light theme throughout
   const cardBg     = locked ? "border-[#1a1a1a] bg-[#1a1a1a]"  : "border-black/5 bg-white";
   const titleCol   = locked ? "text-white"                       : "text-black";
   const labelCol   = locked ? "text-white/40"                    : "text-black/40";
@@ -406,7 +417,6 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
         <h3 className={`text-base font-black ${titleCol}`}>{title}</h3>
         {locked&&<span className="border border-[#ff7a00] px-3 py-1 text-xs font-black text-[#ff7a00]">✓ Locked</span>}
       </div>
-      {/* Driver recorded / office override row */}
       <div className={`border p-4 mb-3 ${rowBgFill((driverConfirmed&&!!driverFuel)||!!savedPartnerFuel)}`}>
         <p className={`text-xs font-black uppercase tracking-widest ${labelCol}`}>
           {savedPartnerFuel ? "Office override" : "Driver recorded"}
@@ -417,7 +427,6 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
             ? <><p className={`mt-1 text-lg font-black ${valueCol}`}>{fuelLabel(driverFuel)}</p><FuelBar level={driverFuel}/><p className={`mt-1 text-xs ${labelCol}`}>{fmt(driverAt)}</p></>
             : <p className={`mt-1 text-sm font-bold italic ${italicCol}`}>Driver has not yet recorded fuel level</p>}
       </div>
-      {/* Customer confirmed row */}
       <div className={`border p-4 mb-3 ${rowBgFill(customerConfirmed)}`}>
         <p className={`text-xs font-black uppercase tracking-widest ${labelCol}`}>Customer confirmed</p>
         {customerConfirmed
@@ -580,7 +589,6 @@ export default function PartnerBookingDetailPage() {
   const stored: Currency = (bk.currency==="EUR"||bk.currency==="GBP"||bk.currency==="USD")?bk.currency:"EUR";
   const { symbol, label: currLabel } = CURRENCY_META[stored];
 
-  // Lock uses effective fuel (partner override || driver) vs customer confirmed fuel
   const collectionLocked = isLocked({
     driverFuel:        normalizeFuel(bk.collection_fuel_level_driver),
     partnerFuel:       bk.collection_fuel_level_partner,
@@ -654,11 +662,6 @@ export default function PartnerBookingDetailPage() {
             </Field>
             <Field label="Original Payout (excl. fuel)"><span className="font-black text-black">{fmtCurr(partnerPayout,stored)}</span></Field>
             <Field label="Fuel Deposit"><Amt amount={bk.fuel_price} stored={stored} rates={rates}/></Field>
-            {bk.charge_currency && bk.charge_currency.toUpperCase() !== stored.toUpperCase() ? (
-              <Field label="Customer Paid In"><span className="text-amber-700">{bk.charge_currency}</span><span className="ml-2 text-xs font-bold text-black/40">— Stripe conversion fee applies</span></Field>
-            ) : (
-              <Field label="Customer Paid In"><span className="text-black/60">{stored} — same as bid currency, no conversion fee</span></Field>
-            )}
             <Field label="Created">{fmt(bk.created_at)}</Field>
             <Field label="Notes">{bk.notes||"—"}</Field>
             <div className={`mt-2 inline-flex items-center gap-2 border px-3 py-1.5 text-xs font-black ${rateIsLive?"border-black/20 bg-black text-white":"border-black/10 bg-[#f0f0f0] text-black/60"}`}>
@@ -693,7 +696,7 @@ export default function PartnerBookingDetailPage() {
         </div>
       </div>
 
-      <PaymentFeesCard payment={data.payment} bidCurrency={stored} booking={bk} rates={rates} />
+      <PaymentFeesCard payment={data.payment} bidCurrency={stored} booking={bk} />
 
       {!isCancelled&&(
         <div className="border border-black/5 bg-white p-6">
