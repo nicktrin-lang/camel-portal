@@ -46,12 +46,26 @@ function fuelLabel(v: string|null): string {
   }
 }
 
+function fmtDuration(minutes: number | null | undefined): string {
+  if (!minutes) return "—";
+  if (minutes >= 1440) {
+    const days = Math.ceil(minutes / 1440);
+    return `${days} day${days === 1 ? "" : "s"}`;
+  }
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
 interface StatementData {
   jobNumber:        number|null;
   bookingId:        string;
   customerName:     string|null;
   pickupAddress:    string|null;
+  dropoffAddress:   string|null;
   pickupAt:         string|null;
+  dropoffAt:        string|null;
+  durationMinutes:  number|null;
   vehicleCategory:  string|null;
   companyName:      string|null;
   currency:         string;
@@ -103,8 +117,21 @@ function StatementDocument({ d }: { d: StatementData }) {
             <View style={ps.row}><Text style={ps.rowLabel}>Status</Text><Text style={ps.rowValue}>Completed</Text></View>
             <View style={ps.row}><Text style={ps.rowLabel}>Car hire company</Text><Text style={ps.rowValue}>{d.companyName||"—"}</Text></View>
             <View style={ps.row}><Text style={ps.rowLabel}>Pickup address</Text><Text style={ps.rowValue}>{d.pickupAddress||"—"}</Text></View>
-            {d.pickupAt && <View style={ps.row}><Text style={ps.rowLabel}>Pickup time</Text><Text style={ps.rowValue}>{new Date(d.pickupAt).toLocaleString("en-GB")}</Text></View>}
-            {d.vehicleCategory && <View style={ps.row}><Text style={ps.rowLabel}>Vehicle</Text><Text style={ps.rowValue}>{d.vehicleCategory}</Text></View>}
+            {d.dropoffAddress
+              ? <View style={ps.row}><Text style={ps.rowLabel}>Drop-off address</Text><Text style={ps.rowValue}>{d.dropoffAddress}</Text></View>
+              : null}
+            {d.pickupAt
+              ? <View style={ps.row}><Text style={ps.rowLabel}>Pickup time</Text><Text style={ps.rowValue}>{new Date(d.pickupAt).toLocaleString("en-GB")}</Text></View>
+              : null}
+            {d.dropoffAt
+              ? <View style={ps.row}><Text style={ps.rowLabel}>Drop-off time</Text><Text style={ps.rowValue}>{new Date(d.dropoffAt).toLocaleString("en-GB")}</Text></View>
+              : null}
+            {d.durationMinutes
+              ? <View style={ps.row}><Text style={ps.rowLabel}>Duration</Text><Text style={ps.rowValue}>{fmtDuration(d.durationMinutes)}</Text></View>
+              : null}
+            {d.vehicleCategory
+              ? <View style={ps.row}><Text style={ps.rowLabel}>Vehicle</Text><Text style={ps.rowValue}>{d.vehicleCategory}</Text></View>
+              : null}
             <View style={ps.row}><Text style={ps.rowLabel}>Settlement currency</Text><Text style={ps.rowValue}>{cur}</Text></View>
           </View>
 
@@ -297,10 +324,10 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (pmtUpdateErr) return { ok: false, error: pmtUpdateErr.message, status: 500 };
 
-  // ── Load request for emails ───────────────────────────────────────────────
+  // ── Load request for emails + PDF — now includes dropoff_at and duration ──
   const { data: request } = await db
     .from("customer_requests")
-    .select("customer_name, customer_email, pickup_address, pickup_at, vehicle_category_name")
+    .select("customer_name, customer_email, pickup_address, dropoff_address, pickup_at, dropoff_at, journey_duration_minutes, vehicle_category_name")
     .eq("id", booking.request_id)
     .maybeSingle();
 
@@ -330,7 +357,10 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
       bookingId,
       customerName:    request?.customer_name || null,
       pickupAddress:   request?.pickup_address || null,
+      dropoffAddress:  request?.dropoff_address || null,
       pickupAt:        request?.pickup_at || null,
+      dropoffAt:       request?.dropoff_at || null,
+      durationMinutes: request?.journey_duration_minutes || null,
       vehicleCategory: request?.vehicle_category_name || null,
       companyName,
       currency,
