@@ -29,7 +29,7 @@ type BookingRow = {
   commission_rate: number | null; commission_amount: number | null; partner_payout_amount: number | null;
   currency: Currency; charge_currency: string | null; conversion_rate: number | null;
   cancelled_by: string | null; cancelled_at: string | null;
-  cancellation_reason: string | null; refund_status: string | null;
+  cancellation_reason: string | null; refund_status: string | null | undefined;
   collection_confirmed_by_driver?: boolean | null; collection_confirmed_by_driver_at?: string | null;
   collection_fuel_level_driver?: string | null;
   return_confirmed_by_driver?: boolean | null; return_confirmed_by_driver_at?: string | null;
@@ -242,7 +242,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentDa
           <span className="text-black">Your net payout</span>
           <span className={netPayout > 0 ? "text-green-700" : "text-black/40"}>{fmtB(netPayout)}</span>
         </div>
-        {isCancelled && isFullRefund && (
+        {(isCancelled && isFullRefund) && (
           <p className="text-xs font-bold text-red-600 mt-2">Full refund issued to customer — no payout due for this booking.</p>
         )}
       </div>
