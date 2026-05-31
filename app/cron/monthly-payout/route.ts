@@ -43,7 +43,7 @@ export async function GET(req: Request) {
       car_hire_price, fuel_charge, commission_rate,
       currency, charge_currency, conversion_rate,
       payout_status, payment_id,
-      pickup_at, booking_status, refund_status, cancellation_reason
+      created_at, booking_status, refund_status, cancellation_reason
     `)
     .eq("payout_status", "ready");
 
@@ -208,7 +208,7 @@ export async function GET(req: Request) {
     const invoiceBookings = partnerBookings.map(b => ({
       id:                  b.id,
       job_number:          b.job_number,
-      pickup_at:           b.pickup_at,
+      created_at:          b.created_at,
       car_hire_price:      b.car_hire_price,
       commission_rate:     b.commission_rate,
       currency:            b.currency,
