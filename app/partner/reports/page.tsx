@@ -128,7 +128,6 @@ function CommissionInvoices() {
   const [genSuccess,    setGenSuccess]    = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date();
-    d.setMonth(d.getMonth() - 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
@@ -169,7 +168,7 @@ function CommissionInvoices() {
   const monthOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [];
     const now = new Date();
-    for (let i = 1; i <= 24; i++) {
+    for (let i = 0; i <= 24; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       opts.push({ value: val, label: d.toLocaleDateString("en-GB", { month: "long", year: "numeric" }) });
