@@ -7,6 +7,7 @@ import path from "path";
 export type InvoiceBooking = {
   id: string;
   job_number: string | null;
+  pickup_at: string | null;
   car_hire_price: number | null;
   commission_rate: number | null;
   currency: string | null;
@@ -62,7 +63,6 @@ async function nextInvoiceNumber(db: any, periodMonth: string): Promise<string> 
   const prefix = `NTUK-${year}-${mon}-`;
   const { data, error } = await db.rpc("nextval_commission_invoice");
   if (error || data == null) {
-    // Fallback: timestamp-based to avoid collision
     return `${prefix}${Date.now().toString().slice(-6)}`;
   }
   return `${prefix}${String(data).padStart(3, "0")}`;
@@ -142,8 +142,8 @@ async function buildPdf(params: {
     orangeBar:       { height: 4, backgroundColor: "#ff7a00", marginBottom: 24 },
   });
 
-  // Column widths — no pickup date column
-  const COL = { job: 70, desc: 215, rate: 50, hire: 80, comm: 85 };
+  // Column widths — includes date column
+  const COL = { job: 55, date: 60, desc: 160, rate: 40, hire: 70, comm: 75 };
 
   const doc = (
     <Document>
@@ -194,13 +194,14 @@ async function buildPdf(params: {
         {/* Table header */}
         <View style={styles.tableHeader}>
           <Text style={{ ...styles.tableHeaderCell, width: COL.job }}>Job #</Text>
+          <Text style={{ ...styles.tableHeaderCell, width: COL.date }}>Date</Text>
           <Text style={{ ...styles.tableHeaderCell, width: COL.desc }}>Description</Text>
           <Text style={{ ...styles.tableHeaderCell, width: COL.rate, textAlign: "right" }}>Rate</Text>
           <Text style={{ ...styles.tableHeaderCell, width: COL.hire, textAlign: "right" }}>Car Hire</Text>
           <Text style={{ ...styles.tableHeaderCell, width: COL.comm, textAlign: "right" }}>Commission</Text>
         </View>
 
-        {/* Table rows */}
+        {/* Table rows — all bookings shown, including zero-commission cancelled */}
         {bookings.map((b, i) => {
           const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
           const fullRefund  = isCancelled && b.refund_status === "full";
@@ -209,17 +210,21 @@ async function buildPdf(params: {
           const comm        = fullRefund ? 0 : calcCommission(hire, rate);
           const curr        = b.currency || currency;
           const desc        = fullRefund
-            ? `Booking cancelled — full refund (${b.cancellation_reason || "no reason given"})`
+            ? `Cancelled — full refund${b.cancellation_reason ? ` (${b.cancellation_reason})` : ""}`
             : isCancelled
-            ? "Booking cancelled — commission retained"
+            ? "Cancelled — commission retained"
             : "Car hire commission";
+          const isZero = fullRefund;
           return (
             <View key={b.id} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
               <Text style={{ ...styles.tableCell, width: COL.job }}>{b.job_number || b.id.slice(0, 8)}</Text>
-              <Text style={{ ...styles.tableCell, width: COL.desc, color: fullRefund ? "#aaa" : "#444" }}>{desc}</Text>
-              <Text style={{ ...styles.tableCell, width: COL.rate, textAlign: "right" }}>{fullRefund ? "—" : `${rate}%`}</Text>
-              <Text style={{ ...styles.tableCell, width: COL.hire, textAlign: "right", color: fullRefund ? "#aaa" : "#444" }}>{fmtCurr(hire, curr)}</Text>
-              <Text style={{ ...styles.tableCell, width: COL.comm, textAlign: "right", color: fullRefund ? "#aaa" : "#000", fontFamily: fullRefund ? "Helvetica" : "Helvetica-Bold" }}>{fmtCurr(comm, curr)}</Text>
+              <Text style={{ ...styles.tableCell, width: COL.date, color: isZero ? "#aaa" : "#444" }}>{fmtDate(b.pickup_at)}</Text>
+              <Text style={{ ...styles.tableCell, width: COL.desc, color: isZero ? "#aaa" : "#444" }}>{desc}</Text>
+              <Text style={{ ...styles.tableCell, width: COL.rate, textAlign: "right", color: isZero ? "#aaa" : "#444" }}>{isZero ? "—" : `${rate}%`}</Text>
+              <Text style={{ ...styles.tableCell, width: COL.hire, textAlign: "right", color: isZero ? "#aaa" : "#444" }}>{isZero ? "—" : fmtCurr(hire, curr)}</Text>
+              <Text style={{ ...styles.tableCell, width: COL.comm, textAlign: "right", color: isZero ? "#aaa" : "#000", fontFamily: isZero ? "Helvetica" : "Helvetica-Bold" }}>
+                {isZero ? "£0.00 (nil)" : fmtCurr(comm, curr)}
+              </Text>
             </View>
           );
         })}
@@ -296,7 +301,7 @@ export async function generateCommissionInvoice(
 
     const currency = profile.default_currency || "EUR";
 
-    // ── Calculate total commission ─────────────────────────────────────────
+    // ── Calculate total commission (full-refund cancelled = zero) ──────────
     let totalCommission = 0;
     for (const b of bookings) {
       const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
