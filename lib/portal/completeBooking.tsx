@@ -14,8 +14,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 async function fetchCustomerRequest(requestId: string) {
-  const url = process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!;
-  const key = process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   try {
     const res = await fetch(
       `${url}/rest/v1/customer_requests?id=eq.${requestId}&select=customer_name,customer_email,pickup_address,dropoff_address,pickup_at,dropoff_at,journey_duration_minutes,vehicle_category_name`,
