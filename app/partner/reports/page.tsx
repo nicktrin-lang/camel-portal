@@ -25,12 +25,33 @@ type BookingRow = {
   payout_status: string | null;
 };
 
+type InvoiceRow = {
+  id: string;
+  invoice_number: string;
+  period_month: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  currency: string;
+  total_commission: number;
+  booking_count: number;
+  generated_at: string | null;
+  emailed_at: string | null;
+  download_url: string | null;
+};
+
 function fmtCurr(amount: number, currency: string): string {
   const locale = currency === "GBP" ? "en-GB" : currency === "USD" ? "en-US" : "es-ES";
   return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
 }
 function fmtDate(v?: string | null) { if (!v) return "—"; try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; } }
 function fmtDateTime(v?: string | null) { if (!v) return "—"; try { return new Date(v).toLocaleString("en-GB"); } catch { return v; } }
+function fmtMonth(v?: string | null) {
+  if (!v) return "—";
+  try {
+    const [y, m] = v.split("-");
+    return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  } catch { return v; }
+}
 function matchesDateRange(value: string | null | undefined, from: string, to: string) {
   if (!value) return false;
   const d = new Date(value);
@@ -40,7 +61,6 @@ function matchesDateRange(value: string | null | undefined, from: string, to: st
   return true;
 }
 
-// Partner payout: car hire − commission + fuel charge — Stripe fee is Camel's cost, not deducted from partner
 function calcPayout(b: BookingRow): { hire: number; rate: number; commAmt: number; partnerPayout: number; fuelRefund: number } {
   const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
   const fuel = Number(b.fuel_price ?? 0);
@@ -99,6 +119,149 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+// ── Commission Invoices section ───────────────────────────────────────────────
+function CommissionInvoices() {
+  const [invoices,      setInvoices]      = useState<InvoiceRow[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [generating,    setGenerating]    = useState(false);
+  const [genError,      setGenError]      = useState<string | null>(null);
+  const [genSuccess,    setGenSuccess]    = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  async function loadInvoices() {
+    setLoading(true);
+    try {
+      const res  = await fetch("/api/partner/invoices", { cache: "no-store", credentials: "include" });
+      const json = await res.json().catch(() => null);
+      setInvoices(Array.isArray(json?.data) ? json.data : []);
+    } catch {}
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadInvoices(); }, []);
+
+  async function generate() {
+    setGenerating(true); setGenError(null); setGenSuccess(null);
+    try {
+      const res  = await fetch("/api/partner/invoices/generate", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ period_month: selectedMonth }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Failed to generate invoice");
+      setGenSuccess(json.already_exists
+        ? `Invoice ${json.invoice_number} already exists for this period.`
+        : `Invoice ${json.invoice_number} generated successfully.`
+      );
+      if (json.download_url) window.open(json.download_url, "_blank");
+      await loadInvoices();
+    } catch (e: any) {
+      setGenError(e?.message || "Failed to generate invoice");
+    } finally { setGenerating(false); }
+  }
+
+  // Build list of available months (last 24 months)
+  const monthOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    const now = new Date();
+    for (let i = 1; i <= 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      opts.push({ value: val, label: d.toLocaleDateString("en-GB", { month: "long", year: "numeric" }) });
+    }
+    return opts;
+  }, []);
+
+  return (
+    <div className="border border-black/10 bg-white p-6 md:p-8">
+      <h2 className="text-xl font-black text-black mb-1">Commission Invoices</h2>
+      <p className="text-sm text-black/50 mb-6">Monthly commission invoices are generated automatically on the 1st of each month and emailed to you. You can also generate or re-download any past invoice here.</p>
+
+      {/* Manual generator */}
+      <div className="border border-black/10 bg-[#f0f0f0] p-5 mb-6">
+        <p className="text-xs font-black uppercase tracking-widest text-black mb-3">Generate / Download Invoice</p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-xs font-black uppercase tracking-widest text-black/60 mb-1 block">Period</label>
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+              className="border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black"
+            >
+              {monthOptions.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={generate}
+            disabled={generating}
+            className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {generating ? "Generating…" : "⬇ Generate & Download"}
+          </button>
+        </div>
+        {genError   && <p className="mt-3 text-sm font-bold text-red-600">{genError}</p>}
+        {genSuccess  && <p className="mt-3 text-sm font-bold text-green-700">✓ {genSuccess}</p>}
+        <p className="mt-3 text-xs font-bold text-black/40">If an invoice already exists for the selected period it will be downloaded immediately. Otherwise a new one will be generated from your completed bookings.</p>
+      </div>
+
+      {/* Invoice list */}
+      {loading ? (
+        <p className="text-sm font-bold text-black/50">Loading invoices…</p>
+      ) : invoices.length === 0 ? (
+        <div className="border border-black/10 bg-[#f0f0f0] px-5 py-8 text-center">
+          <p className="text-sm font-bold text-black/40">No commission invoices yet.</p>
+          <p className="text-xs font-bold text-black/30 mt-1">Invoices are generated automatically on the 1st of each month, or you can generate one above.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto border border-black/10">
+          <table className="min-w-full text-sm">
+            <thead className="bg-black text-white">
+              <tr>
+                {["Invoice Number", "Period", "Bookings", "Total Commission", "Issued", "Emailed", "Download"].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {invoices.map((inv, i) => (
+                <tr key={inv.id} className={i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"}>
+                  <td className="px-4 py-3 font-black text-black whitespace-nowrap">{inv.invoice_number}</td>
+                  <td className="px-4 py-3 text-black/70 whitespace-nowrap">{fmtMonth(inv.period_month || inv.period_start)}</td>
+                  <td className="px-4 py-3 text-black/70">{inv.booking_count}</td>
+                  <td className="px-4 py-3 font-black text-black">{fmtCurr(inv.total_commission, inv.currency)}</td>
+                  <td className="px-4 py-3 text-black/60 whitespace-nowrap">{fmtDate(inv.generated_at)}</td>
+                  <td className="px-4 py-3">
+                    {inv.emailed_at
+                      ? <span className="text-xs font-black text-green-700">✓ {fmtDate(inv.emailed_at)}</span>
+                      : <span className="text-xs font-bold text-black/30">Not sent</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {inv.download_url
+                      ? <a href={inv.download_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex border border-black/20 bg-[#f0f0f0] px-3 py-1.5 text-xs font-black text-black hover:bg-black hover:text-white transition-colors">
+                          ⬇ PDF
+                        </a>
+                      : <span className="text-xs font-bold text-black/30">Unavailable</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function PartnerReportsPage() {
   const router = useRouter();
   const [loading,  setLoading]  = useState(true);
@@ -130,7 +293,6 @@ export default function PartnerReportsPage() {
     return [...rows].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
   }, [bookings, dateFrom, dateTo, statusFilter]);
 
-  // Totals per currency
   const totals = useMemo(() => {
     const t: Record<string, { carHire: number; commission: number; payout: number; fuelCharge: number; fuelRefund: number; count: number; completed: number; cancelled: number }> = {};
     for (const b of filtered) {
@@ -192,6 +354,7 @@ export default function PartnerReportsPage() {
     <div className="space-y-6">
       {error && <div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
 
+      {/* Filters */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h1 className="text-2xl font-black text-black mb-1">Report Management</h1>
         <p className="text-sm text-black/50 mb-5">Your booking history, revenue and payout summary.</p>
@@ -234,13 +397,13 @@ export default function PartnerReportsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
               {[
-                { label: "Bookings",       value: t.count,      isMoney: false },
-                { label: "Completed",      value: t.completed,  isMoney: false },
-                { label: "Cancelled",      value: t.cancelled,  isMoney: false },
-                { label: "Car Hire",       value: t.carHire,    isMoney: true  },
-                { label: "Commission",     value: t.commission,  isMoney: true  },
-                { label: "Your Payout",    value: t.payout,     isMoney: true  },
-                { label: "Fuel Refunded",  value: t.fuelRefund, isMoney: true  },
+                { label: "Bookings",      value: t.count,      isMoney: false },
+                { label: "Completed",     value: t.completed,  isMoney: false },
+                { label: "Cancelled",     value: t.cancelled,  isMoney: false },
+                { label: "Car Hire",      value: t.carHire,    isMoney: true  },
+                { label: "Commission",    value: t.commission, isMoney: true  },
+                { label: "Your Payout",   value: t.payout,     isMoney: true  },
+                { label: "Fuel Refunded", value: t.fuelRefund, isMoney: true  },
               ].map(({ label, value, isMoney }) => (
                 <div key={label} className={`border p-4 ${label === "Cancelled" && (value as number) > 0 ? "border-red-200 bg-red-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                   <p className="text-xs font-black uppercase tracking-widest text-black/50">{label}</p>
@@ -253,6 +416,9 @@ export default function PartnerReportsPage() {
           </div>
         );
       })}
+
+      {/* Commission Invoices */}
+      <CommissionInvoices />
 
       {/* Bookings table */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
@@ -308,9 +474,9 @@ export default function PartnerReportsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${
-                        b.payout_status === "paid" ? "border-green-200 bg-green-50 text-green-700" :
+                        b.payout_status === "paid"  ? "border-green-200 bg-green-50 text-green-700" :
                         b.payout_status === "ready" ? "border-blue-200 bg-blue-50 text-blue-700" :
-                        b.payout_status === "held" ? "border-amber-200 bg-amber-50 text-amber-700" :
+                        b.payout_status === "held"  ? "border-amber-200 bg-amber-50 text-amber-700" :
                         "border-black/10 bg-[#f0f0f0] text-black/50"
                       }`}>{b.payout_status || "—"}</span>
                     </td>
