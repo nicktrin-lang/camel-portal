@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-const VERSION = "2026-06a";
+const VERSION = "2026-06b";
 const EFFECTIVE_DATE = "1 June 2026";
 
 type Section = { title: string; clauses: string[] };
@@ -22,9 +22,8 @@ const TERMS: Section[] = [
       '"Fuel Charge" means the amount charged to a Customer for fuel consumed during a Booking, calculated in accordance with the Partner Operating Rules.',
       '"Partner Operating Rules" means the operational standards and conduct requirements published in the Partner account management section, as updated from time to time.',
       '"Services" means the marketplace facilitation, booking management, payment processing, and related services provided by Camel Global via the Platform.',
-      '"Stripe Processing Fee" means the payment processing fee charged by Stripe on each transaction. The rate varies depending on the payment method, the Customer\'s card type and issuing country, and whether a currency conversion is involved. The exact fee applied to each Booking is visible on your booking detail page and in your reports.',
-      '"Bid Currency" means the currency in which the Partner submits their bid, which is the Partner\'s registered billing currency.',
-      '"Charge Currency" means the currency in which the Customer\'s payment card is charged, which is determined by the Customer\'s currency preference at the time of booking.',
+      '"Stripe Processing Fee" means the payment processing fee charged by Stripe on each transaction. The rate varies depending on the payment method, the Customer\'s card type and issuing country. The exact fee applied to each Booking is visible on your booking detail page and in your reports. The Stripe Processing Fee is absorbed by Camel Global and is not deducted from the Partner\'s payout.',
+      '"Bid Currency" means the currency in which the Partner submits their bid, which is the Partner\'s registered billing currency set during Stripe onboarding.',
     ],
   },
   {
@@ -92,9 +91,9 @@ const TERMS: Section[] = [
     clauses: [
       "Camel Global charges a commission on the Hire Price of each completed Booking. The standard commission rate is 20% of the Hire Price, subject to a minimum commission of €10 (or currency equivalent) per Booking. Commission rates may be reduced for individual Partners by agreement with Camel Global — the rate applicable to your account is shown on your bid submission page and in your account.",
       "Fuel Charges are passed through to the Partner in full. Camel Global does not charge commission on Fuel Charges.",
-      "The Partner's payout for each Booking is calculated as: (Hire Price minus Commission minus Stripe Processing Fee) plus Fuel Charge.",
-      "Payments will be processed via Stripe Connect. The Partner must complete Stripe Express onboarding to receive payouts.",
-      "Camel Global retains its commission in full from each Booking. The Stripe Processing Fee is borne by the Partner and deducted from the Partner's payout.",
+      "The Partner's payout for each Booking is calculated as: Hire Price minus Commission, plus Fuel Charge. Camel Global absorbs all Stripe Processing Fees — these are not deducted from the Partner's payout.",
+      "Payments will be processed via Stripe Connect. The Partner must complete Stripe Express onboarding to receive payouts. The Partner's billing currency is set at the time of Stripe onboarding and determines the currency in which payouts are received.",
+      "Camel Global retains its commission in full from each Booking. The Stripe Processing Fee is borne entirely by Camel Global and is never deducted from the Partner's payout.",
       "Camel Global will issue commission invoices to Partners on a monthly basis with reverse charge treatment under Article 44/196 of the EU VAT Directive where applicable.",
       "The Partner is solely responsible for accounting for and paying all taxes on income received through the Platform.",
       "In the event of a Customer refund dispute, the financial liability rests with the Partner.",
@@ -102,16 +101,14 @@ const TERMS: Section[] = [
     ],
   },
   {
-    title: "7b. Stripe Processing Fees and Currency Conversion",
+    title: "7b. Stripe Processing Fees and Currency",
     clauses: [
-      "All payments made by Customers through the Platform are processed by Stripe. Stripe charges a processing fee on each transaction. The Stripe Processing Fee varies depending on the Customer's card type, card issuing country, and whether a currency conversion is involved. Simple domestic transactions attract a lower rate; international cards, corporate cards, and cross-currency payments typically attract a higher rate. The exact Stripe fee applied to each Booking is visible on your booking detail page and in your reports.",
-      "The Stripe Processing Fee is deducted from your payout. Your net payout is the Hire Price minus Camel Commission minus the Stripe Processing Fee, plus Fuel Charge. Camel Global retains its commission in full — the Stripe Processing Fee is borne by the Partner, not by Camel Global.",
-      "Customers may choose to pay in a different currency to the currency in which you submitted your bid (for example, a Customer paying in GBP for a bid submitted in EUR). When the Bid Currency and Charge Currency differ, Stripe applies a currency conversion at the time of payment.",
-      "When a currency conversion occurs, Stripe applies their prevailing exchange rate. This conversion is separate from the base Stripe Processing Fee and increases the total fee applied to that transaction. Cross-currency payments therefore typically attract a higher combined fee than same-currency payments.",
-      "The exchange rate and any currency conversion applied to a Booking are recorded and visible on your booking detail page and in your reports and CSV exports. You can use this information to reconcile your income accurately.",
-      "Your monthly payout is always made in your registered billing currency (the currency you selected during onboarding). If the Customer paid in a different currency, any necessary conversion to your billing currency will have been applied by Stripe at the time the payment was processed. No additional conversion is applied at the time of payout.",
-      "The Partner acknowledges that exchange rates fluctuate and that Camel Global has no control over the rates applied by Stripe. Camel Global accepts no liability for any loss arising from currency fluctuations or conversion costs.",
-      "Where a Booking results in a refund (whether for cancellation or fuel), the refund is issued in the currency in which the Customer originally paid (the Charge Currency). Exchange rate movements between the time of payment and the time of refund may mean the refunded amount in the Partner's billing currency differs slightly from the original charge.",
+      "All payments made by Customers through the Platform are processed by Stripe. Stripe charges a processing fee on each transaction. Camel Global absorbs this fee in full — the Stripe Processing Fee is never deducted from the Partner's payout.",
+      "The Partner's net payout is the Hire Price minus Camel Commission, plus Fuel Charge. No Stripe fee is deducted from this amount.",
+      "The Partner's billing currency is set permanently at the time of Stripe Express onboarding. Payouts are always made in the Partner's registered billing currency. This currency cannot be changed after onboarding — Partners who need to change their billing currency must contact Camel Global support.",
+      "Customers always pay in the Partner's bid currency. No currency conversion is applied between the Customer payment and the Partner's Stripe balance.",
+      "The exact Stripe Processing Fee applied to each Booking is visible on your booking detail page and in your reports and CSV exports. This fee is shown for transparency and informational purposes — it represents the cost borne by Camel Global, not a deduction from your payout.",
+      "The Partner acknowledges that Camel Global has no control over the fees set or charged by Stripe. Camel Global reserves the right to review its fee absorption policy in the future with at least 14 days' written notice to Partners.",
     ],
   },
   {
@@ -307,19 +304,19 @@ export default function PartnerTermsPage() {
                 body: "Partner cancellations = full refund to customer. Customer cancels >48hrs = full refund, no payout. Customer cancels <48hrs = you keep hire fee minus commission. Fuel always refunded.",
               },
               {
-                icon: "💳",
-                title: "Stripe processing fee",
-                body: "Stripe charges a variable processing fee on every transaction. The rate depends on the customer's card type, issuing country, and whether a currency conversion applies. The exact fee for each booking is shown on your booking detail page and in your reports. Camel retains its commission in full — the Stripe fee is deducted from your payout.",
+                icon: "✅",
+                title: "No Stripe fees for you",
+                body: "Camel Global absorbs all Stripe processing fees. Your payout is always the full hire price minus commission, plus fuel charge. No hidden deductions.",
               },
               {
-                icon: "🔄",
-                title: "Currency conversion",
-                body: "If a customer pays in a different currency to your bid, Stripe applies a conversion. Cross-currency payments attract a higher combined fee. The rate used is recorded on each booking. Your payout is always in your billing currency.",
+                icon: "💱",
+                title: "Your billing currency",
+                body: "Your payout currency is set when you connect Stripe and cannot be changed. Customers always pay in your bid currency — no currency conversion applies to your payout.",
               },
               {
                 icon: "📊",
                 title: "Full fee transparency",
-                body: "Every booking shows the exact Stripe fee, exchange rate (if applicable), and net payout in your reports and CSV exports so your accounts always reconcile.",
+                body: "Every booking shows the Stripe fee (borne by Camel) and your exact net payout in your reports and CSV exports so your accounts always reconcile.",
               },
             ].map(({ icon, title, body }) => (
               <div key={title} className="bg-[#f0f0f0] p-4">
@@ -332,33 +329,33 @@ export default function PartnerTermsPage() {
         </div>
 
         {/* Fees callout box */}
-        <div className="border border-amber-200 bg-amber-50 p-6">
-          <p className="text-xs font-black uppercase tracking-widest text-amber-800 mb-2">Fee Summary — What affects your payout</p>
-          <div className="space-y-2 text-sm font-bold text-amber-900">
-            <div className="flex justify-between border-b border-amber-200 pb-2">
+        <div className="border border-green-200 bg-green-50 p-6">
+          <p className="text-xs font-black uppercase tracking-widest text-green-800 mb-2">Fee Summary — What you receive per booking</p>
+          <div className="space-y-2 text-sm font-bold text-green-900">
+            <div className="flex justify-between border-b border-green-200 pb-2">
               <span>Hire price (as bid)</span>
               <span>e.g. €100.00</span>
             </div>
-            <div className="flex justify-between text-amber-700">
+            <div className="flex justify-between text-green-700">
               <span>Camel commission (20%, min €10)</span>
               <span>− €20.00</span>
             </div>
-            <div className="flex justify-between text-amber-700">
-              <span>Stripe processing fee (variable — depends on card type, country and currency)</span>
-              <span>variable</span>
+            <div className="flex justify-between text-green-700">
+              <span>Stripe processing fee</span>
+              <span>absorbed by Camel ✓</span>
             </div>
-            <div className="flex justify-between border-t border-amber-300 pt-2 font-black text-amber-900">
+            <div className="flex justify-between border-t border-green-300 pt-2 font-black text-green-900">
               <span>Your net payout (excl. fuel)</span>
-              <span>€80.00 minus Stripe fee</span>
+              <span>€80.00</span>
             </div>
           </div>
-          <p className="mt-3 text-xs font-bold text-amber-700">
-            Fuel charges pass through 100% — no fees or commission apply to fuel. The Stripe processing fee is deducted from your payout and varies by transaction — factors include the customer&apos;s card type, issuing country, and whether a currency conversion applies. Cross-currency payments typically attract a higher fee. The exact fee for every booking is always visible in your portal reports.
+          <p className="mt-3 text-xs font-bold text-green-700">
+            Fuel charges pass through 100% — no fees or commission apply to fuel. Camel Global absorbs all Stripe processing fees so your payout is always predictable. The exact Stripe fee for every booking is visible in your portal reports for transparency.
           </p>
         </div>
 
         {TERMS.map(({ title, clauses }) => (
-          <div key={title} className={`bg-white p-6 ${title === "7b. Stripe Processing Fees and Currency Conversion" ? "border-l-4 border-amber-400" : ""}`}>
+          <div key={title} className={`bg-white p-6 ${title === "7b. Stripe Processing Fees and Currency" ? "border-l-4 border-green-400" : ""}`}>
             <h2 className="text-xs font-black uppercase tracking-widest text-black mb-4 pb-2 border-b border-black/10">{title}</h2>
             <ol className="space-y-3">
               {clauses.map((clause, i) => (
