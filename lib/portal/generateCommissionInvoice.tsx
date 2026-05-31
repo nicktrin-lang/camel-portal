@@ -7,7 +7,7 @@ import path from "path";
 export type InvoiceBooking = {
   id: string;
   job_number: string | null;
-  pickup_at: string | null;
+  created_at: string | null;
   car_hire_price: number | null;
   commission_rate: number | null;
   currency: string | null;
@@ -218,7 +218,7 @@ async function buildPdf(params: {
           return (
             <View key={b.id} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
               <Text style={{ ...styles.tableCell, width: COL.job }}>{b.job_number || b.id.slice(0, 8)}</Text>
-              <Text style={{ ...styles.tableCell, width: COL.date, color: isZero ? "#aaa" : "#444" }}>{fmtDate(b.pickup_at)}</Text>
+              <Text style={{ ...styles.tableCell, width: COL.date, color: isZero ? "#aaa" : "#444" }}>{fmtDate(b.created_at)}</Text>
               <Text style={{ ...styles.tableCell, width: COL.desc, color: isZero ? "#aaa" : "#444" }}>{desc}</Text>
               <Text style={{ ...styles.tableCell, width: COL.rate, textAlign: "right", color: isZero ? "#aaa" : "#444" }}>{isZero ? "—" : `${rate}%`}</Text>
               <Text style={{ ...styles.tableCell, width: COL.hire, textAlign: "right", color: isZero ? "#aaa" : "#444" }}>{isZero ? "—" : fmtCurr(hire, curr)}</Text>

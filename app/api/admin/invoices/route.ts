@@ -75,7 +75,9 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { partner_id, period_month } = body || {};
-    if (!partner_id || !period_month) return NextResponse.json({ error: "partner_id and period_month are required" }, { status: 400 });
+    if (!partner_id || !period_month) {
+      return NextResponse.json({ error: "partner_id and period_month are required" }, { status: 400 });
+    }
 
     const [year, month] = period_month.split("-").map(Number);
     const from = new Date(year, month - 1, 1).toISOString();
@@ -83,14 +85,16 @@ export async function POST(req: Request) {
 
     const { data: bookings, error: bkErr } = await db
       .from("partner_bookings")
-      .select("id, job_number, pickup_at, car_hire_price, commission_rate, currency, booking_status, refund_status, cancellation_reason")
+      .select("id, job_number, created_at, car_hire_price, commission_rate, currency, booking_status, refund_status, cancellation_reason")
       .eq("partner_user_id", partner_id)
       .in("booking_status", ["completed", "cancelled"])
       .gte("created_at", from)
       .lt("created_at", to);
 
     if (bkErr) return NextResponse.json({ error: bkErr.message }, { status: 400 });
-    if (!bookings?.length) return NextResponse.json({ error: "No completed bookings found for this partner and period" }, { status: 400 });
+    if (!bookings?.length) {
+      return NextResponse.json({ error: "No completed bookings found for this partner and period" }, { status: 400 });
+    }
 
     const result = await generateCommissionInvoice(partner_id, period_month, bookings);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });

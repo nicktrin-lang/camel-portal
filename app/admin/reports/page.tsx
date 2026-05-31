@@ -392,8 +392,16 @@ function AdminInvoicesSection({ partners }: { partners: [string,string][] }) {
           </div>
           <div>
             <label className="text-xs font-black uppercase tracking-widest text-black/50">Period (YYYY-MM)</label>
-            <input type="month" value={genMonth} onChange={e => setGenMonth(e.target.value)}
-              className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black" />
+            <select value={genMonth} onChange={e => setGenMonth(e.target.value)}
+  className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+  <option value="">Select month…</option>
+  {Array.from({ length: 24 }, (_, i) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1 - i);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return <option key={val} value={val}>{d.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</option>;
+  })}
+</select>
           </div>
           <button type="button" onClick={handleGenerate} disabled={generating}
             className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-50">
