@@ -446,16 +446,15 @@ export default function PartnerProfilePage() {
               <p className="mt-1 mb-2 text-xs font-semibold text-black/50">Customer requests within this distance from your base will be sent to you.</p>
               <TextInput type="number" value={profile.service_radius_km} onChange={v => updateField("service_radius_km", v)} placeholder="30" />
             </Field>
-            <Field label="Billing currency">
+            
+<Field label="Billing currency">
               <p className="mt-1 mb-2 text-xs font-semibold text-black/50">The currency your bids and bookings will be quoted in.</p>
-              <div className="flex gap-2">
-                {(["GBP", "EUR", "USD"] as Currency[]).map(c => (
-                  <button key={c} type="button" onClick={() => updateField("default_currency", c)}
-                    className={`flex-1 px-3 py-3 text-sm font-black transition-all ${profile.default_currency === c ? "bg-[#ff7a00] text-white" : "bg-[#f0f0f0] text-black hover:bg-[#e8e8e8]"}`}>
-                    {c === "GBP" ? "£ GBP" : c === "EUR" ? "€ Euro" : "$ USD"}
-                  </button>
-                ))}
+              <div className="border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black">
+                {profile.default_currency === "GBP" ? "£ GBP — British Pound" : profile.default_currency === "USD" ? "$ USD — US Dollar" : "€ EUR — Euro"}
               </div>
+              <p className="mt-2 text-xs font-semibold text-black/50">
+                Your billing currency is set during Stripe onboarding and cannot be changed here. Contact <a href="/partner/contact" className="underline font-black text-black">Camel Global support</a> if you need to change it.
+              </p>
             </Field>
           </div>
         </SectionCard>
