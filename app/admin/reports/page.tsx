@@ -396,8 +396,8 @@ function AdminInvoicesSection({ partners }: { partners: [string,string][] }) {
   className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
   <option value="">Select month…</option>
   {Array.from({ length: 24 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1 - i);
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth() - 1 - i, 1);
     const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     return <option key={val} value={val}>{d.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</option>;
   })}
