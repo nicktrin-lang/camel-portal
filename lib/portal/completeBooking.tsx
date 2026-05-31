@@ -2,7 +2,6 @@ import Stripe from "stripe";
 import React from "react";
 import fs from "fs";
 import path from "path";
-import { createClient } from "@supabase/supabase-js";
 import {
   Document, Page, Text, View, Image, StyleSheet, renderToBuffer,
 } from "@react-pdf/renderer";
@@ -14,11 +13,21 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-04-22.dahlia" as any,
 });
 
-function createCustomerServiceRoleClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
-    process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
-  );
+async function fetchCustomerRequest(requestId: string) {
+  const url = process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!;
+  const key = process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/customer_requests?id=eq.${requestId}&select=customer_name,customer_email,pickup_address,dropoff_address,pickup_at,dropoff_at,journey_duration_minutes,vehicle_category_name`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+    );
+    const rows = await res.json();
+    console.log("completeBooking: customer request fetch status", res.status, "rows", rows?.length);
+    return rows?.[0] ?? null;
+  } catch (e: any) {
+    console.error("completeBooking: customer request fetch failed", e?.message);
+    return null;
+  }
 }
 
 // ── PDF styles ────────────────────────────────────────────────────────────────
@@ -344,16 +353,8 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (pmtUpdateErr) return { ok: false, error: pmtUpdateErr.message, status: 500 };
 
-  // ── Load request from customer DB ────────────────────────────────────────
-  const customerDb = createCustomerServiceRoleClient();
-
-  const { data: request, error: reqErr } = await customerDb
-    .from("customer_requests")
-    .select("customer_name, customer_email, pickup_address, dropoff_address, pickup_at, dropoff_at, journey_duration_minutes, vehicle_category_name")
-    .eq("id", booking.request_id)
-    .maybeSingle();
-
-  if (reqErr) console.error("completeBooking: customer_requests fetch failed", reqErr.message);
+  // ── Load request from customer DB via direct REST fetch ──────────────────
+  const request = await fetchCustomerRequest(booking.request_id);
 
   const { data: partnerAuthData } = await db.auth.admin.getUserById(booking.partner_user_id);
   const partnerEmail = partnerAuthData?.user?.email || null;
