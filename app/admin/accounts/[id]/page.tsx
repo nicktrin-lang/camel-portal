@@ -92,6 +92,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const inputCls = "w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-bold outline-none focus:border-black placeholder:text-black/30";
 const labelCls = "text-xs font-black uppercase tracking-widest text-black";
 
+const CURRENCY_OPTIONS = [
+  { value: "EUR", label: "EUR — Euro (€)" },
+  { value: "GBP", label: "GBP — British Pound (£)" },
+  { value: "USD", label: "USD — US Dollar ($)" },
+];
+
 export default function AdminAccountDetailPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router   = useRouter();
@@ -100,6 +106,7 @@ export default function AdminAccountDetailPage() {
   const [loading,          setLoading]          = useState(true);
   const [savingStatus,     setSavingStatus]     = useState<AppStatus | null>(null);
   const [savingCommission, setSavingCommission] = useState(false);
+  const [savingCurrency,   setSavingCurrency]   = useState(false);
   const [savingBilling,    setSavingBilling]    = useState(false);
   const [editingBilling,   setEditingBilling]   = useState(false);
   const [error,            setError]            = useState<string | null>(null);
@@ -111,6 +118,7 @@ export default function AdminAccountDetailPage() {
   const [isLiveProfile,    setIsLiveProfile]    = useState(false);
   const [liveProfileReason, setLiveProfileReason] = useState("");
   const [commissionInput,  setCommissionInput]  = useState("");
+  const [currencyInput,    setCurrencyInput]    = useState("EUR");
   const [billingInput,     setBillingInput]     = useState({ legal_company_name: "", company_registration_number: "", vat_number: "" });
 
   async function load() {
@@ -134,6 +142,7 @@ export default function AdminAccountDetailPage() {
       setIsLiveProfile(!!json?.is_live_profile);
       setLiveProfileReason(String(json?.live_profile_reason || ""));
       setCommissionInput(String(profileData?.commission_rate ?? 20));
+      setCurrencyInput(profileData?.default_currency || "EUR");
       setBillingInput({
         legal_company_name: String(profileData?.legal_company_name ?? ""),
         company_registration_number: String(profileData?.company_registration_number ?? ""),
@@ -177,7 +186,6 @@ export default function AdminAccountDetailPage() {
     finally { setSavingBilling(false); }
   }
 
-  // Uses service-role PATCH API — not browser client — so RLS cannot block it
   async function saveCommissionRate() {
     const id = String(params?.id || "").trim();
     if (!id) return;
@@ -197,6 +205,25 @@ export default function AdminAccountDetailPage() {
       setNotice(`Commission rate updated to ${rate}% for this partner.`);
     } catch (e: any) { setError(e?.message || "Failed to update commission rate."); }
     finally { setSavingCommission(false); }
+  }
+
+  async function saveCurrency() {
+    const id = String(params?.id || "").trim();
+    if (!id || !currencyInput) return;
+    setSavingCurrency(true); setError(null); setNotice(null);
+    try {
+      const res = await fetch(`/api/admin/accounts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ default_currency: currencyInput }),
+      });
+      const json = await safeJson(res);
+      if (!res.ok) throw new Error(json?.error || json?._raw || "Failed to update currency.");
+      setProfile(prev => prev ? { ...prev, default_currency: currencyInput } : prev);
+      setNotice(`Billing currency updated to ${currencyInput}. Note: if the partner has already connected Stripe, their Stripe account currency cannot be changed here — contact Stripe support.`);
+    } catch (e: any) { setError(e?.message || "Failed to update currency."); }
+    finally { setSavingCurrency(false); }
   }
 
   useEffect(() => { load(); }, [params?.id]);
@@ -436,6 +463,34 @@ export default function AdminAccountDetailPage() {
             </div>
             <p className="mt-2 text-xs font-bold text-black/40">
               Current rate: <strong className="text-black">{profile?.commission_rate ?? 20}%</strong>
+            </p>
+          </Section>
+
+          {/* Currency Override */}
+          <Section title="Billing Currency Override">
+            <p className="text-xs font-bold text-black/50 mb-4">
+              Correct the partner's billing currency if they selected the wrong one during setup. Only do this before they have connected Stripe — changing it after Stripe onboarding will not update their Stripe account currency.
+            </p>
+            <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 mb-4">
+              ⚠️ Only change this if the partner has not yet completed Stripe onboarding, or has contacted Camel Global to request a correction.
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className={labelCls}>Currency</label>
+                <select value={currencyInput} onChange={e => setCurrencyInput(e.target.value)}
+                  className="mt-1 w-full border border-black/10 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+                  {CURRENCY_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <button type="button" onClick={saveCurrency} disabled={savingCurrency}
+                className="w-full bg-black px-4 py-2 text-sm font-black text-white hover:opacity-80 disabled:opacity-60 transition-opacity">
+                {savingCurrency ? "Saving…" : "Save currency"}
+              </button>
+            </div>
+            <p className="mt-2 text-xs font-bold text-black/40">
+              Current: <strong className="text-black">{profile?.default_currency || "Not set"}</strong>
             </p>
           </Section>
 

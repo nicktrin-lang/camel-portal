@@ -4,6 +4,8 @@ import {
   createServiceRoleSupabaseClient,
 } from "@/lib/supabase/server";
 
+const VALID_CURRENCIES = ["EUR", "GBP", "USD"];
+
 function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";
 }
@@ -83,23 +85,23 @@ export async function GET(
     }
 
     const p = profile as any;
-    const hasBaseAddress  = !!String(p?.base_address || "").trim();
-    const hasBaseLat      = p?.base_lat != null && !isNaN(Number(p.base_lat));
-    const hasBaseLng      = p?.base_lng != null && !isNaN(Number(p.base_lng));
-    const hasRadius       = p?.service_radius_km != null && Number(p.service_radius_km) > 0;
-    const hasFleet        = fleet.length > 0;
-    const hasDrivers      = drivers.length > 0;
-    const hasCurrency     = !!String(p?.default_currency || "").trim();
-    const hasVat          = !!String(p?.vat_number || "").trim();
+    const hasBaseAddress   = !!String(p?.base_address || "").trim();
+    const hasBaseLat       = p?.base_lat != null && !isNaN(Number(p.base_lat));
+    const hasBaseLng       = p?.base_lng != null && !isNaN(Number(p.base_lng));
+    const hasRadius        = p?.service_radius_km != null && Number(p.service_radius_km) > 0;
+    const hasFleet         = fleet.length > 0;
+    const hasDrivers       = drivers.length > 0;
+    const hasCurrency      = !!String(p?.default_currency || "").trim();
+    const hasVat           = !!String(p?.vat_number || "").trim();
 
     const missing: string[] = [];
-    if (!hasBaseAddress)           missing.push("Fleet base address");
+    if (!hasBaseAddress)            missing.push("Fleet base address");
     if (!hasBaseLat || !hasBaseLng) missing.push("Fleet GPS coordinates");
-    if (!hasRadius)                missing.push("Service radius");
-    if (!hasFleet)                 missing.push("Active fleet vehicle");
-    if (!hasDrivers)               missing.push("Active driver");
-    if (!hasCurrency)              missing.push("Billing currency");
-    if (!hasVat)                   missing.push("VAT / NIF number");
+    if (!hasRadius)                 missing.push("Service radius");
+    if (!hasFleet)                  missing.push("Active fleet vehicle");
+    if (!hasDrivers)                missing.push("Active driver");
+    if (!hasCurrency)               missing.push("Billing currency");
+    if (!hasVat)                    missing.push("VAT / NIF number");
 
     return NextResponse.json({
       application, profile, fleet,
@@ -113,7 +115,7 @@ export async function GET(
   }
 }
 
-// PATCH — update commission_rate for a partner (admin only, service role)
+// PATCH — admin-only update of commission_rate and/or default_currency
 export async function PATCH(
   req: Request,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -131,7 +133,7 @@ export async function PATCH(
 
     const { db } = gate;
 
-    // id here is the partner_applications.id — we need the user_id
+    // Resolve user_id from application id
     const { data: application } = await db
       .from("partner_applications")
       .select("user_id")
@@ -141,18 +143,36 @@ export async function PATCH(
     const userId = String(application?.user_id || "").trim();
     if (!userId) return NextResponse.json({ error: "Partner user not found" }, { status: 404 });
 
-    // commission_rate update
+    const updates: Record<string, any> = {};
+
+    // Commission rate
     if (body.commission_rate !== undefined) {
       const rate = parseFloat(String(body.commission_rate));
       if (isNaN(rate) || rate < 0 || rate > 100) {
         return NextResponse.json({ error: "Commission rate must be between 0 and 100" }, { status: 400 });
       }
-      const { error: updateErr } = await db
-        .from("partner_profiles")
-        .update({ commission_rate: rate })
-        .eq("user_id", userId);
-      if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
+      updates.commission_rate = rate;
     }
+
+    // Default currency
+    if (body.default_currency !== undefined) {
+      const currency = String(body.default_currency).toUpperCase().trim();
+      if (!VALID_CURRENCIES.includes(currency)) {
+        return NextResponse.json({ error: `Currency must be one of: ${VALID_CURRENCIES.join(", ")}` }, { status: 400 });
+      }
+      updates.default_currency = currency;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+    }
+
+    const { error: updateErr } = await db
+      .from("partner_profiles")
+      .update(updates)
+      .eq("user_id", userId);
+
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
 
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (e: any) {
