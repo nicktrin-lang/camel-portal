@@ -4,13 +4,23 @@ import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-04-22.dahlia" as any });
 
+function stripeCountry(baseCountry: string | null): string {
+  if (baseCountry === "United Kingdom") return "GB";
+  return "ES";
+}
+
+function stripeCurrency(defaultCurrency: string | null): string {
+  const c = String(defaultCurrency || "").toUpperCase().trim();
+  if (c === "GBP" || c === "USD") return c.toLowerCase();
+  return "eur";
+}
+
 export async function POST() {
   try {
     const supabase = await createRouteHandlerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-    // Get existing profile
     const { data: profile } = await supabase
       .from("partner_profiles")
       .select("stripe_account_id, legal_company_name, vat_number, base_country, default_currency")
@@ -21,40 +31,38 @@ export async function POST() {
 
     let accountId = profile.stripe_account_id;
 
-    // Create Stripe Express account if not exists
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: "express",
-        country: profile.base_country === "United Kingdom" ? "GB" : "ES",
-        email: user.email,
+        country:          stripeCountry(profile.base_country),
+        email:            user.email,
+        default_currency: stripeCurrency(profile.default_currency),
         capabilities: {
           card_payments: { requested: true },
-          transfers: { requested: true },
+          transfers:     { requested: true },
         },
         settings: {
           payouts: {
-            schedule: { interval: "manual" }, // Camel controls payouts
+            schedule: { interval: "manual" },
           },
         },
         metadata: {
-          user_id: user.id,
+          user_id:            user.id,
           legal_company_name: profile.legal_company_name || "",
-          vat_number: profile.vat_number || "",
+          vat_number:         profile.vat_number || "",
         },
       });
       accountId = account.id;
 
-      // Save account ID
       await supabase
         .from("partner_profiles")
         .update({ stripe_account_id: accountId })
         .eq("user_id", user.id);
     }
 
-    // FIX: use PORTAL_BASE_URL not NEXT_PUBLIC_SITE_URL — Stripe return URLs must go to portal domain
     const origin = process.env.PORTAL_BASE_URL || "https://portal.camel-global.com";
     const accountLink = await stripe.accountLinks.create({
-      account: accountId,
+      account:     accountId,
       refresh_url: `${origin}/partner/onboarding?stripe=refresh`,
       return_url:  `${origin}/partner/onboarding?stripe=complete`,
       type: "account_onboarding",
