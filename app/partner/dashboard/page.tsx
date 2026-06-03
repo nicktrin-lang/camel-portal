@@ -208,7 +208,7 @@ export default function PartnerDashboardPage() {
             {profile?.company_name ? ` — ${profile.company_name}` : ""}.
           </p>
         </div>
-        <span className={`inline-flex border px-3 py-1 text-xs font-black uppercase tracking-widest ${
+        <span className={`inline-flex w-full sm:w-auto border px-3 py-1 text-xs font-black uppercase tracking-widest ${
           isApproved ? "border-black/20 bg-black text-white" : "border-amber-300 bg-amber-50 text-amber-700"
         }`}>
           {isApproved ? "✓ Account Approved" : "⏳ Pending Approval"}
@@ -234,16 +234,16 @@ export default function PartnerDashboardPage() {
 
       {/* Stripe connected banner */}
       {stripeComplete && (
-        <div className="border border-green-200 bg-green-50 p-4 flex items-center justify-between gap-4">
+        <div className="border border-green-200 bg-green-50 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <span className="flex h-7 w-7 items-center justify-center bg-green-600 text-white font-black text-xs">✓</span>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-green-600 text-white font-black text-xs">✓</span>
             <div>
               <p className="font-black text-green-800">Payouts active</p>
               <p className="text-xs font-bold text-green-700">Completed bookings are paid out monthly to your bank account.</p>
             </div>
           </div>
           <button onClick={openStripeDashboard} disabled={stripeLinking}
-            className="shrink-0 border border-green-300 px-3 py-1.5 text-xs font-black text-green-800 hover:bg-green-100 transition-colors disabled:opacity-50">
+            className="w-full sm:w-auto shrink-0 border border-green-300 px-3 py-1.5 text-xs font-black text-green-800 hover:bg-green-100 transition-colors disabled:opacity-50">
             {stripeLinking ? "Opening…" : "Manage Payouts →"}
           </button>
         </div>
@@ -258,7 +258,7 @@ export default function PartnerDashboardPage() {
               <p className="font-black text-amber-800">Your account is not yet live</p>
               <p className="mt-1 text-sm font-bold text-amber-700">Complete the following to start receiving customer requests:</p>
               {liveStatus.missing.length > 0 && (
-                <ul className="mt-3 flex flex-wrap gap-2">
+                <ul className="mt-3 flex flex-col gap-2 sm:flex-wrap sm:flex-row">
                   {liveStatus.missing.map(m => {
                     const info = MISSING_LABELS[m] ?? { label: m, href: "/partner/profile" };
                     return (
@@ -285,7 +285,7 @@ export default function PartnerDashboardPage() {
         </div>
       )}
 
-      {/* Stats cards */}
+      {/* Stats cards — 2 cols mobile, 4 cols sm+ */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
           { label: "Active Bookings", value: activeBookings.length,    link: "/partner/bookings", linkLabel: "View all →",      color: "text-[#ff7a00]" },
@@ -301,7 +301,7 @@ export default function PartnerDashboardPage() {
         ))}
       </div>
 
-      {/* Quick actions */}
+      {/* Quick actions — 2 cols mobile, 4 cols sm+ */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: "📋 View Requests", href: "/partner/requests", primary: true },
@@ -318,7 +318,8 @@ export default function PartnerDashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      {/* Recent Bookings + Requests — 1 col mobile, 2 cols xl */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {/* Recent Bookings */}
         <div className="border border-black/5 bg-white p-6">
           <div className="flex items-center justify-between mb-4">
@@ -383,8 +384,8 @@ export default function PartnerDashboardPage() {
         </div>
       </div>
 
-      {/* Account summary + setup checklist + navigation */}
-      <div className="grid gap-6 xl:grid-cols-3">
+      {/* Account summary + setup checklist + navigation — 1 col mobile, 3 cols xl */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
 
         {/* Account summary */}
         <div className="border border-black/5 bg-white p-6">
