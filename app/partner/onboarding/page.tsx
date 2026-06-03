@@ -59,31 +59,36 @@ const STEPS: { key: Step; label: string; icon: string }[] = [
 
 // ── Step nav ───────────────────────────────────────────────────────────────────
 function StepNav({ current, completed }: { current: Step; completed: Set<Step> }) {
+  const currentIdx = STEPS.findIndex(s => s.key === current);
   return (
-    <div className="flex items-center justify-between mb-8 overflow-x-auto pb-2">
-      {STEPS.map((s, i) => {
-        const done = completed.has(s.key);
-        const active = s.key === current;
-        return (
-          <div key={s.key} className="flex items-center flex-1 min-w-0">
-            <div className="flex flex-col items-center shrink-0">
-              <div className={`w-10 h-10 flex items-center justify-center text-base font-black transition-colors ${
+    <div className="mb-8">
+      {/* Circles + connectors — no labels to avoid overflow */}
+      <div className="flex items-center">
+        {STEPS.map((s, i) => {
+          const done = completed.has(s.key);
+          const active = s.key === current;
+          return (
+            <div key={s.key} className={`flex items-center ${i < STEPS.length - 1 ? "flex-1" : ""}`}>
+              <div className={`w-9 h-9 flex items-center justify-center text-sm font-black shrink-0 transition-colors ${
                 done   ? "bg-black text-white" :
                 active ? "bg-[#ff7a00] text-white" :
                          "bg-[#e0e0e0] text-black/40"
               }`}>
                 {done ? "✓" : s.icon}
               </div>
-              <span className={`mt-1 text-xs font-black uppercase tracking-widest hidden sm:block ${
-                active ? "text-[#ff7a00]" : done ? "text-black" : "text-black/30"
-              }`}>{s.label}</span>
+              {i < STEPS.length - 1 && (
+                <div className={`h-0.5 flex-1 mx-1 transition-colors ${done ? "bg-black" : "bg-black/10"}`} />
+              )}
             </div>
-            {i < STEPS.length - 1 && (
-              <div className={`h-0.5 flex-1 mx-2 mb-4 transition-colors ${done ? "bg-black" : "bg-black/10"}`} />
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      {/* Active step label below */}
+      <div className="mt-2">
+        <span className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">
+          Step {currentIdx + 1} of {STEPS.length} — {STEPS[currentIdx]?.label}
+        </span>
+      </div>
     </div>
   );
 }
@@ -91,7 +96,7 @@ function StepNav({ current, completed }: { current: Step; completed: Set<Step> }
 // ── Shared components ──────────────────────────────────────────────────────────
 function Card({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-black/5 p-8">
+    <div className="bg-white border border-black/5 p-4 sm:p-8">
       <h2 className="text-2xl font-black text-black">{title}</h2>
       <p className="mt-1 text-sm font-bold text-black/50">{subtitle}</p>
       <div className="mt-6">{children}</div>
@@ -128,21 +133,21 @@ function NavButtons({ onBack, onNext, nextLabel, saving, canSkip, onSkip }: {
   saving?: boolean; canSkip?: boolean; onSkip?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 mt-6">
+    <div className="flex flex-wrap items-center gap-2 mt-6">
       {onBack && (
         <button type="button" onClick={onBack}
-          className="border border-black/20 px-6 py-3 text-sm font-black text-black hover:bg-black/5 transition-colors">
+          className="border border-black/20 px-5 py-3 text-sm font-black text-black hover:bg-black/5 transition-colors">
           Back
         </button>
       )}
       {canSkip && onSkip && (
         <button type="button" onClick={onSkip}
-          className="border border-black/10 px-6 py-3 text-sm font-black text-black/50 hover:bg-black/5 transition-colors">
+          className="border border-black/10 px-5 py-3 text-sm font-black text-black/50 hover:bg-black/5 transition-colors">
           Skip for now
         </button>
       )}
       <button type="button" onClick={onNext} disabled={saving}
-        className="flex-1 bg-[#ff7a00] py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
+        className="flex-1 min-w-[120px] bg-[#ff7a00] py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
         {saving ? "Saving…" : (nextLabel ?? "Save & Continue")}
       </button>
     </div>
@@ -376,10 +381,10 @@ function StepCurrency({ profile, onDone, onBack }: { profile: Profile | null; on
           <p className="font-bold text-black/60">All your bids will be submitted in this currency. Customers will see the equivalent in their preferred currency automatically.</p>
         </InfoBox>
         {error && <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
           {options.map(o => (
             <button key={o.value} type="button" onClick={() => setCurrency(o.value)}
-              className={`border-2 p-5 text-left transition-all ${
+              className={`border-2 p-4 text-left transition-all ${
                 currency === o.value
                   ? "border-[#ff7a00] bg-white"
                   : "border-black/10 bg-[#f0f0f0] hover:border-black/30"
@@ -535,7 +540,7 @@ function StepFleet({ onDone, onBack }: { onDone: () => void; onBack: () => void 
           </div>
         )}
         {adding ? (
-          <div className="border border-black/10 bg-[#f0f0f0] p-5 space-y-4">
+          <div className="border border-black/10 bg-[#f0f0f0] p-4 space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-black">Add a vehicle category</h3>
             <div>
               <label className="text-xs font-black uppercase tracking-widest text-black mb-1.5 block">Vehicle category</label>
@@ -545,17 +550,17 @@ function StepFleet({ onDone, onBack }: { onDone: () => void; onBack: () => void 
                 {FLEET_CATEGORIES.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}
               </select>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 grid-cols-3">
               {[
-                { key: "max_passengers",   label: "Max passengers" },
-                { key: "max_suitcases",    label: "Max suitcases" },
+                { key: "max_passengers",   label: "Passengers" },
+                { key: "max_suitcases",    label: "Suitcases" },
                 { key: "max_hand_luggage", label: "Hand luggage" },
               ].map(({ key, label }) => (
                 <div key={key}>
                   <label className="text-xs font-black uppercase tracking-widest text-black mb-1.5 block">{label}</label>
                   <input type="number" min={0} max={20} value={(form as any)[key]}
                     onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) }))}
-                    className="w-full border border-black/10 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-black" />
+                    className="w-full border border-black/10 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-black" />
                 </div>
               ))}
             </div>
@@ -641,7 +646,7 @@ function StepDrivers({ onDone, onBack }: { onDone: () => void; onBack: () => voi
           </div>
         )}
         {adding ? (
-          <div className="border border-black/10 bg-[#f0f0f0] p-5 space-y-4">
+          <div className="border border-black/10 bg-[#f0f0f0] p-4 space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-black">Add a driver</h3>
             {[
               { key: "full_name", label: "Full name",     placeholder: "Juan Garcia",           required: true },
@@ -680,24 +685,29 @@ function StepDrivers({ onDone, onBack }: { onDone: () => void; onBack: () => voi
 }
 
 // ── Step: Payouts ──────────────────────────────────────────────────────────────
-function StepPayouts({ profile, onDone, onBack }: { profile: Profile | null; onDone: () => void; onBack: () => void }) {
-  const [loading, setLoading] = useState(false);
+function StepPayouts({ profile, onDone, onBack, onRefreshProfile }: {
+  profile: Profile | null; onDone: () => void; onBack: () => void;
+  onRefreshProfile: () => Promise<void>;
+}) {
+  const [loading,    setLoading]    = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [status, setStatus] = useState<{ connected: boolean; onboarding_complete: boolean; payouts_enabled: boolean } | null>(null);
   const [error, setError] = useState("");
   const searchParams = useSearchParams();
   const stripeReturn = searchParams.get("stripe");
 
-  useEffect(() => {
-    // Check status on load and after returning from Stripe
-    checkStatus();
-  }, []);
+  useEffect(() => { checkStatus(); }, []);
 
   async function checkStatus() {
+    setRefreshing(true);
     try {
       const res = await fetch("/api/partner/stripe/status", { credentials: "include" });
       const json = await res.json();
       setStatus(json);
+      // Also refresh profile so stripe_onboarding_complete is up to date
+      await onRefreshProfile();
     } catch {}
+    finally { setRefreshing(false); }
   }
 
   async function startOnboarding() {
@@ -731,7 +741,7 @@ function StepPayouts({ profile, onDone, onBack }: { profile: Profile | null; onD
 
         {stripeReturn === "complete" && !isComplete && (
           <div className="border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
-            Stripe is reviewing your details. This usually takes a few minutes. Refresh to check your status.
+            Stripe is reviewing your details. This usually takes a few minutes. Use the refresh button below to check your status.
           </div>
         )}
 
@@ -740,7 +750,7 @@ function StepPayouts({ profile, onDone, onBack }: { profile: Profile | null; onD
         {isComplete ? (
           <div className="border border-green-200 bg-green-50 p-5">
             <div className="flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center bg-green-600 text-white font-black text-sm">✓</span>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-green-600 text-white font-black text-sm">✓</span>
               <div>
                 <p className="font-black text-green-800">Payouts connected</p>
                 <p className="text-sm font-bold text-green-700">Your Stripe account is set up and ready to receive payments.</p>
@@ -749,7 +759,7 @@ function StepPayouts({ profile, onDone, onBack }: { profile: Profile | null; onD
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="border border-black/10 bg-white p-5 flex items-center gap-4">
+            <div className="border border-black/10 bg-white p-4 flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center bg-[#e0e0e0] text-black/40 font-black text-lg">💳</span>
               <div>
                 <p className="font-black text-black">Not yet connected</p>
@@ -760,9 +770,9 @@ function StepPayouts({ profile, onDone, onBack }: { profile: Profile | null; onD
               className="w-full bg-[#ff7a00] py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
               {loading ? "Redirecting to Stripe…" : "Set Up Payouts with Stripe →"}
             </button>
-            <button type="button" onClick={checkStatus}
-              className="w-full border border-black/20 py-2.5 text-sm font-black text-black/50 hover:bg-black/5">
-              Refresh status
+            <button type="button" onClick={checkStatus} disabled={refreshing}
+              className="w-full border border-black/20 py-2.5 text-sm font-black text-black/50 hover:bg-black/5 disabled:opacity-50 transition-colors">
+              {refreshing ? "Checking…" : "Refresh status"}
             </button>
           </div>
         )}
@@ -839,12 +849,12 @@ function StepGoLive({ profile, onBack }: { profile: Profile | null; onBack: () =
         </div>
         <div className="space-y-2">
           {checks.map(({ label, done }) => (
-            <div key={label} className={`flex items-center gap-3 border px-4 py-3 ${done ? "border-black/10 bg-[#f0f0f0]" : "border-amber-200 bg-amber-50"}`}>
+            <div key={label} className={`flex items-center gap-3 border px-3 py-3 ${done ? "border-black/10 bg-[#f0f0f0]" : "border-amber-200 bg-amber-50"}`}>
               <span className={`flex h-6 w-6 shrink-0 items-center justify-center text-xs font-black ${done ? "bg-black text-white" : "bg-amber-200 text-amber-700"}`}>
                 {done ? "✓" : "!"}
               </span>
               <span className={`text-sm font-bold ${done ? "text-black" : "text-amber-800"}`}>{label}</span>
-              {!done && <span className="ml-auto text-xs font-black text-amber-600">Incomplete</span>}
+              {!done && <span className="ml-auto text-xs font-black text-amber-600 shrink-0">Incomplete</span>}
             </div>
           ))}
         </div>
@@ -862,7 +872,7 @@ function StepGoLive({ profile, onBack }: { profile: Profile | null; onBack: () =
         )}
         <div className="flex gap-3">
           <button type="button" onClick={onBack}
-            className="border border-black/20 px-6 py-3 text-sm font-black text-black hover:bg-black/5">Back</button>
+            className="border border-black/20 px-5 py-3 text-sm font-black text-black hover:bg-black/5">Back</button>
           <button type="button" onClick={async () => {
             try { await fetch("/api/partner/refresh-live-status", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }); } catch {}
             router.replace("/partner/dashboard");
@@ -888,10 +898,13 @@ export default function PartnerOnboardingPage() {
 
   const cols = "company_name,contact_name,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,service_radius_km,default_currency,legal_company_name,vat_number,company_registration_number,stripe_account_id,stripe_onboarding_complete";
 
-  async function refreshProfile(userId: string) {
-    const { data } = await supabase.from("partner_profiles").select(cols).eq("user_id", userId).maybeSingle();
-    if (data) setProfile(data as Profile);
-    return data;
+  async function refreshProfile(userId?: string) {
+    try {
+      const uid = userId || (await supabase.auth.getUser()).data.user?.id;
+      if (!uid) return;
+      const { data } = await supabase.from("partner_profiles").select(cols).eq("user_id", uid).maybeSingle();
+      if (data) setProfile(data as Profile);
+    } catch {}
   }
 
   useEffect(() => {
@@ -915,10 +928,7 @@ export default function PartnerOnboardingPage() {
       if ((driversJson?.data || []).filter((d: DriverRow) => d.is_active).length > 0) done.add("drivers");
       if (stripeJson?.onboarding_complete) done.add("payouts");
       setCompleted(done);
-
-      // If returning from Stripe, jump to payouts step
       if (searchParams.get("stripe")) setStep("payouts");
-
       setLoading(false);
     }
     load();
@@ -937,31 +947,30 @@ export default function PartnerOnboardingPage() {
   );
 
   return (
-    <div className="w-full px-4 py-6 md:px-8">
-      <div className="mb-6">
+    <div className="w-full px-0 sm:px-4 py-6 md:px-8">
+      <div className="mb-6 px-4 sm:px-0">
         <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-1">Partner Portal</p>
         <h1 className="text-3xl font-black text-black">Get Started</h1>
         <p className="mt-1 text-sm font-bold text-black/50">Complete your setup to start receiving bookings.</p>
       </div>
-      <StepNav current={step} completed={completed} />
+      <div className="px-4 sm:px-0">
+        <StepNav current={step} completed={completed} />
+      </div>
       {step === "location" && (
         <StepLocation profile={profile} onDone={async () => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) await refreshProfile(user.id);
+          await refreshProfile();
           complete("location", "currency");
         }} />
       )}
       {step === "currency" && (
         <StepCurrency profile={profile} onDone={async () => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) await refreshProfile(user.id);
+          await refreshProfile();
           complete("currency", "billing");
         }} onBack={() => setStep("location")} />
       )}
       {step === "billing" && (
         <StepBilling profile={profile} onDone={async () => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) await refreshProfile(user.id);
+          await refreshProfile();
           complete("billing", "fleet");
         }} onBack={() => setStep("currency")} />
       )}
@@ -972,11 +981,15 @@ export default function PartnerOnboardingPage() {
         <StepDrivers onDone={() => complete("drivers", "payouts")} onBack={() => setStep("fleet")} />
       )}
       {step === "payouts" && (
-        <StepPayouts profile={profile} onDone={async () => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) await refreshProfile(user.id);
-          complete("payouts", "golive");
-        }} onBack={() => setStep("drivers")} />
+        <StepPayouts
+          profile={profile}
+          onRefreshProfile={refreshProfile}
+          onDone={async () => {
+            await refreshProfile();
+            complete("payouts", "golive");
+          }}
+          onBack={() => setStep("drivers")}
+        />
       )}
       {step === "golive" && (
         <StepGoLive profile={profile} onBack={() => setStep("payouts")} />
