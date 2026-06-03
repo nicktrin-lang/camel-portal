@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 
 const year = new Date().getFullYear();
 
+const COPYRIGHT = `© ${year} NTUK Ltd. All rights reserved. Trading as Camel Global. · Registered in England & Wales · Company No. 08765474`;
+
 // ── Partner / Admin footer ────────────────────────────────────────────────────
 export function PortalFooter({ variant }: { variant: "partner" | "admin" }) {
   const prefix    = variant === "admin" ? "/admin" : "/partner";
@@ -56,9 +58,8 @@ export function PortalFooter({ variant }: { variant: "partner" | "admin" }) {
           </div>
         </div>
 
-        <div className="mt-10 border-t border-white/10 pt-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-bold text-white/60">© {year} NTUK Ltd. All rights reserved. Trading as Camel Global.</p>
-          <p className="text-sm font-bold text-white/60">Registered in England &amp; Wales · Company No. 08765474</p>
+        <div className="mt-10 border-t border-white/10 pt-6">
+          <p className="text-xs font-bold text-white/60 leading-relaxed">{COPYRIGHT}</p>
         </div>
       </div>
     </footer>
@@ -90,9 +91,8 @@ function DriverFooter() {
 
         </div>
 
-        <div className="mt-8 border-t border-white/10 pt-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-bold text-white/60">© {year} NTUK Ltd. All rights reserved. Trading as Camel Global.</p>
-          <p className="text-sm font-bold text-white/60">Registered in England &amp; Wales · Company No. 08765474</p>
+        <div className="mt-8 border-t border-white/10 pt-6">
+          <p className="text-xs font-bold text-white/60 leading-relaxed">{COPYRIGHT}</p>
         </div>
       </div>
     </footer>
@@ -159,9 +159,8 @@ function CustomerFooter() {
           </div>
         </div>
 
-        <div className="mt-10 border-t border-white/20 pt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-bold text-white">© {year} NTUK Ltd. All rights reserved. Trading as Camel Global.</p>
-          <p className="text-sm font-bold text-white">Registered in England &amp; Wales · Company No. 08765474</p>
+        <div className="mt-10 border-t border-white/20 pt-6">
+          <p className="text-xs font-bold text-white leading-relaxed">{COPYRIGHT}</p>
         </div>
       </div>
     </footer>
