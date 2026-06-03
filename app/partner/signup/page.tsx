@@ -10,7 +10,6 @@ import { downloadPartnerTermsPDF } from "@/lib/portal/partnerTerms";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 const inputCls     = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
-const selectCls    = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors appearance-none cursor-pointer";
 const labelCls     = "block text-xs font-black uppercase tracking-widest text-black mb-2";
 const btnPrimary   = "w-full bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity";
 const btnSecondary = "flex-1 border border-black/20 py-4 text-base font-black text-black hover:bg-[#f0f0f0] transition-colors";
@@ -48,19 +47,37 @@ const EMPTY: FormData = {
 // ── Progress bar ──────────────────────────────────────────────────────────────
 function ProgressBar({ step }: { step: number }) {
   return (
-    <div className="mb-10">
+    <div className="mb-8">
+      {/* Circles + connectors row */}
       <div className="flex items-center">
         {STEP_LABELS.map((label, i) => {
           const done = i + 1 < step, active = i + 1 === step;
           return (
             <div key={label} className={`flex items-center ${i < STEP_LABELS.length - 1 ? "flex-1" : ""}`}>
-              <div className="flex flex-col items-center">
-                <div className={`w-9 h-9 flex items-center justify-center text-sm font-black shrink-0 transition-colors ${done ? "bg-green-500 text-white" : active ? "bg-[#ff7a00] text-white" : "bg-[#f0f0f0] text-black/40"}`}>
-                  {done ? "✓" : i + 1}
-                </div>
-                <span className={`mt-1.5 text-xs font-black uppercase tracking-wide whitespace-nowrap ${active ? "text-[#ff7a00]" : done ? "text-green-600" : "text-black/30"}`}>{label}</span>
+              <div className={`w-8 h-8 flex items-center justify-center text-sm font-black shrink-0 transition-colors ${
+                done ? "bg-green-500 text-white" : active ? "bg-[#ff7a00] text-white" : "bg-[#f0f0f0] text-black/40"
+              }`}>
+                {done ? "✓" : i + 1}
               </div>
-              {i < STEP_LABELS.length - 1 && <div className={`h-1 flex-1 mx-2 mb-5 transition-colors ${done ? "bg-green-500" : "bg-[#f0f0f0]"}`} />}
+              {i < STEP_LABELS.length - 1 && (
+                <div className={`h-1 flex-1 mx-1 transition-colors ${done ? "bg-green-500" : "bg-[#f0f0f0]"}`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {/* Only show active step label on mobile — all labels on sm+ */}
+      <div className="mt-2 flex items-center">
+        {STEP_LABELS.map((label, i) => {
+          const done = i + 1 < step, active = i + 1 === step;
+          return (
+            <div key={label} className={`${i < STEP_LABELS.length - 1 ? "flex-1" : ""} min-w-0`}>
+              {active && (
+                <span className="text-xs font-black uppercase tracking-wide text-[#ff7a00] truncate block">{label}</span>
+              )}
+              {done && (
+                <span className="text-xs font-black uppercase tracking-wide text-green-600 truncate hidden sm:block">{label}</span>
+              )}
             </div>
           );
         })}
@@ -273,7 +290,6 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         <h2 className="text-3xl font-black text-black">Business Address</h2>
         <p className="mt-1 text-sm font-semibold text-black/50">Your registered company address for correspondence and records.</p>
       </div>
-
       <PhotonSearch
         city={city} onCityChange={c => { setCity(c); search.clear(); }}
         query={search.query} onQueryChange={search.setQuery}
@@ -282,7 +298,6 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         placeholder={`Search your business address in ${city.city}…`}
       />
       {selected && <p className="text-xs font-semibold text-green-700">✓ Address found — check fields below and correct if needed</p>}
-
       <div className="space-y-4">
         <Field label="Address line 1" required error={errors.address1}><input value={data.address1} onChange={e => onChange("address1", e.target.value)} placeholder="Street name and number" className={inputCls} /></Field>
         <Field label="Address line 2"><input value={data.address2} onChange={e => onChange("address2", e.target.value)} placeholder="Apartment, unit, floor (optional)" className={inputCls} /></Field>
@@ -295,7 +310,6 @@ function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
           <Field label="Country" required error={errors.country}><input value={data.country} onChange={e => onChange("country", e.target.value)} placeholder="Spain" className={inputCls} /></Field>
         </div>
       </div>
-
       <div className="flex gap-3">
         <button type="button" onClick={onBack} className={btnSecondary}>← Back</button>
         <button type="button" onClick={() => validate() && onNext()} className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 transition-opacity">Continue to Fleet Address →</button>
@@ -352,7 +366,6 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
         <h2 className="text-3xl font-black text-black">Fleet Base Address</h2>
         <p className="mt-1 text-sm font-semibold text-black/50">Where your vehicles are based. Used to match you with nearby customers.</p>
       </div>
-
       <label className="flex items-center gap-3 cursor-pointer bg-[#f0f0f0] px-4 py-3">
         <input type="checkbox" checked={sameAsBusiness} onChange={e => handleSameAsBusiness(e.target.checked)} className="h-4 w-4" />
         <div>
@@ -360,7 +373,6 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
           <p className="text-xs font-semibold text-black/50">Tick if your fleet is based at your registered business address</p>
         </div>
       </label>
-
       {!sameAsBusiness && (
         <>
           <PhotonSearch
@@ -373,7 +385,6 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
           {selected && <p className="text-xs font-semibold text-green-700">✓ Address found — check fields below and correct if needed</p>}
         </>
       )}
-
       <div className="space-y-4">
         <Field label="Address line 1" required error={errors.fleetAddress1}><input value={data.fleetAddress1} onChange={e => onChange("fleetAddress1", e.target.value)} placeholder="Street name and number" className={inputCls} /></Field>
         <Field label="Address line 2"><input value={data.fleetAddress2} onChange={e => onChange("fleetAddress2", e.target.value)} placeholder="Unit, depot, yard (optional)" className={inputCls} /></Field>
@@ -386,7 +397,6 @@ function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (
           <Field label="Country" required error={errors.fleetCountry}><input value={data.fleetCountry} onChange={e => onChange("fleetCountry", e.target.value)} placeholder="Spain" className={inputCls} /></Field>
         </div>
       </div>
-
       <div className="flex gap-3">
         <button type="button" onClick={onBack} className={btnSecondary}>← Back</button>
         <button type="button" onClick={() => validate() && onNext()} className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 transition-opacity">Continue to Password →</button>
@@ -465,8 +475,8 @@ function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaV
       <div className="bg-[#f0f0f0] p-5 space-y-3">
         {rows.map(([label, value]) => (
           <div key={label} className="flex gap-3 text-sm">
-            <span className="w-36 shrink-0 font-black text-black/50 uppercase tracking-wide text-xs">{label}</span>
-            <span className="font-semibold text-black">{value}</span>
+            <span className="w-32 shrink-0 font-black text-black/50 uppercase tracking-wide text-xs">{label}</span>
+            <span className="font-semibold text-black break-words min-w-0">{value}</span>
           </div>
         ))}
       </div>
@@ -551,16 +561,16 @@ export default function PartnerSignupPage() {
           <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">Partner Login</Link>
         </div>
       </header>
-      <div className="w-full bg-black px-6 pb-16 pt-10 text-white">
+      <div className="w-full bg-black px-4 sm:px-6 pb-12 pt-8 text-white">
         <div className="mx-auto max-w-2xl">
           <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">Become a Partner</p>
           <h1 className="text-4xl font-black text-white md:text-5xl">Join Camel Global.</h1>
           <p className="mt-3 text-base font-semibold text-white/70">Apply to list your car hire company on the platform. It takes less than 5 minutes.</p>
         </div>
       </div>
-      <div className="w-full bg-[#f0f0f0] px-6 py-10 flex-1">
+      <div className="w-full bg-[#f0f0f0] px-3 sm:px-6 py-8 flex-1">
         <div className="mx-auto max-w-2xl">
-          <div className="bg-white p-8">
+          <div className="bg-white p-4 sm:p-8">
             <ProgressBar step={step} />
             {step === 1 && <Step1 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(2); }} error={error} />}
             {step === 2 && <Step2 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(3); }} onBack={() => setStep(1)} />}
