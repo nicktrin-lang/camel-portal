@@ -57,6 +57,13 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
     pathname === "/partner/cookies" ||
     pathname === "/partner/about";
 
+  // Pages a partner can access before approval
+  const isPreApprovalPage =
+    pathname === "/partner/dashboard" ||
+    pathname === "/partner/account" ||
+    pathname === "/partner/profile" ||
+    isPartnerInfoPage;
+
   useEffect(() => {
     let mounted = true;
     async function guard() {
@@ -81,6 +88,8 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
           return;
         }
 
+        const user = userData.user;
+
         let nextRole: PortalRole = "partner";
         try {
           const meRes = await fetch("/api/admin/me", { method: "GET", cache: "no-store", credentials: "include" });
@@ -102,6 +111,27 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
           return;
         }
 
+        // ── Approval check for partners ───────────────────────────────────
+        // Skip for info pages and pre-approval pages
+        if (!isPartnerInfoPage && !isPreApprovalPage) {
+          const email = String(user.email || "").trim().toLowerCase();
+          const { data: appRow } = await supabase
+            .from("partner_applications")
+            .select("status")
+            .eq("email", email)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!mounted) return;
+
+          const appStatus = String(appRow?.status || "pending").toLowerCase();
+          if (appStatus !== "approved") {
+            router.replace("/partner/application-submitted");
+            return;
+          }
+        }
+
         setRole(nextRole);
         setAuthed(true);
       } catch {
@@ -114,7 +144,7 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
     }
     guard();
     return () => { mounted = false; };
-  }, [router, supabase, isUnauthPublicPage, isPartnerInfoPage, pathname]);
+  }, [router, supabase, isUnauthPublicPage, isPartnerInfoPage, isPreApprovalPage, pathname]);
 
   useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
@@ -151,7 +181,7 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  // Info pages for unauthenticated users — topbar only, no sidebar, no footer (ClientRootLayout renders it)
+  // Info pages for unauthenticated users — topbar only, no sidebar
   if (isPartnerInfoPage && !authed) {
     return (
       <div className="min-h-screen bg-[#f0f0f0]">
@@ -163,7 +193,7 @@ export default function FleetLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  // Authenticated pages — full sidebar + topbar + footer (ClientRootLayout renders footer for info pages)
+  // Authenticated pages — full sidebar + topbar + footer
   return (
     <div className="min-h-screen bg-[#f0f0f0] flex flex-col">
       <PortalTopbar onMenuClick={() => setSidebarOpen(true)} />
