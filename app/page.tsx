@@ -12,18 +12,19 @@ export default function PortalHomePage() {
   return (
     <div className="min-h-screen bg-white text-black flex flex-col">
 
-      {/* ── Nav ── */}
+      
+{/* ── Nav ── */}
       <header className="w-full bg-black border-b border-white/10 sticky top-0 z-50">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-2">
-          <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
-          <div className="flex items-center gap-3">
-            <Link href="/driver/login" className="border border-white/30 px-5 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2">
+          <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-14 sm:h-16 w-auto brightness-0 invert" />
+          <div className="flex items-center gap-2">
+            <Link href="/driver/login" className="hidden sm:block border border-white/30 px-4 py-2 text-sm font-black text-white hover:bg-white/10 transition-colors whitespace-nowrap">
               Driver Login
             </Link>
-            <Link href="/partner/login" className="border border-white/30 px-5 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
+            <Link href="/partner/login" className="border border-white/30 px-3 sm:px-5 py-2 text-sm font-black text-white hover:bg-white/10 transition-colors whitespace-nowrap">
               Partner Login
             </Link>
-            <Link href="/partner/signup" className="bg-[#ff7a00] px-5 py-2.5 text-sm font-black text-white hover:opacity-90 transition-opacity">
+            <Link href="/partner/signup" className="bg-[#ff7a00] px-3 sm:px-5 py-2 text-sm font-black text-white hover:opacity-90 transition-opacity whitespace-nowrap">
               Become a Partner
             </Link>
           </div>
