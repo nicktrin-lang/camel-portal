@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type DriverInfo = { id: string; full_name: string; email: string; phone: string | null };
 
@@ -29,12 +30,7 @@ type DriverJob = {
 type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
 
 const FUEL_OPTIONS: FuelLevel[] = ["full", "3/4", "half", "quarter", "empty"];
-const FUEL_LABELS: Record<FuelLevel, string> = {
-  full: "Full", "3/4": "¾ Tank", half: "½ Tank", quarter: "¼ Tank", empty: "Empty",
-};
-const FUEL_BARS: Record<FuelLevel, number> = {
-  full: 4, "3/4": 3, half: 2, quarter: 1, empty: 0,
-};
+const FUEL_BARS: Record<FuelLevel, number> = { full: 4, "3/4": 3, half: 2, quarter: 1, empty: 0 };
 
 function normalizeFuel(v: unknown): string | null {
   if (!v) return null;
@@ -47,17 +43,6 @@ function normalizeFuel(v: unknown): string | null {
   return null;
 }
 
-function fuelDisplayLabel(v: unknown): string {
-  switch (normalizeFuel(v)) {
-    case "empty": return "Empty";
-    case "quarter": return "¼ Tank";
-    case "half": return "½ Tank";
-    case "3/4": return "¾ Tank";
-    case "full": return "Full Tank";
-    default: return "—";
-  }
-}
-
 function FuelBar({ level }: { level: string | null }) {
   const n = normalizeFuel(level);
   const filled = n ? (FUEL_BARS[n as FuelLevel] ?? 0) : 0;
@@ -65,9 +50,7 @@ function FuelBar({ level }: { level: string | null }) {
     <div className="flex gap-1 mt-2">
       {[0,1,2,3].map(i => (
         <div key={i} className={`h-3 flex-1 ${
-          i < filled
-            ? filled >= 3 ? "bg-green-500" : filled === 2 ? "bg-yellow-400" : "bg-red-400"
-            : "bg-black/10"
+          i < filled ? filled >= 3 ? "bg-green-500" : filled === 2 ? "bg-yellow-400" : "bg-red-400" : "bg-black/10"
         }`}/>
       ))}
     </div>
@@ -78,20 +61,6 @@ function fmt(v?: string | null) {
   if (!v) return "—";
   try { return new Date(v).toLocaleString("en-GB", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }); }
   catch { return v; }
-}
-
-function statusLabel(s: string): string {
-  switch (s.toLowerCase()) {
-    case "confirmed":       return "Awaiting delivery";
-    case "driver_assigned": return "Assigned to you";
-    case "en_route":        return "En route";
-    case "arrived":         return "Arrived";
-    case "collected":       return "On hire";
-    case "returned":        return "Returned";
-    case "completed":       return "Completed";
-    case "cancelled":       return "Cancelled";
-    default: return s.replaceAll("_", " ");
-  }
 }
 
 function statusColor(s: string): string {
@@ -105,6 +74,34 @@ function statusColor(s: string): string {
 }
 
 export default function DriverJobsPage() {
+  const { t } = useTranslation();
+
+  // Build fuel label map from translations
+  const FUEL_LABELS: Record<FuelLevel, string> = {
+    full:    t("driver.jobs.fuel.level.full"),
+    "3/4":   t("driver.jobs.fuel.level.threequarter"),
+    half:    t("driver.jobs.fuel.level.half"),
+    quarter: t("driver.jobs.fuel.level.quarter"),
+    empty:   t("driver.jobs.fuel.level.empty"),
+  };
+
+  function fuelDisplayLabel(v: unknown): string {
+    switch (normalizeFuel(v)) {
+      case "empty":   return t("driver.jobs.fuel.display.empty");
+      case "quarter": return t("driver.jobs.fuel.display.quarter");
+      case "half":    return t("driver.jobs.fuel.display.half");
+      case "3/4":     return t("driver.jobs.fuel.display.threequarter");
+      case "full":    return t("driver.jobs.fuel.display.full");
+      default:        return "—";
+    }
+  }
+
+  function statusLabel(s: string): string {
+    const key = `driver.jobs.status.${s.toLowerCase()}` as any;
+    const result = t(key);
+    return result !== key ? result : s.replaceAll("_", " ");
+  }
+
   const [driverInfo,    setDriverInfo]    = useState<DriverInfo | null>(null);
   const [jobs,          setJobs]          = useState<DriverJob[]>([]);
   const [loading,       setLoading]       = useState(true);
@@ -120,15 +117,15 @@ export default function DriverJobsPage() {
     try {
       const res  = await fetch("/api/driver/jobs", { credentials: "include", cache: "no-store" });
       const json = await res.json().catch(() => null);
-      if (!res.ok) { setError(json?.error || "Not authorised as a driver."); setLoading(false); return; }
+      if (!res.ok) { setError(json?.error || t("driver.jobs.error.default")); setLoading(false); return; }
       setDriverInfo(json?.driver || null);
       setJobs(Array.isArray(json?.jobs) ? json.jobs : []);
       setLastLoaded(new Date());
-    } catch (e: any) { setError(e?.message || "Failed to load jobs."); }
+    } catch (e: any) { setError(e?.message || t("driver.jobs.error.load")); }
     finally { setLoading(false); }
   }
 
-  useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, []);
+  useEffect(() => { load(); const timer = setInterval(load, 15000); return () => clearInterval(timer); }, []);
 
   async function confirmAction(bookingId: string, action: "collection" | "return" | "insurance", fuelLevel?: FuelLevel) {
     setConfirmingJob(bookingId); setConfirmError(null); setConfirmOk(null);
@@ -139,10 +136,14 @@ export default function DriverJobsPage() {
         body: JSON.stringify({ action, fuel_level: fuelLevel }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to confirm.");
-      setConfirmOk(action === "collection" ? "Delivery confirmed ✓" : action === "return" ? "Collection confirmed ✓" : "Insurance confirmed ✓");
+      if (!res.ok) throw new Error(json?.error || t("driver.jobs.confirm.error"));
+      setConfirmOk(
+        action === "collection" ? t("driver.jobs.confirm.delivery") :
+        action === "return"     ? t("driver.jobs.confirm.collection") :
+        t("driver.jobs.confirm.insurance")
+      );
       await load();
-    } catch (e: any) { setConfirmError(e?.message || "Failed to confirm."); }
+    } catch (e: any) { setConfirmError(e?.message || t("driver.jobs.confirm.error")); }
     finally { setConfirmingJob(null); }
   }
 
@@ -156,7 +157,7 @@ export default function DriverJobsPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
-      <p className="text-black/40 font-bold text-sm">Loading your jobs…</p>
+      <p className="text-black/40 font-bold text-sm">{t("driver.jobs.loading")}</p>
     </div>
   );
 
@@ -164,7 +165,7 @@ export default function DriverJobsPage() {
     <div className="flex items-center justify-center py-20 px-6">
       <div className="max-w-md text-center">
         <p className="text-4xl mb-4">🚫</p>
-        <p className="text-black font-black text-xl mb-2">Access denied</p>
+        <p className="text-black font-black text-xl mb-2">{t("driver.jobs.error.title")}</p>
         <p className="text-black/50 font-semibold text-sm">{error}</p>
       </div>
     </div>
@@ -175,14 +176,14 @@ export default function DriverJobsPage() {
 
       <div className="bg-black px-6 py-5 flex items-center justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">Driver Portal</p>
-          <h1 className="text-xl font-black text-white mt-0.5">My Jobs</h1>
+          <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">{t("driver.jobs.tag")}</p>
+          <h1 className="text-xl font-black text-white mt-0.5">{t("driver.jobs.title")}</h1>
           {driverInfo && <p className="text-xs font-bold text-white/40 mt-0.5">{driverInfo.full_name}</p>}
         </div>
         <div className="text-right">
           {lastLoaded && (
             <p className="text-xs font-bold text-white/30">
-              Updated {lastLoaded.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", second:"2-digit" })}
+              {t("driver.jobs.updated")} {lastLoaded.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", second:"2-digit" })}
             </p>
           )}
         </div>
@@ -190,40 +191,36 @@ export default function DriverJobsPage() {
 
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label:"Awaiting Delivery", value:awaitingDelivery, color:"text-[#ff7a00]", border:"border-[#ff7a00]/20 bg-white" },
-          { label:"On Hire",           value:onHire,           color:"text-black",     border:"border-black/10 bg-white" },
-          { label:"Completed",         value:completedCount,   color:"text-green-600", border:"border-green-200 bg-green-50" },
-        ].map(({ label, value, color, border }) => (
-          <div key={label} className={`border ${border} p-4`}>
-            <p className="text-xs font-black uppercase tracking-widest text-black/40">{label}</p>
+          { labelKey:"driver.jobs.stats.awaitingDelivery", value:awaitingDelivery, color:"text-[#ff7a00]", border:"border-[#ff7a00]/20 bg-white" },
+          { labelKey:"driver.jobs.stats.onHire",           value:onHire,           color:"text-black",     border:"border-black/10 bg-white" },
+          { labelKey:"driver.jobs.stats.completed",        value:completedCount,   color:"text-green-600", border:"border-green-200 bg-green-50" },
+        ].map(({ labelKey, value, color, border }) => (
+          <div key={labelKey} className={`border ${border} p-4`}>
+            <p className="text-xs font-black uppercase tracking-widest text-black/40">{t(labelKey as any)}</p>
             <p className={`mt-1 text-3xl font-black ${color}`}>{value}</p>
           </div>
         ))}
       </div>
 
-      {confirmOk && <div className="border border-green-500/30 bg-green-50 px-4 py-3 text-sm font-black text-green-700">{confirmOk}</div>}
+      {confirmOk    && <div className="border border-green-500/30 bg-green-50 px-4 py-3 text-sm font-black text-green-700">{confirmOk}</div>}
       {confirmError && <div className="border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-700">{confirmError}</div>}
 
       {activeJobs.length === 0 && completedJobs.length === 0 && cancelledJobs.length === 0 ? (
         <div className="bg-white border border-black/5 p-12 text-center">
           <p className="text-4xl mb-4">🚗</p>
-          <p className="text-black font-black text-xl mb-2">No jobs assigned</p>
-          <p className="text-black/40 font-semibold text-sm">Your partner will assign jobs to you here. This page refreshes automatically.</p>
+          <p className="text-black font-black text-xl mb-2">{t("driver.jobs.noJobs.title")}</p>
+          <p className="text-black/40 font-semibold text-sm">{t("driver.jobs.noJobs.body")}</p>
         </div>
       ) : (
         <>
           {activeJobs.length > 0 && (
             <div className="space-y-3">
-              <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] px-1">Active Jobs</p>
+              <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] px-1">{t("driver.jobs.active.label")}</p>
               {activeJobs.map(job => {
-                const isExpanded   = expandedJob === job.booking_id;
-                const collFuelInput = fuelInputs[`coll_${job.booking_id}`] as FuelLevel | undefined;
-                const retFuelInput  = fuelInputs[`ret_${job.booking_id}`]  as FuelLevel | undefined;
-                const isConfirming  = confirmingJob === job.booking_id;
-
-                // Effective fuel: partner override wins if set
-                const effectiveCollFuel = normalizeFuel(job.collection_fuel_level_partner) || normalizeFuel(job.collection_fuel_level_driver);
-                const effectiveRetFuel  = normalizeFuel(job.return_fuel_level_partner)     || normalizeFuel(job.return_fuel_level_driver);
+                const isExpanded        = expandedJob === job.booking_id;
+                const collFuelInput     = fuelInputs[`coll_${job.booking_id}`] as FuelLevel | undefined;
+                const retFuelInput      = fuelInputs[`ret_${job.booking_id}`]  as FuelLevel | undefined;
+                const isConfirming      = confirmingJob === job.booking_id;
                 const collPartnerOverride = !!normalizeFuel(job.collection_fuel_level_partner);
                 const retPartnerOverride  = !!normalizeFuel(job.return_fuel_level_partner);
 
@@ -249,15 +246,15 @@ export default function DriverJobsPage() {
                       <div className="border-t border-black/5 px-5 py-5 space-y-5">
                         <div className="grid grid-cols-2 gap-3">
                           {[
-                            { label:"Customer",       value: job.customer_name },
-                            { label:"Customer phone", value: job.customer_phone, phone: true },
-                            { label:"Vehicle",        value: job.driver_vehicle || job.vehicle_category_name },
-                            { label:"Pickup time",    value: fmt(job.pickup_at) },
-                            { label:"Dropoff time",   value: fmt(job.dropoff_at) },
-                            { label:"Assigned at",    value: fmt(job.driver_assigned_at) },
-                          ].map(({ label, value, phone }) => (
-                            <div key={label}>
-                              <p className="text-xs font-black uppercase tracking-wide text-black/30">{label}</p>
+                            { labelKey:"driver.jobs.detail.customer",     value: job.customer_name },
+                            { labelKey:"driver.jobs.detail.customerPhone",value: job.customer_phone, phone: true },
+                            { labelKey:"driver.jobs.detail.vehicle",      value: job.driver_vehicle || job.vehicle_category_name },
+                            { labelKey:"driver.jobs.detail.pickupTime",   value: fmt(job.pickup_at) },
+                            { labelKey:"driver.jobs.detail.dropoffTime",  value: fmt(job.dropoff_at) },
+                            { labelKey:"driver.jobs.detail.assignedAt",   value: fmt(job.driver_assigned_at) },
+                          ].map(({ labelKey, value, phone }) => (
+                            <div key={labelKey}>
+                              <p className="text-xs font-black uppercase tracking-wide text-black/30">{t(labelKey as any)}</p>
                               {phone && value
                                 ? <a href={`tel:${value}`} className="text-sm font-bold text-[#ff7a00] underline">{value}</a>
                                 : <p className="text-sm font-bold text-black">{value || "—"}</p>}
@@ -267,7 +264,7 @@ export default function DriverJobsPage() {
 
                         {job.driver_notes && (
                           <div className="border-l-4 border-[#ff7a00] bg-[#ff7a00]/5 px-4 py-3">
-                            <p className="text-xs font-black uppercase tracking-wide text-[#ff7a00] mb-1">Notes from partner</p>
+                            <p className="text-xs font-black uppercase tracking-wide text-[#ff7a00] mb-1">{t("driver.jobs.detail.partnerNotes")}</p>
                             <p className="text-sm font-bold text-black/70">{job.driver_notes}</p>
                           </div>
                         )}
@@ -275,21 +272,21 @@ export default function DriverJobsPage() {
                         {job.customer_phone && (
                           <a href={`https://wa.me/${job.customer_phone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 bg-green-500 px-4 py-2.5 text-sm font-black text-white hover:bg-green-600 transition-colors">
-                            💬 WhatsApp Customer
+                            {t("driver.jobs.detail.whatsapp")}
                           </a>
                         )}
 
                         {/* ── Insurance ── */}
                         <div className={`border p-4 ${job.insurance_docs_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
-                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">📄 Insurance Documents</p>
+                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">{t("driver.jobs.insurance.label")}</p>
                           {job.insurance_docs_confirmed_by_driver ? (
-                            <p className="text-sm font-black text-green-700">✓ Confirmed handover at {fmt(job.insurance_docs_confirmed_by_driver_at)}</p>
+                            <p className="text-sm font-black text-green-700">{t("driver.jobs.insurance.confirmed", { time: fmt(job.insurance_docs_confirmed_by_driver_at) })}</p>
                           ) : (
                             <>
-                              <p className="text-sm font-bold text-black/60 mb-3">Confirm you have handed the insurance documents to the customer.</p>
+                              <p className="text-sm font-bold text-black/60 mb-3">{t("driver.jobs.insurance.body")}</p>
                               <button type="button" disabled={isConfirming} onClick={() => confirmAction(job.booking_id, "insurance")}
                                 className="bg-black px-5 py-3 text-sm font-black text-white hover:opacity-80 disabled:opacity-40 transition-opacity">
-                                {isConfirming ? "Saving…" : "✓ Confirm insurance handover"}
+                                {isConfirming ? t("driver.jobs.insurance.saving") : t("driver.jobs.insurance.btn")}
                               </button>
                             </>
                           )}
@@ -297,29 +294,28 @@ export default function DriverJobsPage() {
 
                         {/* ── Delivery fuel ── */}
                         <div className={`border p-4 ${job.collection_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
-                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">⛽ Delivery Fuel Level</p>
+                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">{t("driver.jobs.fuel.delivery.label")}</p>
                           {job.collection_confirmed_by_driver ? (
                             <>
-                              <p className="text-sm font-black text-green-700">✓ You recorded: {fuelDisplayLabel(job.collection_fuel_level_driver)}</p>
+                              <p className="text-sm font-black text-green-700">{t("driver.jobs.fuel.recorded", { level: fuelDisplayLabel(job.collection_fuel_level_driver) })}</p>
                               <p className="text-xs text-black/30 mt-1">{fmt(job.collection_confirmed_by_driver_at)}</p>
                               {job.collection_fuel_level_driver && <FuelBar level={job.collection_fuel_level_driver}/>}
                               {collPartnerOverride && normalizeFuel(job.collection_fuel_level_partner) !== normalizeFuel(job.collection_fuel_level_driver) && (
                                 <div className="mt-3 border border-amber-200 bg-amber-50 px-3 py-2">
-                                  <p className="text-xs font-black text-amber-700">⚠ Office override in effect: {fuelDisplayLabel(job.collection_fuel_level_partner)}</p>
-                                  <p className="text-xs font-bold text-amber-600 mt-0.5">The office has set a different fuel level. The customer will confirm the office value.</p>
+                                  <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeOverride", { level: fuelDisplayLabel(job.collection_fuel_level_partner) })}</p>
+                                  <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeOverrideNote")}</p>
                                 </div>
                               )}
                             </>
                           ) : (
                             <>
-                              {/* Show office override notice even before driver records */}
                               {collPartnerOverride && (
                                 <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2">
-                                  <p className="text-xs font-black text-amber-700">⚠ Office has set: {fuelDisplayLabel(job.collection_fuel_level_partner)}</p>
-                                  <p className="text-xs font-bold text-amber-600 mt-0.5">You can still record your own reading below — the office value will be used unless you record a different one.</p>
+                                  <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeSet", { level: fuelDisplayLabel(job.collection_fuel_level_partner) })}</p>
+                                  <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeSetNote")}</p>
                                 </div>
                               )}
-                              <p className="text-sm font-bold text-black/60 mb-3">Record the fuel level when you deliver the vehicle.</p>
+                              <p className="text-sm font-bold text-black/60 mb-3">{t("driver.jobs.fuel.deliveryInstruction")}</p>
                               <div className="grid grid-cols-5 gap-2 mb-3">
                                 {FUEL_OPTIONS.map(opt => (
                                   <button key={opt} type="button"
@@ -333,38 +329,37 @@ export default function DriverJobsPage() {
                               <button type="button" disabled={!collFuelInput || isConfirming}
                                 onClick={() => confirmAction(job.booking_id, "collection", collFuelInput)}
                                 className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
-                                {isConfirming ? "Saving…" : "✓ Confirm delivery fuel"}
+                                {isConfirming ? t("driver.jobs.fuel.saving") : t("driver.jobs.fuel.confirmDeliveryBtn")}
                               </button>
                             </>
                           )}
                         </div>
 
-                        {/* ── Collection fuel (return) ── */}
+                        {/* ── Collection fuel ── */}
                         <div className={`border p-4 ${job.return_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
-                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">⛽ Collection Fuel Level</p>
+                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">{t("driver.jobs.fuel.collection.label")}</p>
                           {job.return_confirmed_by_driver ? (
                             <>
-                              <p className="text-sm font-black text-green-700">✓ You recorded: {fuelDisplayLabel(job.return_fuel_level_driver)}</p>
+                              <p className="text-sm font-black text-green-700">{t("driver.jobs.fuel.recorded", { level: fuelDisplayLabel(job.return_fuel_level_driver) })}</p>
                               <p className="text-xs text-black/30 mt-1">{fmt(job.return_confirmed_by_driver_at)}</p>
                               {job.return_fuel_level_driver && <FuelBar level={job.return_fuel_level_driver}/>}
                               {retPartnerOverride && normalizeFuel(job.return_fuel_level_partner) !== normalizeFuel(job.return_fuel_level_driver) && (
                                 <div className="mt-3 border border-amber-200 bg-amber-50 px-3 py-2">
-                                  <p className="text-xs font-black text-amber-700">⚠ Office override in effect: {fuelDisplayLabel(job.return_fuel_level_partner)}</p>
-                                  <p className="text-xs font-bold text-amber-600 mt-0.5">The office has set a different fuel level. The customer will confirm the office value.</p>
+                                  <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeOverride", { level: fuelDisplayLabel(job.return_fuel_level_partner) })}</p>
+                                  <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeOverrideNote")}</p>
                                 </div>
                               )}
                             </>
                           ) : (
                             <>
-                              {/* Show office override — this is the key fix for the blank collection fuel */}
-                              {retPartnerOverride ? (
+                              {retPartnerOverride && (
                                 <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2">
-                                  <p className="text-xs font-black text-amber-700">⚠ Office has recorded: {fuelDisplayLabel(job.return_fuel_level_partner)}</p>
-                                  <p className="text-xs font-bold text-amber-600 mt-0.5">The office has set this fuel level. You can still record your own reading below.</p>
+                                  <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeRecorded", { level: fuelDisplayLabel(job.return_fuel_level_partner) })}</p>
+                                  <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeRecordedNote")}</p>
                                   <FuelBar level={job.return_fuel_level_partner ?? null}/>
                                 </div>
-                              ) : null}
-                              <p className="text-sm font-bold text-black/60 mb-3">Record the fuel level when you collect the vehicle back.</p>
+                              )}
+                              <p className="text-sm font-bold text-black/60 mb-3">{t("driver.jobs.fuel.collectionInstruction")}</p>
                               <div className="grid grid-cols-5 gap-2 mb-3">
                                 {FUEL_OPTIONS.map(opt => (
                                   <button key={opt} type="button"
@@ -378,7 +373,7 @@ export default function DriverJobsPage() {
                               <button type="button" disabled={!retFuelInput || isConfirming}
                                 onClick={() => confirmAction(job.booking_id, "return", retFuelInput)}
                                 className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
-                                {isConfirming ? "Saving…" : "✓ Confirm collection fuel"}
+                                {isConfirming ? t("driver.jobs.fuel.saving") : t("driver.jobs.fuel.confirmCollectionBtn")}
                               </button>
                             </>
                           )}
@@ -393,9 +388,9 @@ export default function DriverJobsPage() {
 
           {(completedJobs.length > 0 || cancelledJobs.length > 0) && (
             <div className="space-y-2">
-              <p className="text-xs font-black uppercase tracking-widest text-black/30 px-1">Completed & Cancelled</p>
+              <p className="text-xs font-black uppercase tracking-widest text-black/30 px-1">{t("driver.jobs.history.label")}</p>
               {[...completedJobs, ...cancelledJobs].map(job => {
-                const isExpanded = expandedJob === job.booking_id;
+                const isExpanded        = expandedJob === job.booking_id;
                 const effectiveCollFuel = normalizeFuel(job.collection_fuel_level_partner) || normalizeFuel(job.collection_fuel_level_driver);
                 const effectiveRetFuel  = normalizeFuel(job.return_fuel_level_partner)     || normalizeFuel(job.return_fuel_level_driver);
                 return (
@@ -417,15 +412,15 @@ export default function DriverJobsPage() {
                       <div className="border-t border-black/5 px-5 py-5 space-y-4">
                         <div className="grid grid-cols-2 gap-3">
                           {[
-                            { label:"Customer",        value: job.customer_name },
-                            { label:"Customer phone",  value: job.customer_phone, phone: true },
-                            { label:"Vehicle",         value: job.driver_vehicle || job.vehicle_category_name },
-                            { label:"Pickup time",     value: fmt(job.pickup_at) },
-                            { label:"Dropoff time",    value: fmt(job.dropoff_at) },
-                            { label:"Dropoff address", value: job.dropoff_address },
-                          ].map(({ label, value, phone }) => (
-                            <div key={label}>
-                              <p className="text-xs font-black uppercase tracking-wide text-black/30">{label}</p>
+                            { labelKey:"driver.jobs.detail.customer",       value: job.customer_name },
+                            { labelKey:"driver.jobs.detail.customerPhone",  value: job.customer_phone, phone: true },
+                            { labelKey:"driver.jobs.detail.vehicle",        value: job.driver_vehicle || job.vehicle_category_name },
+                            { labelKey:"driver.jobs.detail.pickupTime",     value: fmt(job.pickup_at) },
+                            { labelKey:"driver.jobs.detail.dropoffTime",    value: fmt(job.dropoff_at) },
+                            { labelKey:"driver.jobs.detail.dropoffAddress", value: job.dropoff_address },
+                          ].map(({ labelKey, value, phone }) => (
+                            <div key={labelKey}>
+                              <p className="text-xs font-black uppercase tracking-wide text-black/30">{t(labelKey as any)}</p>
                               {phone && value
                                 ? <a href={`tel:${value}`} className="text-sm font-bold text-[#ff7a00] underline">{value}</a>
                                 : <p className="text-sm font-bold text-black">{value || "—"}</p>}
@@ -434,21 +429,25 @@ export default function DriverJobsPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="border border-black/10 bg-[#f0f0f0] p-3">
-                            <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">⛽ Delivery fuel</p>
+                            <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">{t("driver.jobs.fuel.deliveryHistoryLabel")}</p>
                             <p className="text-sm font-bold text-black">{fuelDisplayLabel(effectiveCollFuel)}</p>
                             {effectiveCollFuel && <FuelBar level={effectiveCollFuel}/>}
-                            {normalizeFuel(job.collection_fuel_level_partner) && <p className="text-xs font-bold text-amber-600 mt-1">Office recorded</p>}
+                            {normalizeFuel(job.collection_fuel_level_partner) && <p className="text-xs font-bold text-amber-600 mt-1">{t("driver.jobs.fuel.officeRecordedBadge")}</p>}
                           </div>
                           <div className="border border-black/10 bg-[#f0f0f0] p-3">
-                            <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">⛽ Collection fuel</p>
+                            <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">{t("driver.jobs.fuel.collectionHistoryLabel")}</p>
                             <p className="text-sm font-bold text-black">{fuelDisplayLabel(effectiveRetFuel)}</p>
                             {effectiveRetFuel && <FuelBar level={effectiveRetFuel}/>}
-                            {normalizeFuel(job.return_fuel_level_partner) && <p className="text-xs font-bold text-amber-600 mt-1">Office recorded</p>}
+                            {normalizeFuel(job.return_fuel_level_partner) && <p className="text-xs font-bold text-amber-600 mt-1">{t("driver.jobs.fuel.officeRecordedBadge")}</p>}
                           </div>
                         </div>
                         <div className={`border p-3 ${job.insurance_docs_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
-                          <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">📄 Insurance handover</p>
-                          <p className="text-sm font-bold text-black">{job.insurance_docs_confirmed_by_driver ? `✓ Confirmed at ${fmt(job.insurance_docs_confirmed_by_driver_at)}` : "Not confirmed"}</p>
+                          <p className="text-xs font-black uppercase tracking-wide text-black/30 mb-1">{t("driver.jobs.insurance.historyLabel")}</p>
+                          <p className="text-sm font-bold text-black">
+                            {job.insurance_docs_confirmed_by_driver
+                              ? t("driver.jobs.insurance.confirmed", { time: fmt(job.insurance_docs_confirmed_by_driver_at) })
+                              : t("driver.jobs.insurance.notConfirmed")}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -460,9 +459,7 @@ export default function DriverJobsPage() {
         </>
       )}
 
-      <p className="text-center text-xs font-bold text-black/20 pb-4">
-        Auto-refreshes every 15 seconds · Camel Global Driver Portal
-      </p>
+      <p className="text-center text-xs font-bold text-black/20 pb-4">{t("driver.jobs.footer")}</p>
     </div>
   );
 }
