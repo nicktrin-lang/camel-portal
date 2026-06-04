@@ -4,54 +4,24 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type Profile = {
-  contact_name: string | null;
-  company_name: string | null;
-  address: string | null;
-  service_radius_km: number | null;
-  default_currency: string | null;
-  base_lat: number | null;
-  base_lng: number | null;
-  country: string | null;
-  vat_number: string | null;
-  stripe_onboarding_complete: boolean | null;
+  contact_name: string | null; company_name: string | null; address: string | null;
+  service_radius_km: number | null; default_currency: string | null;
+  base_lat: number | null; base_lng: number | null; country: string | null;
+  vat_number: string | null; stripe_onboarding_complete: boolean | null;
 };
-
 type BookingRow = {
-  id: string;
-  booking_status: string | null;
-  amount: number | null;
-  currency: string | null;
-  job_number: number | null;
-  created_at: string | null;
-  pickup_address: string | null;
-  customer_name: string | null;
-  driver_name: string | null;
+  id: string; booking_status: string | null; amount: number | null; currency: string | null;
+  job_number: number | null; created_at: string | null; pickup_address: string | null;
+  customer_name: string | null; driver_name: string | null;
 };
-
 type RequestRow = {
-  id: string;
-  status: string | null;
-  job_number: number | null;
-  created_at: string | null;
-  pickup_address: string | null;
-  expires_at: string | null;
+  id: string; status: string | null; job_number: number | null;
+  created_at: string | null; pickup_address: string | null; expires_at: string | null;
 };
-
 type LiveStatus = { isLive: boolean; missing: string[] };
-
-const MISSING_LABELS: Record<string, { label: string; href: string }> = {
-  service_radius_km: { label: "Service radius not set",         href: "/partner/profile" },
-  base_address:      { label: "Fleet base address missing",     href: "/partner/profile" },
-  base_location:     { label: "Fleet base map pin missing",     href: "/partner/profile" },
-  base_lat:          { label: "Fleet base location missing",    href: "/partner/profile" },
-  base_lng:          { label: "Fleet base location missing",    href: "/partner/profile" },
-  fleet:             { label: "No active fleet vehicles added", href: "/partner/fleet" },
-  driver:            { label: "No active drivers added",        href: "/partner/drivers" },
-  default_currency:  { label: "Billing currency not set",       href: "/partner/profile" },
-  vat_number:        { label: "VAT / NIF number not set",       href: "/partner/profile" },
-};
 
 function fmtDateTime(iso?: string | null) {
   if (!iso) return "—";
@@ -60,30 +30,18 @@ function fmtDateTime(iso?: string | null) {
 
 function fmtAmt(amount: number | null, currency: string | null) {
   if (amount == null || isNaN(amount)) return "—";
-  const curr = (currency ?? "EUR") as "EUR" | "GBP" | "USD";
+  const curr   = (currency ?? "EUR") as "EUR" | "GBP" | "USD";
   const locale = curr === "EUR" ? "es-ES" : curr === "GBP" ? "en-GB" : "en-US";
   return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(amount);
 }
 
 function statusPill(status?: string | null) {
   const s = String(status || "").toLowerCase();
-  if (["completed", "confirmed", "bid_successful"].includes(s)) return "border-green-200 bg-green-50 text-green-700";
-  if (["driver_assigned", "en_route", "arrived", "collected", "returned"].includes(s)) return "border-amber-200 bg-amber-50 text-amber-700";
-  if (["open", "bid_submitted"].includes(s)) return "border-blue-200 bg-blue-50 text-blue-700";
-  if (["cancelled", "expired", "bid_unsuccessful"].includes(s)) return "border-red-200 bg-red-50 text-red-700";
+  if (["completed","confirmed","bid_successful"].includes(s)) return "border-green-200 bg-green-50 text-green-700";
+  if (["driver_assigned","en_route","arrived","collected","returned"].includes(s)) return "border-amber-200 bg-amber-50 text-amber-700";
+  if (["open","bid_submitted"].includes(s)) return "border-blue-200 bg-blue-50 text-blue-700";
+  if (["cancelled","expired","bid_unsuccessful"].includes(s)) return "border-red-200 bg-red-50 text-red-700";
   return "border-black/10 bg-white text-black/60";
-}
-
-function fmtStatus(s?: string | null) {
-  switch (String(s || "").toLowerCase()) {
-    case "collected": case "returned": return "On Hire";
-    case "driver_assigned": return "Driver Assigned";
-    case "en_route": return "En Route";
-    case "bid_submitted": return "Bid Submitted";
-    case "bid_successful": return "Bid Won";
-    case "bid_unsuccessful": return "Bid Lost";
-    default: return String(s || "—").replaceAll("_", " ");
-  }
 }
 
 async function safeJson(res: Response): Promise<any> {
@@ -93,8 +51,9 @@ async function safeJson(res: Response): Promise<any> {
 }
 
 export default function PartnerDashboardPage() {
+  const { t }    = useTranslation();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router = useRouter();
+  const router   = useRouter();
 
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState<string | null>(null);
@@ -109,6 +68,31 @@ export default function PartnerDashboardPage() {
   const [stripeComplete, setStripeComplete] = useState(false);
   const [stripeLinking,  setStripeLinking]  = useState(false);
 
+  // Translate missing-requirement keys to human labels
+  const MISSING_LABELS: Record<string, { label: string; href: string }> = {
+    service_radius_km: { label: t("dashboard.missing.service_radius_km"), href: "/partner/profile" },
+    base_address:      { label: t("dashboard.missing.base_address"),      href: "/partner/profile" },
+    base_location:     { label: t("dashboard.missing.base_location"),     href: "/partner/profile" },
+    base_lat:          { label: t("dashboard.missing.base_lat"),          href: "/partner/profile" },
+    base_lng:          { label: t("dashboard.missing.base_lng"),          href: "/partner/profile" },
+    fleet:             { label: t("dashboard.missing.fleet"),             href: "/partner/fleet" },
+    driver:            { label: t("dashboard.missing.driver"),            href: "/partner/drivers" },
+    default_currency:  { label: t("dashboard.missing.default_currency"),  href: "/partner/profile" },
+    vat_number:        { label: t("dashboard.missing.vat_number"),        href: "/partner/profile" },
+  };
+
+  function fmtStatus(s?: string | null) {
+    switch (String(s || "").toLowerCase()) {
+      case "collected": case "returned": return t("booking.status.onHire");
+      case "driver_assigned": return t("booking.status.driverAssigned");
+      case "en_route":        return t("booking.status.enRoute");
+      case "bid_submitted":   return t("booking.status.bidSubmitted");
+      case "bid_successful":  return t("booking.status.bidWon");
+      case "bid_unsuccessful":return t("booking.status.bidLost");
+      default: return String(s || "—").replaceAll("_", " ");
+    }
+  }
+
   useEffect(() => {
     let mounted = true;
     async function load() {
@@ -116,12 +100,11 @@ export default function PartnerDashboardPage() {
       try {
         const { data: userData, error: userErr } = await supabase.auth.getUser();
         if (userErr || !userData?.user) { router.replace("/partner/login?reason=not_signed_in"); return; }
-        const user = userData.user;
+        const user      = userData.user;
         const userEmail = String(user.email || "").trim().toLowerCase();
 
         const [
-          { data: profileRow },
-          { data: appRow },
+          { data: profileRow }, { data: appRow },
           bkRes, reqRes, drvRes, fleetRes, stripeRes,
         ] = await Promise.all([
           supabase.from("partner_profiles")
@@ -130,11 +113,11 @@ export default function PartnerDashboardPage() {
           supabase.from("partner_applications")
             .select("status").eq("email", userEmail)
             .order("created_at", { ascending: false }).limit(1).maybeSingle(),
-          fetch("/api/partner/bookings",       { cache: "no-store", credentials: "include" }),
-          fetch("/api/partner/requests",       { cache: "no-store", credentials: "include" }),
-          fetch("/api/partner/drivers",        { cache: "no-store", credentials: "include" }),
+          fetch("/api/partner/bookings",      { cache: "no-store", credentials: "include" }),
+          fetch("/api/partner/requests",      { cache: "no-store", credentials: "include" }),
+          fetch("/api/partner/drivers",       { cache: "no-store", credentials: "include" }),
           supabase.from("partner_fleet").select("id").eq("user_id", user.id).eq("is_active", true),
-          fetch("/api/partner/stripe/status",  { credentials: "include" }),
+          fetch("/api/partner/stripe/status", { credentials: "include" }),
         ]);
 
         const bkJson     = await safeJson(bkRes);
@@ -146,16 +129,14 @@ export default function PartnerDashboardPage() {
         setProfile(profileRow as Profile | null);
         setAppStatus(String(appRow?.status || "pending"));
         setEmail(userEmail);
-        setBookings(Array.isArray(bkJson?.data)   ? bkJson.data.slice(0, 5)  : []);
-        setRequests(Array.isArray(reqJson?.data)   ? reqJson.data.slice(0, 5) : []);
+        setBookings(Array.isArray(bkJson?.data)    ? bkJson.data.slice(0, 5)  : []);
+        setRequests(Array.isArray(reqJson?.data)    ? reqJson.data.slice(0, 5) : []);
         setDriverCount(Array.isArray(drvJson?.data) ? drvJson.data.filter((d: any) => d.is_active).length : 0);
-        setFleetCount(Array.isArray(fleetRes?.data)  ? fleetRes.data.length : 0);
+        setFleetCount(Array.isArray(fleetRes?.data) ? fleetRes.data.length : 0);
         setStripeComplete(stripeJson?.onboarding_complete ?? false);
 
         try {
-          const liveRes = await fetch("/api/partner/refresh-live-status", {
-            method: "POST", cache: "no-store", credentials: "include",
-          });
+          const liveRes = await fetch("/api/partner/refresh-live-status", { method: "POST", cache: "no-store", credentials: "include" });
           if (liveRes.ok) {
             const liveJson = await liveRes.json();
             if (mounted) setLiveStatus({
@@ -166,7 +147,7 @@ export default function PartnerDashboardPage() {
         } catch {}
       } catch (e: any) {
         if (!mounted) return;
-        setError(e?.message || "Failed to load dashboard.");
+        setError(e?.message || t("common.error"));
       } finally {
         if (mounted) setLoading(false);
       }
@@ -178,7 +159,7 @@ export default function PartnerDashboardPage() {
   async function openStripeDashboard() {
     setStripeLinking(true);
     try {
-      const res = await fetch("/api/partner/stripe/dashboard-link", { method: "POST", credentials: "include" });
+      const res  = await fetch("/api/partner/stripe/dashboard-link", { method: "POST", credentials: "include" });
       const json = await res.json();
       if (json?.url) window.open(json.url, "_blank");
     } catch {} finally { setStripeLinking(false); }
@@ -186,7 +167,7 @@ export default function PartnerDashboardPage() {
 
   if (loading) return (
     <div className="border border-black/5 bg-white p-8">
-      <p className="text-sm font-bold text-black/50">Loading dashboard…</p>
+      <p className="text-sm font-bold text-black/50">{t("common.loading")}</p>
     </div>
   );
 
@@ -202,16 +183,16 @@ export default function PartnerDashboardPage() {
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-black text-black">Partner Dashboard</h1>
+          <h1 className="text-3xl font-black text-black">{t("dashboard.title")}</h1>
           <p className="mt-1 text-sm font-bold text-black/50">
-            Welcome back{profile?.contact_name ? `, ${profile.contact_name}` : ""}
+            {t("dashboard.welcomeBack")}{profile?.contact_name ? `, ${profile.contact_name}` : ""}
             {profile?.company_name ? ` — ${profile.company_name}` : ""}.
           </p>
         </div>
         <span className={`inline-flex w-full sm:w-auto border px-3 py-1 text-xs font-black uppercase tracking-widest ${
           isApproved ? "border-black/20 bg-black text-white" : "border-amber-300 bg-amber-50 text-amber-700"
         }`}>
-          {isApproved ? "✓ Account Approved" : "⏳ Pending Approval"}
+          {isApproved ? t("dashboard.accountApproved") : t("dashboard.pendingApproval")}
         </span>
       </div>
 
@@ -221,11 +202,11 @@ export default function PartnerDashboardPage() {
           <div className="flex items-start gap-3">
             <span className="text-xl">💳</span>
             <div className="flex-1">
-              <p className="font-black text-[#c05c00]">Set up payouts to receive booking payments</p>
-              <p className="mt-1 text-sm font-bold text-[#c05c00]/80">Connect your bank account via Stripe so you can receive your earnings from completed bookings. Takes about 5 minutes.</p>
+              <p className="font-black text-[#c05c00]">{t("dashboard.stripe.setupTitle")}</p>
+              <p className="mt-1 text-sm font-bold text-[#c05c00]/80">{t("dashboard.stripe.setupBody")}</p>
               <Link href="/partner/onboarding?step=payouts"
                 className="mt-3 inline-flex items-center gap-2 bg-[#ff7a00] px-4 py-2 text-sm font-black text-white hover:opacity-90 transition-opacity">
-                Set Up Payouts →
+                {t("dashboard.stripe.setupCta")}
               </Link>
             </div>
           </div>
@@ -238,13 +219,13 @@ export default function PartnerDashboardPage() {
           <div className="flex items-center gap-3">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center bg-green-600 text-white font-black text-xs">✓</span>
             <div>
-              <p className="font-black text-green-800">Payouts active</p>
-              <p className="text-xs font-bold text-green-700">Completed bookings are paid out monthly to your bank account.</p>
+              <p className="font-black text-green-800">{t("dashboard.stripe.activeTitle")}</p>
+              <p className="text-xs font-bold text-green-700">{t("dashboard.stripe.activeBody")}</p>
             </div>
           </div>
           <button onClick={openStripeDashboard} disabled={stripeLinking}
             className="w-full sm:w-auto shrink-0 border border-green-300 px-3 py-1.5 text-xs font-black text-green-800 hover:bg-green-100 transition-colors disabled:opacity-50">
-            {stripeLinking ? "Opening…" : "Manage Payouts →"}
+            {stripeLinking ? t("dashboard.stripe.opening") : t("dashboard.stripe.manage")}
           </button>
         </div>
       )}
@@ -255,16 +236,15 @@ export default function PartnerDashboardPage() {
           <div className="flex items-start gap-3">
             <span className="text-xl">⚠️</span>
             <div className="flex-1">
-              <p className="font-black text-amber-800">Your account is not yet live</p>
-              <p className="mt-1 text-sm font-bold text-amber-700">Complete the following to start receiving customer requests:</p>
+              <p className="font-black text-amber-800">{t("dashboard.live.notLiveTitle")}</p>
+              <p className="mt-1 text-sm font-bold text-amber-700">{t("dashboard.live.notLiveBody")}</p>
               {liveStatus.missing.length > 0 && (
                 <ul className="mt-3 flex flex-col gap-2 sm:flex-wrap sm:flex-row">
                   {liveStatus.missing.map(m => {
                     const info = MISSING_LABELS[m] ?? { label: m, href: "/partner/profile" };
                     return (
                       <li key={m}>
-                        <a href={info.href}
-                          className="inline-flex items-center gap-1.5 border border-amber-300 bg-white px-3 py-1.5 text-sm font-black text-amber-800 hover:bg-amber-100 transition-colors">
+                        <a href={info.href} className="inline-flex items-center gap-1.5 border border-amber-300 bg-white px-3 py-1.5 text-sm font-black text-amber-800 hover:bg-amber-100 transition-colors">
                           → {info.label}
                         </a>
                       </li>
@@ -280,18 +260,18 @@ export default function PartnerDashboardPage() {
       {/* Pending approval banner */}
       {!isApproved && (
         <div className="border border-amber-200 bg-amber-50 p-4 text-sm">
-          <span className="font-black text-amber-800">Your account is under review.</span>
-          <span className="font-bold text-amber-700"> You will receive an email once approved. In the meantime you can complete your profile, add your fleet and drivers.</span>
+          <span className="font-black text-amber-800">{t("dashboard.approval.underReview")}</span>
+          <span className="font-bold text-amber-700">{t("dashboard.approval.underReviewBody")}</span>
         </div>
       )}
 
-      {/* Stats cards — 2 cols mobile, 4 cols sm+ */}
+      {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { label: "Active Bookings", value: activeBookings.length,    link: "/partner/bookings", linkLabel: "View all →",      color: "text-[#ff7a00]" },
-          { label: "Open Requests",   value: openRequests.length,      link: "/partner/requests", linkLabel: "View all →",      color: "text-[#ff7a00]" },
-          { label: "Completed",       value: completedBookings.length, link: "/partner/reports",  linkLabel: "View reports →",  color: "text-black" },
-          { label: "Active Drivers",  value: driverCount,              link: "/partner/drivers",  linkLabel: "Manage drivers →",color: "text-black" },
+          { label: t("dashboard.stats.activeBookings"), value: activeBookings.length,    link: "/partner/bookings", linkLabel: t("common.viewAllArrow"),            color: "text-[#ff7a00]" },
+          { label: t("dashboard.stats.openRequests"),   value: openRequests.length,      link: "/partner/requests", linkLabel: t("common.viewAllArrow"),            color: "text-[#ff7a00]" },
+          { label: t("dashboard.stats.completed"),      value: completedBookings.length, link: "/partner/reports",  linkLabel: t("dashboard.stats.viewReports"),    color: "text-black" },
+          { label: t("dashboard.stats.activeDrivers"),  value: driverCount,              link: "/partner/drivers",  linkLabel: t("dashboard.stats.manageDrivers"),  color: "text-black" },
         ].map(({ label, value, link, linkLabel, color }) => (
           <div key={label} className="border border-black/5 bg-white p-5">
             <p className="text-xs font-black uppercase tracking-widest text-black/50">{label}</p>
@@ -301,13 +281,13 @@ export default function PartnerDashboardPage() {
         ))}
       </div>
 
-      {/* Quick actions — 2 cols mobile, 4 cols sm+ */}
+      {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: "📋 View Requests", href: "/partner/requests", primary: true },
-          { label: "📅 View Bookings", href: "/partner/bookings", primary: false },
-          { label: "📊 Reports",       href: "/partner/reports",  primary: false },
-          { label: "✏️ Edit Profile",  href: "/partner/profile",  primary: false },
+          { label: t("dashboard.actions.viewRequests"), href: "/partner/requests", primary: true },
+          { label: t("dashboard.actions.viewBookings"), href: "/partner/bookings", primary: false },
+          { label: t("dashboard.actions.reports"),      href: "/partner/reports",  primary: false },
+          { label: t("dashboard.actions.editProfile"),  href: "/partner/profile",  primary: false },
         ].map(({ label, href, primary }) => (
           <Link key={href} href={href}
             className={`px-4 py-3 text-center text-sm font-black transition-opacity hover:opacity-90 ${
@@ -318,18 +298,17 @@ export default function PartnerDashboardPage() {
         ))}
       </div>
 
-      {/* Recent Bookings + Requests — 1 col mobile, 2 cols xl */}
+      {/* Recent Bookings + Requests */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        {/* Recent Bookings */}
         <div className="border border-black/5 bg-white p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-black text-black">Recent Bookings</h2>
-            <Link href="/partner/bookings" className="text-xs font-black text-[#ff7a00] hover:underline">View all</Link>
+            <h2 className="text-lg font-black text-black">{t("dashboard.recentBookings")}</h2>
+            <Link href="/partner/bookings" className="text-xs font-black text-[#ff7a00] hover:underline">{t("common.viewAll")}</Link>
           </div>
           {bookings.length === 0 ? (
             <div className="border border-black/5 bg-[#f0f0f0] p-6 text-center">
-              <p className="text-sm font-bold text-black/50">No bookings yet.</p>
-              <p className="mt-1 text-xs font-bold text-black/30">Bookings will appear here once a customer accepts your bid.</p>
+              <p className="text-sm font-bold text-black/50">{t("dashboard.noBookings")}</p>
+              <p className="mt-1 text-xs font-bold text-black/30">{t("dashboard.noBookingsBody")}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -353,16 +332,15 @@ export default function PartnerDashboardPage() {
           )}
         </div>
 
-        {/* Recent Requests */}
         <div className="border border-black/5 bg-white p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-black text-black">Recent Requests</h2>
-            <Link href="/partner/requests" className="text-xs font-black text-[#ff7a00] hover:underline">View all</Link>
+            <h2 className="text-lg font-black text-black">{t("dashboard.recentRequests")}</h2>
+            <Link href="/partner/requests" className="text-xs font-black text-[#ff7a00] hover:underline">{t("common.viewAll")}</Link>
           </div>
           {requests.length === 0 ? (
             <div className="border border-black/5 bg-[#f0f0f0] p-6 text-center">
-              <p className="text-sm font-bold text-black/50">No requests yet.</p>
-              <p className="mt-1 text-xs font-bold text-black/30">Customer requests within your service radius will appear here.</p>
+              <p className="text-sm font-bold text-black/50">{t("dashboard.noRequests")}</p>
+              <p className="mt-1 text-xs font-bold text-black/30">{t("dashboard.noRequestsBody")}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -384,19 +362,18 @@ export default function PartnerDashboardPage() {
         </div>
       </div>
 
-      {/* Account summary + setup checklist + navigation — 1 col mobile, 3 cols xl */}
+      {/* Account summary + checklist + navigation */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
 
-        {/* Account summary */}
         <div className="border border-black/5 bg-white p-6">
-          <h2 className="text-lg font-black text-black mb-4">Account Summary</h2>
+          <h2 className="text-lg font-black text-black mb-4">{t("dashboard.accountSummary")}</h2>
           <div className="space-y-3 text-sm">
             {[
-              { label: "Email",          value: email },
-              { label: "Company",        value: profile?.company_name || "—" },
-              { label: "Contact",        value: profile?.contact_name || "—" },
-              { label: "Service Radius", value: profile?.service_radius_km ? `${profile.service_radius_km} km` : "—" },
-              { label: "Country",        value: profile?.country || "—" },
+              { label: t("dashboard.accountSummary.email"),         value: email },
+              { label: t("dashboard.accountSummary.company"),       value: profile?.company_name || "—" },
+              { label: t("dashboard.accountSummary.contact"),       value: profile?.contact_name || "—" },
+              { label: t("dashboard.accountSummary.serviceRadius"), value: profile?.service_radius_km ? `${profile.service_radius_km} km` : "—" },
+              { label: t("dashboard.accountSummary.country"),       value: profile?.country || "—" },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between gap-2">
                 <span className="text-xs font-black uppercase tracking-widest text-black/40 shrink-0">{label}</span>
@@ -404,51 +381,46 @@ export default function PartnerDashboardPage() {
               </div>
             ))}
           </div>
-          <Link href="/partner/account"
-            className="mt-5 block border border-black/20 px-4 py-2.5 text-center text-sm font-black text-black hover:bg-black/5 transition-colors">
-            View Full Account →
+          <Link href="/partner/account" className="mt-5 block border border-black/20 px-4 py-2.5 text-center text-sm font-black text-black hover:bg-black/5 transition-colors">
+            {t("dashboard.accountSummary.viewFull")}
           </Link>
         </div>
 
-        {/* Setup checklist */}
         <div className="border border-black/5 bg-white p-6">
-          <h2 className="text-lg font-black text-black">Setup Checklist</h2>
-          <p className="mt-1 text-xs font-bold text-black/40 mb-4">Complete these steps to start receiving bookings.</p>
+          <h2 className="text-lg font-black text-black">{t("dashboard.checklist.title")}</h2>
+          <p className="mt-1 text-xs font-bold text-black/40 mb-4">{t("dashboard.checklist.subtitle")}</p>
           <div className="space-y-2">
             {[
-              { label: "Fleet location set",   done: !!(profile?.base_lat && profile?.base_lng), href: "/partner/profile" },
-              { label: "Bidding currency set",  done: !!(profile?.default_currency),              href: "/partner/profile" },
-              { label: "VAT / NIF number set",  done: !!(profile?.vat_number),                    href: "/partner/profile" },
-              { label: "Payouts connected",     done: stripeComplete,                             href: "/partner/onboarding?step=payouts" },
-              { label: "Account approved",      done: isApproved,                                 href: "/partner/account" },
-              { label: "Drivers added",         done: driverCount > 0,                            href: "/partner/drivers" },
-              { label: "Fleet added",           done: fleetCount > 0,                             href: "/partner/fleet" },
+              { label: t("dashboard.checklist.fleetLocation"), done: !!(profile?.base_lat && profile?.base_lng), href: "/partner/profile" },
+              { label: t("dashboard.checklist.currency"),       done: !!(profile?.default_currency),             href: "/partner/profile" },
+              { label: t("dashboard.checklist.vat"),            done: !!(profile?.vat_number),                   href: "/partner/profile" },
+              { label: t("dashboard.checklist.payouts"),        done: stripeComplete,                            href: "/partner/onboarding?step=payouts" },
+              { label: t("dashboard.checklist.approved"),       done: isApproved,                                href: "/partner/account" },
+              { label: t("dashboard.checklist.drivers"),        done: driverCount > 0,                           href: "/partner/drivers" },
+              { label: t("dashboard.checklist.fleet"),          done: fleetCount > 0,                            href: "/partner/fleet" },
             ].map(({ label, done, href }) => (
               <Link key={label} href={href}
                 className="flex items-center gap-3 border border-black/5 bg-[#f0f0f0] px-3 py-2.5 hover:bg-black/5 transition-colors">
-                <span className={`flex h-5 w-5 shrink-0 items-center justify-center text-xs font-black ${
-                  done ? "bg-black text-white" : "border-2 border-black/20 text-black/20"
-                }`}>
+                <span className={`flex h-5 w-5 shrink-0 items-center justify-center text-xs font-black ${done ? "bg-black text-white" : "border-2 border-black/20 text-black/20"}`}>
                   {done ? "✓" : ""}
                 </span>
                 <span className={`text-sm font-bold ${done ? "text-black/40 line-through" : "text-black"}`}>{label}</span>
-                {!done && <span className="ml-auto text-xs font-black text-[#ff7a00]">Set up →</span>}
+                {!done && <span className="ml-auto text-xs font-black text-[#ff7a00]">{t("common.setUpArrow")}</span>}
               </Link>
             ))}
           </div>
         </div>
 
-        {/* Navigation links */}
         <div className="border border-black/5 bg-white p-6">
-          <h2 className="text-lg font-black text-black mb-4">Navigation</h2>
+          <h2 className="text-lg font-black text-black mb-4">{t("nav.navigation")}</h2>
           <div className="space-y-2">
             {[
-              { label: "📋 Requests",  desc: "View & bid on customer requests", href: "/partner/requests" },
-              { label: "📅 Bookings",  desc: "Manage confirmed bookings",        href: "/partner/bookings" },
-              { label: "📊 Reports",   desc: "Revenue & fuel reconciliation",    href: "/partner/reports" },
-              { label: "🚗 Car Fleet", desc: "Manage your vehicles",             href: "/partner/fleet" },
-              { label: "👤 Drivers",   desc: "Manage your drivers",              href: "/partner/drivers" },
-              { label: "⚙️ Account",   desc: "Profile, rules & settings",        href: "/partner/account" },
+              { label: t("dashboard.navLinks.requests.label"), desc: t("dashboard.navLinks.requests.desc"), href: "/partner/requests" },
+              { label: t("dashboard.navLinks.bookings.label"), desc: t("dashboard.navLinks.bookings.desc"), href: "/partner/bookings" },
+              { label: t("dashboard.navLinks.reports.label"),  desc: t("dashboard.navLinks.reports.desc"),  href: "/partner/reports" },
+              { label: t("dashboard.navLinks.fleet.label"),    desc: t("dashboard.navLinks.fleet.desc"),    href: "/partner/fleet" },
+              { label: t("dashboard.navLinks.drivers.label"),  desc: t("dashboard.navLinks.drivers.desc"),  href: "/partner/drivers" },
+              { label: t("dashboard.navLinks.account.label"),  desc: t("dashboard.navLinks.account.desc"),  href: "/partner/account" },
             ].map(({ label, desc, href }) => (
               <Link key={href} href={href}
                 className="flex items-center justify-between border border-black/5 bg-[#f0f0f0] px-3 py-2.5 hover:bg-black/5 transition-colors">

@@ -7,16 +7,14 @@ import { useRouter } from "next/navigation";
 import HCaptcha from "@/app/components/HCaptcha";
 import { CITIES, citiesByCountry, type CityEntry } from "@/lib/cities";
 import { downloadPartnerTermsPDF } from "@/lib/portal/partnerTerms";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import LanguageToggle from "@/lib/i18n/LanguageToggle";
 
-// ── Shared styles ─────────────────────────────────────────────────────────────
 const inputCls     = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
 const labelCls     = "block text-xs font-black uppercase tracking-widest text-black mb-2";
 const btnPrimary   = "w-full bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity";
 const btnSecondary = "flex-1 border border-black/20 py-4 text-base font-black text-black hover:bg-[#f0f0f0] transition-colors";
 
-const STEP_LABELS = ["Your Business", "Business Address", "Fleet Address", "Password", "Review"];
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 type PhotonResult = {
   display_name: string; label?: string; subtitle?: string; type?: string;
   lat: number | null; lng: number | null; city?: string;
@@ -44,40 +42,33 @@ const EMPTY: FormData = {
   fleetLat: null, fleetLng: null, password: "", confirmPassword: "", agreedToTerms: false,
 };
 
-// ── Progress bar ──────────────────────────────────────────────────────────────
-function ProgressBar({ step }: { step: number }) {
+function ProgressBar({ step, stepLabels }: { step: number; stepLabels: string[] }) {
   return (
     <div className="mb-8">
-      {/* Circles + connectors row */}
       <div className="flex items-center">
-        {STEP_LABELS.map((label, i) => {
+        {stepLabels.map((label, i) => {
           const done = i + 1 < step, active = i + 1 === step;
           return (
-            <div key={label} className={`flex items-center ${i < STEP_LABELS.length - 1 ? "flex-1" : ""}`}>
+            <div key={i} className={`flex items-center ${i < stepLabels.length - 1 ? "flex-1" : ""}`}>
               <div className={`w-8 h-8 flex items-center justify-center text-sm font-black shrink-0 transition-colors ${
                 done ? "bg-green-500 text-white" : active ? "bg-[#ff7a00] text-white" : "bg-[#f0f0f0] text-black/40"
               }`}>
                 {done ? "✓" : i + 1}
               </div>
-              {i < STEP_LABELS.length - 1 && (
+              {i < stepLabels.length - 1 && (
                 <div className={`h-1 flex-1 mx-1 transition-colors ${done ? "bg-green-500" : "bg-[#f0f0f0]"}`} />
               )}
             </div>
           );
         })}
       </div>
-      {/* Only show active step label on mobile — all labels on sm+ */}
       <div className="mt-2 flex items-center">
-        {STEP_LABELS.map((label, i) => {
+        {stepLabels.map((label, i) => {
           const done = i + 1 < step, active = i + 1 === step;
           return (
-            <div key={label} className={`${i < STEP_LABELS.length - 1 ? "flex-1" : ""} min-w-0`}>
-              {active && (
-                <span className="text-xs font-black uppercase tracking-wide text-[#ff7a00] truncate block">{label}</span>
-              )}
-              {done && (
-                <span className="text-xs font-black uppercase tracking-wide text-green-600 truncate hidden sm:block">{label}</span>
-              )}
+            <div key={i} className={`${i < stepLabels.length - 1 ? "flex-1" : ""} min-w-0`}>
+              {active && <span className="text-xs font-black uppercase tracking-wide text-[#ff7a00] truncate block">{label}</span>}
+              {done  && <span className="text-xs font-black uppercase tracking-wide text-green-600 truncate hidden sm:block">{label}</span>}
             </div>
           );
         })}
@@ -96,15 +87,13 @@ function Field({ label, required, error, children }: { label: string; required?:
   );
 }
 
-// ── Photon address search widget ──────────────────────────────────────────────
-function PhotonSearch({
-  city, onCityChange, query, onQueryChange, results, onSelect, searching, placeholder,
-}: {
+function PhotonSearch({ city, onCityChange, query, onQueryChange, results, onSelect, searching, placeholder }: {
   city: CityEntry; onCityChange: (c: CityEntry) => void;
   query: string; onQueryChange: (q: string) => void;
   results: PhotonResult[]; onSelect: (r: PhotonResult) => void;
   searching: boolean; placeholder?: string;
 }) {
+  const { t } = useTranslation();
   const grouped = citiesByCountry();
   return (
     <div className="space-y-3">
@@ -121,8 +110,7 @@ function PhotonSearch({
                     display_name:  String(json.display_name),
                     label:         String(json.address_line1 || json.display_name),
                     subtitle:      [json.address_line2, json.city, json.country].filter(Boolean).join(", "),
-                    lat:           pos.coords.latitude,
-                    lng:           pos.coords.longitude,
+                    lat:           pos.coords.latitude, lng: pos.coords.longitude,
                     city:          String(json.city          || ""),
                     address_line1: String(json.address_line1 || ""),
                     address_line2: String(json.address_line2 || ""),
@@ -135,40 +123,25 @@ function PhotonSearch({
             }, () => {}, { enableHighAccuracy: true, timeout: 10000 });
           }}
           className="border border-black/20 bg-[#f0f0f0] px-4 py-2 text-xs font-black text-black hover:bg-[#e8e8e8] transition-colors">
-          📍 Use my current location
+          {t("signup.step2.useLocation")}
         </button>
       </div>
-
       <div className="bg-black px-4 py-3 flex flex-wrap items-center gap-3">
-        <span className="text-xs font-black uppercase tracking-widest text-white">Searching near</span>
-        <select
-          value={`${city.country}|${city.city}`}
-          onChange={e => {
-            const [country, c] = e.target.value.split("|");
-            const found = CITIES.find(x => x.country === country && x.city === c);
-            if (found) onCityChange(found);
-          }}
-          className="bg-[#ff7a00] text-white font-black text-sm px-3 py-1.5 outline-none cursor-pointer appearance-none"
-        >
+        <span className="text-xs font-black uppercase tracking-widest text-white">{t("signup.step2.searchingNear")}</span>
+        <select value={`${city.country}|${city.city}`}
+          onChange={e => { const [country, c] = e.target.value.split("|"); const found = CITIES.find(x => x.country === country && x.city === c); if (found) onCityChange(found); }}
+          className="bg-[#ff7a00] text-white font-black text-sm px-3 py-1.5 outline-none cursor-pointer appearance-none">
           {Object.entries(grouped).map(([country, cities]) => (
             <optgroup key={country} label={country}>
-              {cities.map(c => (
-                <option key={c.city} value={`${c.country}|${c.city}`}>{c.city}, {c.country}</option>
-              ))}
+              {cities.map(c => <option key={c.city} value={`${c.country}|${c.city}`}>{c.city}, {c.country}</option>)}
             </optgroup>
           ))}
         </select>
       </div>
-
       <div className="relative">
-        <input
-          type="text"
-          value={query}
-          onChange={e => onQueryChange(e.target.value)}
-          placeholder={placeholder || `Search in ${city.city}…`}
-          className={inputCls}
-        />
-        {searching && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-black/30">Searching…</span>}
+        <input type="text" value={query} onChange={e => onQueryChange(e.target.value)}
+          placeholder={placeholder || `Search in ${city.city}…`} className={inputCls} />
+        {searching && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-black/30">{t("common.searching")}</span>}
         {results.length > 0 && (
           <div className="absolute z-50 left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden">
             {results.map((r, i) => {
@@ -191,285 +164,251 @@ function PhotonSearch({
   );
 }
 
-// ── Shared Photon search hook ─────────────────────────────────────────────────
 function usePhotonSearch(city: CityEntry) {
-  const [query,     setQueryRaw]   = useState("");
-  const [results,   setResults]    = useState<PhotonResult[]>([]);
-  const [searching, setSearching]  = useState(false);
+  const [query, setQueryRaw]  = useState("");
+  const [results, setResults] = useState<PhotonResult[]>([]);
+  const [searching, setS]     = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   function setQuery(q: string) {
     setQueryRaw(q);
     if (timer.current) clearTimeout(timer.current);
     if (q.length < 2) { setResults([]); return; }
     timer.current = setTimeout(async () => {
-      setSearching(true);
+      setS(true);
       try {
         const res  = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&biasLat=${city.lat}&biasLng=${city.lng}`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         setResults(Array.isArray(json?.results) ? json.results : []);
-      } catch { setResults([]); }
-      finally { setSearching(false); }
+      } catch { setResults([]); } finally { setS(false); }
     }, 350);
   }
-
   function clear() { setQueryRaw(""); setResults([]); }
-
   return { query, setQuery, results, setResults, searching, clear };
 }
 
-// ── Step 1 ────────────────────────────────────────────────────────────────────
 function Step1({ data, onChange, onNext, error }: { data: FormData; onChange: (k: keyof FormData, v: string) => void; onNext: () => void; error: string }) {
+  const { t } = useTranslation();
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   function validate() {
     const e: Partial<Record<keyof FormData, string>> = {};
-    if (!data.companyName.trim()) e.companyName = "Company name is required";
-    if (!data.contactName.trim()) e.contactName = "Contact name is required";
-    if (!data.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) e.email = "Valid email is required";
-    if (!data.phone.trim()) e.phone = "Phone number is required";
+    if (!data.companyName.trim()) e.companyName = t("signup.step1.err.companyName");
+    if (!data.contactName.trim()) e.contactName = t("signup.step1.err.contactName");
+    if (!data.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) e.email = t("signup.step1.err.email");
+    if (!data.phone.trim()) e.phone = t("signup.step1.err.phone");
     setErrors(e); return Object.keys(e).length === 0;
   }
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-2">Step 1 of 5</p>
-        <h2 className="text-3xl font-black text-black">Your Business</h2>
-        <p className="mt-1 text-sm font-semibold text-black/50">Tell us about your car hire company.</p>
+        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-2">{t("signup.step1.tag")}</p>
+        <h2 className="text-3xl font-black text-black">{t("signup.step1.title")}</h2>
+        <p className="mt-1 text-sm font-semibold text-black/50">{t("signup.step1.subtitle")}</p>
       </div>
       {error && <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Company name" required error={errors.companyName}><input value={data.companyName} onChange={e => onChange("companyName", e.target.value)} placeholder="Valencia Cars S.L." className={inputCls} /></Field>
-        <Field label="Contact name" required error={errors.contactName}><input value={data.contactName} onChange={e => onChange("contactName", e.target.value)} placeholder="Juan Garcia" className={inputCls} /></Field>
+        <Field label={t("signup.step1.companyName")} required error={errors.companyName}><input value={data.companyName} onChange={e => onChange("companyName", e.target.value)} placeholder={t("signup.step1.companyName.placeholder")} className={inputCls} /></Field>
+        <Field label={t("signup.step1.contactName")} required error={errors.contactName}><input value={data.contactName} onChange={e => onChange("contactName", e.target.value)} placeholder={t("signup.step1.contactName.placeholder")} className={inputCls} /></Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Email address" required error={errors.email}><input type="email" value={data.email} onChange={e => onChange("email", e.target.value)} placeholder="info@valenciacars.com" autoComplete="email" className={inputCls} /></Field>
-        <Field label="Phone number" required error={errors.phone}><input type="tel" value={data.phone} onChange={e => onChange("phone", e.target.value)} placeholder="+34 600 000 000" autoComplete="tel" className={inputCls} /></Field>
+        <Field label={t("signup.step1.email")} required error={errors.email}><input type="email" value={data.email} onChange={e => onChange("email", e.target.value)} placeholder={t("signup.step1.email.placeholder")} autoComplete="email" className={inputCls} /></Field>
+        <Field label={t("signup.step1.phone")} required error={errors.phone}><input type="tel" value={data.phone} onChange={e => onChange("phone", e.target.value)} placeholder={t("signup.step1.phone.placeholder")} autoComplete="tel" className={inputCls} /></Field>
       </div>
-      <Field label="Website"><input type="url" value={data.website} onChange={e => onChange("website", e.target.value)} placeholder="https://valenciacars.com" className={inputCls} /></Field>
-      <button type="button" onClick={() => validate() && onNext()} className={btnPrimary}>Continue to Business Address →</button>
+      <Field label={t("signup.step1.website")}><input type="url" value={data.website} onChange={e => onChange("website", e.target.value)} placeholder={t("signup.step1.website.placeholder")} className={inputCls} /></Field>
+      <button type="button" onClick={() => validate() && onNext()} className={btnPrimary}>{t("signup.step1.cta")}</button>
     </div>
   );
 }
 
-// ── Step 2 — Business Address ─────────────────────────────────────────────────
 function Step2({ data, onChange, onNext, onBack }: { data: FormData; onChange: (k: keyof FormData, v: string | number | null) => void; onNext: () => void; onBack: () => void }) {
-  const [errors,  setErrors]  = useState<Partial<Record<keyof FormData, string>>>({});
-  const [city,    setCity]    = useState<CityEntry>(CITIES[0]);
+  const { t } = useTranslation();
+  const [errors, setErrors]   = useState<Partial<Record<keyof FormData, string>>>({});
+  const [city, setCity]       = useState<CityEntry>(CITIES[0]);
   const [selected, setSelected] = useState(false);
   const search = usePhotonSearch(city);
-
   function handleSelect(r: PhotonResult) {
-    const street  = r.address_line1 || "";
-    const poi     = r.label && r.label !== street ? r.label : "";
-    const addr1   = poi ? `${poi}${street ? `, ${street}` : ""}` : (street || r.display_name.split(",")[0]);
-    onChange("address1",   addr1);
-    onChange("address2",   r.address_line2 || "");
-    onChange("city",       r.city || "");
-    onChange("province",   r.province || "");
-    onChange("postcode",   r.postcode  || "");
-    onChange("country",    r.country   || "Spain");
-    onChange("addressLat", r.lat);
-    onChange("addressLng", r.lng);
-    search.clear();
-    setSelected(true);
+    const street = r.address_line1 || ""; const poi = r.label && r.label !== street ? r.label : "";
+    const addr1  = poi ? `${poi}${street ? `, ${street}` : ""}` : (street || r.display_name.split(",")[0]);
+    onChange("address1", addr1); onChange("address2", r.address_line2 || ""); onChange("city", r.city || "");
+    onChange("province", r.province || ""); onChange("postcode", r.postcode || ""); onChange("country", r.country || "Spain");
+    onChange("addressLat", r.lat); onChange("addressLng", r.lng); search.clear(); setSelected(true);
   }
-
   function validate() {
     const e: Partial<Record<keyof FormData, string>> = {};
-    if (!data.address1.trim()) e.address1 = "Address line 1 is required";
-    if (!data.province.trim()) e.province  = "Province is required";
-    if (!data.postcode.trim()) e.postcode  = "Postcode is required";
-    if (!data.country.trim())  e.country   = "Country is required";
+    if (!data.address1.trim()) e.address1 = t("signup.step2.err.addr1");
+    if (!data.province.trim()) e.province = t("signup.step2.err.province");
+    if (!data.postcode.trim()) e.postcode = t("signup.step2.err.postcode");
+    if (!data.country.trim())  e.country  = t("signup.step2.err.country");
     setErrors(e); return Object.keys(e).length === 0;
   }
-
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-2">Step 2 of 5</p>
-        <h2 className="text-3xl font-black text-black">Business Address</h2>
-        <p className="mt-1 text-sm font-semibold text-black/50">Your registered company address for correspondence and records.</p>
+        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-2">{t("signup.step2.tag")}</p>
+        <h2 className="text-3xl font-black text-black">{t("signup.step2.title")}</h2>
+        <p className="mt-1 text-sm font-semibold text-black/50">{t("signup.step2.subtitle")}</p>
       </div>
-      <PhotonSearch
-        city={city} onCityChange={c => { setCity(c); search.clear(); }}
-        query={search.query} onQueryChange={search.setQuery}
-        results={search.results} onSelect={handleSelect}
-        searching={search.searching}
-        placeholder={`Search your business address in ${city.city}…`}
-      />
-      {selected && <p className="text-xs font-semibold text-green-700">✓ Address found — check fields below and correct if needed</p>}
+      <PhotonSearch city={city} onCityChange={c => { setCity(c); search.clear(); }}
+        query={search.query} onQueryChange={search.setQuery} results={search.results}
+        onSelect={handleSelect} searching={search.searching} placeholder={`${t("signup.step2.searchingNear")} ${city.city}…`} />
+      {selected && <p className="text-xs font-semibold text-green-700">{t("signup.step2.addressFound")}</p>}
       <div className="space-y-4">
-        <Field label="Address line 1" required error={errors.address1}><input value={data.address1} onChange={e => onChange("address1", e.target.value)} placeholder="Street name and number" className={inputCls} /></Field>
-        <Field label="Address line 2"><input value={data.address2} onChange={e => onChange("address2", e.target.value)} placeholder="Apartment, unit, floor (optional)" className={inputCls} /></Field>
+        <Field label={t("signup.step2.addr1")} required error={errors.address1}><input value={data.address1} onChange={e => onChange("address1", e.target.value)} placeholder={t("signup.step2.addr1.placeholder")} className={inputCls} /></Field>
+        <Field label={t("signup.step2.addr2")}><input value={data.address2} onChange={e => onChange("address2", e.target.value)} placeholder={t("signup.step2.addr2.placeholder")} className={inputCls} /></Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="City / Town"><input value={data.city} onChange={e => onChange("city", e.target.value)} placeholder="Valencia" className={inputCls} /></Field>
-          <Field label="Province / Region" required error={errors.province}><input value={data.province} onChange={e => onChange("province", e.target.value)} placeholder="Comunitat Valenciana" className={inputCls} /></Field>
+          <Field label={t("signup.step2.city")}><input value={data.city} onChange={e => onChange("city", e.target.value)} placeholder={t("signup.step2.city.placeholder")} className={inputCls} /></Field>
+          <Field label={t("signup.step2.province")} required error={errors.province}><input value={data.province} onChange={e => onChange("province", e.target.value)} placeholder={t("signup.step2.province.placeholder")} className={inputCls} /></Field>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Postcode" required error={errors.postcode}><input value={data.postcode} onChange={e => onChange("postcode", e.target.value)} placeholder="46001" className={inputCls} /></Field>
-          <Field label="Country" required error={errors.country}><input value={data.country} onChange={e => onChange("country", e.target.value)} placeholder="Spain" className={inputCls} /></Field>
+          <Field label={t("signup.step2.postcode")} required error={errors.postcode}><input value={data.postcode} onChange={e => onChange("postcode", e.target.value)} placeholder={t("signup.step2.postcode.placeholder")} className={inputCls} /></Field>
+          <Field label={t("signup.step2.country")} required error={errors.country}><input value={data.country} onChange={e => onChange("country", e.target.value)} placeholder={t("signup.step2.country.placeholder")} className={inputCls} /></Field>
         </div>
       </div>
       <div className="flex gap-3">
-        <button type="button" onClick={onBack} className={btnSecondary}>← Back</button>
-        <button type="button" onClick={() => validate() && onNext()} className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 transition-opacity">Continue to Fleet Address →</button>
+        <button type="button" onClick={onBack} className={btnSecondary}>← {t("common.back")}</button>
+        <button type="button" onClick={() => validate() && onNext()} className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 transition-opacity">{t("signup.step2.cta")}</button>
       </div>
     </div>
   );
 }
 
-// ── Step 3 — Fleet Address ────────────────────────────────────────────────────
 function Step3({ data, onChange, onNext, onBack }: { data: FormData; onChange: (k: keyof FormData, v: string | number | null | boolean) => void; onNext: () => void; onBack: () => void }) {
-  const [errors,         setErrors]         = useState<Partial<Record<keyof FormData, string>>>({});
-  const [city,           setCity]           = useState<CityEntry>(CITIES[0]);
-  const [selected,       setSelected]       = useState(false);
-  const [sameAsBusiness, setSameAsBusiness] = useState(false);
+  const { t } = useTranslation();
+  const [errors, setErrors]             = useState<Partial<Record<keyof FormData, string>>>({});
+  const [city, setCity]                 = useState<CityEntry>(CITIES[0]);
+  const [selected, setSelected]         = useState(false);
+  const [sameAsBusiness, setSameAsBiz]  = useState(false);
   const search = usePhotonSearch(city);
-
   function handleSameAsBusiness(checked: boolean) {
-    setSameAsBusiness(checked);
+    setSameAsBiz(checked);
     if (checked) {
       onChange("fleetAddress1", data.address1); onChange("fleetAddress2", data.address2);
-      onChange("fleetCity",     data.city);     onChange("fleetProvince", data.province);
-      onChange("fleetPostcode", data.postcode); onChange("fleetCountry",  data.country);
-      onChange("fleetLat",      data.addressLat); onChange("fleetLng",    data.addressLng);
+      onChange("fleetCity", data.city); onChange("fleetProvince", data.province);
+      onChange("fleetPostcode", data.postcode); onChange("fleetCountry", data.country);
+      onChange("fleetLat", data.addressLat); onChange("fleetLng", data.addressLng);
     }
   }
-
   function handleSelect(r: PhotonResult) {
-    const street  = r.address_line1 || "";
-    const poi     = r.label && r.label !== street ? r.label : "";
-    const addr1   = poi ? `${poi}${street ? `, ${street}` : ""}` : (street || r.display_name.split(",")[0]);
-    onChange("fleetAddress1", addr1);
-    onChange("fleetAddress2", r.address_line2 || "");
-    onChange("fleetCity",     r.city || "");
-    onChange("fleetProvince", r.province || "");
-    onChange("fleetPostcode", r.postcode  || "");
-    onChange("fleetCountry",  r.country   || "Spain");
-    onChange("fleetLat",      r.lat);
-    onChange("fleetLng",      r.lng);
-    search.clear();
-    setSelected(true);
+    const street = r.address_line1 || ""; const poi = r.label && r.label !== street ? r.label : "";
+    const addr1  = poi ? `${poi}${street ? `, ${street}` : ""}` : (street || r.display_name.split(",")[0]);
+    onChange("fleetAddress1", addr1); onChange("fleetAddress2", r.address_line2 || "");
+    onChange("fleetCity", r.city || ""); onChange("fleetProvince", r.province || "");
+    onChange("fleetPostcode", r.postcode || ""); onChange("fleetCountry", r.country || "Spain");
+    onChange("fleetLat", r.lat); onChange("fleetLng", r.lng); search.clear(); setSelected(true);
   }
-
   function validate() {
     const e: Partial<Record<keyof FormData, string>> = {};
-    if (!data.fleetAddress1.trim()) e.fleetAddress1 = "Address line 1 is required";
-    if (!data.fleetCountry.trim())  e.fleetCountry  = "Country is required";
+    if (!data.fleetAddress1.trim()) e.fleetAddress1 = t("signup.step3.err.addr1");
+    if (!data.fleetCountry.trim())  e.fleetCountry  = t("signup.step3.err.country");
     setErrors(e); return Object.keys(e).length === 0;
   }
-
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-2">Step 3 of 5</p>
-        <h2 className="text-3xl font-black text-black">Fleet Base Address</h2>
-        <p className="mt-1 text-sm font-semibold text-black/50">Where your vehicles are based. Used to match you with nearby customers.</p>
+        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-2">{t("signup.step3.tag")}</p>
+        <h2 className="text-3xl font-black text-black">{t("signup.step3.title")}</h2>
+        <p className="mt-1 text-sm font-semibold text-black/50">{t("signup.step3.subtitle")}</p>
       </div>
       <label className="flex items-center gap-3 cursor-pointer bg-[#f0f0f0] px-4 py-3">
         <input type="checkbox" checked={sameAsBusiness} onChange={e => handleSameAsBusiness(e.target.checked)} className="h-4 w-4" />
         <div>
-          <span className="text-sm font-black text-black">Same as business address</span>
-          <p className="text-xs font-semibold text-black/50">Tick if your fleet is based at your registered business address</p>
+          <span className="text-sm font-black text-black">{t("signup.step3.sameAsBusiness")}</span>
+          <p className="text-xs font-semibold text-black/50">{t("signup.step3.sameAsBusinessHint")}</p>
         </div>
       </label>
       {!sameAsBusiness && (
         <>
-          <PhotonSearch
-            city={city} onCityChange={c => { setCity(c); search.clear(); }}
-            query={search.query} onQueryChange={search.setQuery}
-            results={search.results} onSelect={handleSelect}
-            searching={search.searching}
-            placeholder={`Search your fleet address in ${city.city}…`}
-          />
-          {selected && <p className="text-xs font-semibold text-green-700">✓ Address found — check fields below and correct if needed</p>}
+          <PhotonSearch city={city} onCityChange={c => { setCity(c); search.clear(); }}
+            query={search.query} onQueryChange={search.setQuery} results={search.results}
+            onSelect={handleSelect} searching={search.searching} placeholder={`${t("signup.step2.searchingNear")} ${city.city}…`} />
+          {selected && <p className="text-xs font-semibold text-green-700">{t("signup.step2.addressFound")}</p>}
         </>
       )}
       <div className="space-y-4">
-        <Field label="Address line 1" required error={errors.fleetAddress1}><input value={data.fleetAddress1} onChange={e => onChange("fleetAddress1", e.target.value)} placeholder="Street name and number" className={inputCls} /></Field>
-        <Field label="Address line 2"><input value={data.fleetAddress2} onChange={e => onChange("fleetAddress2", e.target.value)} placeholder="Unit, depot, yard (optional)" className={inputCls} /></Field>
+        <Field label={t("signup.step2.addr1")} required error={errors.fleetAddress1}><input value={data.fleetAddress1} onChange={e => onChange("fleetAddress1", e.target.value)} placeholder={t("signup.step2.addr1.placeholder")} className={inputCls} /></Field>
+        <Field label={t("signup.step2.addr2")}><input value={data.fleetAddress2} onChange={e => onChange("fleetAddress2", e.target.value)} placeholder={t("signup.step3.addr2.placeholder")} className={inputCls} /></Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="City / Town"><input value={data.fleetCity} onChange={e => onChange("fleetCity", e.target.value)} placeholder="Valencia" className={inputCls} /></Field>
-          <Field label="Province / Region"><input value={data.fleetProvince} onChange={e => onChange("fleetProvince", e.target.value)} placeholder="Comunitat Valenciana" className={inputCls} /></Field>
+          <Field label={t("signup.step2.city")}><input value={data.fleetCity} onChange={e => onChange("fleetCity", e.target.value)} placeholder={t("signup.step2.city.placeholder")} className={inputCls} /></Field>
+          <Field label={t("signup.step2.province")}><input value={data.fleetProvince} onChange={e => onChange("fleetProvince", e.target.value)} placeholder={t("signup.step2.province.placeholder")} className={inputCls} /></Field>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Postcode"><input value={data.fleetPostcode} onChange={e => onChange("fleetPostcode", e.target.value)} placeholder="46001" className={inputCls} /></Field>
-          <Field label="Country" required error={errors.fleetCountry}><input value={data.fleetCountry} onChange={e => onChange("fleetCountry", e.target.value)} placeholder="Spain" className={inputCls} /></Field>
+          <Field label={t("signup.step2.postcode")}><input value={data.fleetPostcode} onChange={e => onChange("fleetPostcode", e.target.value)} placeholder={t("signup.step2.postcode.placeholder")} className={inputCls} /></Field>
+          <Field label={t("signup.step2.country")} required error={errors.fleetCountry}><input value={data.fleetCountry} onChange={e => onChange("fleetCountry", e.target.value)} placeholder={t("signup.step2.country.placeholder")} className={inputCls} /></Field>
         </div>
       </div>
       <div className="flex gap-3">
-        <button type="button" onClick={onBack} className={btnSecondary}>← Back</button>
-        <button type="button" onClick={() => validate() && onNext()} className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 transition-opacity">Continue to Password →</button>
+        <button type="button" onClick={onBack} className={btnSecondary}>← {t("common.back")}</button>
+        <button type="button" onClick={() => validate() && onNext()} className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 transition-opacity">{t("signup.step3.cta")}</button>
       </div>
     </div>
   );
 }
 
-// ── Step 4 ────────────────────────────────────────────────────────────────────
 function Step4({ data, onChange, onNext, onBack }: { data: FormData; onChange: (k: keyof FormData, v: string) => void; onNext: () => void; onBack: () => void }) {
+  const { t } = useTranslation();
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [showPw, setShowPw] = useState(false);
   function validate() {
     const e: Partial<Record<keyof FormData, string>> = {};
-    if (!data.password || data.password.length < 8) e.password = "Password must be at least 8 characters";
-    if (data.password !== data.confirmPassword) e.confirmPassword = "Passwords do not match";
+    if (!data.password || data.password.length < 8) e.password = t("signup.step4.err.password");
+    if (data.password !== data.confirmPassword) e.confirmPassword = t("signup.step4.err.confirm");
     setErrors(e); return Object.keys(e).length === 0;
   }
   const strength = data.password.length === 0 ? 0 : data.password.length < 8 ? 1 : data.password.length < 12 ? 2 : 3;
+  const strengthLabel = strength === 1 ? t("signup.step4.weak") : strength === 2 ? t("signup.step4.good") : t("signup.step4.strong");
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-2">Step 4 of 5</p>
-        <h2 className="text-3xl font-black text-black">Set Your Password</h2>
-        <p className="mt-1 text-sm font-semibold text-black/50">Choose a strong password to secure your partner account.</p>
+        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-2">{t("signup.step4.tag")}</p>
+        <h2 className="text-3xl font-black text-black">{t("signup.step4.title")}</h2>
+        <p className="mt-1 text-sm font-semibold text-black/50">{t("signup.step4.subtitle")}</p>
       </div>
-      <Field label="Password" required error={errors.password}>
+      <Field label={t("signup.step4.password")} required error={errors.password}>
         <div className="relative">
-          <input type={showPw ? "text" : "password"} value={data.password} onChange={e => onChange("password", e.target.value)} placeholder="Minimum 8 characters" autoComplete="new-password" className={inputCls} />
-          <button type="button" onClick={() => setShowPw(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-black/50 hover:text-black">{showPw ? "Hide" : "Show"}</button>
+          <input type={showPw ? "text" : "password"} value={data.password} onChange={e => onChange("password", e.target.value)} placeholder={t("signup.step4.password.placeholder")} autoComplete="new-password" className={inputCls} />
+          <button type="button" onClick={() => setShowPw(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-black/50 hover:text-black">{showPw ? t("signup.step4.hide") : t("signup.step4.show")}</button>
         </div>
         {data.password.length > 0 && (
           <div className="mt-2 flex gap-1 items-center">
             {[1,2,3].map(i => <div key={i} className={`h-1.5 flex-1 transition-colors ${i <= strength ? strength === 1 ? "bg-red-400" : strength === 2 ? "bg-yellow-400" : "bg-green-500" : "bg-[#f0f0f0]"}`} />)}
-            <span className="text-xs font-black ml-2 text-black/40">{strength === 1 ? "Weak" : strength === 2 ? "Good" : "Strong"}</span>
+            <span className="text-xs font-black ml-2 text-black/40">{strengthLabel}</span>
           </div>
         )}
       </Field>
-      <Field label="Confirm password" required error={errors.confirmPassword}>
-        <input type={showPw ? "text" : "password"} value={data.confirmPassword} onChange={e => onChange("confirmPassword", e.target.value)} placeholder="Repeat your password" autoComplete="new-password" className={inputCls} />
-        {data.confirmPassword && data.password === data.confirmPassword && <p className="mt-1 text-xs font-black text-green-600">Passwords match ✓</p>}
+      <Field label={t("signup.step4.confirm")} required error={errors.confirmPassword}>
+        <input type={showPw ? "text" : "password"} value={data.confirmPassword} onChange={e => onChange("confirmPassword", e.target.value)} placeholder={t("signup.step4.confirm.placeholder")} autoComplete="new-password" className={inputCls} />
+        {data.confirmPassword && data.password === data.confirmPassword && <p className="mt-1 text-xs font-black text-green-600">{t("signup.step4.match")}</p>}
       </Field>
       <div className="flex gap-3">
-        <button type="button" onClick={onBack} className={btnSecondary}>← Back</button>
-        <button type="button" onClick={() => validate() && onNext()} className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 transition-opacity">Review & Submit →</button>
+        <button type="button" onClick={onBack} className={btnSecondary}>← {t("common.back")}</button>
+        <button type="button" onClick={() => validate() && onNext()} className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 transition-opacity">{t("signup.step4.cta")}</button>
       </div>
     </div>
   );
 }
 
-// ── Step 5 ────────────────────────────────────────────────────────────────────
 function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaVerify, captchaKey }: {
   data: FormData; onChange: (k: keyof FormData, v: boolean) => void; onBack: () => void;
   onSubmit: () => void; submitting: boolean; error: string;
   onCaptchaVerify: (token: string) => void; captchaKey: number;
 }) {
+  const { t } = useTranslation();
   const bizAddress   = [data.address1, data.address2, data.city, data.province, data.postcode, data.country].filter(Boolean).join(", ");
   const fleetAddress = [data.fleetAddress1, data.fleetAddress2, data.fleetCity, data.fleetProvince, data.fleetPostcode, data.fleetCountry].filter(Boolean).join(", ");
   const rows: [string, string][] = [
-    ["Company",          data.companyName],
-    ["Contact",          data.contactName],
-    ["Email",            data.email],
-    ["Phone",            data.phone],
-    ["Website",          data.website || "—"],
-    ["Business address", bizAddress],
-    ["Fleet address",    fleetAddress],
+    [t("signup.step5.company"),     data.companyName],
+    [t("signup.step5.contact"),     data.contactName],
+    [t("signup.step5.email"),       data.email],
+    [t("signup.step5.phone"),       data.phone],
+    [t("signup.step5.website"),     data.website || "—"],
+    [t("signup.step5.bizAddress"),  bizAddress],
+    [t("signup.step5.fleetAddress"),fleetAddress],
   ];
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-2">Step 5 of 5</p>
-        <h2 className="text-3xl font-black text-black">Review Your Details</h2>
-        <p className="mt-1 text-sm font-semibold text-black/50">Check everything looks correct before submitting.</p>
+        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-2">{t("signup.step5.tag")}</p>
+        <h2 className="text-3xl font-black text-black">{t("signup.step5.title")}</h2>
+        <p className="mt-1 text-sm font-semibold text-black/50">{t("signup.step5.subtitle")}</p>
       </div>
       {error && <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
       <div className="bg-[#f0f0f0] p-5 space-y-3">
@@ -484,49 +423,57 @@ function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaV
         <label className="flex items-start gap-3 cursor-pointer">
           <input type="checkbox" checked={data.agreedToTerms} onChange={e => onChange("agreedToTerms", e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="text-sm font-semibold text-black">
-            I agree to the{" "}
-            <button type="button" onClick={downloadPartnerTermsPDF} className="font-black text-black underline hover:opacity-70">Camel Global Partner Terms & Conditions</button>
-            {" "}and confirm all information is accurate.
+            {t("signup.step5.terms")}{" "}
+            <button type="button" onClick={downloadPartnerTermsPDF} className="font-black text-black underline hover:opacity-70">{t("signup.step5.termsLink")}</button>
+            {" "}{t("signup.step5.termsEnd")}
           </span>
         </label>
       </div>
       <HCaptcha key={captchaKey} onVerify={onCaptchaVerify} onExpire={() => onCaptchaVerify("")} />
       <div className="border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        <p className="font-black">What happens next?</p>
-        <p className="mt-1 font-semibold">Your application will be reviewed by our team. You will receive an email confirmation shortly, and we will be in touch once your account has been approved.</p>
+        <p className="font-black">{t("signup.step5.whatNext")}</p>
+        <p className="mt-1 font-semibold">{t("signup.step5.whatNextBody")}</p>
       </div>
       <div className="flex gap-3">
-        <button type="button" onClick={onBack} className={btnSecondary}>← Back</button>
+        <button type="button" onClick={onBack} className={btnSecondary}>← {t("common.back")}</button>
         <button type="button" onClick={onSubmit} disabled={!data.agreedToTerms || submitting}
           className="flex-[2] bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
-          {submitting ? "Submitting…" : "Create my account →"}
+          {submitting ? t("common.submitting") : t("signup.step5.cta")}
         </button>
       </div>
     </div>
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function PartnerSignupPage() {
+  const { t } = useTranslation();
   const router = useRouter();
-  const [step,         setStep]         = useState(1);
-  const [data,         setData]         = useState<FormData>(EMPTY);
-  const [submitting,   setSubmitting]   = useState(false);
-  const [error,        setError]        = useState("");
+  const [step, setStep]               = useState(1);
+  const [data, setData]               = useState<FormData>(EMPTY);
+  const [submitting, setSubmitting]   = useState(false);
+  const [error, setError]             = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
-  const [captchaKey,   setCaptchaKey]   = useState(0);
+  const [captchaKey, setCaptchaKey]   = useState(0);
 
   const handleCaptcha = useCallback((t: string) => setCaptchaToken(t), []);
   function resetCaptcha() { setCaptchaToken(""); setCaptchaKey(k => k + 1); }
   function setField(k: keyof FormData, v: string | number | boolean | null) { setData(prev => ({ ...prev, [k]: v })); }
 
+  const stepLabels = [
+    t("signup.step.yourBusiness"),
+    t("signup.step.businessAddress"),
+    t("signup.step.fleetAddress"),
+    t("signup.step.password"),
+    t("signup.step.review"),
+  ];
+
   async function submit() {
-    if (!captchaToken) { setError("Please complete the CAPTCHA."); return; }
+    if (!captchaToken) { setError(t("signup.step5.err.captcha")); return; }
     const captchaRes = await fetch("/api/auth/verify-captcha", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: captchaToken }),
     });
-    if (!captchaRes.ok) { setError("CAPTCHA verification failed. Please try again."); resetCaptcha(); return; }
+    if (!captchaRes.ok) { setError(t("signup.step5.err.captchaFail")); resetCaptcha(); return; }
     setSubmitting(true); setError("");
     try {
       const fleetAddress = [data.fleetAddress1, data.fleetAddress2, data.fleetCity, data.fleetProvince, data.fleetPostcode, data.fleetCountry].filter(Boolean).join(", ");
@@ -545,10 +492,10 @@ export default function PartnerSignupPage() {
         }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Something went wrong. Please try again.");
+      if (!res.ok) throw new Error(json?.error || t("common.error"));
       router.replace("/partner/application-submitted");
     } catch (e: any) {
-      setError(e?.message || "Something went wrong. Please try again.");
+      setError(e?.message || t("common.error"));
       resetCaptcha(); setStep(5);
     } finally { setSubmitting(false); }
   }
@@ -558,20 +505,23 @@ export default function PartnerSignupPage() {
       <header className="w-full bg-black border-b border-white/10">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
           <Link href="/"><Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" /></Link>
-          <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">Partner Login</Link>
+          <div className="flex items-center gap-3">
+            <LanguageToggle />
+            <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">{t("common.partnerLogin")}</Link>
+          </div>
         </div>
       </header>
       <div className="w-full bg-black px-4 sm:px-6 pb-12 pt-8 text-white">
         <div className="mx-auto max-w-2xl">
-          <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">Become a Partner</p>
-          <h1 className="text-4xl font-black text-white md:text-5xl">Join Camel Global.</h1>
-          <p className="mt-3 text-base font-semibold text-white/70">Apply to list your car hire company on the platform. It takes less than 5 minutes.</p>
+          <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">{t("signup.tag")}</p>
+          <h1 className="text-4xl font-black text-white md:text-5xl">{t("signup.title")}</h1>
+          <p className="mt-3 text-base font-semibold text-white/70">{t("signup.subtitle")}</p>
         </div>
       </div>
       <div className="w-full bg-[#f0f0f0] px-3 sm:px-6 py-8 flex-1">
         <div className="mx-auto max-w-2xl">
           <div className="bg-white p-4 sm:p-8">
-            <ProgressBar step={step} />
+            <ProgressBar step={step} stepLabels={stepLabels} />
             {step === 1 && <Step1 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(2); }} error={error} />}
             {step === 2 && <Step2 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(3); }} onBack={() => setStep(1)} />}
             {step === 3 && <Step3 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(4); }} onBack={() => setStep(2)} />}
@@ -579,8 +529,8 @@ export default function PartnerSignupPage() {
             {step === 5 && <Step5 data={data} onChange={(k, v) => setField(k, v as boolean)} onBack={() => setStep(4)} onSubmit={submit} submitting={submitting} error={error} onCaptchaVerify={handleCaptcha} captchaKey={captchaKey} />}
           </div>
           <p className="mt-6 text-center text-sm font-semibold text-black/50">
-            Already have an account?{" "}
-            <Link href="/partner/login" className="font-black text-black hover:underline">Sign in</Link>
+            {t("common.alreadyHaveAccount")}{" "}
+            <Link href="/partner/login" className="font-black text-black hover:underline">{t("common.signIn")}</Link>
           </p>
         </div>
       </div>
