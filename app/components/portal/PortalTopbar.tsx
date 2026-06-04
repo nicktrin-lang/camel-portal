@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import LanguageToggle from "@/lib/i18n/LanguageToggle";
 
 type PortalTopbarProps = {
   onMenuClick?: () => void;
@@ -79,8 +80,9 @@ export default function PortalTopbar({ onMenuClick }: PortalTopbarProps) {
           </Link>
         </div>
 
-        {/* Right — name, Book Now, Login/Logout */}
+        {/* Right — language toggle, name, Book Now, Logout */}
         <div className="flex items-center gap-3">
+          <LanguageToggle />
           {displayName && (
             <span className="hidden text-sm font-bold text-white/70 md:block">
               {displayName}
