@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { triggerPartnerLiveRefresh } from "@/lib/portal/triggerPartnerLiveRefresh";
 import { CITIES, citiesByCountry, type CityEntry } from "@/lib/cities";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const MapPicker = dynamic(() => import("./MapPicker"), { ssr: false });
 
@@ -115,6 +116,7 @@ const EMPTY: ProfileState = {
 };
 
 export default function PartnerProfilePage() {
+  const { t } = useTranslation();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router   = useRouter();
 
@@ -202,7 +204,7 @@ export default function PartnerProfilePage() {
         });
       } catch (e: any) {
         if (!mounted) return;
-        setError(e?.message || "Failed to load profile.");
+        setError(e?.message || t("profile.error.load"));
       } finally {
         if (!mounted) return;
         setLoading(false);
@@ -234,10 +236,10 @@ export default function PartnerProfilePage() {
     try {
       const res  = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&biasLat=${searchCity.lat}&biasLng=${searchCity.lng}`, { cache: "no-store" });
       const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || "Search failed.");
+      if (!res.ok) throw new Error(json?.error || t("profile.error.searchFailed"));
       setBizSuggestions(Array.isArray(json?.results) ? json.results : []);
       setBizShowSug(true);
-    } catch (e: any) { setError(e?.message || "Search failed."); }
+    } catch (e: any) { setError(e?.message || t("profile.error.searchFailed")); }
     finally { setBizSearching(false); }
   }
 
@@ -277,12 +279,12 @@ export default function PartnerProfilePage() {
     try {
       const res  = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&biasLat=${searchCity.lat}&biasLng=${searchCity.lng}`, { cache: "no-store" });
       const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || "Search failed.");
+      if (!res.ok) throw new Error(json?.error || t("profile.error.searchFailed"));
       const results = Array.isArray(json?.results) ? json.results as Suggestion[] : [];
       setSuggestions(results);
       setShowSuggestions(results.length > 0);
-      if (!results.length) setError("No results found — try a different search or move the map pin.");
-    } catch (e: any) { setError(e?.message || "Search failed."); }
+      if (!results.length) setError(t("profile.error.noResults"));
+    } catch (e: any) { setError(e?.message || t("profile.error.searchFailed")); }
     finally { setSearching(false); }
   }
 
@@ -339,7 +341,7 @@ export default function PartnerProfilePage() {
     try {
       const res  = await fetch(`/api/geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`, { cache: "no-store" });
       const json = await safeJson(res);
-      if (!res.ok) throw new Error(json?.error || "Failed to get address.");
+      if (!res.ok) throw new Error(json?.error || t("profile.error.addressFailed"));
       applyFleetAddressParts({
         display_name:  String(json?.display_name  || ""),
         lat, lng,
@@ -350,15 +352,15 @@ export default function PartnerProfilePage() {
         postcode:      String(json?.postcode      || ""),
         country:       String(json?.country       || ""),
       });
-    } catch (e: any) { setError(e?.message || "Failed to get address."); }
+    } catch (e: any) { setError(e?.message || t("profile.error.addressFailed")); }
   }
 
   async function useCurrentLocation() {
     setError(null); setSaved(false);
-    if (!navigator.geolocation) { setError("Geolocation not supported."); return; }
+    if (!navigator.geolocation) { setError(t("profile.error.geoNotSupported")); return; }
     navigator.geolocation.getCurrentPosition(
       async pos => { await handleMapPick(pos.coords.latitude, pos.coords.longitude); },
-      err => setError(err.message || "Could not get location."),
+      err => setError(err.message || t("profile.error.geoFailed")),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }
@@ -368,13 +370,13 @@ export default function PartnerProfilePage() {
     setError(null); setSaved(false); setSaving(true);
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
-      if (userErr || !userData?.user) throw new Error("Not signed in.");
+      if (userErr || !userData?.user) throw new Error(t("profile.error.notSignedIn"));
       const userId = userData.user.id;
       const lat = parseCoordinate(profile.base_lat, "lat");
       const lng = parseCoordinate(profile.base_lng, "lng");
-      if (lat === null || lng === null) throw new Error("Base latitude and longitude must be valid numbers.");
+      if (lat === null || lng === null) throw new Error(t("profile.error.latLng"));
       const radius = Number(profile.service_radius_km);
-      if (!Number.isFinite(radius) || radius <= 0) throw new Error("Service radius must be a valid number.");
+      if (!Number.isFinite(radius) || radius <= 0) throw new Error(t("profile.error.radius"));
 
       const { error: upsertErr } = await supabase.from("partner_profiles").upsert({
         user_id:                     userId,
@@ -409,7 +411,7 @@ export default function PartnerProfilePage() {
       const liveRefresh = await triggerPartnerLiveRefresh();
       if (liveRefresh.error) console.error("Failed to refresh live status:", liveRefresh.error);
       setSaved(true);
-    } catch (e: any) { setError(e?.message || "Failed to save profile."); }
+    } catch (e: any) { setError(e?.message || t("profile.error.save")); }
     finally { setSaving(false); }
   }
 
@@ -418,86 +420,87 @@ export default function PartnerProfilePage() {
 
   if (loading) return (
     <div className="border border-black/10 bg-white p-8">
-      <p className="text-sm font-semibold text-black/50">Loading…</p>
+      <p className="text-sm font-semibold text-black/50">{t("profile.loading")}</p>
     </div>
   );
 
   return (
     <div className="space-y-4">
       {error && <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
-      {saved && <div className="border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">✓ Profile saved successfully.</div>}
+      {saved && <div className="border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{t("profile.saved")}</div>}
 
       <form onSubmit={handleSave} className="space-y-4">
 
         {/* Company Information */}
-        <SectionCard title="Company Information" description="Your basic company details shown to customers when you win a bid.">
+        <SectionCard title={t("profile.section.company")} description={t("profile.section.company.desc")}>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field label="Company name"><TextInput value={profile.company_name} onChange={v => updateField("company_name", v)} placeholder="e.g. Valencia Cars" /></Field>
-            <Field label="Contact name"><TextInput value={profile.contact_name} onChange={v => updateField("contact_name", v)} placeholder="e.g. Nick Smith" /></Field>
-            <Field label="Phone"><TextInput value={profile.phone} onChange={v => updateField("phone", v)} placeholder="+34 600 000 000" /></Field>
-            <Field label="Website"><TextInput value={profile.website} onChange={v => updateField("website", v)} placeholder="https://yourcompany.com" /></Field>
+            <Field label={t("profile.field.companyName")}><TextInput value={profile.company_name} onChange={v => updateField("company_name", v)} placeholder={t("profile.field.companyName.placeholder")} /></Field>
+            <Field label={t("profile.field.contactName")}><TextInput value={profile.contact_name} onChange={v => updateField("contact_name", v)} placeholder={t("profile.field.contactName.placeholder")} /></Field>
+            <Field label={t("profile.field.phone")}><TextInput value={profile.phone} onChange={v => updateField("phone", v)} placeholder={t("profile.field.phone.placeholder")} /></Field>
+            <Field label={t("profile.field.website")}><TextInput value={profile.website} onChange={v => updateField("website", v)} placeholder={t("profile.field.website.placeholder")} /></Field>
           </div>
         </SectionCard>
 
         {/* Service Settings */}
-        <SectionCard title="Service Settings" description="Control your service radius and the currency you bid in.">
+        <SectionCard title={t("profile.section.service")} description={t("profile.section.service.desc")}>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field label="Service radius (km)">
-              <p className="mt-1 mb-2 text-xs font-semibold text-black/50">Customer requests within this distance from your base will be sent to you.</p>
-              <TextInput type="number" value={profile.service_radius_km} onChange={v => updateField("service_radius_km", v)} placeholder="30" />
+            <Field label={t("profile.field.radius")}>
+              <p className="mt-1 mb-2 text-xs font-semibold text-black/50">{t("profile.field.radius.hint")}</p>
+              <TextInput type="number" value={profile.service_radius_km} onChange={v => updateField("service_radius_km", v)} placeholder={t("profile.field.radius.placeholder")} />
             </Field>
-            
-<Field label="Billing currency">
-              <p className="mt-1 mb-2 text-xs font-semibold text-black/50">The currency your bids and bookings will be quoted in.</p>
+            <Field label={t("profile.field.currency")}>
+              <p className="mt-1 mb-2 text-xs font-semibold text-black/50">{t("profile.field.currency.hint")}</p>
               <div className="border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black">
-                {profile.default_currency === "GBP" ? "£ GBP — British Pound" : profile.default_currency === "USD" ? "$ USD — US Dollar" : "€ EUR — Euro"}
+                {profile.default_currency === "GBP" ? t("profile.field.currency.gbp") : profile.default_currency === "USD" ? t("profile.field.currency.usd") : t("profile.field.currency.eur")}
               </div>
               <p className="mt-2 text-xs font-semibold text-black/50">
-                Your billing currency is set during Stripe onboarding and cannot be changed here. Contact <a href="/partner/contact" className="underline font-black text-black">Camel Global support</a> if you need to change it.
+                {t("profile.field.currency.locked")} <a href="/partner/contact" className="underline font-black text-black">{t("profile.field.currency.lockedLink")}</a> {t("profile.field.currency.lockedEnd")}
               </p>
             </Field>
           </div>
         </SectionCard>
 
         {/* Business & Billing */}
-        <SectionCard title="Business & Billing" description="Your legal details used for commission invoicing.">
+        <SectionCard title={t("profile.section.billing")} description={t("profile.section.billing.desc")}>
           <div className="bg-[#f0f0f0] px-4 py-3 text-sm text-black mb-5">
-            <p className="font-black mb-0.5">🔒 These details are managed by Camel Global</p>
-            <p className="font-semibold text-black/60">Your legal company name and VAT / NIF number are used for cross-border commission invoicing and can only be changed by the Camel Global team. Please use our <a href="/partner/contact" className="underline font-black text-black">contact form</a>.</p>
+            <p className="font-black mb-0.5">{t("profile.billing.managedTitle")}</p>
+            <p className="font-semibold text-black/60">
+              {t("profile.billing.managedBody")} <a href="/partner/contact" className="underline font-black text-black">{t("profile.billing.managedLink")}</a>{t("profile.billing.managedEnd")}
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
-              <p className={labelCls}>Legal company name</p>
+              <p className={labelCls}>{t("profile.field.legalName")}</p>
               <p className="mt-1 border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black">
-                {profile.legal_company_name || <span className="text-black/40 italic">Not set — contact support</span>}
+                {profile.legal_company_name || <span className="text-black/40 italic">{t("profile.field.legalName.notSet")}</span>}
               </p>
             </div>
             <div>
-              <p className={labelCls}>Company registration number</p>
+              <p className={labelCls}>{t("profile.field.regNumber")}</p>
               <p className="mt-1 border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black">
-                {profile.company_registration_number || <span className="text-black/40 italic">Not set</span>}
+                {profile.company_registration_number || <span className="text-black/40 italic">{t("profile.field.regNumber.notSet")}</span>}
               </p>
             </div>
             <div>
-              <p className={labelCls}>VAT / NIF Number</p>
+              <p className={labelCls}>{t("profile.field.vatNumber")}</p>
               <div className="mt-1 flex items-center gap-2">
                 <p className="flex-1 border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black">
-                  {profile.vat_number || <span className="text-black/40 italic">Not set — contact support</span>}
+                  {profile.vat_number || <span className="text-black/40 italic">{t("profile.field.vatNumber.notSet")}</span>}
                 </p>
                 {profile.vat_number
-                  ? <span className="shrink-0 border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-black text-green-700">✓</span>
-                  : <span className="shrink-0 border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-black text-red-600">Required</span>}
+                  ? <span className="shrink-0 border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-black text-green-700">{t("profile.vat.ok")}</span>
+                  : <span className="shrink-0 border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-black text-red-600">{t("profile.vat.required")}</span>}
               </div>
             </div>
           </div>
         </SectionCard>
 
         {/* Business Address */}
-        <SectionCard title="Business Address" description="Your registered company address for correspondence and records.">
+        <SectionCard title={t("profile.section.bizAddress")} description={t("profile.section.bizAddress.desc")}>
 
           {/* City selector */}
           <div className="bg-black px-4 py-3 flex flex-wrap items-center gap-3 mb-4">
-            <span className="text-xs font-black uppercase tracking-widest text-white">Searching near</span>
+            <span className="text-xs font-black uppercase tracking-widest text-white">{t("profile.searchingNear")}</span>
             <select
               value={`${searchCity.country}|${searchCity.city}`}
               onChange={e => {
@@ -515,18 +518,18 @@ export default function PartnerProfilePage() {
                 </optgroup>
               ))}
             </select>
-            <span className="text-xs font-black text-white">Change to search a different city</span>
+            <span className="text-xs font-black text-white">{t("profile.searchingNear.change")}</span>
           </div>
 
           {/* Use my current location */}
           <button type="button" onClick={async () => {
             setError(null);
-            if (!navigator.geolocation) { setError("Geolocation not supported."); return; }
+            if (!navigator.geolocation) { setError(t("profile.error.geoNotSupported")); return; }
             navigator.geolocation.getCurrentPosition(async pos => {
               try {
                 const res  = await fetch(`/api/geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`, { cache: "no-store" });
                 const json = await safeJson(res);
-                if (!res.ok) throw new Error(json?.error || "Failed to get address.");
+                if (!res.ok) throw new Error(json?.error || t("profile.error.addressFailed"));
                 const addr1    = String(json?.address_line1 || "");
                 const city     = String(json?.city          || "");
                 const province = String(json?.province      || "");
@@ -543,22 +546,22 @@ export default function PartnerProfilePage() {
                   address:  buildAddr(addr1 || prev.address1, String(json?.address_line2 || "") || prev.address2, city || prev.city, province || prev.province, postcode || prev.postcode, country || prev.country),
                   default_currency: country ? inferCurrencyFromCountry(country) : prev.default_currency,
                 }));
-              } catch (e: any) { setError(e?.message || "Failed to get address."); }
-            }, err => setError(err.message || "Could not get location."), { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+              } catch (e: any) { setError(e?.message || t("profile.error.addressFailed")); }
+            }, err => setError(err.message || t("profile.error.geoFailed")), { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
           }} className="mb-4 border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#e8e8e8] transition-colors">
-            📍 Use my current location
+            {t("profile.useCurrentLocation")}
           </button>
 
           {/* Business address search */}
           <div className="relative mb-5">
-            <p className={labelCls}>Search your business address</p>
-            <p className="mt-0.5 mb-2 text-xs font-semibold text-black/50">Type to search — selecting a result auto-fills the fields below.</p>
+            <p className={labelCls}>{t("profile.bizSearch.label")}</p>
+            <p className="mt-0.5 mb-2 text-xs font-semibold text-black/50">{t("profile.bizSearch.hint")}</p>
             <input type="text" value={bizQuery} onChange={e => handleBizSearchChange(e.target.value)}
               onFocus={() => { if (bizSuggestions.length) setBizShowSug(true); }}
-              placeholder={`Search in ${searchCity.city}…`}
+              placeholder={t("profile.bizSearch.placeholder", { city: searchCity.city })}
               className="w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors"
             />
-            {bizSearching && <span className="absolute right-4 top-[60px] text-xs font-semibold text-black/30">Searching…</span>}
+            {bizSearching && <span className="absolute right-4 top-[60px] text-xs font-semibold text-black/30">{t("profile.searching")}</span>}
             {bizShowSug && bizSuggestions.length > 0 && (
               <div className="absolute z-20 left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden">
                 {bizSuggestions.map((item, idx) => (
@@ -571,57 +574,57 @@ export default function PartnerProfilePage() {
           {/* Business address fields */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
-              <Field label="Full address (auto-filled)">
-                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">Combined — updated from search or fields below.</p>
-                <TextInput value={profile.address} onChange={v => updateField("address", v)} placeholder="Full address" />
+              <Field label={t("profile.field.fullAddress")}>
+                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">{t("profile.field.fullAddress.hint")}</p>
+                <TextInput value={profile.address} onChange={v => updateField("address", v)} placeholder={t("profile.field.fullAddress.placeholder")} />
               </Field>
             </div>
-            <Field label="Address line 1">
-              <TextInput value={profile.address1} onChange={v => setProfile(prev => ({ ...prev, address1: v, address: buildAddr(v, prev.address2, prev.city, prev.province, prev.postcode, prev.country) }))} placeholder="e.g. Calle Mayor 12" />
+            <Field label={t("profile.field.addr1")}>
+              <TextInput value={profile.address1} onChange={v => setProfile(prev => ({ ...prev, address1: v, address: buildAddr(v, prev.address2, prev.city, prev.province, prev.postcode, prev.country) }))} placeholder={t("profile.field.addr1.placeholder")} />
             </Field>
-            <Field label="Address line 2">
-              <TextInput value={profile.address2} onChange={v => setProfile(prev => ({ ...prev, address2: v, address: buildAddr(prev.address1, v, prev.city, prev.province, prev.postcode, prev.country) }))} placeholder="e.g. Floor 2, Office A" />
+            <Field label={t("profile.field.addr2")}>
+              <TextInput value={profile.address2} onChange={v => setProfile(prev => ({ ...prev, address2: v, address: buildAddr(prev.address1, v, prev.city, prev.province, prev.postcode, prev.country) }))} placeholder={t("profile.field.addr2.placeholder")} />
             </Field>
-            <Field label="City / Town">
-              <TextInput value={profile.city} onChange={v => setProfile(prev => ({ ...prev, city: v, address: buildAddr(prev.address1, prev.address2, v, prev.province, prev.postcode, prev.country) }))} placeholder="e.g. Valencia" />
+            <Field label={t("profile.field.city")}>
+              <TextInput value={profile.city} onChange={v => setProfile(prev => ({ ...prev, city: v, address: buildAddr(prev.address1, prev.address2, v, prev.province, prev.postcode, prev.country) }))} placeholder={t("profile.field.city.placeholder")} />
             </Field>
-            <Field label="Province / Region">
-              <TextInput value={profile.province} onChange={v => setProfile(prev => ({ ...prev, province: v, address: buildAddr(prev.address1, prev.address2, prev.city, v, prev.postcode, prev.country) }))} placeholder="e.g. Comunitat Valenciana" />
+            <Field label={t("profile.field.province")}>
+              <TextInput value={profile.province} onChange={v => setProfile(prev => ({ ...prev, province: v, address: buildAddr(prev.address1, prev.address2, prev.city, v, prev.postcode, prev.country) }))} placeholder={t("profile.field.province.placeholder")} />
             </Field>
-            <Field label="Postcode">
-              <TextInput value={profile.postcode} onChange={v => setProfile(prev => ({ ...prev, postcode: v, address: buildAddr(prev.address1, prev.address2, prev.city, prev.province, v, prev.country) }))} placeholder="e.g. 46001" />
+            <Field label={t("profile.field.postcode")}>
+              <TextInput value={profile.postcode} onChange={v => setProfile(prev => ({ ...prev, postcode: v, address: buildAddr(prev.address1, prev.address2, prev.city, prev.province, v, prev.country) }))} placeholder={t("profile.field.postcode.placeholder")} />
             </Field>
-            <Field label="Country">
-              <TextInput value={profile.country} onChange={v => setProfile(prev => ({ ...prev, country: v, address: buildAddr(prev.address1, prev.address2, prev.city, prev.province, prev.postcode, v), default_currency: inferCurrencyFromCountry(v) }))} placeholder="e.g. Spain" />
+            <Field label={t("profile.field.country")}>
+              <TextInput value={profile.country} onChange={v => setProfile(prev => ({ ...prev, country: v, address: buildAddr(prev.address1, prev.address2, prev.city, prev.province, prev.postcode, v), default_currency: inferCurrencyFromCountry(v) }))} placeholder={t("profile.field.country.placeholder")} />
             </Field>
           </div>
         </SectionCard>
 
         {/* Car Fleet Base Location */}
-        <SectionCard title="Car Fleet Base Location" description="Where your vehicles are dispatched from. The coordinates set here control your service radius.">
+        <SectionCard title={t("profile.section.fleetBase")} description={t("profile.section.fleetBase.desc")}>
 
           {/* Same as business */}
           <label className="flex cursor-pointer items-center gap-3 bg-[#f0f0f0] px-4 py-3 mb-5">
             <input type="checkbox" checked={profile.same_as_business} onChange={e => toggleSameAsBusiness(e.target.checked)} className="h-4 w-4" />
             <div>
-              <span className="text-sm font-black text-black">Same as business address</span>
-              <p className="text-xs font-semibold text-black/50">Tick to copy your business address as the fleet base address</p>
+              <span className="text-sm font-black text-black">{t("profile.fleetBase.sameAsBusiness")}</span>
+              <p className="text-xs font-semibold text-black/50">{t("profile.fleetBase.sameAsBusiness.hint")}</p>
             </div>
           </label>
 
           {/* GPS + search tools */}
           <div className="bg-[#f0f0f0] p-4 mb-4">
-            <p className="text-xs font-black uppercase tracking-widest text-black mb-1">📍 Set Fleet Base Location</p>
-            <p className="text-xs font-semibold text-black/50 mb-4">Use your current location, search, or click the map below to set your base.</p>
+            <p className="text-xs font-black uppercase tracking-widest text-black mb-1">{t("profile.fleetBase.setLocation")}</p>
+            <p className="text-xs font-semibold text-black/50 mb-4">{t("profile.fleetBase.setLocation.hint")}</p>
 
             <button type="button" onClick={useCurrentLocation}
               className="mb-4 border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#e8e8e8] transition-colors">
-              📍 Use my current location
+              {t("profile.useCurrentLocation")}
             </button>
 
             {/* City selector for fleet search */}
             <div className="bg-black px-4 py-3 flex flex-wrap items-center gap-3 mb-3">
-              <span className="text-xs font-black uppercase tracking-widest text-white">Searching near</span>
+              <span className="text-xs font-black uppercase tracking-widest text-white">{t("profile.searchingNear")}</span>
               <select
                 value={`${searchCity.country}|${searchCity.city}`}
                 onChange={e => {
@@ -639,17 +642,17 @@ export default function PartnerProfilePage() {
                   </optgroup>
                 ))}
               </select>
-              <span className="text-xs font-black text-white">Change to bias search to a different city</span>
+              <span className="text-xs font-black text-white">{t("profile.fleetBase.searchNear.change")}</span>
             </div>
 
             <div className="relative">
               <input type="text" value={profile.search_address} onChange={e => handleFleetSearchChange(e.target.value)}
                 onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
                 onKeyDown={e => { if (e.key === "Enter") e.preventDefault(); }}
-                placeholder={`Type to search in ${searchCity.city}…`}
+                placeholder={t("profile.fleetBase.search.placeholder", { city: searchCity.city })}
                 className="w-full border border-black/10 bg-white px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#f0f0f0] transition-colors"
               />
-              {searching && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-black/30">Searching…</span>}
+              {searching && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-black/30">{t("profile.searching")}</span>}
               {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute left-0 right-0 mt-0.5 border border-black/10 bg-white shadow-xl overflow-hidden" style={{ zIndex: 10000 }}>
                   {suggestions.map((item, idx) => (
@@ -663,38 +666,38 @@ export default function PartnerProfilePage() {
           {/* Map */}
           <div className="mb-4">
             <MapPicker lat={lat} lng={lng} onPick={handleMapPick} />
-            <p className="mt-2 text-xs font-semibold text-black/50">💡 Click the map to move the pin and update your GPS coordinates and address.</p>
+            <p className="mt-2 text-xs font-semibold text-black/50">{t("profile.fleetBase.mapHint")}</p>
           </div>
 
           {/* Fleet address fields */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
-              <Field label="Fleet base full address (auto-filled)">
-                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">Populated automatically from search, GPS or map click. Edit manually if needed.</p>
+              <Field label={t("profile.field.fleetFullAddress")}>
+                <p className="mt-1 mb-1 text-xs font-semibold text-black/50">{t("profile.field.fleetFullAddress.hint")}</p>
                 <TextInput value={profile.base_address} onChange={v => updateField("base_address", v)} />
               </Field>
             </div>
-            <Field label="Address line 1">
-              <TextInput value={profile.base_address1} onChange={v => setProfile(prev => ({ ...prev, base_address1: v, base_address: buildAddr(v, prev.base_address2, prev.base_city, prev.base_province, prev.base_postcode, prev.base_country) }))} placeholder="e.g. Carrer de la Marina 5" />
+            <Field label={t("profile.field.addr1")}>
+              <TextInput value={profile.base_address1} onChange={v => setProfile(prev => ({ ...prev, base_address1: v, base_address: buildAddr(v, prev.base_address2, prev.base_city, prev.base_province, prev.base_postcode, prev.base_country) }))} placeholder={t("profile.field.addr1.fleet.placeholder")} />
             </Field>
-            <Field label="Address line 2">
-              <TextInput value={profile.base_address2} onChange={v => setProfile(prev => ({ ...prev, base_address2: v, base_address: buildAddr(prev.base_address1, v, prev.base_city, prev.base_province, prev.base_postcode, prev.base_country) }))} placeholder="e.g. Unit 3" />
+            <Field label={t("profile.field.addr2")}>
+              <TextInput value={profile.base_address2} onChange={v => setProfile(prev => ({ ...prev, base_address2: v, base_address: buildAddr(prev.base_address1, v, prev.base_city, prev.base_province, prev.base_postcode, prev.base_country) }))} placeholder={t("profile.field.addr2.fleet.placeholder")} />
             </Field>
-            <Field label="City / Town">
-              <TextInput value={profile.base_city} onChange={v => setProfile(prev => ({ ...prev, base_city: v, base_address: buildAddr(prev.base_address1, prev.base_address2, v, prev.base_province, prev.base_postcode, prev.base_country) }))} placeholder="e.g. Valencia" />
+            <Field label={t("profile.field.city")}>
+              <TextInput value={profile.base_city} onChange={v => setProfile(prev => ({ ...prev, base_city: v, base_address: buildAddr(prev.base_address1, prev.base_address2, v, prev.base_province, prev.base_postcode, prev.base_country) }))} placeholder={t("profile.field.city.placeholder")} />
             </Field>
-            <Field label="Province / Region">
-              <TextInput value={profile.base_province} onChange={v => setProfile(prev => ({ ...prev, base_province: v, base_address: buildAddr(prev.base_address1, prev.base_address2, prev.base_city, v, prev.base_postcode, prev.base_country) }))} placeholder="e.g. Comunitat Valenciana" />
+            <Field label={t("profile.field.province")}>
+              <TextInput value={profile.base_province} onChange={v => setProfile(prev => ({ ...prev, base_province: v, base_address: buildAddr(prev.base_address1, prev.base_address2, prev.base_city, v, prev.base_postcode, prev.base_country) }))} placeholder={t("profile.field.province.placeholder")} />
             </Field>
-            <Field label="Postcode">
-              <TextInput value={profile.base_postcode} onChange={v => setProfile(prev => ({ ...prev, base_postcode: v, base_address: buildAddr(prev.base_address1, prev.base_address2, prev.base_city, prev.base_province, v, prev.base_country) }))} placeholder="e.g. 46001" />
+            <Field label={t("profile.field.postcode")}>
+              <TextInput value={profile.base_postcode} onChange={v => setProfile(prev => ({ ...prev, base_postcode: v, base_address: buildAddr(prev.base_address1, prev.base_address2, prev.base_city, prev.base_province, v, prev.base_country) }))} placeholder={t("profile.field.postcode.placeholder")} />
             </Field>
-            <Field label="Country">
-              <TextInput value={profile.base_country} onChange={v => setProfile(prev => ({ ...prev, base_country: v, base_address: buildAddr(prev.base_address1, prev.base_address2, prev.base_city, prev.base_province, prev.base_postcode, v) }))} placeholder="e.g. Spain" />
+            <Field label={t("profile.field.country")}>
+              <TextInput value={profile.base_country} onChange={v => setProfile(prev => ({ ...prev, base_country: v, base_address: buildAddr(prev.base_address1, prev.base_address2, prev.base_city, prev.base_province, prev.base_postcode, v) }))} placeholder={t("profile.field.country.placeholder")} />
             </Field>
             <div className="md:col-span-2 grid grid-cols-2 gap-4">
-              <Field label="Latitude"><TextInput value={profile.base_lat} onChange={v => updateField("base_lat", v)} placeholder="e.g. 38.842" /></Field>
-              <Field label="Longitude"><TextInput value={profile.base_lng} onChange={v => updateField("base_lng", v)} placeholder="e.g. 0.112" /></Field>
+              <Field label={t("profile.field.latitude")}><TextInput value={profile.base_lat} onChange={v => updateField("base_lat", v)} placeholder={t("profile.field.latitude.placeholder")} /></Field>
+              <Field label={t("profile.field.longitude")}><TextInput value={profile.base_lng} onChange={v => updateField("base_lng", v)} placeholder={t("profile.field.longitude.placeholder")} /></Field>
             </div>
           </div>
         </SectionCard>
@@ -702,9 +705,9 @@ export default function PartnerProfilePage() {
         <div className="flex items-center gap-4">
           <button type="submit" disabled={saving}
             className="bg-[#ff7a00] px-8 py-4 text-sm font-black text-white hover:opacity-90 disabled:opacity-60 transition-opacity">
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? t("profile.saving") : t("profile.saveBtn")}
           </button>
-          {saved && <p className="text-sm font-black text-green-600">✓ Saved successfully</p>}
+          {saved && <p className="text-sm font-black text-green-600">{t("profile.savedShort")}</p>}
         </div>
       </form>
     </div>
