@@ -2,20 +2,23 @@
 
 import { useState } from "react";
 import HCaptcha from "@/app/components/HCaptcha";
-
-const SUBJECTS = [
-  "General enquiry",
-  "Account or billing question",
-  "Technical issue",
-  "Dispute or complaint",
-  "Suggest a feature",
-  "Other",
-];
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const inputCls = "w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-bold outline-none focus:border-black placeholder:text-black/30";
 const labelCls = "text-xs font-black uppercase tracking-widest text-black";
 
 export default function PartnerContactPage() {
+  const { t } = useTranslation();
+
+  const SUBJECTS = [
+    t("contact.subject.general"),
+    t("contact.subject.billing"),
+    t("contact.subject.technical"),
+    t("contact.subject.dispute"),
+    t("contact.subject.feature"),
+    t("contact.subject.other"),
+  ];
+
   const [name,    setName]    = useState("");
   const [company, setCompany] = useState("");
   const [email,   setEmail]   = useState("");
@@ -30,9 +33,9 @@ export default function PartnerContactPage() {
   async function handleSubmit() {
     setError(null);
     if (!name.trim() || !company.trim() || !email.trim() || !subject || !message.trim()) {
-      setError("Please fill in all fields."); return;
+      setError(t("contact.error.fields")); return;
     }
-    if (!captchaToken) { setError("Please complete the CAPTCHA."); return; }
+    if (!captchaToken) { setError(t("contact.error.captcha")); return; }
     setLoading(true);
     try {
       const res  = await fetch("/api/contact", {
@@ -42,12 +45,12 @@ export default function PartnerContactPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error || "Something went wrong. Please try again.");
+        setError(data?.error || t("contact.error.generic"));
         setCaptchaKey(k => k + 1); setCaptchaToken(null); return;
       }
       setSuccess(true);
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("contact.error.generic"));
       setCaptchaKey(k => k + 1); setCaptchaToken(null);
     } finally { setLoading(false); }
   }
@@ -58,12 +61,9 @@ export default function PartnerContactPage() {
       {/* Hero */}
       <div className="w-full bg-black px-6 py-16 text-white mb-6">
         <div className="mx-auto max-w-5xl">
-          <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">Support</p>
-          <h1 className="text-4xl font-black text-white md:text-5xl">Contact Camel Global</h1>
-          <p className="mt-3 text-base font-bold text-white/70 max-w-xl leading-relaxed">
-            Have a question about your account, a booking, or the platform? Fill in the form below and
-            we&apos;ll get back to you within one business day.
-          </p>
+          <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">{t("contact.tag")}</p>
+          <h1 className="text-4xl font-black text-white md:text-5xl">{t("contact.title")}</h1>
+          <p className="mt-3 text-base font-bold text-white/70 max-w-xl leading-relaxed">{t("contact.subtitle")}</p>
         </div>
       </div>
 
@@ -72,10 +72,9 @@ export default function PartnerContactPage() {
         {success ? (
           <div className="bg-white p-10 text-center max-w-xl mx-auto">
             <div className="mb-4 text-5xl">✅</div>
-            <h2 className="mb-2 text-2xl font-black text-black">Message sent</h2>
+            <h2 className="mb-2 text-2xl font-black text-black">{t("contact.success.title")}</h2>
             <p className="text-sm font-bold text-black/60 leading-relaxed mb-6">
-              Thanks for getting in touch. We&apos;ve sent a confirmation to <strong className="text-black">{email}</strong> and
-              will reply within one business day.
+              {t("contact.success.body")} <strong className="text-black">{email}</strong> {t("contact.success.body2")}
             </p>
             <button type="button"
               onClick={() => {
@@ -84,7 +83,7 @@ export default function PartnerContactPage() {
                 setCaptchaToken(null); setCaptchaKey(k => k + 1);
               }}
               className="border border-black/20 px-6 py-2.5 text-sm font-black text-black hover:bg-black/5 transition-colors">
-              Send another message
+              {t("contact.success.again")}
             </button>
           </div>
         ) : (
@@ -94,16 +93,16 @@ export default function PartnerContactPage() {
             <div className="lg:col-span-1">
               <div className="bg-white p-6 space-y-5">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-black mb-1">Response time</p>
-                  <p className="text-sm font-bold text-black/60">Within one business day</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-black mb-1">{t("contact.sidebar.responseTime")}</p>
+                  <p className="text-sm font-bold text-black/60">{t("contact.sidebar.responseTimeValue")}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-black mb-2">Useful links</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-black mb-2">{t("contact.sidebar.usefulLinks")}</p>
                   <div className="space-y-2">
                     {[
-                      { label: "Partner Terms",       href: "/partner/terms" },
-                      { label: "Operating Agreement", href: "/partner/operating-rules" },
-                      { label: "My Account",          href: "/partner/account" },
+                      { label: t("contact.sidebar.partnerTerms"),        href: "/partner/terms" },
+                      { label: t("contact.sidebar.operatingAgreement"),  href: "/partner/operating-rules" },
+                      { label: t("contact.sidebar.myAccount"),           href: "/partner/account" },
                     ].map(({ label, href }) => (
                       <a key={href} href={href}
                         className="flex items-center gap-2 text-sm font-black text-black hover:text-[#ff7a00] transition-colors">
@@ -125,36 +124,36 @@ export default function PartnerContactPage() {
 
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <label className={labelCls}>Your name <span className="text-red-500">*</span></label>
+                    <label className={labelCls}>{t("contact.form.nameLabel")} <span className="text-red-500">*</span></label>
                     <input type="text" value={name} onChange={e => setName(e.target.value)}
-                      placeholder="Jane Smith" maxLength={100} className={`mt-2 ${inputCls}`} />
+                      placeholder={t("contact.form.namePlaceholder")} maxLength={100} className={`mt-2 ${inputCls}`} />
                   </div>
                   <div>
-                    <label className={labelCls}>Company name <span className="text-red-500">*</span></label>
+                    <label className={labelCls}>{t("contact.form.companyLabel")} <span className="text-red-500">*</span></label>
                     <input type="text" value={company} onChange={e => setCompany(e.target.value)}
-                      placeholder="Acme Car Hire" maxLength={100} className={`mt-2 ${inputCls}`} />
+                      placeholder={t("contact.form.companyPlaceholder")} maxLength={100} className={`mt-2 ${inputCls}`} />
                   </div>
                 </div>
 
                 <div>
-                  <label className={labelCls}>Email address <span className="text-red-500">*</span></label>
+                  <label className={labelCls}>{t("contact.form.emailLabel")} <span className="text-red-500">*</span></label>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                    placeholder="jane@example.com" maxLength={200} className={`mt-2 ${inputCls}`} />
+                    placeholder={t("contact.form.emailPlaceholder")} maxLength={200} className={`mt-2 ${inputCls}`} />
                 </div>
 
                 <div>
-                  <label className={labelCls}>Subject <span className="text-red-500">*</span></label>
+                  <label className={labelCls}>{t("contact.form.subjectLabel")} <span className="text-red-500">*</span></label>
                   <select value={subject} onChange={e => setSubject(e.target.value)}
                     className={`mt-2 ${inputCls} bg-white`}>
-                    <option value="">Select a subject…</option>
+                    <option value="">{t("contact.form.subjectPlaceholder")}</option>
                     {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
 
                 <div>
-                  <label className={labelCls}>Message <span className="text-red-500">*</span></label>
+                  <label className={labelCls}>{t("contact.form.messageLabel")} <span className="text-red-500">*</span></label>
                   <textarea value={message} onChange={e => setMessage(e.target.value)}
-                    rows={6} maxLength={5000} placeholder="Tell us how we can help…"
+                    rows={6} maxLength={5000} placeholder={t("contact.form.messagePlaceholder")}
                     className={`mt-2 ${inputCls} resize-none`} />
                   <p className="mt-1 text-right text-xs font-bold text-black/30">{message.length}/5000</p>
                 </div>
@@ -165,12 +164,12 @@ export default function PartnerContactPage() {
 
                 <button type="button" onClick={handleSubmit} disabled={loading}
                   className="w-full bg-[#ff7a00] px-6 py-4 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
-                  {loading ? "Sending…" : "Send Message"}
+                  {loading ? t("contact.form.submitting") : t("contact.form.submitBtn")}
                 </button>
 
                 <p className="text-center text-xs font-bold text-black/30">
-                  This site is protected by hCaptcha.{" "}
-                  <a href="/partner/privacy" className="underline hover:text-black/60">Privacy Policy</a>.
+                  {t("contact.form.captchaNote")}{" "}
+                  <a href="/partner/privacy" className="underline hover:text-black/60">{t("contact.form.captchaPrivacy")}</a>.
                 </p>
               </div>
             </div>
