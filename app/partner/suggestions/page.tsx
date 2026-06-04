@@ -1,35 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type Suggestion = {
-  id: string;
-  title: string;
-  category: string;
-  description: string;
-  status: string;
-  admin_notes: string | null;
-  created_at: string;
+  id: string; title: string; category: string;
+  description: string; status: string;
+  admin_notes: string | null; created_at: string;
 };
-
-const CATEGORIES = [
-  { value: "feature",     label: "Feature Request" },
-  { value: "bug",         label: "Bug Report" },
-  { value: "improvement", label: "Improvement" },
-];
 
 const STATUS_STYLES: Record<string, string> = {
-  submitted:  "bg-gray-100 text-gray-700",
-  reviewing:  "bg-blue-100 text-blue-700",
-  planned:    "bg-amber-100 text-amber-700",
-  done:       "bg-green-100 text-green-700",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  submitted:  "Submitted",
-  reviewing:  "Under Review",
-  planned:    "Planned",
-  done:       "Done",
+  submitted: "bg-gray-100 text-gray-700",
+  reviewing: "bg-blue-100 text-blue-700",
+  planned:   "bg-amber-100 text-amber-700",
+  done:      "bg-green-100 text-green-700",
 };
 
 function fmt(iso: string) {
@@ -37,12 +21,26 @@ function fmt(iso: string) {
 }
 
 export default function PartnerSuggestionsPage() {
+  const { t } = useTranslation();
+
+  const CATEGORIES = [
+    { value: "feature",     label: t("suggestions.category.feature") },
+    { value: "bug",         label: t("suggestions.category.bug") },
+    { value: "improvement", label: t("suggestions.category.improvement") },
+  ];
+
+  const STATUS_LABELS: Record<string, string> = {
+    submitted: t("suggestions.status.submitted"),
+    reviewing: t("suggestions.status.reviewing"),
+    planned:   t("suggestions.status.planned"),
+    done:      t("suggestions.status.done"),
+  };
+
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [submitting,  setSubmitting]  = useState(false);
   const [success,     setSuccess]     = useState(false);
   const [error,       setError]       = useState<string | null>(null);
-
   const [title,       setTitle]       = useState("");
   const [category,    setCategory]    = useState("feature");
   const [description, setDescription] = useState("");
@@ -60,9 +58,8 @@ export default function PartnerSuggestionsPage() {
 
   async function handleSubmit() {
     setError(null); setSuccess(false);
-    if (!title.trim())       { setError("Please enter a title."); return; }
-    if (!description.trim()) { setError("Please enter a description."); return; }
-
+    if (!title.trim())       { setError(t("suggestions.error.title")); return; }
+    if (!description.trim()) { setError(t("suggestions.error.description")); return; }
     setSubmitting(true);
     try {
       const res  = await fetch("/api/partner/suggestions", {
@@ -71,46 +68,35 @@ export default function PartnerSuggestionsPage() {
         body: JSON.stringify({ title: title.trim(), category, description: description.trim() }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to submit");
+      if (!res.ok) throw new Error(json?.error || t("suggestions.error.submit"));
       setSuccess(true);
       setTitle(""); setCategory("feature"); setDescription("");
       await loadSuggestions();
-    } catch (e: any) {
-      setError(e?.message || "Failed to submit suggestion");
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (e: any) { setError(e?.message || t("suggestions.error.submit")); }
+    finally { setSubmitting(false); }
   }
 
   return (
     <div className="space-y-8 p-6 max-w-3xl">
-      {/* Header */}
       <div>
-        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-1">Partner Portal</p>
-        <h1 className="text-3xl font-black text-[#003768]">Suggestions</h1>
-        <p className="mt-2 text-sm font-semibold text-black/50">
-          Have an idea, spotted a bug, or want to suggest an improvement? Let us know.
-        </p>
+        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] mb-1">{t("suggestions.tag")}</p>
+        <h1 className="text-3xl font-black text-[#003768]">{t("suggestions.title")}</h1>
+        <p className="mt-2 text-sm font-semibold text-black/50">{t("suggestions.subtitle")}</p>
       </div>
 
-      {/* Submit form */}
       <div className="bg-white border border-black/10 p-6 space-y-5">
-        <p className="text-xs font-black uppercase tracking-widest text-black/50">Submit a Suggestion</p>
+        <p className="text-xs font-black uppercase tracking-widest text-black/50">{t("suggestions.form.title")}</p>
 
         <div>
-          <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1.5">Category</label>
+          <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1.5">{t("suggestions.form.categoryLabel")}</label>
           <div className="flex gap-2 flex-wrap">
             {CATEGORIES.map(c => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => setCategory(c.value)}
+              <button key={c.value} type="button" onClick={() => setCategory(c.value)}
                 className={`px-4 py-2 text-sm font-black transition border ${
                   category === c.value
                     ? "bg-[#003768] text-white border-[#003768]"
                     : "bg-white text-black/60 border-black/20 hover:border-[#003768]"
-                }`}
-              >
+                }`}>
                 {c.label}
               </button>
             ))}
@@ -118,48 +104,34 @@ export default function PartnerSuggestionsPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1.5">Title</label>
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="Brief summary of your suggestion…"
-            maxLength={120}
-            className="w-full bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#e8e8e8] placeholder:text-black/30"
-          />
+          <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1.5">{t("suggestions.form.titleLabel")}</label>
+          <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+            placeholder={t("suggestions.form.titlePlaceholder")} maxLength={120}
+            className="w-full bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#e8e8e8] placeholder:text-black/30" />
         </div>
 
         <div>
-          <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1.5">Description</label>
-          <textarea
-            rows={5}
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder="Describe your suggestion in detail…"
-            className="w-full bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#e8e8e8] placeholder:text-black/30 resize-none"
-          />
+          <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1.5">{t("suggestions.form.descLabel")}</label>
+          <textarea rows={5} value={description} onChange={e => setDescription(e.target.value)}
+            placeholder={t("suggestions.form.descPlaceholder")}
+            className="w-full bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black outline-none focus:bg-[#e8e8e8] placeholder:text-black/30 resize-none" />
         </div>
 
         {error   && <p className="text-sm font-semibold text-red-600">{error}</p>}
-        {success && <p className="text-sm font-semibold text-green-600">✓ Suggestion submitted — thank you!</p>}
+        {success && <p className="text-sm font-semibold text-green-600">{t("suggestions.ok")}</p>}
 
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="bg-[#ff7a00] px-8 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-        >
-          {submitting ? "Submitting…" : "Submit Suggestion"}
+        <button type="button" onClick={handleSubmit} disabled={submitting}
+          className="bg-[#ff7a00] px-8 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
+          {submitting ? t("suggestions.form.submitting") : t("suggestions.form.submitBtn")}
         </button>
       </div>
 
-      {/* Previous suggestions */}
       <div>
-        <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-4">Your Previous Suggestions</p>
+        <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-4">{t("suggestions.list.title")}</p>
         {loading ? (
-          <p className="text-sm font-semibold text-black/40">Loading…</p>
+          <p className="text-sm font-semibold text-black/40">{t("suggestions.list.loading")}</p>
         ) : suggestions.length === 0 ? (
-          <p className="text-sm font-semibold text-black/40">No suggestions yet.</p>
+          <p className="text-sm font-semibold text-black/40">{t("suggestions.list.empty")}</p>
         ) : (
           <div className="space-y-3">
             {suggestions.map(s => (
@@ -178,7 +150,7 @@ export default function PartnerSuggestionsPage() {
                 <p className="text-sm font-semibold text-black/60 mb-2">{s.description}</p>
                 {s.admin_notes && (
                   <div className="bg-[#f0f0f0] px-4 py-3 mt-3">
-                    <p className="text-xs font-black uppercase tracking-widest text-[#003768] mb-1">Camel Global Response</p>
+                    <p className="text-xs font-black uppercase tracking-widest text-[#003768] mb-1">{t("suggestions.list.adminResponse")}</p>
                     <p className="text-sm font-semibold text-black">{s.admin_notes}</p>
                   </div>
                 )}

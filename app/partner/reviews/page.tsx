@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type Review = {
   id: string; booking_id: string; job_number: number | null;
@@ -27,6 +28,7 @@ function fmt(v?: string | null) {
 }
 
 export default function PartnerReviewsPage() {
+  const { t } = useTranslation();
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState<string | null>(null);
   const [ok,        setOk]        = useState<string | null>(null);
@@ -42,7 +44,7 @@ export default function PartnerReviewsPage() {
     try {
       const res  = await fetch("/api/partner/reviews", { cache: "no-store", credentials: "include" });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to load reviews");
+      if (!res.ok) throw new Error(json?.error || t("reviews.error.load"));
       setReviews(json.reviews || []);
       setAvg(json.avg);
       setTotal(json.total || 0);
@@ -64,8 +66,8 @@ export default function PartnerReviewsPage() {
         body: JSON.stringify({ review_id: reviewId, reply }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to submit reply");
-      setOk("Reply submitted.");
+      if (!res.ok) throw new Error(json?.error || t("reviews.error.reply"));
+      setOk(t("reviews.ok.replied"));
       setReplyText(p => ({ ...p, [reviewId]: "" }));
       await load();
     } catch (e: any) { setError(e?.message); }
@@ -75,8 +77,8 @@ export default function PartnerReviewsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-black text-black">Customer Reviews</h1>
-        <p className="mt-1 text-sm font-bold text-black/50">Reviews left by customers after completed bookings. You can reply once to each review.</p>
+        <h1 className="text-3xl font-black text-black">{t("reviews.title")}</h1>
+        <p className="mt-1 text-sm font-bold text-black/50">{t("reviews.subtitle")}</p>
       </div>
 
       {error && <div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
@@ -89,7 +91,9 @@ export default function PartnerReviewsPage() {
             <div className="text-center shrink-0">
               <p className="text-5xl font-black text-black">{avg?.toFixed(1) ?? "—"}</p>
               <Stars rating={Math.round(avg ?? 0)} size="lg" />
-              <p className="mt-1 text-xs font-black uppercase tracking-widest text-black/40">{total} review{total !== 1 ? "s" : ""}</p>
+              <p className="mt-1 text-xs font-black uppercase tracking-widest text-black/40">
+                {total} {total !== 1 ? t("reviews.summary.reviewsPlural") : t("reviews.summary.reviews")}
+              </p>
             </div>
             <div className="flex-1 space-y-2">
               {[5,4,3,2,1].map(n => {
@@ -113,13 +117,13 @@ export default function PartnerReviewsPage() {
 
       {loading ? (
         <div className="border border-black/5 bg-white p-8">
-          <p className="text-sm font-bold text-black/50">Loading reviews…</p>
+          <p className="text-sm font-bold text-black/50">{t("reviews.loading")}</p>
         </div>
       ) : reviews.length === 0 ? (
         <div className="border border-black/5 bg-white p-8 text-center">
           <p className="text-4xl">⭐</p>
-          <p className="mt-3 text-lg font-black text-black">No reviews yet</p>
-          <p className="mt-1 text-sm font-bold text-black/50">Reviews will appear here once customers complete bookings and leave feedback.</p>
+          <p className="mt-3 text-lg font-black text-black">{t("reviews.empty.title")}</p>
+          <p className="mt-1 text-sm font-bold text-black/50">{t("reviews.empty.body")}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -130,7 +134,7 @@ export default function PartnerReviewsPage() {
                   <Stars rating={r.rating} />
                   {r.job_number && (
                     <p className="mt-1 text-xs font-black uppercase tracking-widest text-black/40">
-                      Booking #{r.job_number}
+                      {t("reviews.booking", { number: String(r.job_number) })}
                     </p>
                   )}
                 </div>
@@ -140,30 +144,30 @@ export default function PartnerReviewsPage() {
               {r.comment ? (
                 <p className="mt-3 text-sm font-bold text-black/70">{r.comment}</p>
               ) : (
-                <p className="mt-3 text-sm font-bold italic text-black/30">No written comment.</p>
+                <p className="mt-3 text-sm font-bold italic text-black/30">{t("reviews.noComment")}</p>
               )}
 
               {r.partner_reply ? (
                 <div className="mt-4 border border-black/10 bg-[#f0f0f0] p-4">
                   <p className="text-xs font-black uppercase tracking-widest text-black">
-                    Your reply · {fmt(r.partner_replied_at)}
+                    {t("reviews.reply.existing.label", { date: fmt(r.partner_replied_at) })}
                   </p>
                   <p className="mt-1 text-sm font-bold text-black/70">{r.partner_reply}</p>
                 </div>
               ) : (
                 <div className="mt-4">
                   <label className="text-xs font-black uppercase tracking-widest text-black">
-                    Reply to this review (one reply only)
+                    {t("reviews.reply.label")}
                   </label>
                   <textarea rows={3}
                     value={replyText[r.id] || ""}
                     onChange={e => setReplyText(p => ({ ...p, [r.id]: e.target.value }))}
                     className="mt-2 w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-bold outline-none focus:border-black placeholder:text-black/30"
-                    placeholder="Thank the customer or respond to their feedback…" />
+                    placeholder={t("reviews.reply.placeholder")} />
                   <button type="button" onClick={() => submitReply(r.id)}
                     disabled={saving === r.id || !(replyText[r.id] || "").trim()}
                     className="mt-2 bg-[#ff7a00] px-5 py-2.5 text-sm font-black text-white hover:opacity-90 transition-opacity disabled:opacity-50">
-                    {saving === r.id ? "Submitting…" : "Submit Reply"}
+                    {saving === r.id ? t("reviews.reply.submitting") : t("reviews.reply.submit")}
                   </button>
                 </div>
               )}

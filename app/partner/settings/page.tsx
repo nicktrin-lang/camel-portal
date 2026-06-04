@@ -1,28 +1,26 @@
+// ── app/partner/settings/page.tsx ─────────────────────────────────────────────
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type StripeStatus = {
-  connected: boolean;
-  onboarding_complete: boolean;
-  payouts_enabled: boolean;
-  requirements?: string[];
+  connected: boolean; onboarding_complete: boolean;
+  payouts_enabled: boolean; requirements?: string[];
 };
 
 export default function PartnerSettingsPage() {
+  const { t } = useTranslation();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
-  // Stripe state
   const [stripeStatus,  setStripeStatus]  = useState<StripeStatus | null>(null);
   const [stripeLoading, setStripeLoading] = useState(true);
   const [stripeLinking, setStripeLinking] = useState(false);
   const [stripeError,   setStripeError]   = useState("");
-
-  // Delete state
-  const [confirmText,  setConfirmText]  = useState("");
-  const [showConfirm,  setShowConfirm]  = useState(false);
+  const [confirmText,   setConfirmText]   = useState("");
+  const [showConfirm,   setShowConfirm]   = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError,   setDeleteError]   = useState<string | null>(null);
 
@@ -34,9 +32,7 @@ export default function PartnerSettingsPage() {
         setStripeStatus(json);
       } catch {
         setStripeStatus({ connected: false, onboarding_complete: false, payouts_enabled: false });
-      } finally {
-        setStripeLoading(false);
-      }
+      } finally { setStripeLoading(false); }
     }
     loadStripe();
   }, []);
@@ -79,125 +75,117 @@ export default function PartnerSettingsPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-
-      {/* Header */}
       <div className="border border-black/5 bg-white p-6">
-        <h1 className="text-2xl font-black text-black">Settings</h1>
-        <p className="mt-1 text-sm font-bold text-black/50">Manage your account preferences and payouts.</p>
+        <h1 className="text-2xl font-black text-black">{t("settings.title")}</h1>
+        <p className="mt-1 text-sm font-bold text-black/50">{t("settings.subtitle")}</p>
       </div>
 
       {/* Payouts */}
       <div className="border border-black/5 bg-white p-6 space-y-5">
         <div>
-          <h2 className="text-lg font-black text-black">Payout Settings</h2>
-          <p className="mt-1 text-sm font-bold text-black/50">Manage your Stripe Express account and bank details.</p>
+          <h2 className="text-lg font-black text-black">{t("settings.payouts.title")}</h2>
+          <p className="mt-1 text-sm font-bold text-black/50">{t("settings.payouts.subtitle")}</p>
         </div>
 
         {stripeLoading ? (
-          <p className="text-sm font-bold text-black/40">Checking payout status…</p>
+          <p className="text-sm font-bold text-black/40">{t("settings.payouts.checking")}</p>
         ) : stripeStatus?.onboarding_complete ? (
           <div className="space-y-4">
-            {/* Connected state */}
             <div className="border border-green-200 bg-green-50 p-4 flex items-center gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-green-600 text-white font-black text-sm">✓</span>
               <div>
-                <p className="font-black text-green-800">Payouts connected</p>
-                <p className="text-sm font-bold text-green-700">Your Stripe account is active. Completed bookings are paid out monthly.</p>
+                <p className="font-black text-green-800">{t("settings.payouts.connected.title")}</p>
+                <p className="text-sm font-bold text-green-700">{t("settings.payouts.connected.body")}</p>
               </div>
             </div>
-
-            {/* Payout info */}
             <div className="border border-black/10 bg-[#f0f0f0] p-4 space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="font-black text-black/50 uppercase tracking-widest text-xs">Payout schedule</span>
-                <span className="font-bold text-black">Monthly — 1st of each month</span>
+                <span className="font-black text-black/50 uppercase tracking-widest text-xs">{t("settings.payouts.schedule.label")}</span>
+                <span className="font-bold text-black">{t("settings.payouts.schedule.value")}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-black text-black/50 uppercase tracking-widest text-xs">Payouts enabled</span>
+                <span className="font-black text-black/50 uppercase tracking-widest text-xs">{t("settings.payouts.enabled.label")}</span>
                 <span className={`font-black text-sm ${stripeStatus.payouts_enabled ? "text-green-700" : "text-amber-700"}`}>
-                  {stripeStatus.payouts_enabled ? "✓ Yes" : "⏳ Pending"}
+                  {stripeStatus.payouts_enabled ? t("settings.payouts.enabled.yes") : t("settings.payouts.enabled.pending")}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="font-black text-black/50 uppercase tracking-widest text-xs">Commission invoices</span>
-                <span className="font-bold text-black">Auto-generated monthly</span>
+                <span className="font-black text-black/50 uppercase tracking-widest text-xs">{t("settings.payouts.invoices.label")}</span>
+                <span className="font-bold text-black">{t("settings.payouts.invoices.value")}</span>
               </div>
             </div>
-
             {stripeError && <p className="text-sm font-bold text-red-700">{stripeError}</p>}
-
             <button onClick={openStripeDashboard} disabled={stripeLinking}
               className="w-full bg-black py-3 text-sm font-black text-white hover:opacity-80 disabled:opacity-50 transition-opacity">
-              {stripeLinking ? "Opening Stripe…" : "Manage Bank Account & Payouts →"}
+              {stripeLinking ? t("settings.payouts.manage.opening") : t("settings.payouts.manage.btn")}
             </button>
-            <p className="text-xs font-bold text-black/40 text-center">
-              You will be redirected to your secure Stripe Express dashboard to update bank details, view transfers, and manage your payout account.
-            </p>
+            <p className="text-xs font-bold text-black/40 text-center">{t("settings.payouts.manage.hint")}</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Not connected state */}
             <div className="border border-amber-200 bg-amber-50 p-4">
-              <p className="font-black text-amber-800">Payouts not set up</p>
-              <p className="mt-1 text-sm font-bold text-amber-700">You need to connect your bank account before you can receive payments from completed bookings.</p>
+              <p className="font-black text-amber-800">{t("settings.payouts.notConnected.title")}</p>
+              <p className="mt-1 text-sm font-bold text-amber-700">{t("settings.payouts.notConnected.body")}</p>
             </div>
-
             <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm space-y-2">
-              <p className="font-black text-black">💳 Powered by Stripe</p>
-              <p className="font-bold text-black/60">Stripe securely collects your bank details and handles all payouts. Camel Global never sees your bank information.</p>
+              <p className="font-black text-black">{t("settings.payouts.stripe.title")}</p>
+              <p className="font-bold text-black/60">{t("settings.payouts.stripe.body")}</p>
             </div>
-
             {stripeError && <p className="text-sm font-bold text-red-700">{stripeError}</p>}
-
             <button onClick={startOnboarding} disabled={stripeLinking}
               className="w-full bg-[#ff7a00] py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
-              {stripeLinking ? "Redirecting to Stripe…" : "Set Up Payouts with Stripe →"}
+              {stripeLinking ? t("settings.payouts.setup.redirecting") : t("settings.payouts.setup.btn")}
             </button>
           </div>
         )}
 
         <div className="border-t border-black/5 pt-4">
           <p className="text-xs font-bold text-black/40">
-            Questions about payouts? <Link href="/partner/contact" className="font-black text-black underline hover:text-[#ff7a00]">Contact support</Link> or read our <Link href="/partner/terms" className="font-black text-black underline hover:text-[#ff7a00]">partner terms</Link>.
+            {t("settings.payouts.footer")}{" "}
+            <Link href="/partner/contact" className="font-black text-black underline hover:text-[#ff7a00]">{t("settings.payouts.footerContact")}</Link>{" "}
+            {t("settings.payouts.footerOr")}{" "}
+            <Link href="/partner/terms" className="font-black text-black underline hover:text-[#ff7a00]">{t("settings.payouts.footerTerms")}</Link>
+            {t("settings.payouts.footerEnd")}
           </p>
         </div>
       </div>
 
       {/* Delete Account */}
       <div className="border border-red-200 bg-white p-6">
-        <h2 className="text-lg font-black text-red-700">Delete Account</h2>
-        <p className="mt-2 text-sm font-bold text-black/60">
-          Deleting your account will take your profile offline and remove your access to the Camel Global partner portal immediately.
-          Your booking history will be retained for financial and audit purposes. This action cannot be undone.
-        </p>
+        <h2 className="text-lg font-black text-red-700">{t("settings.delete.title")}</h2>
+        <p className="mt-2 text-sm font-bold text-black/60">{t("settings.delete.body1")}</p>
         <p className="mt-3 text-sm font-bold text-black/60">
-          If you have active bookings, please ensure they are completed or cancelled before deleting your account.
-          For any questions <Link href="/partner/contact" className="font-black text-black underline hover:text-[#ff7a00] transition-colors">contact our support team</Link>.
+          {t("settings.delete.body2")}{" "}
+          <Link href="/partner/contact" className="font-black text-black underline hover:text-[#ff7a00] transition-colors">{t("settings.delete.body2Link")}</Link>
+          {t("settings.delete.body2End")}
         </p>
-
         {!showConfirm ? (
           <button type="button" onClick={() => setShowConfirm(true)}
             className="mt-5 border border-red-300 px-5 py-2.5 text-sm font-black text-red-700 hover:bg-red-50 transition-colors">
-            Request Account Deletion
+            {t("settings.delete.requestBtn")}
           </button>
         ) : (
           <div className="mt-5 space-y-4 border border-red-200 bg-red-50 p-5">
-            <p className="text-sm font-black text-red-800">Are you sure? This will permanently deactivate your partner account.</p>
-            <p className="text-sm font-bold text-red-700">Type <span className="font-mono font-black">DELETE</span> below to confirm.</p>
+            <p className="text-sm font-black text-red-800">{t("settings.delete.confirm.title")}</p>
+            <p className="text-sm font-bold text-red-700">
+              {t("settings.delete.confirm.instruction")}{" "}
+              <span className="font-mono font-black">{t("settings.delete.confirm.word")}</span>{" "}
+              {t("settings.delete.confirm.instructionEnd")}
+            </p>
             <input type="text" value={confirmText} onChange={e => setConfirmText(e.target.value)}
-              placeholder="Type DELETE to confirm"
+              placeholder={t("settings.delete.confirm.placeholder")}
               className="w-full border border-red-300 bg-white px-4 py-2.5 text-sm font-bold text-black outline-none focus:border-red-500 placeholder:text-black/30" />
             {deleteError && <p className="text-sm font-bold text-red-700">{deleteError}</p>}
             <div className="flex gap-3">
               <button type="button" onClick={() => { setShowConfirm(false); setConfirmText(""); setDeleteError(null); }}
                 disabled={deleteLoading}
                 className="border border-black/20 px-5 py-2.5 text-sm font-black text-black hover:bg-black/5 transition-colors disabled:opacity-60">
-                Cancel
+                {t("settings.delete.confirm.cancel")}
               </button>
               <button type="button" onClick={handleDelete}
                 disabled={confirmText !== "DELETE" || deleteLoading}
                 className="bg-red-600 px-5 py-2.5 text-sm font-black text-white hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">
-                {deleteLoading ? "Deleting…" : "Confirm Delete Account"}
+                {deleteLoading ? t("settings.delete.confirm.deleting") : t("settings.delete.confirm.btn")}
               </button>
             </div>
           </div>
@@ -206,3 +194,7 @@ export default function PartnerSettingsPage() {
     </div>
   );
 }
+
+
+// ── app/partner/suggestions/page.tsx ──────────────────────────────────────────
+// (save this as a separate file — split at the comment above)
