@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type Currency = "EUR" | "GBP" | "USD";
 
@@ -33,15 +34,6 @@ type BookingRow = {
 
 type ApiResponse = { data: BookingRow[]; role: string | null; adminMode: boolean };
 
-const FILTERS = [
-  { value: "all",             label: "All" },
-  { value: "confirmed",       label: "Confirmed" },
-  { value: "driver_assigned", label: "Driver Assigned" },
-  { value: "collected",       label: "On Hire" },
-  { value: "completed",       label: "Completed" },
-  { value: "cancelled",       label: "Cancelled" },
-];
-
 const CURRENCY_CONFIG: Record<Currency, { locale: string; label: string }> = {
   EUR: { locale: "es-ES", label: "EUR €" },
   GBP: { locale: "en-GB", label: "GBP £" },
@@ -69,14 +61,12 @@ function fmtAmount(amount: number | string | null, currency: string | null) {
   return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(num);
 }
 
-// Stripe fee is borne by Camel (platform) — not deducted from partner net payout.
-// stripe_fee data is kept in the type for API compatibility but not shown to partners.
 function calcNetPayout(r: BookingRow): number {
   const isCancelled = String(r.booking_status || "").toLowerCase() === "cancelled";
   if (isCancelled && r.refund_status === "full") return 0;
-  const hire     = Number(r.car_hire_price ?? 0);
-  const rate     = r.commission_rate ?? 20;
-  const commAmt  = Math.max((hire * rate) / 100, 10);
+  const hire    = Number(r.car_hire_price ?? 0);
+  const rate    = r.commission_rate ?? 20;
+  const commAmt = Math.max((hire * rate) / 100, 10);
   return Math.max(0, hire - commAmt + Number(r.fuel_charge ?? 0));
 }
 
@@ -93,14 +83,7 @@ function statusPill(status?: string | null) {
   };
   return map[status ?? ""] ?? "border-black/10 bg-white text-black/60";
 }
-function fmtStatus(s?: string | null) {
-  switch (String(s || "").toLowerCase()) {
-    case "collected": case "returned": return "On Hire";
-    case "driver_assigned": return "Driver Assigned";
-    case "en_route": return "En Route";
-    default: return String(s || "—").replaceAll("_", " ");
-  }
-}
+
 function norm(v: unknown) { return String(v || "").toLowerCase().trim(); }
 
 function payoutsByCurrency(rows: BookingRow[]): Record<Currency, number> {
@@ -186,8 +169,7 @@ function downloadExcel(rows: BookingRow[]) {
       fmtDateTimeStr(r.delivery_confirmed_at), fmtDateTimeStr(r.collection_confirmed_at),
       isCompleted ? fmtDateOnly(r.created_at) : "",
       fmtDuration(r.journey_duration_minutes),
-      r.currency ?? "EUR",
-      r.charge_currency ?? r.currency ?? "EUR",
+      r.currency ?? "EUR", r.charge_currency ?? r.currency ?? "EUR",
       hire, rate, commAmt,
       r.fuel_price ?? "", r.fuel_charge ?? "", r.fuel_refund ?? "",
       r.amount ?? "", netPayout.toFixed(2),
@@ -203,7 +185,27 @@ function downloadExcel(rows: BookingRow[]) {
 const PAGE_SIZE = 10;
 
 export default function PartnerBookingsPage() {
+  const { t } = useTranslation();
   const router = useRouter();
+
+  const FILTERS = [
+    { value: "all",             label: t("bookings.filter.all") },
+    { value: "confirmed",       label: t("bookings.filter.confirmed") },
+    { value: "driver_assigned", label: t("bookings.filter.driver_assigned") },
+    { value: "collected",       label: t("bookings.filter.collected") },
+    { value: "completed",       label: t("bookings.filter.completed") },
+    { value: "cancelled",       label: t("bookings.filter.cancelled") },
+  ];
+
+  function fmtStatus(s?: string | null) {
+    switch (String(s || "").toLowerCase()) {
+      case "collected": case "returned": return t("bookings.status.onHire");
+      case "driver_assigned": return t("bookings.status.driver_assigned");
+      case "en_route": return t("bookings.status.en_route");
+      default: return String(s || "—").replaceAll("_", " ");
+    }
+  }
+
   const [rows,         setRows]         = useState<BookingRow[]>([]);
   const [adminMode,    setAdminMode]    = useState(false);
   const [filter,       setFilter]       = useState("all");
@@ -219,10 +221,10 @@ export default function PartnerBookingsPage() {
     try {
       const res  = await fetch("/api/partner/bookings", { cache: "no-store", credentials: "include" });
       const json = await res.json().catch(() => null) as ApiResponse | null;
-      if (!res.ok) throw new Error((json as any)?.error || "Failed to load.");
+      if (!res.ok) throw new Error((json as any)?.error || t("bookings.error.load"));
       setRows(json?.data || []);
       setAdminMode(!!json?.adminMode);
-    } catch (e: any) { setError(e?.message || "Failed to load."); setRows([]); }
+    } catch (e: any) { setError(e?.message || t("bookings.error.load")); setRows([]); }
     finally { setLoading(false); }
   }
 
@@ -254,14 +256,14 @@ export default function PartnerBookingsPage() {
       <div className="border border-black/5 bg-white p-6 md:p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-3xl font-black text-black">Bookings</h1>
+            <h1 className="text-3xl font-black text-black">{t("bookings.list.title")}</h1>
             <p className="mt-1 text-sm font-bold text-black/50">
-              {adminMode ? "All bookings across the network." : "Bookings assigned to your partner account. Click any row to view detail."}
+              {adminMode ? t("bookings.list.subtitleAdmin") : t("bookings.list.subtitle")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search job, customer, driver..."
+              placeholder={t("bookings.list.search.placeholder")}
               className="border border-black/10 bg-[#f0f0f0] px-4 py-2.5 text-sm font-bold outline-none focus:border-black placeholder:text-black/30" />
             <select value={filter} onChange={e => setFilter(e.target.value)}
               className="border border-black/10 bg-[#f0f0f0] px-4 py-2.5 text-sm font-bold outline-none focus:border-black">
@@ -269,20 +271,20 @@ export default function PartnerBookingsPage() {
             </select>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
               className="border border-black/10 bg-[#f0f0f0] px-4 py-2.5 text-sm font-bold outline-none focus:border-black" />
-            <span className="self-center text-xs font-black text-black/40">to</span>
+            <span className="self-center text-xs font-black text-black/40">{t("bookings.list.dateTo")}</span>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
               className="border border-black/10 bg-[#f0f0f0] px-4 py-2.5 text-sm font-bold outline-none focus:border-black" />
             <button type="button" onClick={() => { setSearch(""); setFilter("all"); setDateFrom(""); setDateTo(""); }}
               className="border border-black/20 bg-white px-4 py-2.5 text-sm font-black text-black hover:bg-black/5 transition-colors">
-              Clear
+              {t("bookings.list.clear")}
             </button>
             <button type="button" onClick={load}
               className="bg-[#ff7a00] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 transition-opacity">
-              Refresh
+              {t("bookings.list.refresh")}
             </button>
             <button type="button" onClick={() => downloadExcel(filtered)}
               className="bg-black px-4 py-2.5 text-sm font-black text-white hover:opacity-80 transition-opacity">
-              ⬇ Export Excel
+              {t("bookings.list.export")}
             </button>
           </div>
         </div>
@@ -291,9 +293,9 @@ export default function PartnerBookingsPage() {
       {/* Stats cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
         {[
-          { label: "Total Bookings", value: filtered.length, color: "text-black" },
-          { label: "Active",         value: active,           color: "text-[#ff7a00]" },
-          { label: "Completed",      value: completed,        color: "text-black" },
+          { label: t("bookings.stats.total"),     value: filtered.length, color: "text-black" },
+          { label: t("bookings.stats.active"),     value: active,          color: "text-[#ff7a00]" },
+          { label: t("bookings.stats.completed"),  value: completed,       color: "text-black" },
         ].map(({ label, value, color }) => (
           <div key={label} className="border border-black/5 bg-white p-5">
             <p className="text-xs font-black uppercase tracking-widest text-black/40">{label}</p>
@@ -306,9 +308,9 @@ export default function PartnerBookingsPage() {
           const formatted = new Intl.NumberFormat(locale, { style: "currency", currency: curr, maximumFractionDigits: 2 }).format(amt);
           return (
             <div key={curr} className="border border-black/5 bg-white p-5">
-              <p className="text-xs font-black uppercase tracking-widest text-black/40">Net Payout ({label})</p>
+              <p className="text-xs font-black uppercase tracking-widest text-black/40">{t("bookings.stats.netPayout", { label })}</p>
               <p className={`mt-2 text-2xl font-black ${amt > 0 ? "text-black" : "text-black/20"}`}>{formatted}</p>
-              <p className="text-xs font-bold text-black/30 mt-0.5">after commission</p>
+              <p className="text-xs font-bold text-black/30 mt-0.5">{t("bookings.stats.afterCommission")}</p>
             </div>
           );
         })}
@@ -317,13 +319,19 @@ export default function PartnerBookingsPage() {
       {/* Currency Breakdown */}
       {Object.values(revenues).filter(v => v > 0).length > 1 && (
         <div className="border border-black/5 bg-white p-6">
-          <h2 className="text-lg font-black text-black">Revenue by Currency</h2>
-          <p className="mt-0.5 text-xs font-bold text-black/40">Breakdown of bookings and net payout per currency.</p>
+          <h2 className="text-lg font-black text-black">{t("bookings.currency.title")}</h2>
+          <p className="mt-0.5 text-xs font-bold text-black/40">{t("bookings.currency.subtitle")}</p>
           <div className="mt-4 overflow-x-auto border border-black/10">
             <table className="min-w-full text-sm">
               <thead className="bg-black text-white text-left">
                 <tr>
-                  {["Currency","Bookings","Completed","Gross Revenue","Net Payout"].map(h => (
+                  {[
+                    t("bookings.currency.col.currency"),
+                    t("bookings.currency.col.bookings"),
+                    t("bookings.currency.col.completed"),
+                    t("bookings.currency.col.gross"),
+                    t("bookings.currency.col.payout"),
+                  ].map(h => (
                     <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-widest">{h}</th>
                   ))}
                 </tr>
@@ -332,8 +340,8 @@ export default function PartnerBookingsPage() {
                 {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
                   const currRows = filtered.filter(r => (r.currency ?? "EUR") === curr);
                   if (currRows.length === 0) return null;
-                  const gross     = revenues[curr];
-                  const payout    = payouts[curr];
+                  const gross          = revenues[curr];
+                  const payout         = payouts[curr];
                   const completedCount = currRows.filter(r => r.booking_status === "completed").length;
                   const { locale, label } = CURRENCY_CONFIG[curr];
                   const fmtC = (n: number) => new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(n);
@@ -356,22 +364,34 @@ export default function PartnerBookingsPage() {
       {/* Bookings Table */}
       <div className="border border-black/5 bg-white p-6 md:p-8">
         {loading ? (
-          <p className="text-sm font-bold text-black/50">Loading…</p>
+          <p className="text-sm font-bold text-black/50">{t("bookings.loading")}</p>
         ) : filtered.length === 0 ? (
-          <p className="text-sm font-bold text-black/50">No bookings found.</p>
+          <p className="text-sm font-bold text-black/50">{t("bookings.list.empty")}</p>
         ) : (
           <>
             <p className="text-xs font-black uppercase tracking-widest text-black/40 mb-3">
-              Showing <span className="text-black">{Math.min(visibleCount, filtered.length)}</span> of <span className="text-black">{filtered.length}</span> bookings
+              {t("bookings.list.showing")} <span className="text-black">{Math.min(visibleCount, filtered.length)}</span> {t("bookings.list.of")} <span className="text-black">{filtered.length}</span> {t("bookings.list.bookingsLabel")}
             </p>
             <div className="overflow-x-auto border border-black/10">
               <table className="min-w-full text-sm">
                 <thead className="bg-black text-white text-left">
                   <tr>
                     {[
-                      "Job No.", ...(adminMode ? ["Partner"] : []),
-                      "Customer","Status","Driver","Pickup","Pickup Time","Vehicle",
-                      "Bid Curr","Car Hire","Commission","Fuel Charge","Fuel Refund","Net Payout","Created",
+                      t("bookings.table.col.jobNo"),
+                      ...(adminMode ? [t("bookings.table.col.partner")] : []),
+                      t("bookings.table.col.customer"),
+                      t("bookings.table.col.status"),
+                      t("bookings.table.col.driver"),
+                      t("bookings.table.col.pickup"),
+                      t("bookings.table.col.pickupTime"),
+                      t("bookings.table.col.vehicle"),
+                      t("bookings.table.col.bidCurr"),
+                      t("bookings.table.col.carHire"),
+                      t("bookings.table.col.commission"),
+                      t("bookings.table.col.fuelCharge"),
+                      t("bookings.table.col.fuelRefund"),
+                      t("bookings.table.col.netPayout"),
+                      t("bookings.table.col.created"),
                     ].map(h => (
                       <th key={h} className="px-4 py-3 text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
@@ -379,9 +399,9 @@ export default function PartnerBookingsPage() {
                 </thead>
                 <tbody className="divide-y divide-black/5">
                   {visible.map((row, i) => {
-                    const hire    = Number(row.car_hire_price ?? 0);
-                    const rate    = row.commission_rate ?? 20;
-                    const commAmt = Math.max((hire * rate) / 100, 10);
+                    const hire      = Number(row.car_hire_price ?? 0);
+                    const rate      = row.commission_rate ?? 20;
+                    const commAmt   = Math.max((hire * rate) / 100, 10);
                     const netPayout = calcNetPayout(row);
                     const hasCurrConv = row.charge_currency && row.charge_currency !== (row.currency ?? "EUR");
                     return (
@@ -409,7 +429,7 @@ export default function PartnerBookingsPage() {
                           </div>
                           {hasCurrConv && (
                             <div className="text-xs font-bold text-amber-600 mt-0.5" title={`Customer paid in ${row.charge_currency}`}>
-                              cust: {row.charge_currency}
+                              {t("bookings.table.custCurrency", { currency: row.charge_currency ?? "" })}
                             </div>
                           )}
                         </td>
@@ -435,13 +455,13 @@ export default function PartnerBookingsPage() {
             {hasMore && (
               <button type="button" onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
                 className="mt-4 w-full border border-black/10 bg-[#f0f0f0] py-3 text-sm font-black text-black hover:bg-black/5 transition-colors">
-                ▼ Show more ({filtered.length - visibleCount} remaining)
+                {t("bookings.list.showMore", { count: String(filtered.length - visibleCount) })}
               </button>
             )}
             {visibleCount > PAGE_SIZE && !hasMore && (
               <button type="button" onClick={() => setVisibleCount(PAGE_SIZE)}
                 className="mt-4 w-full border border-black/10 bg-[#f0f0f0] py-3 text-sm font-black text-black hover:bg-black/5 transition-colors">
-                ▲ Show less
+                {t("bookings.list.showLess")}
               </button>
             )}
           </>
