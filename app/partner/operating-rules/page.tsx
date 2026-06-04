@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { OPERATING_RULES, downloadOperatingRulesPDF } from "@/lib/portal/operatingRules";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function PartnerOperatingRulesPage() {
+  const { t } = useTranslation();
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload() {
@@ -14,25 +16,20 @@ export default function PartnerOperatingRulesPage() {
 
   return (
     <>
-      {/* Hero — full bleed black band */}
       <div className="w-full bg-black px-6 py-16 text-white mb-6">
         <div className="mx-auto max-w-5xl">
-          <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">Legal</p>
-          <h1 className="text-4xl font-black text-white md:text-5xl">Partner Operating Agreement</h1>
-          <p className="mt-3 text-base font-bold text-white/70">
-            These rules govern your conduct as a Camel Global partner. By operating on the platform you agree to comply with all sections below.
-          </p>
-          <p className="mt-2 text-xs font-bold text-white/40">Last updated April 2026 — subject to change with 14 days' notice.</p>
+          <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">{t("rules.tag")}</p>
+          <h1 className="text-4xl font-black text-white md:text-5xl">{t("rules.title")}</h1>
+          <p className="mt-3 text-base font-bold text-white/70">{t("rules.intro")}</p>
+          <p className="mt-2 text-xs font-bold text-white/40">{t("rules.updated")}</p>
         </div>
       </div>
 
-      {/* Content */}
       <div className="mx-auto max-w-5xl px-6 space-y-4 pb-10">
-
         <div className="flex justify-end">
           <button type="button" onClick={handleDownload} disabled={downloading}
             className="bg-black px-5 py-3 text-sm font-black text-white hover:opacity-80 disabled:opacity-50 transition-opacity">
-            {downloading ? "Generating…" : "⬇ Download PDF"}
+            {downloading ? t("rules.downloading") : t("rules.downloadPdf")}
           </button>
         </div>
 
@@ -52,9 +49,7 @@ export default function PartnerOperatingRulesPage() {
           </div>
         ))}
 
-        <p className="text-xs font-bold text-black/30 text-center pb-4">
-          Camel Global Partner Operating Agreement — Last updated April 2026 — Subject to change with 14 days&apos; notice.
-        </p>
+        <p className="text-xs font-bold text-black/30 text-center pb-4">{t("rules.footer")}</p>
       </div>
     </>
   );
