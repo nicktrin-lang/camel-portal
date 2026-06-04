@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type Currency = "EUR" | "GBP" | "USD";
 
@@ -23,8 +24,7 @@ type ExistingBid = {
   vehicle_category_name: string | null; car_hire_price: number; fuel_price: number;
   total_price: number; full_insurance_included: boolean; full_tank_included: boolean;
   notes: string | null; status: string; created_at: string; currency: Currency;
-  mileage_limit: string | null;
-  security_deposit_notes: string | null;
+  mileage_limit: string | null; security_deposit_notes: string | null;
 };
 
 type ExistingBooking = {
@@ -60,7 +60,6 @@ function fmtDateTime(v?: string | null) {
   if (!v) return "—";
   try { return new Date(v).toLocaleString(); } catch { return v; }
 }
-
 function formatDuration(m?: number | null) {
   if (m === null || m === undefined || Number.isNaN(m)) return "—";
   if (m >= 1440) { const d = Math.ceil(m / 1440); return `${d} day${d === 1 ? "" : "s"}`; }
@@ -68,20 +67,6 @@ function formatDuration(m?: number | null) {
   const h = Math.floor(m / 60), mins = m % 60;
   return mins ? `${h}h ${mins}m` : `${h}h`;
 }
-
-function sportEquipmentLabel(v: string | null): string {
-  if (!v || v === "none") return "None";
-  const map: Record<string, string> = {
-    golf_single: "Golf clubs — 1 bag", golf_two: "Golf clubs — 2 bags",
-    golf_three: "Golf clubs — 3 bags", golf_four: "Golf clubs — 4+ bags",
-    skis_pair: "Skis / snowboard — 1 set", skis_two: "Skis / snowboard — 2 sets",
-    skis_three: "Skis / snowboard — 3+ sets",
-    bikes_one: "Bikes — 1", bikes_two: "Bikes — 2", bikes_three: "Bikes — 3+",
-    other: "Other large equipment",
-  };
-  return map[v] || v;
-}
-
 function getTimeRemaining(expiresAt?: string | null) {
   if (!expiresAt) return null;
   const diff = new Date(expiresAt).getTime() - Date.now();
@@ -91,25 +76,10 @@ function getTimeRemaining(expiresAt?: string | null) {
   const label = d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m ${sec}s` : `${m}m ${sec}s`;
   return { expired: false, label };
 }
-
 function fmtCurrency(value: number | null | undefined, currency: Currency) {
   if (value == null || isNaN(value)) return "—";
   const { locale } = CURRENCY_META[currency] ?? CURRENCY_META.EUR;
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(value);
-}
-
-function getPartnerHistoryStatus(params: {
-  requestStatus?: string | null; expiresAt?: string | null;
-  bidStatus?: string | null; hasBooking?: boolean;
-}) {
-  const requestStatus = String(params.requestStatus || "").trim();
-  const bidStatus     = String(params.bidStatus || "").trim();
-  const expired       = !!params.expiresAt && new Date(params.expiresAt).getTime() <= Date.now();
-  if (params.hasBooking || bidStatus === "accepted") return "Bid successful";
-  if (bidStatus === "unsuccessful" || bidStatus === "rejected") return "Bid unsuccessful";
-  if (expired || requestStatus === "expired") return "Expired";
-  if (bidStatus === "submitted") return "Bid submitted — awaiting customer";
-  return "Open";
 }
 
 const inputCls = "w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-bold outline-none focus:border-black placeholder:text-black/30 disabled:opacity-50";
@@ -125,6 +95,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export default function PartnerRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { t } = useTranslation();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [requestId,       setRequestId]       = useState("");
   const [loading,         setLoading]         = useState(true);
@@ -142,8 +113,8 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
   const [fullInsuranceIncluded, setFullInsuranceIncluded] = useState(true);
   const [fullTankIncluded,      setFullTankIncluded]      = useState(true);
   const [notes,                 setNotes]                 = useState("");
-  const [mileageLimit,         setMileageLimit]         = useState("");
-  const [securityDepositNotes, setSecurityDepositNotes] = useState("");
+  const [mileageLimit,          setMileageLimit]          = useState("");
+  const [securityDepositNotes,  setSecurityDepositNotes]  = useState("");
 
   useEffect(() => { params.then(r => setRequestId(r.id)); }, [params]);
 
@@ -153,7 +124,7 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
     try {
       const res  = await fetch(`/api/partner/requests/${requestId}`, { method: "GET", cache: "no-store", credentials: "include" });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to load request.");
+      if (!res.ok) throw new Error(json?.error || t("requests.error.load"));
       const nextData = json as ApiResponse;
       setData(nextData);
       const raw      = nextData.partnerCurrency;
@@ -173,7 +144,7 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
         setCarHirePrice(""); setFuelPrice(""); setFullInsuranceIncluded(true); setFullTankIncluded(true);
         setNotes(""); setMileageLimit(""); setSecurityDepositNotes("");
       }
-    } catch (e: any) { setError(e?.message || "Failed to load request."); setData(null); }
+    } catch (e: any) { setError(e?.message || t("requests.error.load")); setData(null); }
     finally { setLoading(false); }
   }
 
@@ -184,8 +155,8 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
     if (!exp) { setTimeLabel("—"); setExpired(false); return; }
     const tick = () => { const r = getTimeRemaining(exp); setTimeLabel(r?.label || "—"); setExpired(!!r?.expired); };
     tick();
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
   }, [data?.request?.expires_at]);
 
   async function submitBid(e: React.FormEvent) {
@@ -194,11 +165,11 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
     setSaving(true); setError(null); setOk(null);
     try {
       const selectedFleet = data.fleetOptions.find(f => f.id === fleetId);
-      if (!selectedFleet) throw new Error("Please select a vehicle from your fleet.");
-      const carHire  = Number(carHirePrice || 0);
-      const fuel     = Number(fuelPrice || 0);
-      if (isNaN(carHire) || carHire < 0) throw new Error("Please enter a valid car hire price.");
-      if (isNaN(fuel)    || fuel    < 0) throw new Error("Please enter a valid fuel price.");
+      if (!selectedFleet) throw new Error(t("requests.error.bid.noFleet"));
+      const carHire = Number(carHirePrice || 0);
+      const fuel    = Number(fuelPrice || 0);
+      if (isNaN(carHire) || carHire < 0) throw new Error(t("requests.error.bid.carHire"));
+      if (isNaN(fuel)    || fuel    < 0) throw new Error(t("requests.error.bid.fuel"));
       const res = await fetch("/api/partner/bids", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -213,21 +184,39 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
         }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to submit bid.");
-      setOk("Bid submitted successfully.");
+      if (!res.ok) throw new Error(json?.error || t("requests.error.bid.failed"));
+      setOk(t("requests.detail.form.ok"));
       await load();
-    } catch (e: any) { setError(e?.message || "Failed to submit bid."); }
+    } catch (e: any) { setError(e?.message || t("requests.error.bid.failed")); }
     finally { setSaving(false); }
+  }
+
+  function getPartnerHistoryStatus() {
+    const requestStatus = String(data?.request?.status || "").trim();
+    const bidStatus     = String(data?.existingBid?.status || "").trim();
+    const exp           = !!data?.request?.expires_at && new Date(data.request.expires_at).getTime() <= Date.now();
+    if (data?.existingBooking || bidStatus === "accepted") return t("requests.partnerStatus.successful");
+    if (bidStatus === "unsuccessful" || bidStatus === "rejected") return t("requests.partnerStatus.unsuccessful");
+    if (exp || requestStatus === "expired") return t("requests.partnerStatus.expired");
+    if (bidStatus === "submitted") return t("requests.partnerStatus.submitted");
+    return t("requests.partnerStatus.open");
+  }
+
+  function sportEquipmentLabel(v: string | null): string {
+    if (!v || v === "none") return t("bookings.sport.none");
+    const key = `bookings.sport.${v}` as any;
+    const result = t(key);
+    return result !== key ? result : v;
   }
 
   if (loading) return (
     <div className="border border-black/5 bg-white p-8">
-      <p className="text-sm font-bold text-black/50">Loading request…</p>
+      <p className="text-sm font-bold text-black/50">{t("requests.detail.loading")}</p>
     </div>
   );
 
   if (!data?.request) return (
-    <div className="border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">{error || "Request not found"}</div>
+    <div className="border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">{error || t("requests.error.notFound")}</div>
   );
 
   const { request, existingBid, existingBooking } = data;
@@ -235,17 +224,13 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
   const commissionRate    = data.commissionRate ?? 20;
   const minimumCommission = data.minimumCommission ?? 10;
 
-  // Young driver info
   const mainAge = request.driver_age;
   const isYoungMain = mainAge != null && mainAge >= 21 && mainAge <= 24;
   const addAges = (request.additional_driver_ages || "").split(",").map(a => Number(a.trim())).filter(n => !isNaN(n) && n > 0);
   const hasYoungAdditional = addAges.some(n => n >= 21 && n <= 24);
   const showYoungDriverAlert = isYoungMain || hasYoungAdditional;
 
-  const partnerStatus = getPartnerHistoryStatus({
-    requestStatus: request.status, expiresAt: request.expires_at,
-    bidStatus: existingBid?.status, hasBooking: !!existingBooking,
-  });
+  const partnerStatus = getPartnerHistoryStatus();
 
   const formDisabled = expired || !!existingBooking || request.status === "confirmed" ||
     request.status === "expired" || existingBid?.status === "accepted" ||
@@ -263,29 +248,28 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
       {error && <div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
       {ok    && <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm font-bold text-black">{ok}</div>}
 
-      {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-black">Request Detail</h1>
-          <p className="mt-1 text-sm font-bold text-black/50">Review this request and submit your bid.</p>
+          <h1 className="text-3xl font-black text-black">{t("requests.detail.title")}</h1>
+          <p className="mt-1 text-sm font-bold text-black/50">{t("requests.detail.subtitle")}</p>
         </div>
         <Link href="/partner/requests" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">
-          Back to Requests
+          {t("requests.detail.backBtn")}
         </Link>
       </div>
 
       {/* Status strips */}
       <div className="grid gap-3 md:grid-cols-3">
         <div className={`border px-4 py-3 text-sm font-black ${expired ? "border-red-200 bg-red-50 text-red-700" : "border-[#ff7a00]/30 bg-[#ff7a00]/5 text-[#ff7a00]"}`}>
-          <span className="text-black/40 font-black uppercase tracking-widest text-xs block mb-0.5">Time remaining</span>
+          <span className="text-black/40 font-black uppercase tracking-widest text-xs block mb-0.5">{t("requests.detail.strip.timeRemaining")}</span>
           {timeLabel}
         </div>
         <div className="border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-black text-black">
-          <span className="text-black/40 font-black uppercase tracking-widest text-xs block mb-0.5">Your status</span>
+          <span className="text-black/40 font-black uppercase tracking-widest text-xs block mb-0.5">{t("requests.detail.strip.yourStatus")}</span>
           {partnerStatus}
         </div>
         <div className="border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-black text-black">
-          <span className="text-black/40 font-black uppercase tracking-widest text-xs block mb-0.5">Request status</span>
+          <span className="text-black/40 font-black uppercase tracking-widest text-xs block mb-0.5">{t("requests.detail.strip.requestStatus")}</span>
           <span className="capitalize">{String(request.status || "—").replaceAll("_", " ")}</span>
         </div>
       </div>
@@ -294,41 +278,40 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
 
         {/* Request info */}
         <div className="border border-black/5 bg-white p-6">
-          <h2 className="text-lg font-black text-black mb-4">Request Information</h2>
+          <h2 className="text-lg font-black text-black mb-4">{t("requests.detail.info.title")}</h2>
           <div className="space-y-3">
-            <Field label="Job No.">{request.job_number ?? "—"}</Field>
-            <Field label="Customer">{request.customer_name || "—"}</Field>
-            <Field label="Email">{request.customer_email || "—"}</Field>
-            <Field label="Phone">{request.customer_phone || "—"}</Field>
-            <Field label="Pickup">{request.pickup_address}</Field>
-            <Field label="Dropoff">{request.dropoff_address || "—"}</Field>
-            <Field label="Pickup time">{fmtDateTime(request.pickup_at)}</Field>
-            <Field label="Dropoff time">{fmtDateTime(request.dropoff_at)}</Field>
-            <Field label="Duration">{formatDuration(request.journey_duration_minutes)}</Field>
-            <Field label="Passengers">{request.passengers}</Field>
-            <Field label="Suitcases">{request.suitcases}</Field>
-            <Field label="Hand luggage">{request.hand_luggage}</Field>
-            <Field label="Sport equipment">{sportEquipmentLabel(request.sport_equipment)}</Field>
-            <Field label="Main driver age">{request.driver_age ?? "—"}</Field>
-            <Field label="Additional drivers">
+            <Field label={t("requests.detail.info.jobNo")}>{request.job_number ?? "—"}</Field>
+            <Field label={t("requests.detail.info.customer")}>{request.customer_name || "—"}</Field>
+            <Field label={t("requests.detail.info.email")}>{request.customer_email || "—"}</Field>
+            <Field label={t("requests.detail.info.phone")}>{request.customer_phone || "—"}</Field>
+            <Field label={t("requests.detail.info.pickup")}>{request.pickup_address}</Field>
+            <Field label={t("requests.detail.info.dropoff")}>{request.dropoff_address || "—"}</Field>
+            <Field label={t("requests.detail.info.pickupTime")}>{fmtDateTime(request.pickup_at)}</Field>
+            <Field label={t("requests.detail.info.dropoffTime")}>{fmtDateTime(request.dropoff_at)}</Field>
+            <Field label={t("requests.detail.info.duration")}>{formatDuration(request.journey_duration_minutes)}</Field>
+            <Field label={t("requests.detail.info.passengers")}>{request.passengers}</Field>
+            <Field label={t("requests.detail.info.suitcases")}>{request.suitcases}</Field>
+            <Field label={t("requests.detail.info.handLuggage")}>{request.hand_luggage}</Field>
+            <Field label={t("requests.detail.info.sport")}>{sportEquipmentLabel(request.sport_equipment)}</Field>
+            <Field label={t("requests.detail.info.driverAge")}>{request.driver_age ?? "—"}</Field>
+            <Field label={t("requests.detail.info.additionalDrivers")}>
               {request.additional_drivers > 0
-                ? `${request.additional_drivers} (ages: ${request.additional_driver_ages || "—"})`
-                : "None"}
+                ? t("requests.detail.info.additionalDriversValue", { count: String(request.additional_drivers), ages: request.additional_driver_ages || "—" })
+                : t("requests.detail.info.additionalDriversNone")}
             </Field>
-            <Field label="Vehicle">{request.vehicle_category_name || "—"}</Field>
-            <Field label="Notes">{request.notes || "—"}</Field>
-            <Field label="Created">{fmtDateTime(request.created_at)}</Field>
-            <Field label="Expires at">{fmtDateTime(request.expires_at)}</Field>
+            <Field label={t("requests.detail.info.vehicle")}>{request.vehicle_category_name || "—"}</Field>
+            <Field label={t("requests.detail.info.notes")}>{request.notes || "—"}</Field>
+            <Field label={t("requests.detail.info.created")}>{fmtDateTime(request.created_at)}</Field>
+            <Field label={t("requests.detail.info.expiresAt")}>{fmtDateTime(request.expires_at)}</Field>
           </div>
 
-          {/* Young driver alert for partner */}
           {showYoungDriverAlert && (
             <div className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3">
-              <p className="text-sm font-black text-amber-800 mb-1">⚠ Young driver (21–24) on this booking</p>
+              <p className="text-sm font-black text-amber-800 mb-1">{t("requests.detail.youngDriver.title")}</p>
               <p className="text-sm font-semibold text-amber-700">
-                {isYoungMain && `Main driver is aged ${mainAge}. `}
-                {hasYoungAdditional && `Additional driver(s) aged 21–24. `}
-                If you apply a young driver surcharge, please include it in your car hire price and mention it in your bid notes.
+                {isYoungMain && t("requests.detail.youngDriver.main", { age: String(mainAge) })}
+                {hasYoungAdditional && t("requests.detail.youngDriver.additional")}
+                {t("requests.detail.youngDriver.body")}
               </p>
             </div>
           )}
@@ -336,42 +319,42 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
 
         {/* Bid section */}
         <div className="border border-black/5 bg-white p-6">
-          <h2 className="text-lg font-black text-black mb-4">Bid Outcome</h2>
+          <h2 className="text-lg font-black text-black mb-4">{t("requests.detail.bid.title")}</h2>
 
           {(expired || request.status === "expired") && (
-            <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm font-bold text-black/60 mb-4">This request has expired.</div>
+            <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm font-bold text-black/60 mb-4">{t("requests.detail.bid.expired")}</div>
           )}
           {existingBooking && (
-            <div className="border border-black/20 bg-black p-4 text-sm font-black text-white mb-4">✓ Your bid was successful — this request is now in Bookings.</div>
+            <div className="border border-black/20 bg-black p-4 text-sm font-black text-white mb-4">{t("requests.detail.bid.successful")}</div>
           )}
           {!existingBooking && existingBid?.status === "accepted" && (
-            <div className="border border-black/20 bg-black p-4 text-sm font-black text-white mb-4">✓ Your bid was accepted.</div>
+            <div className="border border-black/20 bg-black p-4 text-sm font-black text-white mb-4">{t("requests.detail.bid.accepted")}</div>
           )}
           {(existingBid?.status === "unsuccessful" || existingBid?.status === "rejected") && (
-            <div className="border border-red-200 bg-red-50 p-4 text-sm font-black text-red-700 mb-4">Your bid was unsuccessful.</div>
+            <div className="border border-red-200 bg-red-50 p-4 text-sm font-black text-red-700 mb-4">{t("requests.detail.bid.unsuccessful")}</div>
           )}
           {existingBid?.status === "submitted" && (
-            <div className="border border-[#ff7a00]/30 bg-[#ff7a00]/5 p-4 text-sm font-black text-[#ff7a00] mb-4">Bid submitted — awaiting customer decision.</div>
+            <div className="border border-[#ff7a00]/30 bg-[#ff7a00]/5 p-4 text-sm font-black text-[#ff7a00] mb-4">{t("requests.detail.bid.submitted")}</div>
           )}
 
           {existingBid && (
             <div className="space-y-3 mb-4">
-              <Field label="Bid status"><span className="capitalize">{existingBid.status.replaceAll("_", " ")}</span></Field>
-              <Field label="Currency">{CURRENCY_META[existingBid.currency ?? partnerCurrency]?.label ?? existingBid.currency}</Field>
-              <Field label="Vehicle">{existingBid.vehicle_category_name || "—"}</Field>
-              <Field label="Car hire price">{fmtCurrency(existingBid.car_hire_price, existingBid.currency ?? partnerCurrency)}</Field>
-              <Field label="Fuel price">{fmtCurrency(existingBid.fuel_price, existingBid.currency ?? partnerCurrency)}</Field>
-              <Field label="Total price">{fmtCurrency(existingBid.total_price, existingBid.currency ?? partnerCurrency)}</Field>
-              <Field label="Full insurance included">{existingBid.full_insurance_included ? "Yes" : "No"}</Field>
-              <Field label="Full tank included">{existingBid.full_tank_included ? "Yes" : "No"}</Field>
-              <Field label="Mileage limit">{existingBid.mileage_limit || "Unlimited"}</Field>
-              <Field label="Security deposit">{existingBid.security_deposit_notes || "None"}</Field>
-              <Field label="Notes">{existingBid.notes || "—"}</Field>
-              <Field label="Submitted">{fmtDateTime(existingBid.created_at)}</Field>
+              <Field label={t("requests.detail.bid.field.status")}><span className="capitalize">{existingBid.status.replaceAll("_", " ")}</span></Field>
+              <Field label={t("requests.detail.bid.field.currency")}>{CURRENCY_META[existingBid.currency ?? partnerCurrency]?.label ?? existingBid.currency}</Field>
+              <Field label={t("requests.detail.bid.field.vehicle")}>{existingBid.vehicle_category_name || "—"}</Field>
+              <Field label={t("requests.detail.bid.field.carHire")}>{fmtCurrency(existingBid.car_hire_price, existingBid.currency ?? partnerCurrency)}</Field>
+              <Field label={t("requests.detail.bid.field.fuelPrice")}>{fmtCurrency(existingBid.fuel_price, existingBid.currency ?? partnerCurrency)}</Field>
+              <Field label={t("requests.detail.bid.field.totalPrice")}>{fmtCurrency(existingBid.total_price, existingBid.currency ?? partnerCurrency)}</Field>
+              <Field label={t("requests.detail.bid.field.insurance")}>{existingBid.full_insurance_included ? t("requests.detail.bid.yes") : t("requests.detail.bid.no")}</Field>
+              <Field label={t("requests.detail.bid.field.fullTank")}>{existingBid.full_tank_included ? t("requests.detail.bid.yes") : t("requests.detail.bid.no")}</Field>
+              <Field label={t("requests.detail.bid.field.mileage")}>{existingBid.mileage_limit || t("requests.detail.bid.field.mileageUnlimited")}</Field>
+              <Field label={t("requests.detail.bid.field.deposit")}>{existingBid.security_deposit_notes || t("requests.detail.bid.field.depositNone")}</Field>
+              <Field label={t("requests.detail.bid.field.notes")}>{existingBid.notes || "—"}</Field>
+              <Field label={t("requests.detail.bid.field.submitted")}>{fmtDateTime(existingBid.created_at)}</Field>
               {existingBooking && (
                 <div className="pt-2">
                   <Link href="/partner/bookings" className="inline-block bg-[#ff7a00] px-5 py-2.5 text-sm font-black text-white hover:opacity-90 transition-opacity">
-                    Go to Booking →
+                    {t("requests.detail.bid.goToBooking")}
                   </Link>
                 </div>
               )}
@@ -379,36 +362,40 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
           )}
 
           {!existingBid && data.fleetOptions.length === 0 && (
-            <div className="border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-700">No compatible vehicles found in your fleet for this request.</div>
+            <div className="border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-700">{t("requests.detail.bid.noFleet")}</div>
           )}
 
           {!existingBid && data.fleetOptions.length > 0 && (
             <form onSubmit={submitBid} className="space-y-5">
               <div className="inline-flex items-center gap-2 border border-black/20 bg-[#f0f0f0] px-3 py-1.5 text-sm font-black text-black">
                 <span>{symbol}</span>
-                Bidding in {currencyLabel}
-                <Link href="/partner/profile" className="ml-1 text-xs font-black text-black/40 underline hover:text-black">Change in profile</Link>
+                {t("requests.detail.form.biddingIn", { label: currencyLabel })}
+                <Link href="/partner/profile" className="ml-1 text-xs font-black text-black/40 underline hover:text-black">
+                  {t("requests.detail.form.changeInProfile")}
+                </Link>
               </div>
 
               <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm">
-                <p className="font-black text-black mb-1">💰 Commission on this booking</p>
+                <p className="font-black text-black mb-1">{t("requests.detail.form.commission.title")}</p>
                 <p className="font-bold text-black/60">
-                  Camel Global deducts a <strong className="text-black">{commissionRate}% commission</strong> on the car hire price,
-                  with a <strong className="text-black">minimum of {fmtCurrency(minimumCommission, partnerCurrency)} per booking</strong>.
-                  Fuel is passed through to you in full — no commission on fuel.
+                  {t("requests.detail.form.commission.body")}{" "}
+                  <strong className="text-black">{t("requests.detail.form.commission.rate", { rate: String(commissionRate) })}</strong>{" "}
+                  {t("requests.detail.form.commission.mid")}{" "}
+                  <strong className="text-black">{t("requests.detail.form.commission.min", { amount: fmtCurrency(minimumCommission, partnerCurrency) })}</strong>
+                  {t("requests.detail.form.commission.end")}
                 </p>
                 {showCommissionPreview && (
                   <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                     <div className="border border-black/10 bg-white px-3 py-2">
-                      <p className="text-xs font-black uppercase tracking-widest text-black/40">Car hire</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-black/40">{t("requests.detail.form.commission.carHire")}</p>
                       <p className="font-black text-black">{fmtCurrency(hireNum, partnerCurrency)}</p>
                     </div>
                     <div className="border border-amber-200 bg-amber-50 px-3 py-2">
-                      <p className="text-xs font-black uppercase tracking-widest text-black/40">Commission</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-black/40">{t("requests.detail.form.commission.commission")}</p>
                       <p className="font-black text-amber-700">− {fmtCurrency(commission, partnerCurrency)}</p>
                     </div>
                     <div className="border border-black/20 bg-black px-3 py-2">
-                      <p className="text-xs font-black uppercase tracking-widest text-white/40">Your payout</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-white/40">{t("requests.detail.form.commission.payout")}</p>
                       <p className="font-black text-white">{fmtCurrency(payout, partnerCurrency)}</p>
                     </div>
                   </div>
@@ -416,7 +403,7 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
               </div>
 
               <div>
-                <label className={labelCls}>Vehicle from your fleet</label>
+                <label className={labelCls}>{t("requests.detail.form.vehicleLabel")}</label>
                 <select value={fleetId} onChange={e => setFleetId(e.target.value)} disabled={formDisabled}
                   className={`mt-2 ${inputCls} bg-white`} required>
                   {data.fleetOptions.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
@@ -424,90 +411,79 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
               </div>
 
               <div>
-                <label className={labelCls}>Car hire price ({symbol})</label>
+                <label className={labelCls}>{t("requests.detail.form.carHireLabel", { symbol })}</label>
                 <input type="number" min="0" step="0.01" value={carHirePrice}
                   onChange={e => setCarHirePrice(e.target.value)} disabled={formDisabled}
                   className={`mt-2 ${inputCls}`} required />
               </div>
 
               <div>
-                <label className={labelCls}>Full fuel price ({symbol})</label>
+                <label className={labelCls}>{t("requests.detail.form.fuelLabel", { symbol })}</label>
                 <input type="number" min="0" step="0.01" value={fuelPrice}
                   onChange={e => setFuelPrice(e.target.value)} disabled={formDisabled}
                   className={`mt-2 ${inputCls}`} required />
               </div>
 
               <div className="border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-black text-black">
-                <span className="text-black/40">Current total:</span> {fmtCurrency(total, partnerCurrency)}
+                <span className="text-black/40">{t("requests.detail.form.currentTotal")}</span> {fmtCurrency(total, partnerCurrency)}
               </div>
 
               <div className="flex flex-wrap gap-6">
                 <label className="flex items-center gap-3 text-sm font-black text-black cursor-pointer">
                   <input type="checkbox" checked={fullInsuranceIncluded}
-                    onChange={e => {
-                      setFullInsuranceIncluded(e.target.checked);
-                      // Clear deposit fields if partner re-enables full insurance
-                      if (e.target.checked) { setSecurityDepositNotes(""); }
-                    }}
+                    onChange={e => { setFullInsuranceIncluded(e.target.checked); if (e.target.checked) setSecurityDepositNotes(""); }}
                     disabled={formDisabled} className="h-4 w-4 accent-[#ff7a00]" />
-                  Full insurance included
+                  {t("requests.detail.form.insuranceCheck")}
                 </label>
                 <label className="flex items-center gap-3 text-sm font-black text-black cursor-pointer">
                   <input type="checkbox" checked={fullTankIncluded}
                     onChange={e => setFullTankIncluded(e.target.checked)}
                     disabled={formDisabled} className="h-4 w-4 accent-[#ff7a00]" />
-                  Full tank included
+                  {t("requests.detail.form.fullTankCheck")}
                 </label>
               </div>
 
-              {/* Additional terms — mileage limit + security deposit */}
               <div className="border border-black/10 bg-[#f0f0f0] p-4 space-y-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-black mb-1">Additional terms <span className="font-semibold normal-case tracking-normal text-black/40">(optional)</span></p>
+                  <p className="text-xs font-black uppercase tracking-widest text-black mb-1">
+                    {t("requests.detail.form.terms.title")}{" "}
+                    <span className="font-semibold normal-case tracking-normal text-black/40">{t("requests.detail.form.terms.optional")}</span>
+                  </p>
                   <p className="text-xs font-semibold text-black/50">
-                    If your bid includes a mileage limit or requires a security deposit, you must state this clearly below.
-                    These are arrangements between you and the customer — Camel does not collect these payments.
-                    The customer will see these terms on your bid and must agree to them before accepting.
-                    <strong className="text-black"> You must arrange collecting the deposit directly with the customer at the point of pickup.</strong>
+                    {t("requests.detail.form.terms.body")}{" "}
+                    <strong className="text-black">{t("requests.detail.form.terms.depositWarning")}</strong>
                   </p>
                 </div>
-
                 <div>
-                  <label className={labelCls}>Mileage limit <span className="font-semibold normal-case tracking-normal text-black/40">(leave blank for unlimited)</span></label>
-                  <input
-                    type="text"
-                    value={mileageLimit}
-                    onChange={e => setMileageLimit(e.target.value)}
-                    disabled={formDisabled}
-                    placeholder="e.g. 200km/day — excess charged at €0.15/km payable at collection"
-                    className={`mt-2 ${inputCls} bg-white`}
-                  />
+                  <label className={labelCls}>
+                    {t("requests.detail.form.mileageLabel")}{" "}
+                    <span className="font-semibold normal-case tracking-normal text-black/40">{t("requests.detail.form.mileageOptional")}</span>
+                  </label>
+                  <input type="text" value={mileageLimit} onChange={e => setMileageLimit(e.target.value)}
+                    disabled={formDisabled} placeholder={t("requests.detail.form.mileagePlaceholder")}
+                    className={`mt-2 ${inputCls} bg-white`} />
                 </div>
-
                 <div>
-                  <label className={labelCls}>Security deposit <span className="font-semibold normal-case tracking-normal text-black/40">(leave blank if none required)</span></label>
-                  <input
-                    type="text"
-                    value={securityDepositNotes}
-                    onChange={e => setSecurityDepositNotes(e.target.value)}
-                    disabled={formDisabled}
-                    placeholder="e.g. €500 refundable deposit blocked on credit card at collection, released on return"
-                    className={`mt-2 ${inputCls} bg-white`}
-                  />
+                  <label className={labelCls}>
+                    {t("requests.detail.form.depositLabel")}{" "}
+                    <span className="font-semibold normal-case tracking-normal text-black/40">{t("requests.detail.form.depositOptional")}</span>
+                  </label>
+                  <input type="text" value={securityDepositNotes} onChange={e => setSecurityDepositNotes(e.target.value)}
+                    disabled={formDisabled} placeholder={t("requests.detail.form.depositPlaceholder")}
+                    className={`mt-2 ${inputCls} bg-white`} />
                 </div>
               </div>
 
               <div>
-                <label className={labelCls}>Notes</label>
+                <label className={labelCls}>{t("requests.detail.form.notesLabel")}</label>
                 <textarea rows={4} value={notes} onChange={e => setNotes(e.target.value)}
-                  disabled={formDisabled}
-                  className={`mt-2 ${inputCls} resize-none`}
-                  placeholder="Optional notes for this bid (e.g. young driver surcharge included, pickup instructions)" />
+                  disabled={formDisabled} className={`mt-2 ${inputCls} resize-none`}
+                  placeholder={t("requests.detail.form.notesPlaceholder")} />
               </div>
 
               <button type="submit" disabled={saving || formDisabled}
                 className="bg-[#ff7a00] px-6 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-60 transition-opacity">
-                {saving ? "Saving…" : "Submit Bid"}
+                {saving ? t("requests.detail.form.saving") : t("requests.detail.form.submitBtn")}
               </button>
             </form>
           )}
