@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import GoogleAnalyticsPageView from "@/app/components/GoogleAnalytics";
 import ChatWidget from "@/app/components/ChatWidget";
+import { LanguageProvider } from "@/lib/i18n/LanguageContext";
 
 export default function ClientRootLayout({
   children,
@@ -30,16 +31,15 @@ export default function ClientRootLayout({
     return () => { mounted = false; };
   }, []);
 
-  // Portal uses cookie-based auth — no token needed, API uses getPortalUserRole()
   const getToken = useCallback(async (): Promise<string | null> => null, []);
 
   return (
-    <>
+    <LanguageProvider>
       <GoogleAnalyticsPageView />
       <main className="flex-1">{children}</main>
       {isLoggedIn && (
         <ChatWidget getToken={getToken} apiPath="/api/chat" />
       )}
-    </>
+    </LanguageProvider>
   );
 }
