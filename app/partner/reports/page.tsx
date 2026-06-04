@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type Currency = "EUR" | "GBP" | "USD";
 const CURRENCY_META: Record<Currency, { symbol: string; locale: string; label: string }> = {
@@ -26,17 +27,10 @@ type BookingRow = {
 };
 
 type InvoiceRow = {
-  id: string;
-  invoice_number: string;
-  period_month: string | null;
-  period_start: string | null;
-  period_end: string | null;
-  currency: string;
-  total_commission: number;
-  booking_count: number;
-  generated_at: string | null;
-  emailed_at: string | null;
-  download_url: string | null;
+  id: string; invoice_number: string;
+  period_month: string | null; period_start: string | null; period_end: string | null;
+  currency: string; total_commission: number; booking_count: number;
+  generated_at: string | null; emailed_at: string | null; download_url: string | null;
 };
 
 function fmtCurr(amount: number, currency: string): string {
@@ -60,8 +54,7 @@ function matchesDateRange(value: string | null | undefined, from: string, to: st
   if (to   && d > new Date(`${to}T23:59:59.999`)) return false;
   return true;
 }
-
-function calcPayout(b: BookingRow): { hire: number; rate: number; commAmt: number; partnerPayout: number; fuelRefund: number } {
+function calcPayout(b: BookingRow) {
   const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
   const fuel = Number(b.fuel_price ?? 0);
   if (isCancelled && b.refund_status === "full") return { hire:0, rate:0, commAmt:0, partnerPayout:0, fuelRefund:fuel };
@@ -73,7 +66,6 @@ function calcPayout(b: BookingRow): { hire: number; rate: number; commAmt: numbe
   const fuelRefund  = (isCancelled && b.refund_status === "partial") ? fuel : Number(b.fuel_refund ?? 0);
   return { hire, rate, commAmt, partnerPayout, fuelRefund };
 }
-
 function statusPillClasses(status?: string | null) {
   switch (String(status || "").toLowerCase()) {
     case "confirmed": case "completed": return "border-green-200 bg-green-50 text-green-700";
@@ -81,15 +73,6 @@ function statusPillClasses(status?: string | null) {
     case "driver_assigned": case "en_route": case "arrived": return "border-[#ff7a00]/30 bg-[#ff7a00]/10 text-[#ff7a00]";
     case "cancelled": return "border-red-200 bg-red-50 text-red-700";
     default: return "border-black/10 bg-white text-black";
-  }
-}
-function fmtStatus(v?: string | null) {
-  switch (String(v || "").toLowerCase()) {
-    case "confirmed": return "Confirmed"; case "driver_assigned": return "Driver assigned";
-    case "en_route": return "En route"; case "arrived": return "Arrived";
-    case "collected": return "On hire"; case "returned": return "Returned";
-    case "completed": return "Completed"; case "cancelled": return "Cancelled";
-    default: return String(v || "—").replaceAll("_", " ");
   }
 }
 
@@ -119,8 +102,9 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-// ── Commission Invoices section ───────────────────────────────────────────────
+// ── Commission Invoices ───────────────────────────────────────────────────────
 function CommissionInvoices() {
+  const { t } = useTranslation();
   const [invoices,      setInvoices]      = useState<InvoiceRow[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [generating,    setGenerating]    = useState(false);
@@ -152,19 +136,18 @@ function CommissionInvoices() {
         body: JSON.stringify({ period_month: selectedMonth }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to generate invoice");
+      if (!res.ok) throw new Error(json?.error || t("reports.invoices.error"));
       setGenSuccess(json.already_exists
-        ? `Invoice ${json.invoice_number} already exists for this period.`
-        : `Invoice ${json.invoice_number} generated successfully.`
+        ? t("reports.invoices.alreadyExists", { number: json.invoice_number })
+        : t("reports.invoices.generated",    { number: json.invoice_number })
       );
       if (json.download_url) window.open(json.download_url, "_blank");
       await loadInvoices();
     } catch (e: any) {
-      setGenError(e?.message || "Failed to generate invoice");
+      setGenError(e?.message || t("reports.invoices.error"));
     } finally { setGenerating(false); }
   }
 
-  // Build list of available months (last 24 months)
   const monthOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [];
     const now = new Date();
@@ -178,53 +161,50 @@ function CommissionInvoices() {
 
   return (
     <div className="border border-black/10 bg-white p-6 md:p-8">
-      <h2 className="text-xl font-black text-black mb-1">Commission Invoices</h2>
-      <p className="text-sm text-black/50 mb-6">Monthly commission invoices are generated automatically on the 1st of each month and emailed to you. You can also generate or re-download any past invoice here.</p>
+      <h2 className="text-xl font-black text-black mb-1">{t("reports.invoices.title")}</h2>
+      <p className="text-sm text-black/50 mb-6">{t("reports.invoices.subtitle")}</p>
 
-      {/* Manual generator */}
       <div className="border border-black/10 bg-[#f0f0f0] p-5 mb-6">
-        <p className="text-xs font-black uppercase tracking-widest text-black mb-3">Generate / Download Invoice</p>
+        <p className="text-xs font-black uppercase tracking-widest text-black mb-3">{t("reports.invoices.generate.title")}</p>
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="text-xs font-black uppercase tracking-widest text-black/60 mb-1 block">Period</label>
-            <select
-              value={selectedMonth}
-              onChange={e => setSelectedMonth(e.target.value)}
-              className="border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black"
-            >
-              {monthOptions.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
+            <label className="text-xs font-black uppercase tracking-widest text-black/60 mb-1 block">{t("reports.invoices.generate.periodLabel")}</label>
+            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+              className="border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+              {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
-          <button
-            type="button"
-            onClick={generate}
-            disabled={generating}
-            className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {generating ? "Generating…" : "⬇ Generate & Download"}
+          <button type="button" onClick={generate} disabled={generating}
+            className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-50">
+            {generating ? t("reports.invoices.generate.generating") : t("reports.invoices.generate.btn")}
           </button>
         </div>
         {genError   && <p className="mt-3 text-sm font-bold text-red-600">{genError}</p>}
-        {genSuccess  && <p className="mt-3 text-sm font-bold text-green-700">✓ {genSuccess}</p>}
-        <p className="mt-3 text-xs font-bold text-black/40">If an invoice already exists for the selected period it will be downloaded immediately. Otherwise a new one will be generated from your completed bookings.</p>
+        {genSuccess && <p className="mt-3 text-sm font-bold text-green-700">✓ {genSuccess}</p>}
+        <p className="mt-3 text-xs font-bold text-black/40">{t("reports.invoices.generate.hint")}</p>
       </div>
 
-      {/* Invoice list */}
       {loading ? (
-        <p className="text-sm font-bold text-black/50">Loading invoices…</p>
+        <p className="text-sm font-bold text-black/50">{t("reports.invoices.loading")}</p>
       ) : invoices.length === 0 ? (
         <div className="border border-black/10 bg-[#f0f0f0] px-5 py-8 text-center">
-          <p className="text-sm font-bold text-black/40">No commission invoices yet.</p>
-          <p className="text-xs font-bold text-black/30 mt-1">Invoices are generated automatically on the 1st of each month, or you can generate one above.</p>
+          <p className="text-sm font-bold text-black/40">{t("reports.invoices.empty")}</p>
+          <p className="text-xs font-bold text-black/30 mt-1">{t("reports.invoices.emptyHint")}</p>
         </div>
       ) : (
         <div className="overflow-x-auto border border-black/10">
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Invoice Number", "Period", "Bookings", "Total Commission", "Issued", "Emailed", "Download"].map(h => (
+                {[
+                  t("reports.invoices.col.number"),
+                  t("reports.invoices.col.period"),
+                  t("reports.invoices.col.bookings"),
+                  t("reports.invoices.col.commission"),
+                  t("reports.invoices.col.issued"),
+                  t("reports.invoices.col.emailed"),
+                  t("reports.invoices.col.download"),
+                ].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -240,15 +220,15 @@ function CommissionInvoices() {
                   <td className="px-4 py-3">
                     {inv.emailed_at
                       ? <span className="text-xs font-black text-green-700">✓ {fmtDate(inv.emailed_at)}</span>
-                      : <span className="text-xs font-bold text-black/30">Not sent</span>}
+                      : <span className="text-xs font-bold text-black/30">{t("reports.invoices.notSent")}</span>}
                   </td>
                   <td className="px-4 py-3">
                     {inv.download_url
                       ? <a href={inv.download_url} target="_blank" rel="noopener noreferrer"
                           className="inline-flex border border-black/20 bg-[#f0f0f0] px-3 py-1.5 text-xs font-black text-black hover:bg-black hover:text-white transition-colors">
-                          ⬇ PDF
+                          {t("reports.invoices.pdf")}
                         </a>
-                      : <span className="text-xs font-bold text-black/30">Unavailable</span>}
+                      : <span className="text-xs font-bold text-black/30">{t("reports.invoices.unavailable")}</span>}
                   </td>
                 </tr>
               ))}
@@ -262,24 +242,32 @@ function CommissionInvoices() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function PartnerReportsPage() {
+  const { t } = useTranslation();
   const router = useRouter();
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState<string | null>(null);
-  const [bookings, setBookings] = useState<BookingRow[]>([]);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo,   setDateTo]   = useState("");
+
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState<string | null>(null);
+  const [bookings,     setBookings]     = useState<BookingRow[]>([]);
+  const [dateFrom,     setDateFrom]     = useState("");
+  const [dateTo,       setDateTo]       = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [visibleCount, setVisibleCount] = useState(20);
+
+  function fmtStatus(v?: string | null) {
+    const key = `reports.status.${String(v || "").toLowerCase()}` as any;
+    const result = t(key);
+    return result !== key ? result : String(v || "—").replaceAll("_", " ");
+  }
 
   async function load() {
     setLoading(true); setError(null);
     try {
       const res  = await fetch("/api/partner/bookings", { cache: "no-store", credentials: "include" });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to load bookings.");
+      if (!res.ok) throw new Error(json?.error || t("reports.error.load"));
       setBookings(Array.isArray(json?.data) ? json.data : []);
     } catch (e: any) {
-      setError(e?.message || "Failed to load report data.");
+      setError(e?.message || t("reports.error.loadData"));
     } finally { setLoading(false); }
   }
 
@@ -293,24 +281,24 @@ export default function PartnerReportsPage() {
   }, [bookings, dateFrom, dateTo, statusFilter]);
 
   const totals = useMemo(() => {
-    const t: Record<string, { carHire: number; commission: number; payout: number; fuelCharge: number; fuelRefund: number; count: number; completed: number; cancelled: number }> = {};
+    const tot: Record<string, { carHire:number; commission:number; payout:number; fuelCharge:number; fuelRefund:number; count:number; completed:number; cancelled:number }> = {};
     for (const b of filtered) {
       const curr = b.currency ?? "EUR";
-      if (!t[curr]) t[curr] = { carHire:0, commission:0, payout:0, fuelCharge:0, fuelRefund:0, count:0, completed:0, cancelled:0 };
+      if (!tot[curr]) tot[curr] = { carHire:0, commission:0, payout:0, fuelCharge:0, fuelRefund:0, count:0, completed:0, cancelled:0 };
       const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
       const { hire, commAmt, partnerPayout, fuelRefund } = calcPayout(b);
-      t[curr].count++;
+      tot[curr].count++;
       if (!isCancelled) {
-        t[curr].carHire    += hire;
-        t[curr].commission += commAmt;
-        t[curr].payout     += partnerPayout;
-        t[curr].fuelCharge += Number(b.fuel_charge ?? 0);
+        tot[curr].carHire    += hire;
+        tot[curr].commission += commAmt;
+        tot[curr].payout     += partnerPayout;
+        tot[curr].fuelCharge += Number(b.fuel_charge ?? 0);
       }
-      t[curr].fuelRefund += fuelRefund;
-      if (isCancelled) t[curr].cancelled++;
-      if (String(b.booking_status || "").toLowerCase() === "completed") t[curr].completed++;
+      tot[curr].fuelRefund += fuelRefund;
+      if (isCancelled) tot[curr].cancelled++;
+      if (String(b.booking_status || "").toLowerCase() === "completed") tot[curr].completed++;
     }
-    return t;
+    return tot;
   }, [filtered]);
 
   const statusOptions = Array.from(new Set(bookings.map(r => String(r.booking_status || "").toLowerCase()).filter(Boolean))).sort();
@@ -318,12 +306,12 @@ export default function PartnerReportsPage() {
   function exportExcel() {
     const dateStr = new Date().toISOString().split("T")[0];
     const headers = [
-      "Job Number", "Customer", "Pickup Address", "Dropoff Address",
-      "Pickup Date", "Dropoff Date", "Vehicle", "Currency",
-      "Car Hire", "Commission Rate (%)", "Commission Amount",
-      "Fuel Deposit", "Fuel Used", "Fuel Charge", "Fuel Refund",
-      "Total Booking", "Your Net Payout",
-      "Booking Status", "Payout Status", "Cancelled By", "Refund Status", "Created At",
+      "Job Number","Customer","Pickup Address","Dropoff Address",
+      "Pickup Date","Dropoff Date","Vehicle","Currency",
+      "Car Hire","Commission Rate (%)","Commission Amount",
+      "Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund",
+      "Total Booking","Your Net Payout",
+      "Booking Status","Payout Status","Cancelled By","Refund Status","Created At",
     ];
     const rows = filtered.map(b => {
       const usedQ = b.fuel_used_quarters;
@@ -347,7 +335,7 @@ export default function PartnerReportsPage() {
     downloadBlob(blob, `camel-partner-report-${dateStr}.xls`);
   }
 
-  if (loading) return <div className="border border-black/10 bg-white p-8"><p className="text-sm font-bold text-black/50">Loading report…</p></div>;
+  if (loading) return <div className="border border-black/10 bg-white p-8"><p className="text-sm font-bold text-black/50">{t("reports.loading")}</p></div>;
 
   return (
     <div className="space-y-6">
@@ -355,58 +343,63 @@ export default function PartnerReportsPage() {
 
       {/* Filters */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
-        <h1 className="text-2xl font-black text-black mb-1">Report Management</h1>
-        <p className="text-sm text-black/50 mb-5">Your booking history, revenue and payout summary.</p>
+        <h1 className="text-2xl font-black text-black mb-1">{t("reports.title")}</h1>
+        <p className="text-sm text-black/50 mb-5">{t("reports.subtitle")}</p>
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="text-xs font-black uppercase tracking-widest text-black/60">Date from</label>
+            <label className="text-xs font-black uppercase tracking-widest text-black/60">{t("reports.filter.dateFrom")}</label>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
               className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm text-black outline-none focus:border-black" />
           </div>
           <div>
-            <label className="text-xs font-black uppercase tracking-widest text-black/60">Date to</label>
+            <label className="text-xs font-black uppercase tracking-widest text-black/60">{t("reports.filter.dateTo")}</label>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
               className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm text-black outline-none focus:border-black" />
           </div>
           <div>
-            <label className="text-xs font-black uppercase tracking-widest text-black/60">Status</label>
+            <label className="text-xs font-black uppercase tracking-widest text-black/60">{t("reports.filter.status")}</label>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
               className="mt-1 block border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
-              <option value="all">All statuses</option>
+              <option value="all">{t("reports.filter.allStatuses")}</option>
               {statusOptions.map(s => <option key={s} value={s}>{fmtStatus(s)}</option>)}
             </select>
           </div>
           <button type="button" onClick={exportExcel}
-            className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90">⬇ Export Excel</button>
+            className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90">{t("reports.filter.export")}</button>
           <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setStatusFilter("all"); }}
-            className="border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">Clear</button>
+            className="border border-black/20 bg-white px-5 py-2 text-sm font-black text-black hover:bg-[#f0f0f0]">{t("reports.filter.clear")}</button>
           <button type="button" onClick={load}
-            className="bg-[#ff7a00] px-5 py-2 text-sm font-black text-white hover:opacity-90">Refresh</button>
+            className="bg-[#ff7a00] px-5 py-2 text-sm font-black text-white hover:opacity-90">{t("reports.filter.refresh")}</button>
         </div>
       </div>
 
       {/* Totals per currency */}
-      {Object.entries(totals).filter(([, t]) => t.count > 0).map(([curr, t]) => {
+      {Object.entries(totals).filter(([, tot]) => tot.count > 0).map(([curr, tot]) => {
         const sym = CURRENCY_META[curr as Currency]?.symbol ?? curr;
+        const summaryItems = [
+          { label: t("reports.summary.bookings"),    value: tot.count,      isMoney: false },
+          { label: t("reports.summary.completed"),   value: tot.completed,  isMoney: false },
+          { label: t("reports.summary.cancelled"),   value: tot.cancelled,  isMoney: false },
+          { label: t("reports.summary.carHire"),     value: tot.carHire,    isMoney: true  },
+          { label: t("reports.summary.commission"),  value: tot.commission, isMoney: true  },
+          { label: t("reports.summary.yourPayout"),  value: tot.payout,     isMoney: true  },
+          { label: t("reports.summary.fuelRefunded"),value: tot.fuelRefund, isMoney: true  },
+        ];
         return (
           <div key={curr} className="border border-black/10 bg-white p-6">
             <div className="flex items-center gap-3 mb-4">
               <span className="border border-black bg-black px-3 py-1 text-sm font-black text-white">{sym} {curr}</span>
-              <h2 className="text-lg font-black text-black">Summary</h2>
+              <h2 className="text-lg font-black text-black">{t("reports.summary.title")}</h2>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-              {[
-                { label: "Bookings",      value: t.count,      isMoney: false },
-                { label: "Completed",     value: t.completed,  isMoney: false },
-                { label: "Cancelled",     value: t.cancelled,  isMoney: false },
-                { label: "Car Hire",      value: t.carHire,    isMoney: true  },
-                { label: "Commission",    value: t.commission, isMoney: true  },
-                { label: "Your Payout",   value: t.payout,     isMoney: true  },
-                { label: "Fuel Refunded", value: t.fuelRefund, isMoney: true  },
-              ].map(({ label, value, isMoney }) => (
-                <div key={label} className={`border p-4 ${label === "Cancelled" && (value as number) > 0 ? "border-red-200 bg-red-50" : "border-black/10 bg-[#f0f0f0]"}`}>
+              {summaryItems.map(({ label, value, isMoney }) => (
+                <div key={label} className={`border p-4 ${label === t("reports.summary.cancelled") && (value as number) > 0 ? "border-red-200 bg-red-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                   <p className="text-xs font-black uppercase tracking-widest text-black/50">{label}</p>
-                  <p className={`mt-1 text-lg font-black ${label === "Cancelled" && (value as number) > 0 ? "text-red-700" : label === "Your Payout" ? "text-green-700" : label === "Commission" ? "text-amber-700" : "text-black"}`}>
+                  <p className={`mt-1 text-lg font-black ${
+                    label === t("reports.summary.cancelled") && (value as number) > 0 ? "text-red-700" :
+                    label === t("reports.summary.yourPayout")  ? "text-green-700" :
+                    label === t("reports.summary.commission")  ? "text-amber-700" : "text-black"
+                  }`}>
                     {isMoney ? fmtCurr(value as number, curr) : value}
                   </p>
                 </div>
@@ -422,9 +415,9 @@ export default function PartnerReportsPage() {
       {/* Bookings table */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xl font-black text-black">Bookings</h2>
+          <h2 className="text-xl font-black text-black">{t("reports.bookings.title")}</h2>
           <p className="text-sm text-black/50">
-            Showing <span className="font-black text-black">{Math.min(visibleCount, filtered.length)}</span> of{" "}
+            {t("reports.bookings.showing")} <span className="font-black text-black">{Math.min(visibleCount, filtered.length)}</span> {t("reports.bookings.of")}{" "}
             <span className="font-black text-black">{filtered.length}</span>
           </p>
         </div>
@@ -432,14 +425,29 @@ export default function PartnerReportsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Job", "Customer", "Pickup", "Status", "Currency", "Car Hire", "Commission", "Fuel Deposit", "Fuel Used", "Fuel Charge", "Fuel Refund", "Total", "Your Payout", "Payout Status"].map(h => (
+                {[
+                  t("reports.bookings.col.job"),
+                  t("reports.bookings.col.customer"),
+                  t("reports.bookings.col.pickup"),
+                  t("reports.bookings.col.status"),
+                  t("reports.bookings.col.currency"),
+                  t("reports.bookings.col.carHire"),
+                  t("reports.bookings.col.commission"),
+                  t("reports.bookings.col.fuelDeposit"),
+                  t("reports.bookings.col.fuelUsed"),
+                  t("reports.bookings.col.fuelCharge"),
+                  t("reports.bookings.col.fuelRefund"),
+                  t("reports.bookings.col.total"),
+                  t("reports.bookings.col.yourPayout"),
+                  t("reports.bookings.col.payoutStatus"),
+                ].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
               {filtered.length === 0 ? (
-                <tr><td colSpan={14} className="px-4 py-6 text-sm text-black/40">No bookings found.</td></tr>
+                <tr><td colSpan={14} className="px-4 py-6 text-sm text-black/40">{t("reports.bookings.empty")}</td></tr>
               ) : filtered.slice(0, visibleCount).map((b, i) => {
                 const usedQ = b.fuel_used_quarters;
                 const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
@@ -488,13 +496,13 @@ export default function PartnerReportsPage() {
         {filtered.length > visibleCount && (
           <button type="button" onClick={() => setVisibleCount(c => c + 20)}
             className="mt-3 w-full border border-black/10 bg-[#f0f0f0] py-2.5 text-sm font-black text-black hover:bg-black/10">
-            ▼ Show more ({filtered.length - visibleCount} remaining)
+            {t("reports.bookings.showMore", { count: String(filtered.length - visibleCount) })}
           </button>
         )}
         {visibleCount > 20 && filtered.length <= visibleCount && (
           <button type="button" onClick={() => setVisibleCount(20)}
             className="mt-3 w-full border border-black/10 bg-[#f0f0f0] py-2.5 text-sm font-black text-black hover:bg-black/10">
-            ▲ Show less
+            {t("reports.bookings.showLess")}
           </button>
         )}
       </div>
