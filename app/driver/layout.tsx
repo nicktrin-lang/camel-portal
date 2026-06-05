@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import Footer from "@/app/components/Footer";
+import LanguageToggle from "@/lib/i18n/LanguageToggle";
 
 const PUBLIC_DRIVER_PATHS = ["/driver/login", "/driver/signup", "/driver/reset-password"];
 
@@ -57,9 +58,12 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
             <Link href="/">
               <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
             </Link>
-            <Link href="/" className="text-sm font-bold text-white/60 hover:text-white transition-colors">
-              Partner Portal →
-            </Link>
+            <div className="flex items-center gap-3">
+              <LanguageToggle />
+              <Link href="/" className="text-sm font-bold text-white/60 hover:text-white transition-colors">
+                Partner Portal →
+              </Link>
+            </div>
           </div>
         </header>
         <div className="pt-[76px]">{children}</div>
@@ -94,6 +98,7 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
                 {companyName && <span className="text-xs text-white/60">{companyName}</span>}
               </div>
             )}
+            <LanguageToggle />
             <span className="border border-white/20 px-3 py-1 text-xs font-black text-white uppercase tracking-widest">Driver</span>
             <button
               type="button"
