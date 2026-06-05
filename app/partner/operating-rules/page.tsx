@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { OPERATING_RULES, downloadOperatingRulesPDF } from "@/lib/portal/operatingRules";
+import { OPERATING_RULES, OPERATING_RULES_ES, downloadOperatingRulesPDF } from "@/lib/portal/operatingRules";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function PartnerOperatingRulesPage() {
   const { t, locale } = useTranslation();
+  const rules = locale === "es" ? OPERATING_RULES_ES : OPERATING_RULES;
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload() {

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { TERMS_VERSION, TERMS_EFFECTIVE, PARTNER_TERMS, downloadPartnerTermsPDF } from "@/lib/portal/partnerTerms";
+import { TERMS_VERSION, TERMS_EFFECTIVE, PARTNER_TERMS, PARTNER_TERMS_ES, downloadPartnerTermsPDF } from "@/lib/portal/partnerTerms";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function PartnerTermsPage() {
   const { t, locale } = useTranslation();
+  const terms = locale === "es" ? PARTNER_TERMS_ES : PARTNER_TERMS;
 
   const SUMMARY_ITEMS = [
     { icon: "🏪", titleKey: "terms.summary.marketplace.title", bodyKey: "terms.summary.marketplace.body" },
@@ -66,7 +67,7 @@ export default function PartnerTermsPage() {
           <p className="mt-3 text-xs font-bold text-green-700">{t("terms.fee.note")}</p>
         </div>
 
-        {PARTNER_TERMS.map(({ title, clauses }) => (
+        {terms.map(({ title, clauses }) => (
           <div key={title} className={`bg-white p-6 ${title === "7b. Stripe Processing Fees and Currency" ? "border-l-4 border-green-400" : ""}`}>
             <h2 className="text-xs font-black uppercase tracking-widest text-black mb-4 pb-2 border-b border-black/10">{title}</h2>
             <ol className="space-y-3">

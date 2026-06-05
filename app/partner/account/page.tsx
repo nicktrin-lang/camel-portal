@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import { OPERATING_RULES, downloadOperatingRulesPDF } from "@/lib/portal/operatingRules";
+import { OPERATING_RULES, OPERATING_RULES_ES, downloadOperatingRulesPDF } from "@/lib/portal/operatingRules";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type AccountProfile = {
@@ -98,7 +98,8 @@ export default function PartnerAccountPage() {
   const [email,       setEmail]       = useState<string>("");
   const [liveStatus,  setLiveStatus]  = useState<LiveStatus | null>(null);
 
-  // Build MISSING_LABELS from translated strings
+  const rules = locale === "es" ? OPERATING_RULES_ES : OPERATING_RULES;
+
   const MISSING_LABELS: Record<string, { label: string; href: string }> = {
     service_radius_km: { label: t("account.missing.service_radius_km"), href: "/partner/profile" },
     base_address:      { label: t("account.missing.base_address"),       href: "/partner/profile" },
@@ -193,10 +194,10 @@ export default function PartnerAccountPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { label: t("account.card.company"),         value: fmtValue(profile?.company_name) },
-          { label: t("account.card.appStatus"),        value: fmtStatus(application?.status), pill: true, status: application?.status },
-          { label: t("account.card.serviceRadius"),    value: profile?.service_radius_km ? `${profile.service_radius_km} km` : "—" },
-          { label: t("account.card.billingCurrency"),  value: currencyLabel(profile?.default_currency) },
+          { label: t("account.card.company"),        value: fmtValue(profile?.company_name) },
+          { label: t("account.card.appStatus"),       value: fmtStatus(application?.status), pill: true, status: application?.status },
+          { label: t("account.card.serviceRadius"),   value: profile?.service_radius_km ? `${profile.service_radius_km} km` : "—" },
+          { label: t("account.card.billingCurrency"), value: currencyLabel(profile?.default_currency) },
         ].map(({ label, value, pill, status }) => (
           <div key={label} className="border border-black/5 bg-white p-5">
             <p className="text-xs font-black uppercase tracking-widest text-black/40">{label}</p>
@@ -420,18 +421,17 @@ export default function PartnerAccountPage() {
             <h2 className="text-2xl font-black text-black">{t("account.rules.title")}</h2>
             <p className="mt-1 text-xs font-bold text-black/40">{t("account.rules.subtitle")}</p>
           </div>
-          <button type="button"onClick={() => downloadOperatingRulesPDF(profile?.company_name || "Partner", locale as "en" | "es")}
-
+          <button type="button" onClick={() => downloadOperatingRulesPDF(profile?.company_name || "Partner", locale as "en" | "es")}
             className="shrink-0 bg-black px-5 py-2.5 text-sm font-black text-white hover:opacity-80 transition-opacity">
             {t("account.rules.downloadPdf")}
           </button>
         </div>
         <div className="mt-6 space-y-4">
-          {OPERATING_RULES.map(({ section, rules }) => (
+          {rules.map(({ section, rules: sectionRules }) => (
             <div key={section} className="border border-black/5 bg-[#f0f0f0] p-5">
               <h3 className="text-sm font-black uppercase tracking-widest text-black">{section}</h3>
               <ol className="mt-3 space-y-2">
-                {rules.map((rule, i) => (
+                {sectionRules.map((rule, i) => (
                   <li key={i} className="flex gap-3 text-sm">
                     <span className="shrink-0 font-black text-black/40">{i + 1}.</span>
                     <span className="font-bold text-black/70">{rule}</span>
