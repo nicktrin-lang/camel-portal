@@ -9,6 +9,20 @@ function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";
 }
 
+async function getPartnerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, userId: string | null): Promise<"en" | "es"> {
+  if (!userId) return "en";
+  try {
+    const { data } = await db
+      .from("partner_profiles")
+      .select("communication_locale")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return (data?.communication_locale === "es") ? "es" : "en";
+  } catch {
+    return "en";
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const authed = await createRouteHandlerSupabaseClient();
@@ -98,7 +112,8 @@ export async function POST(req: Request) {
 
     if (partnerEmail && !alreadySent) {
       try {
-        await sendAccountLiveEmail(partnerEmail);
+        const locale = await getPartnerLocale(db, application.user_id);
+        await sendAccountLiveEmail(partnerEmail, locale);
       } catch (emailErr: any) {
         console.error("❌ Failed to send account live email:", emailErr?.message || emailErr);
         return NextResponse.json(

@@ -11,6 +11,20 @@ function isAllowedStatus(s: any): s is StatusValue {
   return s === "pending" || s === "approved" || s === "rejected";
 }
 
+async function getPartnerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, userId: string | null): Promise<"en" | "es"> {
+  if (!userId) return "en";
+  try {
+    const { data } = await db
+      .from("partner_profiles")
+      .select("communication_locale")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return (data?.communication_locale === "es") ? "es" : "en";
+  } catch {
+    return "en";
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
@@ -54,7 +68,7 @@ export async function POST(req: Request) {
 
     const { data: current, error: currentErr } = await db
       .from("partner_applications")
-      .select("id,email,status")
+      .select("id,email,status,user_id")
       .eq("id", id)
       .single();
 
@@ -68,7 +82,7 @@ export async function POST(req: Request) {
       .from("partner_applications")
       .update({ status: nextStatus })
       .eq("id", id)
-      .select("id,status,email")
+      .select("id,status,email,user_id")
       .single();
 
     if (updateErr) {
@@ -76,14 +90,16 @@ export async function POST(req: Request) {
     }
 
     const updatedStatus = String(updated?.status || "").toLowerCase() as StatusValue;
-    const toEmail = updated?.email || current?.email || null;
+    const toEmail       = updated?.email || current?.email || null;
+    const userId        = updated?.user_id || current?.user_id || null;
 
     const becameApproved = prevStatus !== "approved" && updatedStatus === "approved";
     const becameRejected = prevStatus !== "rejected" && updatedStatus === "rejected";
 
     if (becameApproved && toEmail) {
       try {
-        await sendApprovalEmail(toEmail);
+        const locale = await getPartnerLocale(db, userId);
+        await sendApprovalEmail(toEmail, locale);
       } catch (emailErr: any) {
         return NextResponse.json(
           {
@@ -98,7 +114,8 @@ export async function POST(req: Request) {
 
     if (becameRejected && toEmail) {
       try {
-        await sendRejectionEmail(toEmail);
+        const locale = await getPartnerLocale(db, userId);
+        await sendRejectionEmail(toEmail, locale);
       } catch (emailErr: any) {
         return NextResponse.json(
           {
