@@ -34,13 +34,13 @@ export default function PartnerOperatingRulesPage() {
           </button>
         </div>
 
-        {OPERATING_RULES.map(({ section, rules }) => (
+        {rules.map(({ section, rules: sectionRules }) => (
           <div key={section} className="bg-white p-6">
             <h2 className="text-xs font-black uppercase tracking-widest text-black mb-4 pb-2 border-b border-black/10">
               {section}
             </h2>
             <ol className="space-y-3">
-              {rules.map((rule, i) => (
+              {sectionRules.map((rule, i) => (
                 <li key={i} className="flex gap-3 text-sm font-bold text-black/70 leading-relaxed">
                   <span className="shrink-0 font-black text-black w-5">{i + 1}.</span>
                   <span>{rule}</span>
