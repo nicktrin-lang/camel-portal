@@ -1807,5 +1807,9 @@
   "driver.jobs.confirm.delivery": "Delivery confirmed ✓",
   "driver.jobs.confirm.collection": "Collection confirmed ✓",
   "driver.jobs.confirm.insurance": "Insurance confirmed ✓",
-  "driver.jobs.confirm.error": "Failed to confirm."
+  "driver.jobs.confirm.error": "Failed to confirm.",
+"settings.language.title": "Communication Language",
+"settings.language.subtitle": "Choose the language for emails and notifications sent to you by Camel Global.",
+"settings.language.saved": "✓ Language preference saved",
+"settings.language.hint": "This affects the language of emails we send you, not the portal display language.",
 }

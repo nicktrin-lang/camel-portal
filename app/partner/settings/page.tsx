@@ -1,4 +1,3 @@
-// ── app/partner/settings/page.tsx ─────────────────────────────────────────────
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +23,13 @@ export default function PartnerSettingsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError,   setDeleteError]   = useState<string | null>(null);
 
+  // Language preference
+  const [commLocale,       setCommLocale]       = useState<"en" | "es">("en");
+  const [localeLoading,    setLocaleLoading]    = useState(true);
+  const [localeSaving,     setLocaleSaving]     = useState(false);
+  const [localeSaved,      setLocaleSaved]      = useState(false);
+  const [localeError,      setLocaleError]      = useState<string | null>(null);
+
   useEffect(() => {
     async function loadStripe() {
       try {
@@ -36,6 +42,43 @@ export default function PartnerSettingsPage() {
     }
     loadStripe();
   }, []);
+
+  useEffect(() => {
+    async function loadLocale() {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData?.user) return;
+        const { data } = await supabase
+          .from("partner_profiles")
+          .select("communication_locale")
+          .eq("user_id", userData.user.id)
+          .maybeSingle();
+        if (data?.communication_locale) {
+          setCommLocale(data.communication_locale as "en" | "es");
+        }
+      } catch {}
+      finally { setLocaleLoading(false); }
+    }
+    loadLocale();
+  }, [supabase]);
+
+  async function saveLocale(newLocale: "en" | "es") {
+    setCommLocale(newLocale);
+    setLocaleSaving(true); setLocaleSaved(false); setLocaleError(null);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) throw new Error("Not signed in");
+      const { error } = await supabase
+        .from("partner_profiles")
+        .update({ communication_locale: newLocale })
+        .eq("user_id", userData.user.id);
+      if (error) throw new Error(error.message);
+      setLocaleSaved(true);
+      setTimeout(() => setLocaleSaved(false), 3000);
+    } catch (e: any) {
+      setLocaleError(e?.message || "Failed to save preference");
+    } finally { setLocaleSaving(false); }
+  }
 
   async function startOnboarding() {
     setStripeLinking(true); setStripeError("");
@@ -78,6 +121,37 @@ export default function PartnerSettingsPage() {
       <div className="border border-black/5 bg-white p-6">
         <h1 className="text-2xl font-black text-black">{t("settings.title")}</h1>
         <p className="mt-1 text-sm font-bold text-black/50">{t("settings.subtitle")}</p>
+      </div>
+
+      {/* Language preference */}
+      <div className="border border-black/5 bg-white p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-black text-black">{t("settings.language.title")}</h2>
+          <p className="mt-1 text-sm font-bold text-black/50">{t("settings.language.subtitle")}</p>
+        </div>
+        {localeLoading ? (
+          <p className="text-sm font-bold text-black/40">{t("common.loading")}</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              {(["en", "es"] as const).map(loc => (
+                <button key={loc} type="button"
+                  onClick={() => saveLocale(loc)}
+                  disabled={localeSaving}
+                  className={`flex-1 border py-3 text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-50 ${
+                    commLocale === loc
+                      ? "border-[#ff7a00] bg-[#ff7a00] text-white"
+                      : "border-black/20 bg-white text-black hover:bg-[#f0f0f0]"
+                  }`}>
+                  {loc === "en" ? "🇬🇧 English" : "🇪🇸 Español"}
+                </button>
+              ))}
+            </div>
+            {localeSaved  && <p className="text-xs font-black text-green-700">{t("settings.language.saved")}</p>}
+            {localeError  && <p className="text-xs font-bold text-red-600">{localeError}</p>}
+            <p className="text-xs font-bold text-black/40">{t("settings.language.hint")}</p>
+          </div>
+        )}
       </div>
 
       {/* Payouts */}
@@ -194,7 +268,3 @@ export default function PartnerSettingsPage() {
     </div>
   );
 }
-
-
-// ── app/partner/suggestions/page.tsx ──────────────────────────────────────────
-// (save this as a separate file — split at the comment above)

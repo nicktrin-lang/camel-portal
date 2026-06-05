@@ -59,9 +59,12 @@ const QUARTER_LABELS: Record<number,string> = { 0:"Empty", 1:"¼ Tank", 2:"½ Ta
 
 function fuelLabel(v: string|null): string {
   switch(v) {
-    case "empty": return "Empty"; case "quarter": return "¼ Tank";
-    case "half": return "½ Tank"; case "3/4": return "¾ Tank";
-    case "full": return "Full Tank"; default: return v||"—";
+    case "empty":   return "Empty";
+    case "quarter": return "¼ Tank";
+    case "half":    return "½ Tank";
+    case "3/4":     return "¾ Tank";
+    case "full":    return "Full Tank";
+    default:        return v||"—";
   }
 }
 
@@ -101,11 +104,11 @@ interface StatementData {
 }
 
 function StatementDocument({ d }: { d: StatementData }) {
-  const cur = d.currency;
+  const cur    = d.currency;
   const locale = cur==="GBP"?"en-GB":cur==="USD"?"en-US":"es-ES";
-  const fmt = (n: number) => new Intl.NumberFormat(locale,{style:"currency",currency:cur}).format(n);
-  const ref = d.jobNumber ? `#${d.jobNumber}` : d.bookingId.slice(0,8).toUpperCase();
-  const dateStr = new Date(d.issuedAt).toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+  const fmt    = (n: number) => new Intl.NumberFormat(locale,{style:"currency",currency:cur}).format(n);
+  const ref    = d.jobNumber ? `#${d.jobNumber}` : d.bookingId.slice(0,8).toUpperCase();
+  const dateStr    = new Date(d.issuedAt).toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
   const finalAmount = d.carHire + d.fuelCharge;
 
   return (
@@ -226,7 +229,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
       job_number, request_id, payment_id,
       collection_fuel_level_partner, collection_fuel_level_driver,
       return_fuel_level_partner, return_fuel_level_driver,
-      fuel_used_quarters, payout_status
+      fuel_used_quarters, payout_status, commission_rate
     `)
     .eq("id", bookingId)
     .maybeSingle();
@@ -290,7 +293,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   // ── Load partner info early — needed for refund metadata ─────────────────
   const { data: partnerProfile } = await db
     .from("partner_profiles")
-    .select("company_name, contact_name")
+    .select("company_name, contact_name, communication_locale")
     .eq("user_id", booking.partner_user_id)
     .maybeSingle();
 
@@ -359,10 +362,14 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   const { data: partnerAuthData } = await db.auth.admin.getUserById(booking.partner_user_id);
   const partnerEmail = partnerAuthData?.user?.email || null;
 
-  const carHire     = Number(booking.car_hire_price || 0);
-  const fuelDep     = Number(booking.fuel_price     || 0);
-  const totalPaid   = Number(booking.amount         || carHire + fuelDep);
-  const finalAmount = carHire + fuel_charge;
+  const carHire       = Number(booking.car_hire_price || 0);
+  const fuelDep       = Number(booking.fuel_price     || 0);
+  const totalPaid     = Number(booking.amount         || carHire + fuelDep);
+  const finalAmount   = carHire + fuel_charge;
+  const commRate      = Number(booking.commission_rate ?? 20);
+  const commAmt       = Math.max((carHire * commRate) / 100, 10);
+  const partnerPayout = Math.max(0, carHire - commAmt + fuel_charge);
+  const partnerLocale = (partnerProfile?.communication_locale as "en" | "es") || "en";
 
   // ── Generate completion statement PDF — read logo from disk ───────────────
   let statementBase64: string | null = null;
@@ -452,9 +459,43 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   // ── Email partner ─────────────────────────────────────────────────────────
   if (partnerEmail) {
     await sendEmail({
-      to: partnerEmail,
-      subject: `Booking ${jobNo} completed — payout ready`,
-      html: `
+      to:      partnerEmail,
+      subject: partnerLocale === "es"
+        ? `Reserva ${jobNo} completada — pago listo`
+        : `Booking ${jobNo} completed — payout ready`,
+      html: partnerLocale === "es" ? `
+        <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
+          <div style="background:#000;padding:20px 28px;">
+            <h2 style="color:#fff;margin:0;">Reserva completada</h2>
+            <p style="color:#999;margin:4px 0 0;font-size:13px;">Reserva ${jobNo}</p>
+          </div>
+          <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
+            <p>Hola ${partnerProfile?.contact_name || companyName},</p>
+            <p>La reserva ${jobNo} ha sido marcada como completada. Tu pago ha sido añadido a la cola para el próximo pago mensual.</p>
+            <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
+              <p style="margin:0 0 8px;font-weight:700;">Resumen de combustible</p>
+              <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#666;">Nivel combustible entrega</td><td style="text-align:right;">${fuelLabel(collectionFuel)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Nivel combustible recogida</td><td style="text-align:right;">${fuelLabel(returnFuel)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Combustible usado</td><td style="text-align:right;">${QUARTER_LABELS[used_quarters]??`${used_quarters}/4 depósito`}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Cargo combustible al cliente</td><td style="text-align:right;">${fmt(fuel_charge)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Reembolso combustible al cliente</td><td style="text-align:right;">${fuel_refund>0?fmt(fuel_refund):"Ninguno"}</td></tr>
+              </table>
+            </div>
+            <div style="background:#f0fff0;padding:16px;margin:16px 0;border-left:4px solid #22c55e;">
+              <p style="margin:0 0 8px;font-weight:700;">Resumen de pago</p>
+              <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#666;">Precio alquiler</td><td style="text-align:right;">${fmt(carHire)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Comisión Camel (${commRate}%)</td><td style="text-align:right;">− ${fmt(commAmt)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Cargo combustible</td><td style="text-align:right;">+ ${fmt(fuel_charge)}</td></tr>
+                <tr style="font-weight:700;border-top:1px solid #ddd;"><td style="padding:6px 0;">Tu pago neto</td><td style="text-align:right;">${fmt(partnerPayout)}</td></tr>
+              </table>
+            </div>
+            <a href="${portalUrl}/partner/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">Ver reserva</a>
+            <p style="margin-top:24px;color:#999;font-size:13px;">El equipo de Camel Global</p>
+          </div>
+        </div>
+      ` : `
         <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
           <div style="background:#000;padding:20px 28px;">
             <h2 style="color:#fff;margin:0;">Booking Completed</h2>
@@ -473,6 +514,15 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
                 <tr><td style="padding:4px 0;color:#666;">Fuel refund to customer</td><td style="text-align:right;">${fuel_refund>0?fmt(fuel_refund):"None"}</td></tr>
               </table>
             </div>
+            <div style="background:#f0fff0;padding:16px;margin:16px 0;border-left:4px solid #22c55e;">
+              <p style="margin:0 0 8px;font-weight:700;">Payout Summary</p>
+              <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#666;">Car hire price</td><td style="text-align:right;">${fmt(carHire)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Camel commission (${commRate}%)</td><td style="text-align:right;">− ${fmt(commAmt)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Fuel charge</td><td style="text-align:right;">+ ${fmt(fuel_charge)}</td></tr>
+                <tr style="font-weight:700;border-top:1px solid #ddd;"><td style="padding:6px 0;">Your net payout</td><td style="text-align:right;">${fmt(partnerPayout)}</td></tr>
+              </table>
+            </div>
             <a href="${portalUrl}/partner/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">View Booking</a>
             <p style="margin-top:24px;color:#999;font-size:13px;">The Camel Global Team</p>
           </div>
@@ -487,7 +537,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   for (const adminEmail of adminEmails) {
     await sendEmail({
-      to: adminEmail,
+      to:      adminEmail,
       subject: `[Admin] Booking ${jobNo} completed — fuel refund ${fmt(fuel_refund)}`,
       html: `
         <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
@@ -498,7 +548,10 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
             <strong>Fuel used:</strong> ${QUARTER_LABELS[used_quarters]??`${used_quarters}/4`} (${fuelLabel(collectionFuel)} → ${fuelLabel(returnFuel)})<br/>
             <strong>Fuel charge:</strong> ${fmt(fuel_charge)}<br/>
             <strong>Fuel refund:</strong> ${fmt(fuel_refund)}<br/>
-            <strong>Final amount:</strong> ${fmt(finalAmount)}<br/>
+            <strong>Car hire price:</strong> ${fmt(carHire)}<br/>
+            <strong>Camel commission (${commRate}%):</strong> ${fmt(commAmt)}<br/>
+            <strong>Partner net payout:</strong> ${fmt(partnerPayout)}<br/>
+            <strong>Final amount charged:</strong> ${fmt(finalAmount)}<br/>
             <strong>Stripe refund ID:</strong> ${stripeRefundId || "none (refund = 0)"}<br/>
             <strong>Payout status:</strong> ready
           </p>
