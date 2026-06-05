@@ -1811,5 +1811,6 @@
 "settings.language.title": "Idioma de comunicación",
 "settings.language.subtitle": "Elige el idioma para los correos electrónicos y notificaciones que te envía Camel Global.",
 "settings.language.saved": "✓ Preferencia de idioma guardada",
-"settings.language.hint": "Esto afecta al idioma de los correos que te enviamos, no al idioma de visualización del portal."
+"settings.language.hint": "Esto afecta al idioma de los correos que te enviamos, no al idioma de visualización del portal.",
+"settings.language.label": "Idioma"
 }
