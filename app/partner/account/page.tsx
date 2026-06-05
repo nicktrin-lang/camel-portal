@@ -87,7 +87,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
 }
 
 export default function PartnerAccountPage() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router   = useRouter();
 
@@ -420,7 +420,8 @@ export default function PartnerAccountPage() {
             <h2 className="text-2xl font-black text-black">{t("account.rules.title")}</h2>
             <p className="mt-1 text-xs font-bold text-black/40">{t("account.rules.subtitle")}</p>
           </div>
-          <button type="button" onClick={() => downloadOperatingRulesPDF(profile?.company_name || "Partner")}
+          <button type="button"onClick={() => downloadOperatingRulesPDF(profile?.company_name || "Partner", locale as "en" | "es")}
+
             className="shrink-0 bg-black px-5 py-2.5 text-sm font-black text-white hover:opacity-80 transition-opacity">
             {t("account.rules.downloadPdf")}
           </button>

@@ -5,12 +5,12 @@ import { OPERATING_RULES, downloadOperatingRulesPDF } from "@/lib/portal/operati
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function PartnerOperatingRulesPage() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload() {
     setDownloading(true);
-    try { await downloadOperatingRulesPDF("Partner"); }
+    try { await downloadOperatingRulesPDF("Partner", locale as "en" | "es"); }
     finally { setDownloading(false); }
   }
 
