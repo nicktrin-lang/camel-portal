@@ -37,6 +37,11 @@ function parseCoordinate(value: string | number | null | undefined, kind: "lat" 
   return sign * num;
 }
 
+function deriveLocale(country: string): "en" | "es" {
+  const c = country.trim().toLowerCase();
+  return c === "spain" || c === "españa" || c === "es" ? "es" : "en";
+}
+
 async function safeDeleteApplication(db: any, userId: string) {
   try { await db.from("partner_applications").delete().eq("user_id", userId); } catch {}
 }
@@ -79,16 +84,19 @@ export async function POST(req: Request) {
       [baseAddress1, baseAddress2, baseCity, baseProvince, basePostcode, baseCountry].filter(Boolean).join(", ");
 
     // Validation
-    if (!companyName) return NextResponse.json({ error: "Company name is required." },         { status: 400 });
-    if (!contactName) return NextResponse.json({ error: "Contact name is required." },         { status: 400 });
-    if (!email)       return NextResponse.json({ error: "Email is required." },                { status: 400 });
-    if (!phone)       return NextResponse.json({ error: "Phone is required." },                { status: 400 });
+    if (!companyName) return NextResponse.json({ error: "Company name is required." },            { status: 400 });
+    if (!contactName) return NextResponse.json({ error: "Contact name is required." },            { status: 400 });
+    if (!email)       return NextResponse.json({ error: "Email is required." },                   { status: 400 });
+    if (!phone)       return NextResponse.json({ error: "Phone is required." },                   { status: 400 });
     if (!password || password.length < 8)
                       return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
     if (!address1)    return NextResponse.json({ error: "Business address line 1 is required." }, { status: 400 });
-    if (!province)    return NextResponse.json({ error: "Province / State is required." },     { status: 400 });
-    if (!postcode)    return NextResponse.json({ error: "Postcode is required." },             { status: 400 });
-    if (!country)     return NextResponse.json({ error: "Country is required." },              { status: 400 });
+    if (!province)    return NextResponse.json({ error: "Province / State is required." },        { status: 400 });
+    if (!postcode)    return NextResponse.json({ error: "Postcode is required." },                { status: 400 });
+    if (!country)     return NextResponse.json({ error: "Country is required." },                 { status: 400 });
+
+    // Derive email locale from country
+    const signupLocale = deriveLocale(country);
 
     const db = createServiceRoleSupabaseClient();
 
@@ -160,7 +168,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: profileErr.message }, { status: 400 });
     }
 
-    await sendApplicationReceivedEmail(email);
+    await sendApplicationReceivedEmail(email, signupLocale);
     return NextResponse.json({ ok: true, user_id: userId, email_sent: true }, { status: 200 });
 
   } catch (e: any) {

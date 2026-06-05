@@ -1,8 +1,11 @@
-export const TERMS_VERSION = "2026-06b";
+export const TERMS_VERSION   = "2026-06b";
 export const TERMS_EFFECTIVE = "1 June 2026";
 
 export type TermsSection = { title: string; clauses: string[] };
 
+// ---------------------------------------------------------------------------
+// ENGLISH
+// ---------------------------------------------------------------------------
 export const PARTNER_TERMS: TermsSection[] = [
   {
     title: "1. Definitions",
@@ -199,7 +202,209 @@ export const PARTNER_TERMS: TermsSection[] = [
   },
 ];
 
-export async function downloadPartnerTermsPDF() {
+// ---------------------------------------------------------------------------
+// SPANISH — ⚠️ Requires legal review before publishing
+// ---------------------------------------------------------------------------
+export const PARTNER_TERMS_ES: TermsSection[] = [
+  {
+    title: "1. Definiciones",
+    clauses: [
+      '"Acuerdo" significa estos Términos y Condiciones para Socios junto con las Reglas Operativas para Socios, que se incorporan por referencia y forman parte de este Acuerdo.',
+      '"Camel Global", "nosotros", "nos" o "nuestro" significa NTUK Ltd, empresa registrada en Inglaterra y Gales (número de empresa 08765474), que opera bajo el nombre comercial Camel Global. Nuestra dirección registrada es Office 7, 35-37 Ludgate Hill, Londres, Inglaterra, EC4M 7JN.',
+      '"Socio", "usted" o "su" significa la empresa independiente de alquiler de vehículos que se ha registrado en la Plataforma y ha aceptado este Acuerdo.',
+      '"Plataforma" significa el mercado digital de Camel Global, portales, APIs y servicios asociados disponibles en camel-global.com.',
+      '"Cliente" significa cualquier usuario final que envía una solicitud de alquiler de vehículo a través de la Plataforma.',
+      '"Reserva" significa un acuerdo de alquiler confirmado entre un Cliente y un Socio facilitado a través de la Plataforma.',
+      '"Comisión" significa la tarifa cobrada por Camel Global al Socio por el uso de la Plataforma, según se establece en la cláusula 7.',
+      '"Precio de Alquiler" significa el precio ofertado y aceptado por el elemento de alquiler del vehículo de una Reserva, excluyendo cualquier cargo por combustible.',
+      '"Cargo por Combustible" significa el importe cobrado al Cliente por el combustible consumido durante una Reserva, calculado de conformidad con las Reglas Operativas para Socios.',
+      '"Reglas Operativas para Socios" significa los estándares operativos y requisitos de conducta publicados en la sección de gestión de cuentas de socios, actualizados periódicamente.',
+      '"Servicios" significa la facilitación del mercado, gestión de reservas, procesamiento de pagos y servicios relacionados prestados por Camel Global a través de la Plataforma.',
+      '"Tarifa de Procesamiento de Stripe" significa la tarifa de procesamiento de pagos cobrada por Stripe en cada transacción. La tarifa varía según el método de pago, el tipo de tarjeta del Cliente y el país emisor. La tarifa exacta aplicada a cada Reserva es visible en la página de detalle de su reserva y en sus informes. La Tarifa de Procesamiento de Stripe es absorbida por Camel Global y no se deduce del pago al Socio.',
+      '"Divisa de Oferta" significa la divisa en la que el Socio envía su oferta, que es la divisa de facturación registrada del Socio establecida durante la incorporación a Stripe.',
+    ],
+  },
+  {
+    title: "2. Naturaleza de la Relación — Camel como Intermediario",
+    clauses: [
+      "Camel Global opera como intermediario de mercado y plataforma tecnológica. Camel Global no es un operador de alquiler de vehículos, no posee ni opera vehículos propios y no emplea conductores.",
+      "El contrato legal para la prestación de servicios de alquiler de vehículos se celebra directamente entre el Socio y el Cliente. Camel Global no es parte de dicho contrato y no acepta ninguna responsabilidad por su cumplimiento.",
+      "Camel Global no actúa como agente de ninguna de las partes en la conclusión de una Reserva. El Socio es el proveedor de servicios y emite toda la documentación pertinente, incluidas las facturas de IVA, directamente a los Clientes.",
+      "El Socio reconoce que el papel de Camel Global se limita a: (a) operar la Plataforma; (b) facilitar la presentación de Clientes a Socios; (c) procesar pagos en nombre de los Socios como intermediario declarado; y (d) proporcionar las herramientas descritas en las Reglas Operativas para Socios.",
+      "Nada en este Acuerdo crea una relación laboral, agencia, asociación, empresa conjunta o franquicia entre Camel Global y el Socio o cualquiera de los conductores o empleados del Socio.",
+      "El Socio no debe representar ante ningún Cliente o tercero que Camel Global es el proveedor de servicios de alquiler de vehículos, ni que los conductores son empleados o agentes de Camel Global.",
+    ],
+  },
+  {
+    title: "3. Registro y Cuenta",
+    clauses: [
+      "Para utilizar la Plataforma, el Socio debe completar el proceso de registro, proporcionar información precisa y completa, y recibir la aprobación de Camel Global.",
+      "El Socio garantiza que toda la información proporcionada durante el registro y en cualquier momento posterior es verdadera, precisa, actual y completa.",
+      "El Socio es responsable de mantener la confidencialidad de las credenciales de su cuenta y de toda la actividad que se produzca en ella.",
+      "El Socio debe notificar a Camel Global de inmediato cualquier uso no autorizado de su cuenta o cualquier otra violación de seguridad.",
+      "Camel Global se reserva el derecho de rechazar el registro o suspender o cancelar una cuenta en cualquier momento de conformidad con la cláusula 14.",
+      "Cada cuenta de socio es para una única entidad legal. El Socio no debe crear varias cuentas ni permitir que terceros utilicen su cuenta.",
+      "El Socio debe mantener sus datos registrados actualizados en todo momento, incluyendo el nombre legal de la empresa, el número de IVA/NIF y la información de contacto.",
+    ],
+  },
+  {
+    title: "4. Obligaciones del Socio",
+    clauses: [
+      "El Socio debe cumplir en todo momento con las Reglas Operativas para Socios. Las Reglas Operativas se incorporan a este Acuerdo y tienen la misma fuerza legal.",
+      "El Socio debe mantener todas las licencias, permisos, registros y pólizas de seguro requeridos por la ley aplicable para operar un negocio de alquiler de vehículos en su jurisdicción.",
+      "El Socio debe asegurarse de que todos los vehículos ofrecidos a través de la Plataforma estén en condiciones de circulación, legalmente registrados, completamente asegurados y cumplan con los estándares establecidos en las Reglas Operativas.",
+      "El Socio es el único responsable de la conducta de todos los conductores registrados bajo su cuenta y de garantizar que dichos conductores cumplan con los estándares establecidos en las Reglas Operativas.",
+      "El Socio debe cumplir con cada Reserva que acepte. El incumplimiento de una Reserva confirmada sin justificación excepcional constituye un incumplimiento material de este Acuerdo.",
+      "El Socio no debe utilizar la Plataforma para ofrecer servicios que no pueda prestar, enviar ofertas sobre solicitudes que no pueda cumplir, ni participar en ninguna práctica que induzca a error a los Clientes.",
+      "El Socio debe responder a las consultas y reclamaciones de los Clientes dentro de los plazos establecidos en las Reglas Operativas.",
+      "El Socio debe registrar con precisión todos los niveles de combustible utilizando la aplicación de conductores de Camel Global en cada entrega y recogida, de conformidad con la política de combustible de las Reglas Operativas.",
+    ],
+  },
+  {
+    title: "5. Obligaciones de Camel Global",
+    clauses: [
+      "Camel Global empleará esfuerzos razonables para que la Plataforma esté disponible las 24 horas del día, los 7 días de la semana, sujeto a mantenimiento planificado y eventos fuera de nuestro control.",
+      "Camel Global procesará las Reservas, los pagos y las notificaciones de acuerdo con la funcionalidad descrita en la Plataforma.",
+      "Camel Global notificará a los Socios sobre nuevas solicitudes de clientes dentro de su radio de servicio de manera oportuna.",
+      "Camel Global proporcionará asistencia a los Socios a través del formulario de contacto y empleará esfuerzos razonables para responder a las consultas en un plazo de 2 días hábiles.",
+      "Camel Global dará a los Socios al menos 14 días de aviso por escrito de cualquier cambio material en estos Términos o en las Reglas Operativas.",
+      "Camel Global no garantiza ningún volumen mínimo de Reservas o ingresos a ningún Socio.",
+    ],
+  },
+  {
+    title: "6. Reservas y Precios",
+    clauses: [
+      "Los Socios pueden hacer ofertas sobre cualquier solicitud de cliente que se encuentre dentro de su radio de servicio registrado.",
+      "Todos los precios enviados por los Socios deben ser totalmente inclusivos de todos los costes. No se pueden añadir cargos adicionales al Cliente después de que se acepte una oferta.",
+      "El Socio queda vinculado por el precio que oferta una vez confirmada la Reserva.",
+      "Los Socios solo pueden enviar una oferta por solicitud de cliente. Las ofertas enviadas después de que se haya cerrado la ventana de oferta no serán aceptadas.",
+      "El Socio reconoce que los Clientes no tienen obligación de aceptar ninguna oferta.",
+      "Camel Global se reserva el derecho de eliminar ofertas que parezcan inexactas, incompletas o en incumplimiento de estos Términos.",
+      "Cuando el Socio aplique un límite de kilometraje o requiera un depósito de seguridad, estos deben indicarse claramente en la oferta antes de que el Cliente la acepte. El Socio es el único responsable de cobrar dichos importes directamente al Cliente en el momento de la entrega del vehículo. Estos pagos están completamente fuera del sistema de pagos de Camel Global — Camel Global no cobra, retiene ni procesa cargos por kilometraje ni depósitos de seguridad en nombre de los Socios.",
+      "El Socio reconoce que es su exclusiva responsabilidad realizar sus propios arreglos para cobrar cualquier depósito de seguridad o cargo por exceso de kilometraje en el momento de la recogida o devolución. Camel Global no acepta ninguna responsabilidad por el incumplimiento del Socio en el cobro de dichos importes, y ninguna disputa derivada de un depósito de seguridad o cargo por kilometraje está sujeta al proceso de resolución de disputas de Camel Global.",
+    ],
+  },
+  {
+    title: "7. Comisión y Pagos",
+    clauses: [
+      "Camel Global cobra una comisión sobre el Precio de Alquiler de cada Reserva completada. La tasa de comisión estándar es del 20% del Precio de Alquiler, sujeta a una comisión mínima de 10 € (o equivalente en divisa) por Reserva. Las tasas de comisión pueden reducirse para Socios individuales mediante acuerdo con Camel Global — la tasa aplicable a su cuenta se muestra en su página de envío de ofertas y en su cuenta.",
+      "Los Cargos por Combustible se transfieren al Socio en su totalidad. Camel Global no cobra comisión sobre los Cargos por Combustible.",
+      "El pago al Socio por cada Reserva se calcula como: Precio de Alquiler menos Comisión, más Cargo por Combustible. Camel Global absorbe todas las Tarifas de Procesamiento de Stripe — estas no se deducen del pago al Socio.",
+      "Los pagos se procesarán a través de Stripe Connect. El Socio debe completar la incorporación a Stripe Express para recibir pagos. La divisa de facturación del Socio se establece en el momento de la incorporación a Stripe y determina la divisa en la que se reciben los pagos.",
+      "Camel Global retiene su comisión íntegramente de cada Reserva. La Tarifa de Procesamiento de Stripe es asumida íntegramente por Camel Global y nunca se deduce del pago al Socio.",
+      "Camel Global emitirá facturas de comisión a los Socios mensualmente con tratamiento de inversión del sujeto pasivo según el Artículo 44/196 de la Directiva de IVA de la UE cuando sea aplicable.",
+      "El Socio es el único responsable de contabilizar y pagar todos los impuestos sobre los ingresos recibidos a través de la Plataforma.",
+      "En caso de una disputa de reembolso del Cliente, la responsabilidad financiera recae en el Socio.",
+      "Todos los reembolsos de combustible adeudados a los Clientes son procesados automáticamente por la Plataforma desde el saldo de la cuenta conectada del Socio.",
+    ],
+  },
+  {
+    title: "7b. Tarifas de Procesamiento de Stripe y Divisa",
+    clauses: [
+      "Todos los pagos realizados por los Clientes a través de la Plataforma son procesados por Stripe. Stripe cobra una tarifa de procesamiento por cada transacción. Camel Global absorbe esta tarifa en su totalidad — la Tarifa de Procesamiento de Stripe nunca se deduce del pago al Socio.",
+      "El pago neto al Socio es el Precio de Alquiler menos la Comisión de Camel, más el Cargo por Combustible. No se deduce ninguna tarifa de Stripe de este importe.",
+      "La divisa de facturación del Socio se establece de forma permanente en el momento de la incorporación a Stripe Express. Los pagos siempre se realizan en la divisa de facturación registrada del Socio. Esta divisa no puede modificarse después de la incorporación — los Socios que necesiten cambiar su divisa de facturación deben ponerse en contacto con el servicio de asistencia de Camel Global.",
+      "Los Clientes siempre pagan en la divisa de oferta del Socio. No se aplica ninguna conversión de divisa entre el pago del Cliente y el saldo de Stripe del Socio.",
+      "La Tarifa de Procesamiento de Stripe exacta aplicada a cada Reserva es visible en la página de detalle de su reserva y en sus informes y exportaciones CSV. Esta tarifa se muestra a efectos de transparencia e información — representa el coste asumido por Camel Global, no una deducción de su pago.",
+      "El Socio reconoce que Camel Global no tiene control sobre las tarifas establecidas o cobradas por Stripe. Camel Global se reserva el derecho de revisar su política de absorción de tarifas en el futuro con al menos 14 días de aviso por escrito a los Socios.",
+    ],
+  },
+  {
+    title: "8. Cancelaciones y Reembolsos",
+    clauses: [
+      "La siguiente política de cancelación se aplica a todas las Reservas realizadas a través de la Plataforma. La marca de tiempo de cancelación es registrada automáticamente por la Plataforma en el momento en que se confirma una cancelación.",
+      "Si el Socio cancela una Reserva confirmada por cualquier motivo, el Cliente recibirá un reembolso completo de todo lo pagado, incluido el Precio de Alquiler y el depósito de combustible. Las cancelaciones del Socio constituyen un incumplimiento de la cláusula 4 y pueden resultar en la suspensión de la cuenta.",
+      "Si el Cliente cancela una Reserva con más de 48 horas de antelación respecto a la hora de recogida programada, el Cliente recibe un reembolso completo de todo lo pagado. El Socio no recibe ningún pago por esa Reserva.",
+      "Si el Cliente cancela una Reserva dentro de las 48 horas anteriores a la hora de recogida programada, el Precio de Alquiler no es reembolsable y el Socio retiene su pago neto (Precio de Alquiler menos Comisión). El depósito de combustible siempre se reembolsa al Cliente en su totalidad ya que el combustible no ha sido utilizado.",
+      "Una vez recogido el vehículo y en curso el alquiler, no es posible ninguna cancelación y no se dispone de reembolso del Precio de Alquiler. El combustible se liquida en función del uso real al final del alquiler.",
+      "El administrador de Camel Global puede cancelar cualquier Reserva en cualquier momento y emitirá un reembolso completo al Cliente. El Socio será notificado por correo electrónico.",
+      "Todos los reembolsos son procesados automáticamente por la Plataforma y aparecerán en la cuenta del Cliente en un plazo de 5 a 10 días hábiles.",
+      "El umbral de 48 horas se mide desde la hora de recogida programada registrada en la Reserva en el momento de la confirmación. Cualquier cambio en la hora de recogida acordado entre las partes no altera retroactivamente el umbral.",
+    ],
+  },
+  {
+    title: "9. IVA e Impuestos",
+    clauses: [
+      "El Socio es responsable de cobrar y contabilizar el IVA sobre el precio total de la Reserva pagado por el Cliente.",
+      "Camel Global facturará al Socio la comisión utilizando el mecanismo de inversión del sujeto pasivo según el Artículo 44/196 de la Directiva de IVA de la UE.",
+      "Los Socios que operen en España deben proporcionar un NIF válido. Esto es necesario para la activación de la cuenta y la facturación de comisiones.",
+      "Es responsabilidad del Socio buscar asesoramiento fiscal independiente. Camel Global no proporciona asesoramiento fiscal.",
+    ],
+  },
+  {
+    title: "10. Seguro",
+    clauses: [
+      "El Socio es el único responsable de garantizar que todos los vehículos estén completamente asegurados en todo momento.",
+      "El Socio debe mantener un seguro de responsabilidad civil con una cobertura mínima de 5.000.000 €.",
+      "Cuando una oferta indique 'Seguro Completo Incluido', esto debe representar un seguro a todo riesgo genuino.",
+      "El Socio indemniza a Camel Global frente a todas las reclamaciones derivadas de cualquier accidente o responsabilidad relacionada con los vehículos o conductores del Socio.",
+      "Camel Global no es responsable de ninguna pérdida, daño, lesión o muerte causada por un vehículo, conductor u operaciones del Socio.",
+      "El Socio debe informar de cualquier accidente, robo o incidente significativo relacionado con una Reserva de Camel Global en un plazo de 24 horas.",
+    ],
+  },
+  {
+    title: "11. Propiedad Intelectual",
+    clauses: [
+      "Camel Global conserva todos los derechos de propiedad intelectual sobre la Plataforma.",
+      "Al Socio se le otorga una licencia limitada, no exclusiva e intransferible para utilizar la Plataforma únicamente para el cumplimiento de Reservas.",
+      "El Socio no debe copiar, realizar ingeniería inversa, modificar ni crear obras derivadas de ninguna parte de la Plataforma.",
+      "El Socio otorga a Camel Global una licencia para mostrar el nombre y perfil de la empresa del Socio a los Clientes en la Plataforma.",
+    ],
+  },
+  {
+    title: "12. Protección de Datos y RGPD",
+    clauses: [
+      "Cada parte deberá cumplir con toda la legislación aplicable en materia de protección de datos, incluidos el RGPD del Reino Unido y el RGPD de la UE.",
+      "Los datos personales del Cliente solo pueden ser procesados por el Socio con el fin de cumplir la Reserva específica para la que fueron compartidos.",
+      "El Socio no debe utilizar los datos del Cliente para marketing, elaboración de perfiles, retargeting ni venta a terceros.",
+      "El Socio debe implementar medidas apropiadas para proteger los datos del Cliente contra el acceso no autorizado, la pérdida o la divulgación.",
+      "A petición, el Socio debe eliminar todos los datos personales relativos a un Cliente en un plazo de 30 días.",
+      "El Socio debe notificar a Camel Global cualquier violación de datos personales en un plazo de 72 horas desde que tenga conocimiento de ella.",
+    ],
+  },
+  {
+    title: "13. Responsabilidad",
+    clauses: [
+      "Nada en este Acuerdo limita la responsabilidad por muerte o lesiones personales causadas por negligencia o fraude.",
+      "La responsabilidad agregada total de Camel Global no excederá el total de comisiones pagadas por el Socio en los 3 meses anteriores a la reclamación.",
+      "Camel Global no será responsable de ninguna pérdida indirecta, consecuente, especial o punitiva, incluida la pérdida de beneficios o ingresos.",
+      "Camel Global no será responsable de las pérdidas derivadas del incumplimiento de estos Términos por parte del Socio ni de las acciones de los conductores del Socio.",
+    ],
+  },
+  {
+    title: "14. Suspensión y Resolución",
+    clauses: [
+      "Camel Global puede suspender una cuenta de Socio de inmediato ante una reclamación grave de un cliente, incumplimiento de estándares, falta de cumplimiento de una Reserva o tergiversación.",
+      "Tras la suspensión, el Socio será notificado por correo electrónico y dispondrá de 5 días hábiles para responder.",
+      "Camel Global puede resolver definitivamente este Acuerdo por incumplimientos reiterados o una sola infracción grave.",
+      "El Socio puede resolver el Acuerdo proporcionando un aviso por escrito de 30 días a través del formulario de contacto, siempre que no queden Reservas activas.",
+      "Al resolver el Acuerdo, se revoca el acceso a la Plataforma, los importes pendientes se hacen inmediatamente exigibles y los datos del Cliente deben eliminarse en un plazo de 30 días.",
+    ],
+  },
+  {
+    title: "15. Modificaciones",
+    clauses: [
+      "Camel Global se reserva el derecho de modificar estos Términos en cualquier momento.",
+      "Los Socios serán notificados de los cambios materiales por correo electrónico con al menos 14 días de antelación.",
+      "El uso continuado de la Plataforma tras el período de notificación constituye la aceptación de los Términos actualizados.",
+      "La versión actual siempre está disponible en camel-global.com/partner/terms.",
+    ],
+  },
+  {
+    title: "16. Disposiciones Generales",
+    clauses: [
+      "Este Acuerdo constituye el acuerdo completo entre las partes en relación con su objeto.",
+      "Si alguna disposición se considera inválida o inaplicable, las disposiciones restantes continúan en plena vigencia.",
+      "El Socio no puede ceder derechos u obligaciones sin el consentimiento previo por escrito de Camel Global.",
+      "Este Acuerdo se rige por las leyes de Inglaterra y Gales. Cada parte se somete a la jurisdicción exclusiva de los tribunales de Inglaterra y Gales.",
+    ],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// PDF generator — bilingual when locale === "es"
+// ---------------------------------------------------------------------------
+export async function downloadPartnerTermsPDF(locale: "en" | "es" = "en") {
   const { jsPDF } = await import("jspdf");
   const dateStr = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -208,46 +413,92 @@ export async function downloadPartnerTermsPDF() {
   const margin = 15;
   const usableW = pageW - margin * 2;
   let y = margin;
+
   function checkPage(needed = 8) {
     if (y + needed > pageH - margin) { doc.addPage(); y = margin; }
   }
-  doc.setFillColor(0, 0, 0);
-  doc.rect(0, 0, pageW, 18, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13); doc.setFont("helvetica", "bold");
-  doc.text("CAMEL GLOBAL", margin, 7);
-  doc.setFontSize(8); doc.setFont("helvetica", "normal");
-  doc.text("Meet and greet car hire", margin, 12);
-  doc.text("Partner Terms and Conditions", pageW - margin, 7, { align: "right" });
-  doc.text(`Version: ${TERMS_VERSION} — Effective: ${TERMS_EFFECTIVE}`, pageW - margin, 11, { align: "right" });
-  doc.text(`Generated: ${dateStr}`, pageW - margin, 15, { align: "right" });
+
+  function renderHeader() {
+    doc.setFillColor(0, 0, 0);
+    doc.rect(0, 0, pageW, 18, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13); doc.setFont("helvetica", "bold");
+    doc.text("CAMEL GLOBAL", margin, 7);
+    doc.setFontSize(8); doc.setFont("helvetica", "normal");
+    doc.text("Meet and greet car hire", margin, 12);
+    doc.text("Partner Terms and Conditions", pageW - margin, 7, { align: "right" });
+    doc.text(`Version: ${TERMS_VERSION} — Effective: ${TERMS_EFFECTIVE}`, pageW - margin, 11, { align: "right" });
+    doc.text(`Generated: ${dateStr}`, pageW - margin, 15, { align: "right" });
+  }
+
+  function renderTermsSection(sections: TermsSection[], lang: "en" | "es") {
+    for (const { title, clauses } of sections) {
+      checkPage(12);
+      doc.setFillColor(lang === "es" ? 230 : 240, lang === "es" ? 240 : 240, lang === "es" ? 255 : 240);
+      doc.rect(margin, y - 4, usableW, 9, "F");
+      doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 0, 0);
+      doc.text(title, margin + 3, y + 2); y += 9;
+      clauses.forEach((clause, i) => {
+        checkPage(8);
+        const lines = doc.splitTextToSize(`${i + 1}.  ${clause}`, usableW - 6);
+        doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(51, 51, 51);
+        doc.text(lines, margin + 4, y);
+        y += lines.length * 4.5 + 1.5;
+      });
+      y += 4;
+    }
+  }
+
+  renderHeader();
   y = 26;
+
+  // Title page
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(16); doc.setFont("helvetica", "bold");
   doc.text("Partner Terms and Conditions", margin, y); y += 7;
   doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(100, 100, 100);
-  const subtitle = doc.splitTextToSize(
+  const subtitleEN = doc.splitTextToSize(
     "These Terms govern your use of the Camel Global platform as a partner. By registering as a partner you agree to be bound by these Terms in full.",
     usableW
   );
-  doc.text(subtitle, margin, y); y += subtitle.length * 4 + 6;
+  doc.text(subtitleEN, margin, y); y += subtitleEN.length * 4 + 4;
+
+  if (locale === "es") {
+    doc.setFontSize(8); doc.setFont("helvetica", "italic"); doc.setTextColor(80, 80, 160);
+    const subtitleES = doc.splitTextToSize(
+      "Estos Términos rigen el uso de la plataforma Camel Global como socio. Al registrarse como socio, acepta quedar vinculado por estos Términos en su totalidad.",
+      usableW
+    );
+    doc.text(subtitleES, margin, y); y += subtitleES.length * 4 + 4;
+  }
+
   doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3);
   doc.line(margin, y, pageW - margin, y); y += 6;
-  for (const { title, clauses } of PARTNER_TERMS) {
-    checkPage(12);
-    doc.setFillColor(240, 240, 240);
-    doc.rect(margin, y - 4, usableW, 9, "F");
-    doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 0, 0);
-    doc.text(title, margin + 3, y + 2); y += 9;
-    clauses.forEach((clause, i) => {
-      checkPage(8);
-      const lines = doc.splitTextToSize(`${i + 1}.  ${clause}`, usableW - 6);
-      doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(51, 51, 51);
-      doc.text(lines, margin + 4, y);
-      y += lines.length * 4.5 + 1.5;
-    });
-    y += 4;
+
+  // English section
+  renderTermsSection(PARTNER_TERMS, "en");
+
+  if (locale === "es") {
+    // Divider between EN and ES
+    checkPage(16);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(margin, y, usableW, 10, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text("VERSIÓN EN ESPAÑOL / SPANISH VERSION", margin + 3, y + 7);
+    y += 16;
+    doc.setTextColor(80, 80, 160);
+    doc.setFontSize(7); doc.setFont("helvetica", "italic");
+    const legalNote = doc.splitTextToSize(
+      "⚠️  La versión en inglés prevalece en caso de conflicto. Esta traducción se proporciona únicamente como referencia. The English version prevails in the event of any conflict.",
+      usableW
+    );
+    doc.text(legalNote, margin, y); y += legalNote.length * 4 + 6;
+    doc.setTextColor(0, 0, 0);
+    renderTermsSection(PARTNER_TERMS_ES, "es");
   }
+
+  // Footer on every page
   const totalPages = (doc.internal as any).getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
@@ -257,5 +508,6 @@ export async function downloadPartnerTermsPDF() {
     doc.text(`Camel Global Partner Terms and Conditions — Version ${TERMS_VERSION} — camel-global.com`, margin, pageH - 6);
     doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 6, { align: "right" });
   }
-  doc.save(`Camel-Global-Partner-Terms-${TERMS_VERSION}.pdf`);
+
+  doc.save(`Camel-Global-Partner-Terms-${TERMS_VERSION}${locale === "es" ? "-ES" : ""}.pdf`);
 }

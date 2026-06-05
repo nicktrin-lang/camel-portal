@@ -67,84 +67,155 @@ export async function sendEmail({
   return json;
 }
 
-export async function sendApplicationReceivedEmail(to: string) {
+// ---------------------------------------------------------------------------
+// Shared email wrapper — black header + light body, consistent brand style
+// ---------------------------------------------------------------------------
+function brandEmail(headingEN: string, headingES: string | null, bodyEN: string, bodyES: string | null, locale: "en" | "es"): string {
+  if (locale === "es" && headingES && bodyES) {
+    return `
+      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
+        <div style="background:#000; padding:24px 32px;">
+          <h2 style="color:#fff; margin:0;">${headingES}</h2>
+        </div>
+        <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
+          ${bodyES}
+          <p style="margin-top:32px; color:#888; font-size:14px;">Saludos,<br/><strong style="color:#222;">El equipo de Camel Global</strong></p>
+        </div>
+      </div>`;
+  }
+  return `
+    <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
+      <div style="background:#000; padding:24px 32px;">
+        <h2 style="color:#fff; margin:0;">${headingEN}</h2>
+      </div>
+      <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
+        ${bodyEN}
+        <p style="margin-top:32px; color:#888; font-size:14px;">Best regards,<br/><strong style="color:#222;">The Camel Global Team</strong></p>
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Partner emails — all accept optional locale (default "en")
+// ---------------------------------------------------------------------------
+
+export async function sendApplicationReceivedEmail(to: string, locale: "en" | "es" = "en") {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
+
+  const subjectEN = "Your Camel Global partner application has been received";
+  const subjectES = "Tu solicitud de socio en Camel Global ha sido recibida";
+
+  const bodyEN = `
+    <p>Thanks for applying to become a Camel Global partner.</p>
+    <p>We have received your application and our team will review it shortly.</p>
+    <p>No action is required at this stage.</p>
+    <p><a href="${baseUrl}/partner/login">Partner login</a></p>`;
+
+  const bodyES = `
+    <p>Gracias por solicitar convertirte en socio de Camel Global.</p>
+    <p>Hemos recibido tu solicitud y nuestro equipo la revisará en breve.</p>
+    <p>No es necesario que hagas nada en este momento.</p>
+    <p><a href="${baseUrl}/partner/login">Acceso para socios</a></p>`;
+
   return sendEmail({
     to,
-    subject: "Your Camel Global partner application has been received",
-    html: `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
-        <h2>Application received</h2>
-        <p>Thanks for applying to become a Camel Global partner.</p>
-        <p>We have received your application and our team will review it shortly.</p>
-        <p>No action is required at this stage.</p>
-        <p><a href="${baseUrl}/partner/login">Partner login</a></p>
-        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
-      </div>
-    `,
+    subject: locale === "es" ? subjectES : subjectEN,
+    html: brandEmail("Application received", "Solicitud recibida", bodyEN, bodyES, locale),
   });
 }
 
-export async function sendApprovalEmail(to: string) {
+export async function sendApprovalEmail(to: string, locale: "en" | "es" = "en") {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
+
+  const subjectEN = "Your Camel Global account has been approved ✅";
+  const subjectES = "Tu cuenta de Camel Global ha sido aprobada ✅";
+
+  const bodyEN = `
+    <p>Your partner account has been approved.</p>
+    <p><strong>You are not live yet.</strong></p>
+    <p>Please log in and complete the following before going live:</p>
+    <ul>
+      <li>Add your fleet</li>
+      <li>Confirm your fleet base address</li>
+      <li>Check your service radius</li>
+    </ul>
+    <p><a href="${baseUrl}/partner/login">Log in here</a></p>`;
+
+  const bodyES = `
+    <p>Tu cuenta de socio ha sido aprobada.</p>
+    <p><strong>Tu cuenta aún no está activa.</strong></p>
+    <p>Por favor, inicia sesión y completa los siguientes pasos antes de activarla:</p>
+    <ul>
+      <li>Añade tu flota</li>
+      <li>Confirma la dirección base de tu flota</li>
+      <li>Comprueba tu radio de servicio</li>
+    </ul>
+    <p><a href="${baseUrl}/partner/login">Acceder aquí</a></p>`;
+
   return sendEmail({
     to,
-    subject: "Your Camel Global account has been approved ✅",
-    html: `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
-        <h2>You're approved ✅</h2>
-        <p>Your partner account has been approved.</p>
-        <p><strong>You are not live yet.</strong></p>
-        <p>Please log in and complete the following before going live:</p>
-        <ul>
-          <li>Add your fleet</li>
-          <li>Confirm your fleet base address</li>
-          <li>Check your service radius</li>
-        </ul>
-        <p><a href="${baseUrl}/partner/login">Log in here</a></p>
-        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
-      </div>
-    `,
+    subject: locale === "es" ? subjectES : subjectEN,
+    html: brandEmail("You're approved ✅", "¡Cuenta aprobada! ✅", bodyEN, bodyES, locale),
   });
 }
 
-export async function sendRejectionEmail(to: string) {
+export async function sendRejectionEmail(to: string, locale: "en" | "es" = "en") {
+  const subjectEN = "Your Camel Global partner application was not approved";
+  const subjectES = "Tu solicitud de socio en Camel Global no ha sido aprobada";
+
+  const bodyEN = `
+    <p>Thank you for your interest in becoming a Camel Global partner.</p>
+    <p>After review, we are unable to approve your application at this time.</p>
+    <p>If you believe this was a mistake or would like to discuss your application, please contact our team.</p>`;
+
+  const bodyES = `
+    <p>Gracias por tu interés en convertirte en socio de Camel Global.</p>
+    <p>Tras la revisión, en este momento no podemos aprobar tu solicitud.</p>
+    <p>Si crees que se trata de un error o deseas hablar sobre tu solicitud, por favor contacta con nuestro equipo.</p>`;
+
   return sendEmail({
     to,
-    subject: "Your Camel Global partner application was not approved",
-    html: `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
-        <h2>Application update</h2>
-        <p>Thank you for your interest in becoming a Camel Global partner.</p>
-        <p>After review, we are unable to approve your application at this time.</p>
-        <p>If you believe this was a mistake or would like to discuss your application, please contact our team.</p>
-        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
-      </div>
-    `,
+    subject: locale === "es" ? subjectES : subjectEN,
+    html: brandEmail("Application update", "Actualización de tu solicitud", bodyEN, bodyES, locale),
   });
 }
 
-export async function sendAccountLiveEmail(to: string) {
+export async function sendAccountLiveEmail(to: string, locale: "en" | "es" = "en") {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
+
+  const subjectEN = "Your Camel Global account is now live 🚀";
+  const subjectES = "Tu cuenta de Camel Global ya está activa 🚀";
+
+  const bodyEN = `
+    <p>Your partner account is now live and ready to receive bookings.</p>
+    <p>Please make sure:</p>
+    <ul>
+      <li>Your fleet is up to date</li>
+      <li>Your service radius is correct</li>
+      <li>Your contact details are current</li>
+    </ul>
+    <p><a href="${baseUrl}/partner/dashboard">Go to dashboard</a></p>`;
+
+  const bodyES = `
+    <p>Tu cuenta de socio ya está activa y lista para recibir reservas.</p>
+    <p>Por favor, asegúrate de que:</p>
+    <ul>
+      <li>Tu flota está actualizada</li>
+      <li>Tu radio de servicio es correcto</li>
+      <li>Tus datos de contacto están al día</li>
+    </ul>
+    <p><a href="${baseUrl}/partner/dashboard">Ir al panel de control</a></p>`;
+
   return sendEmail({
     to,
-    subject: "Your Camel Global account is now live 🚀",
-    html: `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6;">
-        <h2>Your account is now live 🚀</h2>
-        <p>Your partner account is now live and ready to receive bookings.</p>
-        <p>Please make sure:</p>
-        <ul>
-          <li>Your fleet is up to date</li>
-          <li>Your service radius is correct</li>
-          <li>Your contact details are current</li>
-        </ul>
-        <p><a href="${baseUrl}/partner/dashboard">Go to dashboard</a></p>
-        <p style="margin-top:24px;">Best Regards,<br />The Camel Global Team</p>
-      </div>
-    `,
+    subject: locale === "es" ? subjectES : subjectEN,
+    html: brandEmail("Your account is now live 🚀", "Tu cuenta ya está activa 🚀", bodyEN, bodyES, locale),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Customer emails — English only (customer site has no i18n yet)
+// ---------------------------------------------------------------------------
 
 // FIX: was incorrectly linking to portal. Now links to customer site /bookings/[requestId].
 // requestId is the customer_requests.id — matches the /bookings/[id] route on the customer site.
