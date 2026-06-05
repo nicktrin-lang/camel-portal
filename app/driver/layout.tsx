@@ -6,14 +6,46 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import Footer from "@/app/components/Footer";
-import LanguageToggle from "@/lib/i18n/LanguageToggle";
+import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const PUBLIC_DRIVER_PATHS = ["/driver/login", "/driver/signup", "/driver/reset-password"];
+
+/** Compact EN/ES toggle — fits in tight mobile headers */
+function CompactLanguageToggle() {
+  const { locale, setLocale } = useLanguage();
+  const options: { code: Locale; label: string }[] = [
+    { code: "en", label: "EN" },
+    { code: "es", label: "ES" },
+  ];
+  return (
+    <div className="flex items-center border border-white/20 overflow-hidden">
+      {options.map(({ code, label }, i) => (
+        <button
+          key={code}
+          type="button"
+          onClick={() => setLocale(code)}
+          className={[
+            "px-2 py-1.5 text-xs font-black transition-colors",
+            i < options.length - 1 ? "border-r border-white/20" : "",
+            locale === code
+              ? "bg-[#ff7a00] text-white"
+              : "text-white/60 hover:bg-white/10 hover:text-white",
+          ].join(" ")}
+          aria-label={`Switch to ${label}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function DriverLayout({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router   = useRouter();
   const pathname = usePathname();
+  const { t }    = useTranslation();
 
   const [loading,     setLoading]     = useState(true);
   const [driverName,  setDriverName]  = useState("");
@@ -59,7 +91,7 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
               <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
             </Link>
             <div className="flex items-center gap-3">
-              <LanguageToggle />
+              <CompactLanguageToggle />
               <Link href="/" className="text-sm font-bold text-white/60 hover:text-white transition-colors">
                 Partner Portal →
               </Link>
@@ -76,7 +108,7 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
       <div className="min-h-screen bg-[#f0f0f0] pt-[76px]">
         <div className="px-4 py-8">
           <div className="border border-black/5 bg-white p-8">
-            <p className="text-sm font-semibold text-black/50">Loading driver portal…</p>
+            <p className="text-sm font-semibold text-black/50">{t("driver.loading")}</p>
           </div>
         </div>
       </div>
@@ -91,21 +123,21 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
           <Link href="/">
             <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} priority className="h-12 w-auto brightness-0 invert" />
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             {driverName && (
               <div className="hidden flex-col items-end md:flex">
                 <span className="text-sm font-bold text-white">{driverName}</span>
                 {companyName && <span className="text-xs text-white/60">{companyName}</span>}
               </div>
             )}
-            <LanguageToggle />
-            <span className="border border-white/20 px-3 py-1 text-xs font-black text-white uppercase tracking-widest">Driver</span>
+            <CompactLanguageToggle />
+            <span className="border border-white/20 px-2 py-1 text-xs font-black text-white uppercase tracking-widest">Driver</span>
             <button
               type="button"
               onClick={handleLogout}
-              className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors"
+              className="border border-white/30 px-3 py-2 text-xs font-black text-white hover:bg-white/10 transition-colors md:px-4 md:py-2.5 md:text-sm"
             >
-              Logout
+              {t("common.logout")}
             </button>
           </div>
         </div>

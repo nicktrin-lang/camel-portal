@@ -8,7 +8,7 @@ import HCaptcha from "@/app/components/HCaptcha";
 import { CITIES, citiesByCountry, type CityEntry } from "@/lib/cities";
 import { downloadPartnerTermsPDF } from "@/lib/portal/partnerTerms";
 import { useTranslation } from "@/lib/i18n/useTranslation";
-import LanguageToggle from "@/lib/i18n/LanguageToggle";
+import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
 
 const inputCls     = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
 const labelCls     = "block text-xs font-black uppercase tracking-widest text-black mb-2";
@@ -41,6 +41,36 @@ const EMPTY: FormData = {
   fleetAddress1: "", fleetAddress2: "", fleetCity: "", fleetProvince: "", fleetPostcode: "", fleetCountry: "Spain",
   fleetLat: null, fleetLng: null, password: "", confirmPassword: "", agreedToTerms: false,
 };
+
+/** Compact EN/ES toggle for tight mobile headers */
+function CompactLanguageToggle() {
+  const { locale, setLocale } = useLanguage();
+  const options: { code: Locale; label: string }[] = [
+    { code: "en", label: "EN" },
+    { code: "es", label: "ES" },
+  ];
+  return (
+    <div className="flex items-center border border-white/20 overflow-hidden">
+      {options.map(({ code, label }, i) => (
+        <button
+          key={code}
+          type="button"
+          onClick={() => setLocale(code)}
+          className={[
+            "px-2 py-1.5 text-xs font-black transition-colors",
+            i < options.length - 1 ? "border-r border-white/20" : "",
+            locale === code
+              ? "bg-[#ff7a00] text-white"
+              : "text-white/60 hover:bg-white/10 hover:text-white",
+          ].join(" ")}
+          aria-label={`Switch to ${label}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function ProgressBar({ step, stepLabels }: { step: number; stepLabels: string[] }) {
   return (
@@ -506,7 +536,7 @@ export default function PartnerSignupPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
           <Link href="/"><Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" /></Link>
           <div className="flex items-center gap-3">
-            <LanguageToggle />
+            <CompactLanguageToggle />
             <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">{t("common.partnerLogin")}</Link>
           </div>
         </div>

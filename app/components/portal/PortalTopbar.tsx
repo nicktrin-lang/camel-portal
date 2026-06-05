@@ -80,9 +80,11 @@ export default function PortalTopbar({ onMenuClick }: PortalTopbarProps) {
           </Link>
         </div>
 
-        {/* Right — language toggle, name, Book Now, Logout */}
+        {/* Right — language toggle (desktop only), name, Book Now, Logout */}
         <div className="flex items-center gap-3">
-          <LanguageToggle />
+          <div className="hidden lg:flex">
+            <LanguageToggle />
+          </div>
           {displayName && (
             <span className="hidden text-sm font-bold text-white/70 md:block">
               {displayName}

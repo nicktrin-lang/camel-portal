@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
 
 export type PortalRole = "partner" | "admin" | "super_admin";
 
@@ -19,9 +20,10 @@ function isActive(pathname: string, href: string) {
 }
 
 export default function PortalSidebar({ role, open, onClose }: Props) {
-  const { t }     = useTranslation();
-  const pathname  = usePathname() || "";
-  const isPartner = role === "partner";
+  const { t }             = useTranslation();
+  const { locale, setLocale } = useLanguage();
+  const pathname          = usePathname() || "";
+  const isPartner         = role === "partner";
 
   const partnerNavItems = [
     { href: "/partner/dashboard",   label: t("nav.dashboard") },
@@ -50,6 +52,11 @@ export default function PortalSidebar({ role, open, onClose }: Props) {
 
   const navItems = isPartner ? partnerNavItems : adminNavItems;
 
+  const langOptions: { code: Locale; label: string }[] = [
+    { code: "en", label: "EN" },
+    { code: "es", label: "ES" },
+  ];
+
   return (
     <>
       {open && (
@@ -65,6 +72,30 @@ export default function PortalSidebar({ role, open, onClose }: Props) {
         "lg:translate-x-0",
       ].join(" ")}>
         <div className="flex h-full flex-col overflow-y-auto">
+
+          {/* Language selector — mobile only, top of sidebar */}
+          <div className="lg:hidden border-b border-white/10 px-6 py-4">
+            <p className="mb-3 text-xs font-black uppercase tracking-widest text-white/30">{t("settings.language.label")}</p>
+            <div className="flex gap-2">
+              {langOptions.map(({ code, label }) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => setLocale(code)}
+                  className={[
+                    "flex-1 py-2.5 text-sm font-black transition-colors border",
+                    locale === code
+                      ? "bg-[#ff7a00] border-[#ff7a00] text-white"
+                      : "border-white/20 text-white/60 hover:bg-white/10 hover:text-white",
+                  ].join(" ")}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Portal title block */}
           <div className="border-b border-white/10 px-6 pt-7 pb-5">
             <Link href={isPartner ? "/partner/dashboard" : "/admin/approvals"} onClick={onClose} className="block">
               <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">{t("nav.camelGlobal")}</p>
@@ -74,6 +105,8 @@ export default function PortalSidebar({ role, open, onClose }: Props) {
               <p className="mt-1 text-xs font-semibold text-white/40 uppercase tracking-widest">{t("nav.operationsDashboard")}</p>
             </Link>
           </div>
+
+          {/* Nav items */}
           <nav className="flex-1 px-4 py-5">
             <p className="mb-3 px-3 text-xs font-black uppercase tracking-widest text-white/30">{t("nav.navigation")}</p>
             <div className="space-y-0.5">
@@ -90,6 +123,7 @@ export default function PortalSidebar({ role, open, onClose }: Props) {
               })}
             </div>
           </nav>
+
         </div>
       </aside>
     </>
