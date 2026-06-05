@@ -28,6 +28,7 @@ type DriverJob = {
 };
 
 type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
+type FilterType = "all" | "awaiting" | "onhire" | "completed";
 
 const FUEL_OPTIONS: FuelLevel[] = ["full", "3/4", "half", "quarter", "empty"];
 const FUEL_BARS: Record<FuelLevel, number> = { full: 4, "3/4": 3, half: 2, quarter: 1, empty: 0 };
@@ -76,7 +77,6 @@ function statusColor(s: string): string {
 export default function DriverJobsPage() {
   const { t } = useTranslation();
 
-  // Build fuel label map from translations
   const FUEL_LABELS: Record<FuelLevel, string> = {
     full:    t("driver.jobs.fuel.level.full"),
     "3/4":   t("driver.jobs.fuel.level.threequarter"),
@@ -112,6 +112,7 @@ export default function DriverJobsPage() {
   const [confirmError,  setConfirmError]  = useState<string | null>(null);
   const [confirmOk,     setConfirmOk]     = useState<string | null>(null);
   const [lastLoaded,    setLastLoaded]    = useState<Date | null>(null);
+  const [activeFilter,  setActiveFilter]  = useState<FilterType>("all");
 
   async function load() {
     try {
@@ -147,13 +148,16 @@ export default function DriverJobsPage() {
     finally { setConfirmingJob(null); }
   }
 
-  const activeJobs    = useMemo(() => jobs.filter(j => !["completed","cancelled"].includes(j.booking_status.toLowerCase())), [jobs]);
+  const awaitingJobs  = useMemo(() => jobs.filter(j => ["confirmed","driver_assigned","en_route","arrived"].includes(j.booking_status.toLowerCase())), [jobs]);
+  const onHireJobs    = useMemo(() => jobs.filter(j => ["collected","returned"].includes(j.booking_status.toLowerCase())), [jobs]);
   const completedJobs = useMemo(() => jobs.filter(j => j.booking_status.toLowerCase() === "completed"), [jobs]);
   const cancelledJobs = useMemo(() => jobs.filter(j => j.booking_status.toLowerCase() === "cancelled"), [jobs]);
+  const activeJobs    = useMemo(() => jobs.filter(j => !["completed","cancelled"].includes(j.booking_status.toLowerCase())), [jobs]);
 
-  const awaitingDelivery = useMemo(() => jobs.filter(j => ["confirmed","driver_assigned","en_route","arrived"].includes(j.booking_status.toLowerCase())).length, [jobs]);
-  const onHire           = useMemo(() => jobs.filter(j => ["collected","returned"].includes(j.booking_status.toLowerCase())).length, [jobs]);
-  const completedCount   = completedJobs.length;
+  // Jobs to show based on active filter
+  const visibleActive    = activeFilter === "awaiting" ? awaitingJobs : activeFilter === "onhire" ? onHireJobs : activeFilter === "all" ? activeJobs : [];
+  const visibleCompleted = activeFilter === "completed" ? completedJobs : activeFilter === "all" ? completedJobs : [];
+  const visibleCancelled = activeFilter === "all" ? cancelledJobs : [];
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
@@ -189,23 +193,30 @@ export default function DriverJobsPage() {
         </div>
       </div>
 
+      {/* Stat cards — clickable filters */}
       <div className="grid grid-cols-3 gap-3">
-        {[
-          { labelKey:"driver.jobs.stats.awaitingDelivery", value:awaitingDelivery, color:"text-[#ff7a00]", border:"border-[#ff7a00]/20 bg-white" },
-          { labelKey:"driver.jobs.stats.onHire",           value:onHire,           color:"text-black",     border:"border-black/10 bg-white" },
-          { labelKey:"driver.jobs.stats.completed",        value:completedCount,   color:"text-green-600", border:"border-green-200 bg-green-50" },
-        ].map(({ labelKey, value, color, border }) => (
-          <div key={labelKey} className={`border ${border} p-4`}>
-            <p className="text-xs font-black uppercase tracking-widest text-black/40">{t(labelKey as any)}</p>
-            <p className={`mt-1 text-3xl font-black ${color}`}>{value}</p>
-          </div>
-        ))}
+        {([
+          { filter: "awaiting" as FilterType, labelKey: "driver.jobs.stats.awaitingDelivery", value: awaitingJobs.length,  color: "text-[#ff7a00]", activeBorder: "border-[#ff7a00] bg-[#ff7a00]/5", inactiveBorder: "border-[#ff7a00]/20 bg-white" },
+          { filter: "onhire"   as FilterType, labelKey: "driver.jobs.stats.onHire",           value: onHireJobs.length,    color: "text-black",     activeBorder: "border-black bg-black/5",         inactiveBorder: "border-black/10 bg-white" },
+          { filter: "completed"as FilterType, labelKey: "driver.jobs.stats.completed",        value: completedJobs.length, color: "text-green-600", activeBorder: "border-green-500 bg-green-50",    inactiveBorder: "border-green-200 bg-green-50" },
+        ] as const).map(({ filter, labelKey, value, color, activeBorder, inactiveBorder }) => {
+          const isActive = activeFilter === filter;
+          return (
+            <button key={filter} type="button"
+              onClick={() => setActiveFilter(isActive ? "all" : filter)}
+              className={`border p-4 text-left transition-all hover:opacity-80 ${isActive ? activeBorder : inactiveBorder}`}>
+              <p className="text-xs font-black uppercase tracking-widest text-black/40">{t(labelKey as any)}</p>
+              <p className={`mt-1 text-3xl font-black ${color}`}>{value}</p>
+              {isActive && <p className="text-xs font-black text-black/30 mt-1">✕ clear</p>}
+            </button>
+          );
+        })}
       </div>
 
       {confirmOk    && <div className="border border-green-500/30 bg-green-50 px-4 py-3 text-sm font-black text-green-700">{confirmOk}</div>}
       {confirmError && <div className="border border-red-300 bg-red-50 px-4 py-3 text-sm font-black text-red-700">{confirmError}</div>}
 
-      {activeJobs.length === 0 && completedJobs.length === 0 && cancelledJobs.length === 0 ? (
+      {jobs.length === 0 ? (
         <div className="bg-white border border-black/5 p-12 text-center">
           <p className="text-4xl mb-4">🚗</p>
           <p className="text-black font-black text-xl mb-2">{t("driver.jobs.noJobs.title")}</p>
@@ -213,14 +224,14 @@ export default function DriverJobsPage() {
         </div>
       ) : (
         <>
-          {activeJobs.length > 0 && (
+          {visibleActive.length > 0 && (
             <div className="space-y-3">
               <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00] px-1">{t("driver.jobs.active.label")}</p>
-              {activeJobs.map(job => {
-                const isExpanded        = expandedJob === job.booking_id;
-                const collFuelInput     = fuelInputs[`coll_${job.booking_id}`] as FuelLevel | undefined;
-                const retFuelInput      = fuelInputs[`ret_${job.booking_id}`]  as FuelLevel | undefined;
-                const isConfirming      = confirmingJob === job.booking_id;
+              {visibleActive.map(job => {
+                const isExpanded          = expandedJob === job.booking_id;
+                const collFuelInput       = fuelInputs[`coll_${job.booking_id}`] as FuelLevel | undefined;
+                const retFuelInput        = fuelInputs[`ret_${job.booking_id}`]  as FuelLevel | undefined;
+                const isConfirming        = confirmingJob === job.booking_id;
                 const collPartnerOverride = !!normalizeFuel(job.collection_fuel_level_partner);
                 const retPartnerOverride  = !!normalizeFuel(job.return_fuel_level_partner);
 
@@ -386,10 +397,10 @@ export default function DriverJobsPage() {
             </div>
           )}
 
-          {(completedJobs.length > 0 || cancelledJobs.length > 0) && (
+          {(visibleCompleted.length > 0 || visibleCancelled.length > 0) && (
             <div className="space-y-2">
               <p className="text-xs font-black uppercase tracking-widest text-black/30 px-1">{t("driver.jobs.history.label")}</p>
-              {[...completedJobs, ...cancelledJobs].map(job => {
+              {[...visibleCompleted, ...visibleCancelled].map(job => {
                 const isExpanded        = expandedJob === job.booking_id;
                 const effectiveCollFuel = normalizeFuel(job.collection_fuel_level_partner) || normalizeFuel(job.collection_fuel_level_driver);
                 const effectiveRetFuel  = normalizeFuel(job.return_fuel_level_partner)     || normalizeFuel(job.return_fuel_level_driver);
@@ -454,6 +465,13 @@ export default function DriverJobsPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Empty state for active filter */}
+          {activeFilter !== "all" && visibleActive.length === 0 && visibleCompleted.length === 0 && visibleCancelled.length === 0 && (
+            <div className="bg-white border border-black/5 p-10 text-center">
+              <p className="text-black/40 font-bold text-sm">No jobs in this category.</p>
             </div>
           )}
         </>
