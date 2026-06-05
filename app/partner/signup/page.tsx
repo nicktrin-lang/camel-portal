@@ -391,17 +391,17 @@ function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaV
   onSubmit: () => void; submitting: boolean; error: string;
   onCaptchaVerify: (token: string) => void; captchaKey: number;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const bizAddress   = [data.address1, data.address2, data.city, data.province, data.postcode, data.country].filter(Boolean).join(", ");
   const fleetAddress = [data.fleetAddress1, data.fleetAddress2, data.fleetCity, data.fleetProvince, data.fleetPostcode, data.fleetCountry].filter(Boolean).join(", ");
   const rows: [string, string][] = [
-    [t("signup.step5.company"),     data.companyName],
-    [t("signup.step5.contact"),     data.contactName],
-    [t("signup.step5.email"),       data.email],
-    [t("signup.step5.phone"),       data.phone],
-    [t("signup.step5.website"),     data.website || "—"],
-    [t("signup.step5.bizAddress"),  bizAddress],
-    [t("signup.step5.fleetAddress"),fleetAddress],
+    [t("signup.step5.company"),      data.companyName],
+    [t("signup.step5.contact"),      data.contactName],
+    [t("signup.step5.email"),        data.email],
+    [t("signup.step5.phone"),        data.phone],
+    [t("signup.step5.website"),      data.website || "—"],
+    [t("signup.step5.bizAddress"),   bizAddress],
+    [t("signup.step5.fleetAddress"), fleetAddress],
   ];
   return (
     <div className="space-y-5">
@@ -424,7 +424,7 @@ function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaV
           <input type="checkbox" checked={data.agreedToTerms} onChange={e => onChange("agreedToTerms", e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="text-sm font-semibold text-black">
             {t("signup.step5.terms")}{" "}
-            <button type="button" onClick={downloadPartnerTermsPDF} className="font-black text-black underline hover:opacity-70">{t("signup.step5.termsLink")}</button>
+            <button type="button" onClick={() => downloadPartnerTermsPDF(locale as "en" | "es")} className="font-black text-black underline hover:opacity-70">{t("signup.step5.termsLink")}</button>
             {" "}{t("signup.step5.termsEnd")}
           </span>
         </label>
