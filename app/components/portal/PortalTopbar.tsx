@@ -70,17 +70,11 @@ export default function PortalTopbar({ onMenuClick }: PortalTopbarProps) {
             </svg>
           </button>
           <Link href="/partner/dashboard" className="flex items-center">
-            <Image
-              src="/camel-logo.png"
-              alt="Camel Global"
-              width={200} height={70}
-              priority
-              className="h-16 w-auto brightness-0 invert"
-            />
+            <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
           </Link>
         </div>
 
-        {/* Right — language toggle (desktop only), name, Book Now, Logout */}
+        {/* Right — language toggle (desktop only), name, Logout */}
         <div className="flex items-center gap-3">
           <div className="hidden lg:flex">
             <LanguageToggle />
@@ -90,12 +84,6 @@ export default function PortalTopbar({ onMenuClick }: PortalTopbarProps) {
               {displayName}
             </span>
           )}
-          <Link
-            href="/"
-            className="bg-[#ff7a00] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 transition-opacity"
-          >
-            Book Now
-          </Link>
           <button
             type="button"
             onClick={handleLogout}
