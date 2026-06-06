@@ -3,6 +3,26 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
 import { sendCustomerBidReceivedEmail } from "@/lib/email";
 
+async function getCustomerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, customerEmail: string): Promise<"en" | "es"> {
+  try {
+    // Look up by joining auth.users → customer_profiles via user_id
+    // We don't have customer_user_id on customer_requests so we match via auth email
+    const { data } = await db
+      .from("customer_profiles")
+      .select("communication_locale, user_id")
+      .limit(50);
+    if (!data?.length) return "en";
+    // Match by fetching auth user with that email
+    const { data: usersData } = await db.auth.admin.listUsers();
+    const matchedUser = usersData?.users?.find(u => (u.email || "").toLowerCase() === customerEmail.toLowerCase());
+    if (!matchedUser) return "en";
+    const profile = data.find(p => p.user_id === matchedUser.id);
+    return (profile?.communication_locale === "es") ? "es" : "en";
+  } catch {
+    return "en";
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { user, role } = await getPortalUserRole();
@@ -96,13 +116,15 @@ export async function POST(req: Request) {
         });
       if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 400 });
 
-      // Send bid notification email to customer (fire and forget — don't fail the request if email fails)
+      // Send bid notification email to customer in their preferred language
       if (requestRow.customer_email) {
-        sendCustomerBidReceivedEmail(
-          requestRow.customer_email,
-          requestRow.job_number ?? null,
-          requestRow.id,
-        ).catch(e => console.error("Failed to send bid received email:", e));
+        getCustomerLocale(db, requestRow.customer_email).then(locale =>
+          sendCustomerBidReceivedEmail(
+            requestRow.customer_email,
+            requestRow.job_number ?? null,
+            locale,
+          ).catch(e => console.error("Failed to send bid received email:", e))
+        );
       }
     }
 

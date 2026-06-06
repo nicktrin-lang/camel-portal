@@ -33,24 +33,54 @@ export async function GET(req: Request) {
 
   const reviewedIds = new Set((existingReviews || []).map((r: any) => r.booking_id));
   const toRemind = bookings.filter((b: any) => !reviewedIds.has(b.id));
-
   if (!toRemind.length) return NextResponse.json({ ok: true, sent: 0 }, { status: 200 });
 
   const requestIds = toRemind.map((b: any) => b.request_id).filter(Boolean);
   const { data: requests } = await db
     .from("customer_requests")
-    .select("id, customer_email, customer_name")
+    .select("id, customer_email")
     .in("id", requestIds);
 
   const requestMap = new Map((requests || []).map((r: any) => [r.id, r]));
+
+  // Fetch all customer profiles in one query, then match via auth users
+  const customerEmails = [...new Set(
+    (requests || []).map((r: any) => r.customer_email).filter(Boolean)
+  )];
+
+  // Build email → locale map
+  const emailLocaleMap = new Map<string, "en" | "es">();
+  try {
+    const { data: usersData } = await db.auth.admin.listUsers();
+    const { data: profiles } = await db
+      .from("customer_profiles")
+      .select("user_id, communication_locale");
+
+    if (usersData?.users && profiles) {
+      const profileByUserId = new Map(profiles.map((p: any) => [p.user_id, p.communication_locale]));
+      for (const u of usersData.users) {
+        if (u.email && customerEmails.includes(u.email)) {
+          const loc = profileByUserId.get(u.id);
+          emailLocaleMap.set(u.email.toLowerCase(), loc === "es" ? "es" : "en");
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch customer locales for review reminders:", e);
+  }
 
   let sent = 0;
   for (const booking of toRemind) {
     const request = requestMap.get(booking.request_id);
     if (!request?.customer_email) continue;
+    const locale = emailLocaleMap.get(request.customer_email.toLowerCase()) ?? "en";
     try {
-      // Pass request_id (not booking.id) so the URL resolves correctly on the customer portal
-      await sendReviewReminderEmail(request.customer_email, booking.job_number, booking.request_id);
+      await sendReviewReminderEmail(
+        request.customer_email,
+        booking.job_number,
+        booking.request_id,
+        locale,
+      );
       await db
         .from("partner_bookings")
         .update({ review_reminder_sent_at: new Date().toISOString() })
