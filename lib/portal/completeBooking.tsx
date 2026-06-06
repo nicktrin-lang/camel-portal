@@ -371,6 +371,25 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   const partnerPayout = Math.max(0, carHire - commAmt + fuel_charge);
   const partnerLocale = (partnerProfile?.communication_locale as "en" | "es") || "en";
 
+  // ── Look up customer communication locale ─────────────────────────────────
+  let customerLocale: "en" | "es" = "en";
+  try {
+    const { data: usersData } = await db.auth.admin.listUsers();
+    const matchedUser = usersData?.users?.find(
+      u => (u.email || "").toLowerCase() === (request?.customer_email || "").toLowerCase()
+    );
+    if (matchedUser) {
+      const { data: custProfile } = await db
+        .from("customer_profiles")
+        .select("communication_locale")
+        .eq("user_id", matchedUser.id)
+        .maybeSingle();
+      if (custProfile?.communication_locale === "es") customerLocale = "es";
+    }
+  } catch (e) {
+    console.error("completeBooking: failed to fetch customer locale:", e);
+  }
+
   // ── Generate completion statement PDF — read logo from disk ───────────────
   let statementBase64: string | null = null;
   try {
@@ -408,10 +427,43 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   // ── Email customer ────────────────────────────────────────────────────────
   if (request?.customer_email) {
-    await sendEmail({
-      to: request.customer_email,
-      subject: `Your Camel Global booking is now completed - ${jobNo}`,
-      html: `
+    const custSubject = customerLocale === "es"
+      ? `Tu reserva de Camel Global ha sido completada - ${jobNo}`
+      : `Your Camel Global booking is now completed - ${jobNo}`;
+
+    const custHtml = customerLocale === "es" ? `
+        <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
+          <div style="background:#000;padding:20px 28px;">
+            <h2 style="color:#fff;margin:0;">Reserva completada</h2>
+            <p style="color:#999;margin:4px 0 0;font-size:13px;">Reserva ${jobNo}</p>
+          </div>
+          <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
+            <p>Hola ${request.customer_name || ""},</p>
+            <p>El equipo de Camel Global te agradece tu alquiler de coche completado con <strong>${companyName}</strong>. Esperamos que tu experiencia haya sido todo lo que esperabas.</p>
+            <p>Encontrarás tu Resumen de Finalización de Reserva adjunto a este correo.</p>
+            <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
+              <p style="margin:0 0 8px;font-weight:700;">Resumen de combustible</p>
+              <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#666;">Nivel combustible entrega</td><td style="text-align:right;">${fuelLabel(collectionFuel)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Nivel combustible recogida</td><td style="text-align:right;">${fuelLabel(returnFuel)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Combustible usado</td><td style="text-align:right;">${QUARTER_LABELS[used_quarters]??`${used_quarters}/4 depósito`}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">Cargo combustible</td><td style="text-align:right;">${fmt(fuel_charge)}</td></tr>
+                <tr style="border-top:1px solid #ddd;">
+                  <td style="padding:8px 0 4px;font-weight:700;">Importe final (alquiler + combustible)</td>
+                  <td style="text-align:right;font-weight:700;">${fmt(finalAmount)}</td>
+                </tr>
+              </table>
+              ${fuel_refund > 0
+                ? `<p style="margin:8px 0 0;font-size:13px;color:#22a06b;font-weight:600;">Se ha emitido un reembolso del depósito de combustible de <strong>${fmt(fuel_refund)}</strong> en tu método de pago original. Por favor, permite 5–10 días laborables para que aparezca.</p>`
+                : `<p style="margin:8px 0 0;font-size:13px;color:#666;">No hay reembolso de combustible — el depósito completo cubrió el combustible usado.</p>`
+              }
+            </div>
+            <p style="font-size:13px;color:#666;">Si tienes alguna pregunta, contáctanos en <a href="mailto:info@camel-global.com">info@camel-global.com</a>. Esperamos volverte a ver pronto.</p>
+            <a href="${siteUrl}/bookings" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">Ver mis reservas</a>
+            <p style="margin-top:24px;color:#999;font-size:13px;">Saludos,<br/>El equipo de Camel Global</p>
+          </div>
+        </div>
+      ` : `
         <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
           <div style="background:#000;padding:20px 28px;">
             <h2 style="color:#fff;margin:0;">Booking completed</h2>
@@ -443,7 +495,12 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
             <p style="margin-top:24px;color:#999;font-size:13px;">Best Regards,<br/>The Camel Global Team</p>
           </div>
         </div>
-      `,
+      `;
+
+    await sendEmail({
+      to: request.customer_email,
+      subject: custSubject,
+      html: custHtml,
       ...(statementBase64 ? {
         attachments: [{
           filename: statementFilename,
@@ -545,6 +602,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
           <p>
             <strong>Partner:</strong> ${companyName}<br/>
             <strong>Customer:</strong> ${request?.customer_name || "—"} (${request?.customer_email || "—"})<br/>
+            <strong>Customer email locale:</strong> ${customerLocale}<br/>
             <strong>Fuel used:</strong> ${QUARTER_LABELS[used_quarters]??`${used_quarters}/4`} (${fuelLabel(collectionFuel)} → ${fuelLabel(returnFuel)})<br/>
             <strong>Fuel charge:</strong> ${fmt(fuel_charge)}<br/>
             <strong>Fuel refund:</strong> ${fmt(fuel_refund)}<br/>
