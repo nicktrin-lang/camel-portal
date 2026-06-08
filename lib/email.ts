@@ -222,34 +222,38 @@ export async function sendAccountLiveEmail(to: string, locale: "en" | "es" = "en
 export async function sendCustomerBidReceivedEmail(
   to: string,
   jobNumber?: number | null,
-  requestId?: string | null
+  locale: "en" | "es" = "en"
 ) {
   const customerUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
-  const bookingUrl  = requestId
-    ? `${customerUrl}/bookings/${requestId}`
-    : `${customerUrl}/bookings`;
+  const bookingUrl  = `${customerUrl}/bookings`;
+
+  const subjectEN = `A new partner bid has been received${jobNumber ? ` for booking #${jobNumber}` : ""}`;
+  const subjectES = `Nueva oferta recibida${jobNumber ? ` para la reserva #${jobNumber}` : ""}`;
+
+  const bodyEN = `
+    <p>Hi,</p>
+    <p>A car hire company has submitted a bid for your booking request${jobNumber ? ` <strong>#${jobNumber}</strong>` : ""}.</p>
+    <p>Log in to view the full price breakdown and accept the offer that suits you best.</p>
+    <p style="margin:24px 0;">
+      <a href="${bookingUrl}" style="background:#ff7a00; color:#fff; padding:12px 28px; text-decoration:none; font-weight:700; display:inline-block;">
+        View Bid →
+      </a>
+    </p>`;
+
+  const bodyES = `
+    <p>Hola,</p>
+    <p>Una empresa de alquiler ha enviado una oferta para tu solicitud${jobNumber ? ` <strong>#${jobNumber}</strong>` : ""}.</p>
+    <p>Inicia sesión para ver el desglose completo del precio y aceptar la oferta que mejor te convenga.</p>
+    <p style="margin:24px 0;">
+      <a href="${bookingUrl}" style="background:#ff7a00; color:#fff; padding:12px 28px; text-decoration:none; font-weight:700; display:inline-block;">
+        Ver oferta →
+      </a>
+    </p>`;
+
   return sendEmail({
     to,
-    subject: `A new partner bid has been received${jobNumber ? ` for booking #${jobNumber}` : ""}`,
-    html: `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
-        <div style="background:#000; padding:24px 32px;">
-          <h2 style="color:#fff; margin:0;">You have a new bid ⭐</h2>
-        </div>
-        <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
-          <p>Hi,</p>
-          <p>A car hire company has submitted a bid for your booking request${jobNumber ? ` <strong>#${jobNumber}</strong>` : ""}.</p>
-          <p>Log in to view the full price breakdown and accept the offer that suits you best.</p>
-          <p style="margin:24px 0;">
-            <a href="${bookingUrl}"
-              style="background:#ff7a00; color:#fff; padding:12px 28px; text-decoration:none; font-weight:700; display:inline-block; font-family: system-ui, Arial, sans-serif;">
-              View Bid →
-            </a>
-          </p>
-          <p style="margin-top:32px; color:#888; font-size:14px;">Best regards,<br/><strong style="color:#222;">The Camel Global Team</strong></p>
-        </div>
-      </div>
-    `,
+    subject: locale === "es" ? subjectES : subjectEN,
+    html: brandEmail("You have a new bid ⭐", "Tienes una nueva oferta ⭐", bodyEN, bodyES, locale),
   });
 }
 
