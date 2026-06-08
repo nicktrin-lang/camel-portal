@@ -315,15 +315,15 @@ export default function DriverJobsPage() {
                           <p className="text-xs font-black uppercase tracking-widest text-black/40 mb-2">Steps</p>
                           <div className="flex items-center gap-2 text-xs font-black">
                             <span className={insuranceConfirmed ? "text-green-600" : "text-[#ff7a00]"}>
-                              {insuranceConfirmed ? "✓" : "①"} Insurance
+                              {insuranceConfirmed ? "✓" : "1."} Insurance
                             </span>
                             <span className="text-black/20">→</span>
                             <span className={deliveryConfirmed ? "text-green-600" : deliveryFuelUnlocked ? "text-[#ff7a00]" : "text-black/30"}>
-                              {deliveryConfirmed ? "✓" : "②"} Delivery fuel
+                              {deliveryConfirmed ? "✓" : "2."} Delivery fuel
                             </span>
                             <span className="text-black/20">→</span>
                             <span className={collectionConfirmed ? "text-green-600" : collectionFuelUnlocked ? "text-[#ff7a00]" : "text-black/30"}>
-                              {collectionConfirmed ? "✓" : "③"} Collection fuel
+                              {collectionConfirmed ? "✓" : "3."} Collection fuel
                             </span>
                           </div>
                         </div>
@@ -331,7 +331,7 @@ export default function DriverJobsPage() {
                         {/* ── Step 1: Insurance ── */}
                         <div className={`border p-4 ${insuranceConfirmed ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                           <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">
-                            <span className="mr-1">①</span>{t("driver.jobs.insurance.label")}
+                            <span className="mr-1">1.</span>{t("driver.jobs.insurance.label")}
                           </p>
                           {insuranceConfirmed ? (
                             <p className="text-sm font-black text-green-700">{t("driver.jobs.insurance.confirmed", { time: fmt(job.insurance_docs_confirmed_by_driver_at) })}</p>
@@ -352,7 +352,7 @@ export default function DriverJobsPage() {
                         ) : (
                           <div className={`border p-4 ${deliveryConfirmed ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                             <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">
-                              <span className="mr-1">②</span>{t("driver.jobs.fuel.delivery.label")}
+                              <span className="mr-1">2.</span>{t("driver.jobs.fuel.delivery.label")}
                             </p>
                             {deliveryConfirmed ? (
                               <>
@@ -405,7 +405,7 @@ export default function DriverJobsPage() {
                         ) : (
                           <div className={`border p-4 ${collectionConfirmed ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                             <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">
-                              <span className="mr-1">③</span>{t("driver.jobs.fuel.collection.label")}
+                              <span className="mr-1">3.</span>{t("driver.jobs.fuel.collection.label")}
                             </p>
                             {collectionConfirmed ? (
                               <>
