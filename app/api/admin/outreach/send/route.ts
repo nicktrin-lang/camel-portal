@@ -244,7 +244,7 @@ Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
   const fullHtml = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#222;line-height:1.7;max-width:600px;">
       <div style="background:#000;padding:28px;text-align:center;">
-        <img src="https://portal.camel-global.com/camel-logo-white.png" alt="Camel Global" style="height:72px;width:auto;display:inline-block;" />
+        <img src="https://portal.camel-global.com/camel-logo-white-new.png" alt="Camel Global" style="height:72px;width:auto;display:inline-block;" />
         <p style="color:#ffffff;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:12px 0 0 0;">Camel Global &middot; Meet &amp; Greet Car Hire</p>
       </div>
       <div style="padding:28px;border:1px solid #eee;border-top:none;">
