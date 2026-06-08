@@ -144,50 +144,11 @@ async function generateEmail(prospect: {
   const locale = getLocale(prospect.country);
   const unsubscribeUrl = `https://portal.camel-global.com/api/admin/outreach/unsubscribe?id=${prospect.id}`;
 
-  // AI generates only the personalised opening sentence
-  const promptEs = `Escribe SOLO una frase de apertura personalizada (una etiqueta <p>) para un email de captación a una empresa de alquiler de coches.
-
-La frase debe mencionar su ciudad (si se conoce) y preguntar si les gustaría acceder a clientes que buscan alquiler de coches con entrega directa en aeropuerto, hotel o domicilio.
-
-Empresa: ${prospect.company_name}
-Contacto: ${prospect.contact_name || "no conocido"}
-Ciudad: ${prospect.city || "España"}
-
-Devuelve SOLO una etiqueta <p>. Sin saludos, sin asunto, sin nada más.`;
-
-  const promptEn = `Write ONLY a single personalised opening sentence (one <p> tag) for a car hire company outreach email.
-
-The sentence should mention their city (if known) and ask whether they would like to attract car hire customers in that city.
-
-Example style: "Hi [Name], would you like [Company] to attract car hire customers in [City]?"
-
-Company: ${prospect.company_name}
-Contact: ${prospect.contact_name || "unknown"}
-City: ${prospect.city || ""}
-
-Return ONLY a single <p> tag. No subject line, nothing else.`;
-
-  const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 200,
-      messages: [{ role: "user", content: locale === "es" ? promptEs : promptEn }],
-    }),
-  });
-
-  if (!anthropicRes.ok) {
-    const err = await anthropicRes.text();
-    throw new Error(`Claude API error: ${err}`);
-  }
-
-  const anthropicJson = await anthropicRes.json();
-  const openingLine: string = anthropicJson?.content?.[0]?.text?.trim() || "";
+  // Hardcoded personalised opening line — no AI needed
+  const contactFirst = prospect.contact_name ? prospect.contact_name.split(" ")[0] : null;
+  const openingLine = locale === "es"
+    ? `<p>${contactFirst ? `Hola ${contactFirst},` : ""} ¿le gustaría que ${prospect.company_name} atrajera más clientes de alquiler de coches${prospect.city ? ` en ${prospect.city}` : ""}?</p>`
+    : `<p>${contactFirst ? `Hi ${contactFirst},` : ""} would you like ${prospect.company_name} to attract car hire customers${prospect.city ? ` in ${prospect.city}` : ""}?</p>`;
 
   const greeting = prospect.contact_name
     ? (locale === "es" ? `<p>Estimado/a ${prospect.contact_name},</p>` : `<p>Dear ${prospect.contact_name},</p>`)
@@ -209,7 +170,7 @@ Return ONLY a single <p> tag. No subject line, nothing else.`;
 
   const bodyEs = `
     ${greeting}
-    ${openingLine || `<p>¿Le gustaría acceder a clientes que buscan alquiler de coches con entrega directa en aeropuerto, hotel o domicilio en ${prospect.city || "su área"}?</p>`}
+    ${openingLine}
     <p>Estamos lanzando Camel Global — una plataforma de alquiler de coches meet &amp; greet construida específicamente para operadores independientes — y nos gustaría invitar a ${prospect.company_name} a unirse como socio fundador.</p>
     <p>Cómo funciona: los clientes solicitan un vehículo online, usted envía un presupuesto, y su conductor lo entrega directamente en el aeropuerto, hotel o donde el cliente lo necesite. Funciona junto a su negocio existente como un canal adicional de reservas — nada cambia en cómo opera.</p>
     <p><strong>Las plazas de socio fundador son limitadas por destino.</strong> Los primeros socios obtienen visibilidad prioritaria cuando lancemos en España y nos expandamos internacionalmente.</p>
@@ -220,7 +181,7 @@ Return ONLY a single <p> tag. No subject line, nothing else.`;
 
   const bodyEn = `
     ${greeting}
-    ${openingLine || `<p>Would you like to attract car hire customers in ${prospect.city || "your area"}?</p>`}
+    ${openingLine}
     <p>We're launching Camel Global — a meet &amp; greet car rental platform built specifically for independent car hire companies — and we'd like to invite ${prospect.company_name} to join as a founding partner.</p>
     <p>How it works: Customers request a vehicle online, you send a quote, and your driver delivers it directly to the airport, hotel, or wherever the customer needs it. It works alongside your existing business as an additional booking channel—nothing changes in how you operate.</p>
     <p><strong>Founding partner positions are limited per destination.</strong> Early partners receive priority visibility when we launch in Spain and expand internationally.</p>
