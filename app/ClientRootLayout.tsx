@@ -32,7 +32,7 @@ function PortalInner({ children }: { children: React.ReactNode }) {
       <GoogleAnalyticsPageView />
       <main className="flex-1">{children}</main>
       {isLoggedIn && (
-        <ChatWidget getToken={getToken} apiPath="/api/chat" locale={locale as "en" | "es"} />
+        <ChatWidget key={locale} getToken={getToken} apiPath="/api/chat" locale={locale as "en" | "es"} />
       )}
     </>
   );
