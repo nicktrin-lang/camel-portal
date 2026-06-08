@@ -55,9 +55,9 @@ export async function POST(req: Request) {
     if (!adminRow || !isAllowed(adminRow.role)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
     const body = await req.json().catch(() => null);
-    const { prospect_id, test_email } = body || {};
+    const { prospect_id, test_email, resend } = body || {};
 
-    // TEST MODE — send a preview to the admin's own email without touching any prospect
+    // TEST MODE
     if (test_email) {
       const testProspect = {
         id: "test-id",
@@ -103,9 +103,8 @@ export async function POST(req: Request) {
       .eq("id", prospect_id)
       .single();
     if (fetchError || !prospect) return NextResponse.json({ error: "Prospect not found" }, { status: 404 });
-    if (prospect.status === "sent" || prospect.status === "onboarded") {
-      return NextResponse.json({ error: `Prospect already has status: ${prospect.status}` }, { status: 400 });
-    }
+
+    // Always block unsubscribed — even on resend
     if (prospect.unsubscribed) {
       return NextResponse.json({ error: "Prospect has unsubscribed" }, { status: 400 });
     }

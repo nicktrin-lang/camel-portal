@@ -107,14 +107,14 @@ export default function OutreachPage() {
     loadDailyCount();
   }, [loadDailyCount]);
 
-  async function handleSend(id: string): Promise<boolean> {
+  async function handleSend(id: string, isResend = false): Promise<boolean> {
     setSending(id);
     setSendResult(r => ({ ...r, [id]: undefined as any }));
     try {
       const res = await fetch("/api/admin/outreach/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prospect_id: id }),
+        body: JSON.stringify({ prospect_id: id, resend: isResend }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -208,7 +208,6 @@ export default function OutreachPage() {
     }
   }
 
-  // Apply both filters
   const filtered = prospects
     .filter(p => statusFilter === "all" || p.status === statusFilter)
     .filter(p => countryFilter === "All Countries" || (p.country || "").toLowerCase() === countryFilter.toLowerCase());
@@ -234,7 +233,6 @@ export default function OutreachPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
-          {/* Daily progress bar */}
           <div className="flex flex-col gap-1 min-w-[160px]">
             <div className="flex justify-between text-xs font-black text-black/40">
               <span>Today</span>
@@ -437,7 +435,8 @@ export default function OutreachPage() {
                     <td className="px-4 py-3 text-xs font-semibold text-black/50">{fmt(p.sent_at)}</td>
                     <td className="px-4 py-3 text-xs font-semibold text-black/50 max-w-[160px] truncate" title={p.notes || ""}>{p.notes || "—"}</td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2 items-center">
+                      <div className="flex gap-2 items-center flex-wrap">
+                        {/* Send — pending only */}
                         {p.status === "pending" && !p.unsubscribed && (
                           <button
                             onClick={() => handleSend(p.id)}
@@ -445,6 +444,16 @@ export default function OutreachPage() {
                             className="bg-[#ff7a00] px-3 py-1 text-xs font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap"
                           >
                             {sending === p.id ? "Sending…" : "Send"}
+                          </button>
+                        )}
+                        {/* Send Again — all rows except unsubscribed */}
+                        {!p.unsubscribed && (
+                          <button
+                            onClick={() => handleSend(p.id, true)}
+                            disabled={sending === p.id || batchSending || remaining === 0}
+                            className="border border-black/20 px-3 py-1 text-xs font-black text-black/50 hover:border-black hover:text-black disabled:opacity-40 transition-all whitespace-nowrap"
+                          >
+                            {sending === p.id ? "Sending…" : "Send Again"}
                           </button>
                         )}
                         {sendResult[p.id] === "ok" && <span className="text-xs font-black text-green-600">✓</span>}
