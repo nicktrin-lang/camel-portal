@@ -195,6 +195,16 @@ Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
     ? `Invitación a socio fundador — Camel Global · ${prospect.city || prospect.company_name}`
     : `Founding partner invitation — Camel Global · ${prospect.city || prospect.company_name}`;
 
+  const ctaEs = `
+    <p style="text-align:center;margin:32px 0;">
+      <a href="https://portal.camel-global.com/" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">REGÍSTRATE AHORA</a>
+    </p>`;
+
+  const ctaEn = `
+    <p style="text-align:center;margin:32px 0;">
+      <a href="https://portal.camel-global.com/" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">SIGN UP NOW</a>
+    </p>`;
+
   const bodyEs = `
     ${greeting}
     ${openingLine || `<p>¿Le gustaría acceder a clientes que buscan alquiler de coches con entrega directa en aeropuerto, hotel o domicilio en ${prospect.city || "su área"}?</p>`}
@@ -202,7 +212,7 @@ Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
     <p>Cómo funciona: los clientes solicitan un vehículo online, usted envía un presupuesto, y su conductor lo entrega directamente en el aeropuerto, hotel o donde el cliente lo necesite. Funciona junto a su negocio existente como un canal adicional de reservas — nada cambia en cómo opera.</p>
     <p><strong>Las plazas de socio fundador son limitadas por destino.</strong> Los primeros socios obtienen visibilidad prioritaria cuando lancemos en España y nos expandamos internacionalmente.</p>
     <p>Unirse es completamente gratuito. Sin cuotas de alta, sin suscripción, sin costes mensuales. El registro tarda aproximadamente cinco minutos.</p>
-    <p>Si desea asegurar su plaza: <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a></p>
+    ${ctaEs}
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador — Camel Global</p>
   `;
 
@@ -213,13 +223,11 @@ Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
     <p>How it works: customers request a car online, you submit a quote, and your driver delivers directly to them at the airport, hotel, or wherever they need it. It sits alongside your existing business as an additional booking channel — nothing changes in how you operate.</p>
     <p><strong>Founding partner places are limited per destination.</strong> Early partners get priority visibility as we launch across Spain and expand internationally.</p>
     <p>Joining is completely free. No setup fees, no subscription, no monthly costs. Registration takes around five minutes.</p>
-    <p>If you'd like to secure your place: <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a></p>
+    ${ctaEn}
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Founder — Camel Global</p>
   `;
 
   const htmlBody = locale === "es" ? bodyEs : bodyEn;
-
-  const headerLabel = locale === "es" ? "Camel Global · Invitación a Socios Fundadores" : "Camel Global · Founding Partner Invitation";
 
   const footerEs = `
     Camel Global &middot; <a href="mailto:partners@camel-global.com" style="color:#999;text-decoration:none;">partners@camel-global.com</a> &middot; <a href="https://camel-global.com" style="color:#999;text-decoration:none;">camel-global.com</a><br/>
@@ -237,7 +245,7 @@ Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#222;line-height:1.7;max-width:600px;">
       <div style="background:#000;padding:28px;text-align:center;">
         <img src="https://portal.camel-global.com/camel-logo-white.png" alt="Camel Global" style="height:72px;width:auto;display:inline-block;" />
-        <p style="color:#ff7a00;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:12px 0 0 0;">${headerLabel}</p>
+        <p style="color:#ff7a00;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:12px 0 0 0;">Camel Global &middot; Meet &amp; Greet Car Hire</p>
       </div>
       <div style="padding:28px;border:1px solid #eee;border-top:none;">
         ${htmlBody}
