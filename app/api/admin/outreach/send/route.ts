@@ -156,7 +156,7 @@ async function generateEmail(prospect: {
 
   const subject = locale === "es"
     ? `Invitación a socio fundador — Camel Global · ${prospect.city || prospect.company_name}`
-    : `Camel Global - Meet &amp; Greet Car Hire - Founding Partner Invitation`;
+    : `Camel Global - Meet & Greet Car Hire - Founding Partner Invitation`;
 
   const ctaEs = `
     <p style="text-align:left;margin:32px 0;">
