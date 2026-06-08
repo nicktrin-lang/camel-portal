@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendReviewReminderEmail } from "@/lib/email";
 
@@ -37,37 +36,29 @@ export async function GET(req: Request) {
   if (!toRemind.length) return NextResponse.json({ ok: true, sent: 0 }, { status: 200 });
 
   const requestIds = toRemind.map((b: any) => b.request_id).filter(Boolean);
+
+  // Fetch customer_email and customer_user_id — use user_id for direct locale lookup
   const { data: requests } = await db
     .from("customer_requests")
-    .select("id, customer_email")
+    .select("id, customer_email, customer_user_id")
     .in("id", requestIds);
 
   const requestMap = new Map((requests || []).map((r: any) => [r.id, r]));
 
-  const customerEmails = [...new Set(
-    (requests || []).map((r: any) => r.customer_email).filter(Boolean)
+  // Fetch all relevant customer profiles in one query using customer_user_ids
+  const customerUserIds = [...new Set(
+    (requests || []).map((r: any) => r.customer_user_id).filter(Boolean)
   )];
 
-  // Build email → locale map using customer Supabase project for listUsers
-  const emailLocaleMap = new Map<string, "en" | "es">();
+  const userIdLocaleMap = new Map<string, "en" | "es">();
   try {
-    const customerDb = createClient(
-      process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
-      process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    );
-    const { data: usersData } = await customerDb.auth.admin.listUsers();
-    const { data: profiles } = await db
-      .from("customer_profiles")
-      .select("user_id, communication_locale");
-
-    if (usersData?.users && profiles) {
-      const profileByUserId = new Map(profiles.map((p: any) => [p.user_id, p.communication_locale]));
-      for (const u of usersData.users) {
-        if (u.email && customerEmails.includes(u.email)) {
-          const loc = profileByUserId.get(u.id);
-          emailLocaleMap.set(u.email.toLowerCase(), loc === "es" ? "es" : "en");
-        }
+    if (customerUserIds.length > 0) {
+      const { data: profiles } = await db
+        .from("customer_profiles")
+        .select("user_id, communication_locale")
+        .in("user_id", customerUserIds);
+      for (const p of profiles || []) {
+        userIdLocaleMap.set(p.user_id, p.communication_locale === "es" ? "es" : "en");
       }
     }
   } catch (e) {
@@ -78,12 +69,14 @@ export async function GET(req: Request) {
   for (const booking of toRemind) {
     const request = requestMap.get(booking.request_id);
     if (!request?.customer_email) continue;
-    const locale = emailLocaleMap.get(request.customer_email.toLowerCase()) ?? "en";
+    const locale = request.customer_user_id
+      ? (userIdLocaleMap.get(request.customer_user_id) ?? "en")
+      : "en";
     try {
       await sendReviewReminderEmail(
         request.customer_email,
         booking.job_number,
-        booking.request_id,
+        booking.request_id, // links to /bookings/{request_id}#review
         locale,
       );
       await db

@@ -19,7 +19,7 @@ async function fetchCustomerRequest(requestId: string) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   try {
     const res = await fetch(
-      `${url}/rest/v1/customer_requests?id=eq.${requestId}&select=customer_name,customer_email,pickup_address,dropoff_address,pickup_at,dropoff_at,journey_duration_minutes,vehicle_category_name`,
+      `${url}/rest/v1/customer_requests?id=eq.${requestId}&select=customer_name,customer_email,customer_user_id,pickup_address,dropoff_address,pickup_at,dropoff_at,journey_duration_minutes,vehicle_category_name`,
       { headers: { apikey: key, Authorization: `Bearer ${key}` } }
     );
     const rows = await res.json();
@@ -372,24 +372,15 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   const partnerPayout = Math.max(0, carHire - commAmt + fuel_charge);
   const partnerLocale = (partnerProfile?.communication_locale as "en" | "es") || "en";
 
-  // ── Look up customer communication locale ─────────────────────────────────
-  // Customer auth lives in a separate Supabase project — must use customer credentials
+// ── Look up customer communication locale ─────────────────────────────────
+  // Use customer_user_id from customer_requests — direct lookup, no listUsers() needed
   let customerLocale: "en" | "es" = "en";
   try {
-    const customerDb = createClient(
-      process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
-      process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    );
-    const { data: usersData } = await customerDb.auth.admin.listUsers();
-    const matchedUser = usersData?.users?.find(
-      u => (u.email || "").toLowerCase() === (request?.customer_email || "").toLowerCase()
-    );
-    if (matchedUser) {
+    if (request?.customer_user_id) {
       const { data: custProfile } = await db
         .from("customer_profiles")
         .select("communication_locale")
-        .eq("user_id", matchedUser.id)
+        .eq("user_id", request.customer_user_id)
         .maybeSingle();
       if (custProfile?.communication_locale === "es") customerLocale = "es";
     }
