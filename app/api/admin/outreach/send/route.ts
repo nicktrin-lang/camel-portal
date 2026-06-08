@@ -148,7 +148,7 @@ async function generateEmail(prospect: {
   const contactFirst = prospect.contact_name ? prospect.contact_name.split(" ")[0] : null;
   const openingLine = locale === "es"
     ? `<p>${contactFirst ? `Hola ${contactFirst},` : ""} ¿le gustaría que ${prospect.company_name} atrajera más clientes de alquiler de coches${prospect.city ? ` en ${prospect.city}` : ""}?</p>`
-    : `<p>${contactFirst ? `Hi ${contactFirst},` : ""} would you like ${prospect.company_name} to attract car hire customers${prospect.city ? ` in ${prospect.city}` : ""}?</p>`;
+    : `<p>${contactFirst ? `Hi ${contactFirst},` : ""} would you like ${prospect.company_name} to attract more customers searching for car hire${prospect.city ? ` in ${prospect.city}` : ""}?</p>`;
 
   const greeting = prospect.contact_name
     ? (locale === "es" ? `<p>Estimado/a ${prospect.contact_name},</p>` : `<p>Dear ${prospect.contact_name},</p>`)
