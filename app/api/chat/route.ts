@@ -34,6 +34,7 @@ export async function POST(req: Request) {
     const db = createServiceRoleSupabaseClient();
     const isAdmin = isAdminRole(role);
     const userLabel = isAdmin ? "ADMIN" : "PARTNER";
+const locale = body?.locale === "es" ? "es" : "en";
 
     // Fetch bookings — admin sees all recent, partner sees their own
     let bookingQuery = db
@@ -142,7 +143,9 @@ ${partnerContext}
 == BOOKING DATA ==
 ${bookingContext}
 
-Be concise and professional. Only share data from the booking data above — never invent figures.`;
+Be concise and professional. Only share data from the booking data above — never invent figures.
+
+IMPORTANT: You must respond in ${locale === "es" ? "Spanish" : "English"}.`;
 
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
