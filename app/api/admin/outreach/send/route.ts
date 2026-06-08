@@ -157,13 +157,15 @@ Devuelve SOLO una etiqueta <p>. Sin saludos, sin asunto, sin nada más.`;
 
   const promptEn = `Write ONLY a single personalised opening sentence (one <p> tag) for a car hire company outreach email.
 
-The sentence should mention their city (if known) and ask whether they would like access to customers looking for car hire with direct delivery to the airport, hotel or home.
+The sentence should mention their city (if known) and ask whether they would like to attract car hire customers in that city.
+
+Example style: "Hi [Name], would you like [Company] to attract car hire customers in [City]?"
 
 Company: ${prospect.company_name}
 Contact: ${prospect.contact_name || "unknown"}
 City: ${prospect.city || ""}
 
-Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
+Return ONLY a single <p> tag. No subject line, nothing else.`;
 
   const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -218,11 +220,11 @@ Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
 
   const bodyEn = `
     ${greeting}
-    ${openingLine || `<p>Would you like access to customers looking for car hire with direct delivery to the airport, hotel or home in ${prospect.city || "your area"}?</p>`}
-    <p>We're launching Camel Global — a meet &amp; greet car hire platform built specifically for independent operators — and we'd like to invite ${prospect.company_name} to join as a founding partner.</p>
-    <p>How it works: customers request a car online, you submit a quote, and your driver delivers directly to them at the airport, hotel, or wherever they need it. It sits alongside your existing business as an additional booking channel — nothing changes in how you operate.</p>
-    <p><strong>Founding partner places are limited per destination.</strong> Early partners get priority visibility as we launch across Spain and expand internationally.</p>
-    <p>Joining is completely free. No setup fees, no subscription, no monthly costs. Registration takes around five minutes.</p>
+    ${openingLine || `<p>Would you like to attract car hire customers in ${prospect.city || "your area"}?</p>`}
+    <p>We're launching Camel Global — a meet &amp; greet car rental platform built specifically for independent car hire companies — and we'd like to invite ${prospect.company_name} to join as a founding partner.</p>
+    <p>How it works: Customers request a vehicle online, you send a quote, and your driver delivers it directly to the airport, hotel, or wherever the customer needs it. It works alongside your existing business as an additional booking channel—nothing changes in how you operate.</p>
+    <p><strong>Founding partner positions are limited per destination.</strong> Early partners receive priority visibility when we launch in Spain and expand internationally.</p>
+    <p>Joining is completely free. No sign-up fees, no subscription, no monthly costs. Registration takes approximately five minutes.</p>
     ${ctaEn}
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Founder — Camel Global</p>
   `;
@@ -230,13 +232,11 @@ Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
   const htmlBody = locale === "es" ? bodyEs : bodyEn;
 
   const footerEs = `
-    Camel Global &middot; <a href="mailto:partners@camel-global.com" style="color:#999;text-decoration:none;">partners@camel-global.com</a> &middot; <a href="https://camel-global.com" style="color:#999;text-decoration:none;">camel-global.com</a><br/>
     Recibes este email porque tu empresa fue identificada como posible socio en tu área.<br/>
     <a href="${unsubscribeUrl}" style="color:#bbb;">Cancelar suscripción</a>
   `;
 
   const footerEn = `
-    Camel Global &middot; <a href="mailto:partners@camel-global.com" style="color:#999;text-decoration:none;">partners@camel-global.com</a> &middot; <a href="https://camel-global.com" style="color:#999;text-decoration:none;">camel-global.com</a><br/>
     You are receiving this email because your business was identified as a potential partner in your area.<br/>
     <a href="${unsubscribeUrl}" style="color:#bbb;">Unsubscribe</a>
   `;
