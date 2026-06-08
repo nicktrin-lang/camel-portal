@@ -74,7 +74,7 @@ export async function POST(req: Request) {
         subject: `[TEST] ${emailHtml.subject}`,
         html: emailHtml.fullHtml,
       });
-      return NextResponse.json({ ok: true, test: true, subject: emailHtml.subject, preview: emailHtml.htmlBody.slice(0, 300) });
+      return NextResponse.json({ ok: true, test: true, subject: emailHtml.subject });
     }
 
     // Check daily limit
@@ -144,57 +144,26 @@ async function generateEmail(prospect: {
   const locale = getLocale(prospect.country);
   const unsubscribeUrl = `https://portal.camel-global.com/api/admin/outreach/unsubscribe?id=${prospect.id}`;
 
-  const promptEs = `Eres un asistente que escribe emails de captación en nombre de Camel Global — una plataforma de alquiler de coches meet & greet construida específicamente para operadores independientes.
+  // Ask AI only for the personalised opening line — everything else is hardcoded
+  const promptEs = `Escribe SOLO una frase de apertura personalizada para un email de captación a una empresa de alquiler de coches.
 
-Escribe un email de captación corto, profesional y directo siguiendo EXACTAMENTE esta estructura:
-
-1. Saludo personalizado usando el nombre del contacto si se conoce, o "Estimado equipo," si no
-2. Una frase de apertura que mencione su ciudad (si se conoce) y pregunte si les gustaría acceder a clientes que buscan alquiler de coches con entrega directa en aeropuerto, hotel o domicilio
-3. Un párrafo corto que explique que Camel Global es un canal digital adicional — no reemplaza su negocio, simplemente lo complementa. Los clientes solicitan online, la empresa envía presupuesto, el conductor entrega directamente al cliente.
-4. Una línea sobre las plazas de socio fundador: limitadas por destino, con visibilidad prioritaria al lanzar en España y expandirse internacionalmente
-5. Una línea: completamente gratuito — sin cuotas de alta, sin suscripción mensual, registro en 5 minutos
-6. CTA: <p>Si te interesa, puedes registrarte en <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a> o simplemente responder a este email.</p>
-7. Firma: <p>Nicholas Trinnaman<br/>Fundador — Camel Global</p>
+La frase debe mencionar su ciudad (si se conoce) y preguntar si les gustaría acceder a clientes que buscan alquiler de coches con entrega directa en aeropuerto, hotel o domicilio.
 
 Empresa: ${prospect.company_name}
-Contacto: ${prospect.contact_name || "no conocido — usa 'Estimado equipo,'"}
+Contacto: ${prospect.contact_name || "no conocido"}
 Ciudad: ${prospect.city || "España"}
-País: ${prospect.country || "España"}
-${prospect.notes ? `Notas: ${prospect.notes}` : ""}
 
-Requisitos estrictos:
-- Primera línea del output: asunto del email con el prefijo "Asunto: "
-- Línea en blanco
-- Cuerpo en HTML simple: etiquetas <p> y <strong> únicamente, sin <html>/<body>
-- Máximo 150 palabras en el cuerpo
-- NO menciones comisiones, porcentajes ni precios
-- No uses marcadores de posición como [NOMBRE]`;
+Devuelve SOLO la frase de apertura en HTML simple (una etiqueta <p>). Sin saludos, sin asunto, sin nada más.`;
 
-  const promptEn = `You are an assistant writing outreach emails on behalf of Camel Global — a meet & greet car hire platform built specifically for independent operators.
+  const promptEn = `Write ONLY a single personalised opening sentence for a car hire company outreach email.
 
-Write a short, professional and direct outreach email following EXACTLY this structure:
-
-1. Personalised greeting using the contact name if known, or "Dear team," if not
-2. An opening line that mentions their city (if known) and asks whether they'd like access to customers looking for car hire with direct delivery to the airport, hotel or home
-3. A short paragraph explaining that Camel Global is an additional digital channel — it doesn't replace their business, it simply adds to it. Customers request online, the company submits a quote, the driver delivers directly to the customer.
-4. One line about founding partner places: limited per destination, with priority visibility as the platform launches across Spain and expands internationally
-5. One line: completely free — no setup fees, no monthly subscription, registration takes around 5 minutes
-6. CTA: <p>If you'd like to secure your place, you can register at <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a> or simply reply to this email.</p>
-7. Sign off: <p>Nicholas Trinnaman<br/>Founder — Camel Global</p>
+The sentence should mention their city (if known) and ask whether they would like access to customers looking for car hire with direct delivery to the airport, hotel or home.
 
 Company: ${prospect.company_name}
-Contact: ${prospect.contact_name || "unknown — use 'Dear team,'"}
+Contact: ${prospect.contact_name || "unknown"}
 City: ${prospect.city || ""}
-Country: ${prospect.country || ""}
-${prospect.notes ? `Notes: ${prospect.notes}` : ""}
 
-Strict requirements:
-- First line of output: email subject prefixed with "Subject: "
-- Blank line
-- Body in simple HTML: <p> and <strong> tags only, no <html>/<body>
-- Maximum 150 words in the body
-- DO NOT mention commission rates, percentages or pricing
-- Do not use placeholder text like [NAME]`;
+Return ONLY the opening sentence as simple HTML (a single <p> tag). No greeting, no subject line, nothing else.`;
 
   const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -205,7 +174,7 @@ Strict requirements:
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 800,
+      max_tokens: 200,
       messages: [{ role: "user", content: locale === "es" ? promptEs : promptEn }],
     }),
   });
@@ -216,18 +185,40 @@ Strict requirements:
   }
 
   const anthropicJson = await anthropicRes.json();
-  const rawText: string = anthropicJson?.content?.[0]?.text || "";
-  if (!rawText) throw new Error("Claude returned empty response");
+  const openingLine: string = anthropicJson?.content?.[0]?.text?.trim() || "";
 
-  const lines = rawText.split("\n");
-  const subjectLine = lines.find((l: string) => /^(asunto|subject):/i.test(l.trim())) || "";
-  const subject = subjectLine.replace(/^(asunto|subject):\s*/i, "").trim()
-    || (locale === "es"
-      ? `Invitación a socio fundador — Camel Global · ${prospect.city || prospect.company_name}`
-      : `Founding partner invitation — Camel Global · ${prospect.city || prospect.company_name}`);
+  // Greeting
+  const greeting = prospect.contact_name
+    ? (locale === "es" ? `<p>Estimado/a ${prospect.contact_name},</p>` : `<p>Dear ${prospect.contact_name},</p>`)
+    : (locale === "es" ? `<p>Estimado equipo,</p>` : `<p>Dear team,</p>`);
 
-  const bodyStartIndex = lines.findIndex((l: string) => /^(asunto|subject):/i.test(l.trim()));
-  const htmlBody = lines.slice(bodyStartIndex + 2).join("\n").trim();
+  // Subject
+  const subject = locale === "es"
+    ? `Invitación a socio fundador — Camel Global · ${prospect.city || prospect.company_name}`
+    : `Founding partner invitation — Camel Global · ${prospect.city || prospect.company_name}`;
+
+  // Hardcoded body in agreed structure
+  const bodyEs = `
+    ${greeting}
+    ${openingLine || `<p>¿Le gustaría acceder a clientes que buscan alquiler de coches con entrega directa en aeropuerto, hotel o domicilio en ${prospect.city || "su área"}?</p>`}
+    <p><strong>Camel Global es un canal digital adicional</strong> diseñado para empresas de alquiler independientes como la suya. No reemplaza su negocio — simplemente lo complementa. Los clientes solicitan online, usted envía su presupuesto, y su conductor entrega el vehículo directamente al cliente. Todo gestionado desde nuestra plataforma.</p>
+    <p>Las plazas de <strong>socio fundador son limitadas por destino</strong>. Los primeros socios obtendrán visibilidad prioritaria cuando lancemos en España y nos expandamos internacionalmente.</p>
+    <p>Unirse es completamente gratuito — sin cuotas de alta, sin suscripción mensual. El registro tarda aproximadamente 5 minutos.</p>
+    <p>Si le interesa asegurar su plaza, puede registrarse en <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a> o simplemente responder a este email.</p>
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador — Camel Global</p>
+  `;
+
+  const bodyEn = `
+    ${greeting}
+    ${openingLine || `<p>Would you like access to customers looking for car hire with direct delivery to the airport, hotel or home in ${prospect.city || "your area"}?</p>`}
+    <p><strong>Camel Global is an additional digital channel</strong> built for independent car hire companies like yours. It doesn't replace your business — it simply adds to it. Customers request online, you submit a quote, and your driver delivers the vehicle directly to them. Everything managed through our platform.</p>
+    <p><strong>Founding partner places are limited per destination.</strong> Early partners get priority visibility as we launch across Spain and expand internationally.</p>
+    <p>Joining is completely free — no setup fees, no monthly subscription. Registration takes around 5 minutes.</p>
+    <p>If you'd like to secure your place, you can register at <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a> or simply reply to this email.</p>
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Founder — Camel Global</p>
+  `;
+
+  const htmlBody = locale === "es" ? bodyEs : bodyEn;
 
   const headerLabel = locale === "es" ? "Camel Global · Invitación a Socios Fundadores" : "Camel Global · Founding Partner Invitation";
 
@@ -245,13 +236,19 @@ Strict requirements:
 
   const fullHtml = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#222;line-height:1.7;max-width:600px;">
-      <div style="background:#000;padding:24px 28px;margin-bottom:0;text-align:center;">
-        <img src="https://portal.camel-global.com/camel-logo.png" alt="Camel Global" style="height:56px;width:auto;display:inline-block;filter:brightness(0) invert(1);" />
-        <p style="color:#ff7a00;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:10px 0 0 0;">${headerLabel}</p>
+      <!-- White logo strip -->
+      <div style="background:#ffffff;padding:16px 28px;border:1px solid #eee;border-bottom:none;">
+        <img src="https://portal.camel-global.com/camel-invoice-logo.png" alt="Camel Global" style="height:48px;width:auto;display:block;" />
       </div>
+      <!-- Black header bar -->
+      <div style="background:#000;padding:14px 28px;">
+        <p style="color:#ff7a00;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:0;">${headerLabel}</p>
+      </div>
+      <!-- Body -->
       <div style="padding:28px;border:1px solid #eee;border-top:none;">
         ${htmlBody}
       </div>
+      <!-- Footer -->
       <div style="padding:16px 28px;background:#f8f8f8;border:1px solid #eee;border-top:none;font-size:12px;color:#999;line-height:1.8;">
         ${locale === "es" ? footerEs : footerEn}
       </div>
