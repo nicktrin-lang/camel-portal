@@ -5,18 +5,15 @@ import { sendCustomerBidReceivedEmail } from "@/lib/email";
 
 async function getCustomerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, customerEmail: string): Promise<"en" | "es"> {
   try {
-    // Look up by joining auth.users → customer_profiles via user_id
-    // We don't have customer_user_id on customer_requests so we match via auth email
-    const { data } = await db
-      .from("customer_profiles")
-      .select("communication_locale, user_id")
-      .limit(50);
-    if (!data?.length) return "en";
-    // Match by fetching auth user with that email
+    // Look up auth user by email, then fetch their profile directly by user_id
     const { data: usersData } = await db.auth.admin.listUsers();
     const matchedUser = usersData?.users?.find(u => (u.email || "").toLowerCase() === customerEmail.toLowerCase());
     if (!matchedUser) return "en";
-    const profile = data.find(p => p.user_id === matchedUser.id);
+    const { data: profile } = await db
+      .from("customer_profiles")
+      .select("communication_locale")
+      .eq("user_id", matchedUser.id)
+      .maybeSingle();
     return (profile?.communication_locale === "es") ? "es" : "en";
   } catch {
     return "en";
