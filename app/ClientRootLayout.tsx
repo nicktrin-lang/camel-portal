@@ -1,17 +1,11 @@
 "use client";
-
 import { useEffect, useState, useCallback } from "react";
 import GoogleAnalyticsPageView from "@/app/components/GoogleAnalytics";
 import ChatWidget from "@/app/components/ChatWidget";
-import { LanguageProvider } from "@/lib/i18n/LanguageContext";
+import { LanguageProvider, useLanguage } from "@/lib/i18n/LanguageContext";
 
-export default function ClientRootLayout({
-  children,
-  fontClass,
-}: {
-  children: React.ReactNode;
-  fontClass?: string;
-}) {
+function PortalInner({ children }: { children: React.ReactNode }) {
+  const { locale } = useLanguage();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
@@ -34,12 +28,26 @@ export default function ClientRootLayout({
   const getToken = useCallback(async (): Promise<string | null> => null, []);
 
   return (
-    <LanguageProvider>
+    <>
       <GoogleAnalyticsPageView />
       <main className="flex-1">{children}</main>
       {isLoggedIn && (
-        <ChatWidget getToken={getToken} apiPath="/api/chat" />
+        <ChatWidget getToken={getToken} apiPath="/api/chat" locale={locale as "en" | "es"} />
       )}
+    </>
+  );
+}
+
+export default function ClientRootLayout({
+  children,
+  fontClass,
+}: {
+  children: React.ReactNode;
+  fontClass?: string;
+}) {
+  return (
+    <LanguageProvider>
+      <PortalInner>{children}</PortalInner>
     </LanguageProvider>
   );
 }
