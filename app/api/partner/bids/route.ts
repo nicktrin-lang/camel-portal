@@ -5,13 +5,16 @@ import { sendCustomerBidReceivedEmail } from "@/lib/email";
 
 async function getCustomerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, customerUserId: string): Promise<"en" | "es"> {
   try {
-    const { data: profile } = await db
+    console.log("🌍 getCustomerLocale: looking up user_id:", customerUserId);
+    const { data: profile, error } = await db
       .from("customer_profiles")
       .select("communication_locale")
       .eq("user_id", customerUserId)
       .maybeSingle();
+    console.log("🌍 getCustomerLocale: profile result:", JSON.stringify(profile), "error:", error?.message);
     return (profile?.communication_locale === "es") ? "es" : "en";
-  } catch {
+  } catch (e: any) {
+    console.error("🌍 getCustomerLocale: exception:", e?.message);
     return "en";
   }
 }
@@ -58,6 +61,8 @@ export async function POST(req: Request) {
     const expired = requestRow.expires_at && new Date(requestRow.expires_at).getTime() <= Date.now();
     if (expired) return NextResponse.json({ error: "This request has expired" }, { status: 400 });
 
+    console.log("📋 requestRow customer_user_id:", requestRow.customer_user_id, "customer_email:", requestRow.customer_email);
+
     const { data: existingBid } = await db
       .from("partner_bids")
       .select("id")
@@ -66,7 +71,7 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (existingBid) {
-      // Update existing bid — no email (avoid spamming customer on every edit)
+      console.log("📋 existing bid found — no email sent");
       const { error: updateErr } = await db
         .from("partner_bids")
         .update({
@@ -87,7 +92,7 @@ export async function POST(req: Request) {
         .eq("id", existingBid.id);
       if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
     } else {
-      // New bid — insert then notify customer in their preferred language
+      console.log("📋 new bid — inserting and sending email");
       const { error: insertErr } = await db
         .from("partner_bids")
         .insert({
@@ -112,14 +117,18 @@ export async function POST(req: Request) {
       if (requestRow.customer_email && requestRow.customer_user_id) {
         try {
           const locale = await getCustomerLocale(db, requestRow.customer_user_id);
+          console.log("📧 sending bid email to:", requestRow.customer_email, "locale:", locale);
           await sendCustomerBidReceivedEmail(
             requestRow.customer_email,
             requestRow.job_number ?? null,
             locale,
           );
+          console.log("📧 bid email sent successfully");
         } catch (e) {
-          console.error("Failed to send bid received email:", e);
+          console.error("📧 Failed to send bid received email:", e);
         }
+      } else {
+        console.log("📋 no customer_email or customer_user_id — skipping email");
       }
     }
 
