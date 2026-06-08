@@ -145,7 +145,7 @@ ${bookingContext}
 
 Be concise and professional. Only share data from the booking data above — never invent figures.
 
-IMPORTANT: You must respond in ${locale === "es" ? "Spanish" : "English"}.`;
+CRITICAL INSTRUCTION: You MUST reply ONLY in ${locale === "es" ? "Spanish (Español)" : "English"}. Never switch languages regardless of what language the user writes in.`;
 
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
