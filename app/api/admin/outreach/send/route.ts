@@ -155,7 +155,7 @@ async function generateEmail(prospect: {
     : (locale === "es" ? `<p>Estimado equipo,</p>` : `<p>Dear team,</p>`);
 
   const subject = locale === "es"
-    ? `Invitación a socio fundador — Camel Global · ${prospect.city || prospect.company_name}`
+    ? `Camel Global - Meet & Greet Car Hire - Founding Partner Invitation`
     : `Camel Global - Meet & Greet Car Hire - Founding Partner Invitation`;
 
   const ctaEs = `
@@ -171,8 +171,8 @@ async function generateEmail(prospect: {
   const bodyEs = `
     ${greeting}
     ${openingLine}
-    <p>Estamos lanzando Camel Global — una plataforma de alquiler de coches meet &amp; greet construida específicamente para empresas de alquiler independientes — y nos gustaría invitar a ${prospect.company_name} a unirse como socio fundador.</p>
-    <p>Cómo funciona: los clientes solicitan un vehículo online, usted envía un presupuesto, y su conductor lo entrega directamente en el aeropuerto, hotel o donde el cliente lo necesite. Funciona junto a su negocio existente como un canal adicional de reservas — nada cambia en cómo opera.</p>
+    <p>Estamos lanzando Camel Global — una plataforma de alquiler de coches meet &amp; greet construida específicamente para empresas de alquiler de coches independientes — y nos gustaría invitar a ${prospect.company_name} a unirse como socio fundador.</p>
+    <p>Cómo funciona: los clientes solicitan un vehículo online, usted envía un presupuesto, el cliente paga y su conductor lo entrega directamente en el aeropuerto, hotel o donde el cliente lo necesite. Funciona junto a su negocio existente como un canal adicional de reservas — nada cambia en cómo opera.</p>
     <p><strong>Las plazas de socio fundador son limitadas por destino.</strong> Los primeros socios obtienen visibilidad prioritaria cuando lancemos en España y nos expandamos internacionalmente.</p>
     <p>Unirse es completamente gratuito. Sin cuotas de alta, sin suscripción, sin costes mensuales. El registro tarda aproximadamente cinco minutos.</p>
     ${ctaEs}
