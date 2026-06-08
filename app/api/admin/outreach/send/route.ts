@@ -61,10 +61,10 @@ export async function POST(req: Request) {
     if (test_email) {
       const testProspect = {
         id: "test-id",
-        company_name: "Coches Sol S.L.",
-        contact_name: "María García",
-        city: "Málaga",
-        country: "Spain",
+        company_name: "City Car Hire Ltd",
+        contact_name: "James Smith",
+        city: "Manchester",
+        country: "UK",
         notes: null,
       };
       const emailHtml = await generateEmail(testProspect);
@@ -171,7 +171,7 @@ async function generateEmail(prospect: {
   const bodyEs = `
     ${greeting}
     ${openingLine}
-    <p>Estamos lanzando Camel Global — una plataforma de alquiler de coches meet &amp; greet construida específicamente para operadores independientes — y nos gustaría invitar a ${prospect.company_name} a unirse como socio fundador.</p>
+    <p>Estamos lanzando Camel Global — una plataforma de alquiler de coches meet &amp; greet construida específicamente para empresas de alquiler independientes — y nos gustaría invitar a ${prospect.company_name} a unirse como socio fundador.</p>
     <p>Cómo funciona: los clientes solicitan un vehículo online, usted envía un presupuesto, y su conductor lo entrega directamente en el aeropuerto, hotel o donde el cliente lo necesite. Funciona junto a su negocio existente como un canal adicional de reservas — nada cambia en cómo opera.</p>
     <p><strong>Las plazas de socio fundador son limitadas por destino.</strong> Los primeros socios obtienen visibilidad prioritaria cuando lancemos en España y nos expandamos internacionalmente.</p>
     <p>Unirse es completamente gratuito. Sin cuotas de alta, sin suscripción, sin costes mensuales. El registro tarda aproximadamente cinco minutos.</p>
