@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
 import { sendCustomerBidReceivedEmail } from "@/lib/email";
 
 async function getCustomerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, customerEmail: string): Promise<"en" | "es"> {
   try {
-    // Look up auth user by email, then fetch their profile directly by user_id
-    const { data: usersData } = await db.auth.admin.listUsers();
+    // Customer auth lives in a separate Supabase project — must use customer credentials
+    const customerDb = createClient(
+      process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
+      process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
+    );
+    const { data: usersData } = await customerDb.auth.admin.listUsers();
     const matchedUser = usersData?.users?.find(u => (u.email || "").toLowerCase() === customerEmail.toLowerCase());
     if (!matchedUser) return "en";
+    // customer_profiles lives in the portal DB — use portal client to read it
     const { data: profile } = await db
       .from("customer_profiles")
       .select("communication_locale")
