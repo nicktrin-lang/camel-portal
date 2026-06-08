@@ -74,6 +74,18 @@ function statusColor(s: string): string {
   }
 }
 
+// Locked step placeholder — shown when a step is not yet unlocked
+function LockedStep({ message }: { message: string }) {
+  return (
+    <div className="border border-black/10 bg-[#f0f0f0] p-4 opacity-50">
+      <div className="flex items-center gap-3">
+        <span className="text-xl">🔒</span>
+        <p className="text-sm font-black text-black/50">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function DriverJobsPage() {
   const { t } = useTranslation();
 
@@ -235,6 +247,17 @@ export default function DriverJobsPage() {
                 const collPartnerOverride = !!normalizeFuel(job.collection_fuel_level_partner);
                 const retPartnerOverride  = !!normalizeFuel(job.return_fuel_level_partner);
 
+                // ── Step gate logic ──────────────────────────────────────────
+                // Step 1: Insurance — always available
+                // Step 2: Delivery fuel — only after insurance confirmed
+                // Step 3: Collection fuel — only after delivery fuel confirmed
+                const insuranceConfirmed  = !!job.insurance_docs_confirmed_by_driver;
+                const deliveryConfirmed   = !!job.collection_confirmed_by_driver;
+                const collectionConfirmed = !!job.return_confirmed_by_driver;
+
+                const deliveryFuelUnlocked   = insuranceConfirmed;
+                const collectionFuelUnlocked = insuranceConfirmed && deliveryConfirmed;
+
                 return (
                   <div key={job.booking_id} className="bg-white border border-black/5">
                     <button type="button" onClick={() => setExpandedJob(isExpanded ? null : job.booking_id)}
@@ -287,10 +310,30 @@ export default function DriverJobsPage() {
                           </a>
                         )}
 
-                        {/* ── Insurance ── */}
-                        <div className={`border p-4 ${job.insurance_docs_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
-                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">{t("driver.jobs.insurance.label")}</p>
-                          {job.insurance_docs_confirmed_by_driver ? (
+                        {/* ── Step indicator ── */}
+                        <div className="border border-black/10 bg-[#f8f8f8] px-4 py-3">
+                          <p className="text-xs font-black uppercase tracking-widest text-black/40 mb-2">Steps</p>
+                          <div className="flex items-center gap-2 text-xs font-black">
+                            <span className={insuranceConfirmed ? "text-green-600" : "text-[#ff7a00]"}>
+                              {insuranceConfirmed ? "✓" : "①"} Insurance
+                            </span>
+                            <span className="text-black/20">→</span>
+                            <span className={deliveryConfirmed ? "text-green-600" : deliveryFuelUnlocked ? "text-[#ff7a00]" : "text-black/30"}>
+                              {deliveryConfirmed ? "✓" : "②"} Delivery fuel
+                            </span>
+                            <span className="text-black/20">→</span>
+                            <span className={collectionConfirmed ? "text-green-600" : collectionFuelUnlocked ? "text-[#ff7a00]" : "text-black/30"}>
+                              {collectionConfirmed ? "✓" : "③"} Collection fuel
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* ── Step 1: Insurance ── */}
+                        <div className={`border p-4 ${insuranceConfirmed ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
+                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">
+                            <span className="mr-1">①</span>{t("driver.jobs.insurance.label")}
+                          </p>
+                          {insuranceConfirmed ? (
                             <p className="text-sm font-black text-green-700">{t("driver.jobs.insurance.confirmed", { time: fmt(job.insurance_docs_confirmed_by_driver_at) })}</p>
                           ) : (
                             <>
@@ -303,92 +346,109 @@ export default function DriverJobsPage() {
                           )}
                         </div>
 
-                        {/* ── Delivery fuel ── */}
-                        <div className={`border p-4 ${job.collection_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
-                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">{t("driver.jobs.fuel.delivery.label")}</p>
-                          {job.collection_confirmed_by_driver ? (
-                            <>
-                              <p className="text-sm font-black text-green-700">{t("driver.jobs.fuel.recorded", { level: fuelDisplayLabel(job.collection_fuel_level_driver) })}</p>
-                              <p className="text-xs text-black/30 mt-1">{fmt(job.collection_confirmed_by_driver_at)}</p>
-                              {job.collection_fuel_level_driver && <FuelBar level={job.collection_fuel_level_driver}/>}
-                              {collPartnerOverride && normalizeFuel(job.collection_fuel_level_partner) !== normalizeFuel(job.collection_fuel_level_driver) && (
-                                <div className="mt-3 border border-amber-200 bg-amber-50 px-3 py-2">
-                                  <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeOverride", { level: fuelDisplayLabel(job.collection_fuel_level_partner) })}</p>
-                                  <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeOverrideNote")}</p>
+                        {/* ── Step 2: Delivery fuel ── */}
+                        {!deliveryFuelUnlocked ? (
+                          <LockedStep message="Complete insurance handover first (Step 1)" />
+                        ) : (
+                          <div className={`border p-4 ${deliveryConfirmed ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
+                            <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">
+                              <span className="mr-1">②</span>{t("driver.jobs.fuel.delivery.label")}
+                            </p>
+                            {deliveryConfirmed ? (
+                              <>
+                                <p className="text-sm font-black text-green-700">{t("driver.jobs.fuel.recorded", { level: fuelDisplayLabel(job.collection_fuel_level_driver) })}</p>
+                                <p className="text-xs text-black/30 mt-1">{fmt(job.collection_confirmed_by_driver_at)}</p>
+                                {job.collection_fuel_level_driver && <FuelBar level={job.collection_fuel_level_driver}/>}
+                                {collPartnerOverride && normalizeFuel(job.collection_fuel_level_partner) !== normalizeFuel(job.collection_fuel_level_driver) && (
+                                  <div className="mt-3 border border-amber-200 bg-amber-50 px-3 py-2">
+                                    <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeOverride", { level: fuelDisplayLabel(job.collection_fuel_level_partner) })}</p>
+                                    <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeOverrideNote")}</p>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {collPartnerOverride && (
+                                  <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2">
+                                    <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeSet", { level: fuelDisplayLabel(job.collection_fuel_level_partner) })}</p>
+                                    <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeSetNote")}</p>
+                                  </div>
+                                )}
+                                <p className="text-sm font-bold text-black/60 mb-3">{t("driver.jobs.fuel.deliveryInstruction")}</p>
+                                <div className="grid grid-cols-5 gap-2 mb-3">
+                                  {FUEL_OPTIONS.map(opt => (
+                                    <button key={opt} type="button"
+                                      onClick={() => setFuelInputs(f => ({ ...f, [`coll_${job.booking_id}`]: opt }))}
+                                      className={`py-2.5 text-xs font-black transition-colors ${collFuelInput === opt ? "bg-[#ff7a00] text-white" : "bg-white text-black/60 border border-black/10 hover:border-black/30"}`}>
+                                      {FUEL_LABELS[opt]}
+                                    </button>
+                                  ))}
                                 </div>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {collPartnerOverride && (
-                                <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2">
-                                  <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeSet", { level: fuelDisplayLabel(job.collection_fuel_level_partner) })}</p>
-                                  <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeSetNote")}</p>
-                                </div>
-                              )}
-                              <p className="text-sm font-bold text-black/60 mb-3">{t("driver.jobs.fuel.deliveryInstruction")}</p>
-                              <div className="grid grid-cols-5 gap-2 mb-3">
-                                {FUEL_OPTIONS.map(opt => (
-                                  <button key={opt} type="button"
-                                    onClick={() => setFuelInputs(f => ({ ...f, [`coll_${job.booking_id}`]: opt }))}
-                                    className={`py-2.5 text-xs font-black transition-colors ${collFuelInput === opt ? "bg-[#ff7a00] text-white" : "bg-white text-black/60 border border-black/10 hover:border-black/30"}`}>
-                                    {FUEL_LABELS[opt]}
-                                  </button>
-                                ))}
-                              </div>
-                              {collFuelInput && <FuelBar level={collFuelInput}/>}
-                              <button type="button" disabled={!collFuelInput || isConfirming}
-                                onClick={() => confirmAction(job.booking_id, "collection", collFuelInput)}
-                                className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
-                                {isConfirming ? t("driver.jobs.fuel.saving") : t("driver.jobs.fuel.confirmDeliveryBtn")}
-                              </button>
-                            </>
-                          )}
-                        </div>
+                                {collFuelInput && <FuelBar level={collFuelInput}/>}
+                                <button type="button" disabled={!collFuelInput || isConfirming}
+                                  onClick={() => confirmAction(job.booking_id, "collection", collFuelInput)}
+                                  className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
+                                  {isConfirming ? t("driver.jobs.fuel.saving") : t("driver.jobs.fuel.confirmDeliveryBtn")}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
 
-                        {/* ── Collection fuel ── */}
-                        <div className={`border p-4 ${job.return_confirmed_by_driver ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
-                          <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">{t("driver.jobs.fuel.collection.label")}</p>
-                          {job.return_confirmed_by_driver ? (
-                            <>
-                              <p className="text-sm font-black text-green-700">{t("driver.jobs.fuel.recorded", { level: fuelDisplayLabel(job.return_fuel_level_driver) })}</p>
-                              <p className="text-xs text-black/30 mt-1">{fmt(job.return_confirmed_by_driver_at)}</p>
-                              {job.return_fuel_level_driver && <FuelBar level={job.return_fuel_level_driver}/>}
-                              {retPartnerOverride && normalizeFuel(job.return_fuel_level_partner) !== normalizeFuel(job.return_fuel_level_driver) && (
-                                <div className="mt-3 border border-amber-200 bg-amber-50 px-3 py-2">
-                                  <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeOverride", { level: fuelDisplayLabel(job.return_fuel_level_partner) })}</p>
-                                  <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeOverrideNote")}</p>
+                        {/* ── Step 3: Collection fuel ── */}
+                        {!collectionFuelUnlocked ? (
+                          <LockedStep message={
+                            !insuranceConfirmed
+                              ? "Complete insurance handover first (Step 1)"
+                              : "Record delivery fuel level first (Step 2)"
+                          } />
+                        ) : (
+                          <div className={`border p-4 ${collectionConfirmed ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
+                            <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">
+                              <span className="mr-1">③</span>{t("driver.jobs.fuel.collection.label")}
+                            </p>
+                            {collectionConfirmed ? (
+                              <>
+                                <p className="text-sm font-black text-green-700">{t("driver.jobs.fuel.recorded", { level: fuelDisplayLabel(job.return_fuel_level_driver) })}</p>
+                                <p className="text-xs text-black/30 mt-1">{fmt(job.return_confirmed_by_driver_at)}</p>
+                                {job.return_fuel_level_driver && <FuelBar level={job.return_fuel_level_driver}/>}
+                                {retPartnerOverride && normalizeFuel(job.return_fuel_level_partner) !== normalizeFuel(job.return_fuel_level_driver) && (
+                                  <div className="mt-3 border border-amber-200 bg-amber-50 px-3 py-2">
+                                    <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeOverride", { level: fuelDisplayLabel(job.return_fuel_level_partner) })}</p>
+                                    <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeOverrideNote")}</p>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {retPartnerOverride && (
+                                  <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2">
+                                    <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeRecorded", { level: fuelDisplayLabel(job.return_fuel_level_partner) })}</p>
+                                    <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeRecordedNote")}</p>
+                                    <FuelBar level={job.return_fuel_level_partner ?? null}/>
+                                  </div>
+                                )}
+                                <p className="text-sm font-bold text-black/60 mb-3">{t("driver.jobs.fuel.collectionInstruction")}</p>
+                                <div className="grid grid-cols-5 gap-2 mb-3">
+                                  {FUEL_OPTIONS.map(opt => (
+                                    <button key={opt} type="button"
+                                      onClick={() => setFuelInputs(f => ({ ...f, [`ret_${job.booking_id}`]: opt }))}
+                                      className={`py-2.5 text-xs font-black transition-colors ${retFuelInput === opt ? "bg-[#ff7a00] text-white" : "bg-white text-black/60 border border-black/10 hover:border-black/30"}`}>
+                                      {FUEL_LABELS[opt]}
+                                    </button>
+                                  ))}
                                 </div>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {retPartnerOverride && (
-                                <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2">
-                                  <p className="text-xs font-black text-amber-700">{t("driver.jobs.fuel.officeRecorded", { level: fuelDisplayLabel(job.return_fuel_level_partner) })}</p>
-                                  <p className="text-xs font-bold text-amber-600 mt-0.5">{t("driver.jobs.fuel.officeRecordedNote")}</p>
-                                  <FuelBar level={job.return_fuel_level_partner ?? null}/>
-                                </div>
-                              )}
-                              <p className="text-sm font-bold text-black/60 mb-3">{t("driver.jobs.fuel.collectionInstruction")}</p>
-                              <div className="grid grid-cols-5 gap-2 mb-3">
-                                {FUEL_OPTIONS.map(opt => (
-                                  <button key={opt} type="button"
-                                    onClick={() => setFuelInputs(f => ({ ...f, [`ret_${job.booking_id}`]: opt }))}
-                                    className={`py-2.5 text-xs font-black transition-colors ${retFuelInput === opt ? "bg-[#ff7a00] text-white" : "bg-white text-black/60 border border-black/10 hover:border-black/30"}`}>
-                                    {FUEL_LABELS[opt]}
-                                  </button>
-                                ))}
-                              </div>
-                              {retFuelInput && <FuelBar level={retFuelInput}/>}
-                              <button type="button" disabled={!retFuelInput || isConfirming}
-                                onClick={() => confirmAction(job.booking_id, "return", retFuelInput)}
-                                className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
-                                {isConfirming ? t("driver.jobs.fuel.saving") : t("driver.jobs.fuel.confirmCollectionBtn")}
-                              </button>
-                            </>
-                          )}
-                        </div>
+                                {retFuelInput && <FuelBar level={retFuelInput}/>}
+                                <button type="button" disabled={!retFuelInput || isConfirming}
+                                  onClick={() => confirmAction(job.booking_id, "return", retFuelInput)}
+                                  className="mt-3 bg-[#ff7a00] px-5 py-3 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity">
+                                  {isConfirming ? t("driver.jobs.fuel.saving") : t("driver.jobs.fuel.confirmCollectionBtn")}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+
                       </div>
                     )}
                   </div>
