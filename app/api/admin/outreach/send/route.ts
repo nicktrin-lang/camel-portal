@@ -196,12 +196,12 @@ Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
     : `Founding partner invitation — Camel Global · ${prospect.city || prospect.company_name}`;
 
   const ctaEs = `
-    <p style="text-align:center;margin:32px 0;">
+    <p style="text-align:left;margin:32px 0;">
       <a href="https://portal.camel-global.com/" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">REGÍSTRATE AHORA</a>
     </p>`;
 
   const ctaEn = `
-    <p style="text-align:center;margin:32px 0;">
+    <p style="text-align:left;margin:32px 0;">
       <a href="https://portal.camel-global.com/" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">SIGN UP NOW</a>
     </p>`;
 
@@ -244,8 +244,8 @@ Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
   const fullHtml = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#222;line-height:1.7;max-width:600px;">
       <div style="background:#000;padding:28px;text-align:center;">
-        <img src="https://portal.camel-global.com/camel-logo-white-new.png" alt="Camel Global" style="height:72px;width:auto;display:inline-block;" />
-        <p style="color:#ffffff;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:12px 0 0 0;">Camel Global &middot; Meet &amp; Greet Car Hire</p>
+        <img src="https://portal.camel-global.com/camel-logo-white-new.png" alt="Camel Global" style="height:108px;width:auto;display:inline-block;" />
+        
       </div>
       <div style="padding:28px;border:1px solid #eee;border-top:none;">
         ${htmlBody}
