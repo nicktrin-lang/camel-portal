@@ -144,8 +144,8 @@ async function generateEmail(prospect: {
   const locale = getLocale(prospect.country);
   const unsubscribeUrl = `https://portal.camel-global.com/api/admin/outreach/unsubscribe?id=${prospect.id}`;
 
-  // Ask AI only for the personalised opening line — everything else is hardcoded
-  const promptEs = `Escribe SOLO una frase de apertura personalizada para un email de captación a una empresa de alquiler de coches.
+  // AI generates only the personalised opening sentence
+  const promptEs = `Escribe SOLO una frase de apertura personalizada (una etiqueta <p>) para un email de captación a una empresa de alquiler de coches.
 
 La frase debe mencionar su ciudad (si se conoce) y preguntar si les gustaría acceder a clientes que buscan alquiler de coches con entrega directa en aeropuerto, hotel o domicilio.
 
@@ -153,9 +153,9 @@ Empresa: ${prospect.company_name}
 Contacto: ${prospect.contact_name || "no conocido"}
 Ciudad: ${prospect.city || "España"}
 
-Devuelve SOLO la frase de apertura en HTML simple (una etiqueta <p>). Sin saludos, sin asunto, sin nada más.`;
+Devuelve SOLO una etiqueta <p>. Sin saludos, sin asunto, sin nada más.`;
 
-  const promptEn = `Write ONLY a single personalised opening sentence for a car hire company outreach email.
+  const promptEn = `Write ONLY a single personalised opening sentence (one <p> tag) for a car hire company outreach email.
 
 The sentence should mention their city (if known) and ask whether they would like access to customers looking for car hire with direct delivery to the airport, hotel or home.
 
@@ -163,7 +163,7 @@ Company: ${prospect.company_name}
 Contact: ${prospect.contact_name || "unknown"}
 City: ${prospect.city || ""}
 
-Return ONLY the opening sentence as simple HTML (a single <p> tag). No greeting, no subject line, nothing else.`;
+Return ONLY a single <p> tag. No greeting, no subject line, nothing else.`;
 
   const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -187,34 +187,33 @@ Return ONLY the opening sentence as simple HTML (a single <p> tag). No greeting,
   const anthropicJson = await anthropicRes.json();
   const openingLine: string = anthropicJson?.content?.[0]?.text?.trim() || "";
 
-  // Greeting
   const greeting = prospect.contact_name
     ? (locale === "es" ? `<p>Estimado/a ${prospect.contact_name},</p>` : `<p>Dear ${prospect.contact_name},</p>`)
     : (locale === "es" ? `<p>Estimado equipo,</p>` : `<p>Dear team,</p>`);
 
-  // Subject
   const subject = locale === "es"
     ? `Invitación a socio fundador — Camel Global · ${prospect.city || prospect.company_name}`
     : `Founding partner invitation — Camel Global · ${prospect.city || prospect.company_name}`;
 
-  // Hardcoded body in agreed structure
   const bodyEs = `
     ${greeting}
     ${openingLine || `<p>¿Le gustaría acceder a clientes que buscan alquiler de coches con entrega directa en aeropuerto, hotel o domicilio en ${prospect.city || "su área"}?</p>`}
-    <p><strong>Camel Global es un canal digital adicional</strong> diseñado para empresas de alquiler independientes como la suya. No reemplaza su negocio — simplemente lo complementa. Los clientes solicitan online, usted envía su presupuesto, y su conductor entrega el vehículo directamente al cliente. Todo gestionado desde nuestra plataforma.</p>
-    <p>Las plazas de <strong>socio fundador son limitadas por destino</strong>. Los primeros socios obtendrán visibilidad prioritaria cuando lancemos en España y nos expandamos internacionalmente.</p>
-    <p>Unirse es completamente gratuito — sin cuotas de alta, sin suscripción mensual. El registro tarda aproximadamente 5 minutos.</p>
-    <p>Si le interesa asegurar su plaza, puede registrarse en <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a> o simplemente responder a este email.</p>
+    <p>Estamos lanzando Camel Global — una plataforma de alquiler de coches meet &amp; greet construida específicamente para operadores independientes — y nos gustaría invitar a ${prospect.company_name} a unirse como socio fundador.</p>
+    <p>Cómo funciona: los clientes solicitan un vehículo online, usted envía un presupuesto, y su conductor lo entrega directamente en el aeropuerto, hotel o donde el cliente lo necesite. Funciona junto a su negocio existente como un canal adicional de reservas — nada cambia en cómo opera.</p>
+    <p><strong>Las plazas de socio fundador son limitadas por destino.</strong> Los primeros socios obtienen visibilidad prioritaria cuando lancemos en España y nos expandamos internacionalmente.</p>
+    <p>Unirse es completamente gratuito. Sin cuotas de alta, sin suscripción, sin costes mensuales. El registro tarda aproximadamente cinco minutos.</p>
+    <p>Si desea asegurar su plaza: <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a></p>
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador — Camel Global</p>
   `;
 
   const bodyEn = `
     ${greeting}
     ${openingLine || `<p>Would you like access to customers looking for car hire with direct delivery to the airport, hotel or home in ${prospect.city || "your area"}?</p>`}
-    <p><strong>Camel Global is an additional digital channel</strong> built for independent car hire companies like yours. It doesn't replace your business — it simply adds to it. Customers request online, you submit a quote, and your driver delivers the vehicle directly to them. Everything managed through our platform.</p>
+    <p>We're launching Camel Global — a meet &amp; greet car hire platform built specifically for independent operators — and we'd like to invite ${prospect.company_name} to join as a founding partner.</p>
+    <p>How it works: customers request a car online, you submit a quote, and your driver delivers directly to them at the airport, hotel, or wherever they need it. It sits alongside your existing business as an additional booking channel — nothing changes in how you operate.</p>
     <p><strong>Founding partner places are limited per destination.</strong> Early partners get priority visibility as we launch across Spain and expand internationally.</p>
-    <p>Joining is completely free — no setup fees, no monthly subscription. Registration takes around 5 minutes.</p>
-    <p>If you'd like to secure your place, you can register at <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a> or simply reply to this email.</p>
+    <p>Joining is completely free. No setup fees, no subscription, no monthly costs. Registration takes around five minutes.</p>
+    <p>If you'd like to secure your place: <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a></p>
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Founder — Camel Global</p>
   `;
 
@@ -236,19 +235,13 @@ Return ONLY the opening sentence as simple HTML (a single <p> tag). No greeting,
 
   const fullHtml = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#222;line-height:1.7;max-width:600px;">
-      <!-- White logo strip -->
-      <div style="background:#ffffff;padding:16px 28px;border:1px solid #eee;border-bottom:none;">
-        <img src="https://portal.camel-global.com/camel-invoice-logo.png" alt="Camel Global" style="height:48px;width:auto;display:block;" />
+      <div style="background:#000;padding:28px;text-align:center;">
+        <img src="https://portal.camel-global.com/camel-logo-white.png" alt="Camel Global" style="height:72px;width:auto;display:inline-block;" />
+        <p style="color:#ff7a00;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:12px 0 0 0;">${headerLabel}</p>
       </div>
-      <!-- Black header bar -->
-      <div style="background:#000;padding:14px 28px;">
-        <p style="color:#ff7a00;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:0;">${headerLabel}</p>
-      </div>
-      <!-- Body -->
       <div style="padding:28px;border:1px solid #eee;border-top:none;">
         ${htmlBody}
       </div>
-      <!-- Footer -->
       <div style="padding:16px 28px;background:#f8f8f8;border:1px solid #eee;border-top:none;font-size:12px;color:#999;line-height:1.8;">
         ${locale === "es" ? footerEs : footerEn}
       </div>
