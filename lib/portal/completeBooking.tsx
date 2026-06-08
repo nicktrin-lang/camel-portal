@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import React from "react";
 import fs from "fs";
 import path from "path";
+import { createClient } from "@supabase/supabase-js";
 import {
   Document, Page, Text, View, Image, StyleSheet, renderToBuffer,
 } from "@react-pdf/renderer";
@@ -290,7 +291,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
     return { ok: true, already_processed: true };
   }
 
-  // ── Load partner info early — needed for refund metadata ─────────────────
+  // ── Load partner info ─────────────────────────────────────────────────────
   const { data: partnerProfile } = await db
     .from("partner_profiles")
     .select("company_name, contact_name, communication_locale")
@@ -356,7 +357,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (pmtUpdateErr) return { ok: false, error: pmtUpdateErr.message, status: 500 };
 
-  // ── Load request from customer DB via direct REST fetch ──────────────────
+  // ── Load request from customer DB via direct REST fetch ───────────────────
   const request = await fetchCustomerRequest(booking.request_id);
 
   const { data: partnerAuthData } = await db.auth.admin.getUserById(booking.partner_user_id);
@@ -372,9 +373,15 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   const partnerLocale = (partnerProfile?.communication_locale as "en" | "es") || "en";
 
   // ── Look up customer communication locale ─────────────────────────────────
+  // Customer auth lives in a separate Supabase project — must use customer credentials
   let customerLocale: "en" | "es" = "en";
   try {
-    const { data: usersData } = await db.auth.admin.listUsers();
+    const customerDb = createClient(
+      process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
+      process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
+    );
+    const { data: usersData } = await customerDb.auth.admin.listUsers();
     const matchedUser = usersData?.users?.find(
       u => (u.email || "").toLowerCase() === (request?.customer_email || "").toLowerCase()
     );
@@ -390,7 +397,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
     console.error("completeBooking: failed to fetch customer locale:", e);
   }
 
-  // ── Generate completion statement PDF — read logo from disk ───────────────
+  // ── Generate completion statement PDF ─────────────────────────────────────
   let statementBase64: string | null = null;
   try {
     const statementData: StatementData = {

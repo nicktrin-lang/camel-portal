@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendReviewReminderEmail } from "@/lib/email";
 
@@ -43,15 +44,19 @@ export async function GET(req: Request) {
 
   const requestMap = new Map((requests || []).map((r: any) => [r.id, r]));
 
-  // Fetch all customer profiles in one query, then match via auth users
   const customerEmails = [...new Set(
     (requests || []).map((r: any) => r.customer_email).filter(Boolean)
   )];
 
-  // Build email → locale map
+  // Build email → locale map using customer Supabase project for listUsers
   const emailLocaleMap = new Map<string, "en" | "es">();
   try {
-    const { data: usersData } = await db.auth.admin.listUsers();
+    const customerDb = createClient(
+      process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
+      process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
+    );
+    const { data: usersData } = await customerDb.auth.admin.listUsers();
     const { data: profiles } = await db
       .from("customer_profiles")
       .select("user_id, communication_locale");
