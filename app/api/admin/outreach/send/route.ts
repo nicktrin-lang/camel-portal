@@ -104,7 +104,6 @@ export async function POST(req: Request) {
       .single();
     if (fetchError || !prospect) return NextResponse.json({ error: "Prospect not found" }, { status: 404 });
 
-    // Always block unsubscribed — even on resend
     if (prospect.unsubscribed) {
       return NextResponse.json({ error: "Prospect has unsubscribed" }, { status: 400 });
     }
@@ -145,56 +144,56 @@ async function generateEmail(prospect: {
   const locale = getLocale(prospect.country);
   const unsubscribeUrl = `https://portal.camel-global.com/api/admin/outreach/unsubscribe?id=${prospect.id}`;
 
-  const promptEs = `Eres un asistente que escribe emails de captación en nombre de Camel Global — una plataforma de alquiler de coches meet & greet.
+  const promptEs = `Eres un asistente que escribe emails de captación en nombre de Camel Global — una plataforma de alquiler de coches meet & greet construida específicamente para operadores independientes.
 
-Qué es Camel Global: es un canal digital adicional que conecta empresas de alquiler de coches con clientes que quieren recibir el vehículo directamente donde están — en el aeropuerto, hotel, domicilio u otra ubicación. Funciona perfectamente junto a tu negocio de alquiler existente, sin interferir con tus operaciones actuales ni con tus canales actuales. No lo sustituye — simplemente te da acceso a más clientes que de otro modo no te encontrarían.
+Escribe un email de captación corto, profesional y directo siguiendo EXACTAMENTE esta estructura:
 
-Así funciona: los clientes envían solicitudes online, las empresas de alquiler cercanas reciben la solicitud, envían su presupuesto, y cuando ganan la reserva, uno de sus conductores entrega el coche directamente al cliente. Simple, eficiente, y completamente gestionado desde nuestra plataforma.
+1. Saludo personalizado usando el nombre del contacto si se conoce, o "Estimado equipo," si no
+2. Una frase de apertura que mencione su ciudad (si se conoce) y pregunte si les gustaría acceder a clientes que buscan alquiler de coches con entrega directa en aeropuerto, hotel o domicilio
+3. Un párrafo corto que explique que Camel Global es un canal digital adicional — no reemplaza su negocio, simplemente lo complementa. Los clientes solicitan online, la empresa envía presupuesto, el conductor entrega directamente al cliente.
+4. Una línea sobre las plazas de socio fundador: limitadas por destino, con visibilidad prioritaria al lanzar en España y expandirse internacionalmente
+5. Una línea: completamente gratuito — sin cuotas de alta, sin suscripción mensual, registro en 5 minutos
+6. CTA: <p>Si te interesa, puedes registrarte en <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a> o simplemente responder a este email.</p>
+7. Firma: <p>Nicholas Trinnaman<br/>Fundador — Camel Global</p>
 
-Escribe un email de captación corto, profesional y cercano a la siguiente empresa de alquiler de coches:
-
-Nombre de la empresa: ${prospect.company_name}
-Nombre del contacto: ${prospect.contact_name || "no conocido — usa 'Hola,' o 'Estimado equipo,'"}
+Empresa: ${prospect.company_name}
+Contacto: ${prospect.contact_name || "no conocido — usa 'Estimado equipo,'"}
 Ciudad: ${prospect.city || "España"}
 País: ${prospect.country || "España"}
 ${prospect.notes ? `Notas: ${prospect.notes}` : ""}
 
 Requisitos estrictos:
-- Primera línea: asunto del email, con el prefijo "Asunto: "
+- Primera línea del output: asunto del email con el prefijo "Asunto: "
 - Línea en blanco
 - Cuerpo en HTML simple: etiquetas <p> y <strong> únicamente, sin <html>/<body>
-- Máximo 160 palabras
-- Menciona su ciudad si se conoce
-- Destaca que Camel Global funciona junto a su negocio actual como canal adicional, no lo reemplaza
-- NO menciones comisiones, porcentajes ni precios en este email
-- Termina con: <p>Si te interesa saber más, puedes registrarte en <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a> o simplemente responder a este email.</p>
-- Firma: <p>El equipo de Camel Global</p>
+- Máximo 150 palabras en el cuerpo
+- NO menciones comisiones, porcentajes ni precios
 - No uses marcadores de posición como [NOMBRE]`;
 
-  const promptEn = `You are an assistant writing outreach emails on behalf of Camel Global — a meet & greet car hire platform.
+  const promptEn = `You are an assistant writing outreach emails on behalf of Camel Global — a meet & greet car hire platform built specifically for independent operators.
 
-What is Camel Global: it is an additional digital channel that connects car hire companies with customers who want a vehicle delivered directly to them — at the airport, hotel, home or any other location. It works perfectly alongside your existing car hire business, without interfering with your current operations or existing channels. It doesn't replace anything — it simply gives you access to more customers who wouldn't otherwise find you.
+Write a short, professional and direct outreach email following EXACTLY this structure:
 
-How it works: customers submit requests online, nearby car hire companies receive the request, submit their quote, and when they win the booking, one of their drivers delivers the car directly to the customer. Simple, efficient, and fully managed through our platform.
+1. Personalised greeting using the contact name if known, or "Dear team," if not
+2. An opening line that mentions their city (if known) and asks whether they'd like access to customers looking for car hire with direct delivery to the airport, hotel or home
+3. A short paragraph explaining that Camel Global is an additional digital channel — it doesn't replace their business, it simply adds to it. Customers request online, the company submits a quote, the driver delivers directly to the customer.
+4. One line about founding partner places: limited per destination, with priority visibility as the platform launches across Spain and expands internationally
+5. One line: completely free — no setup fees, no monthly subscription, registration takes around 5 minutes
+6. CTA: <p>If you'd like to secure your place, you can register at <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a> or simply reply to this email.</p>
+7. Sign off: <p>Nicholas Trinnaman<br/>Founder — Camel Global</p>
 
-Write a short, professional and friendly outreach email to the following car hire company:
-
-Company name: ${prospect.company_name}
-Contact name: ${prospect.contact_name || "unknown — use 'Hi,' or 'Dear team,'"}
+Company: ${prospect.company_name}
+Contact: ${prospect.contact_name || "unknown — use 'Dear team,'"}
 City: ${prospect.city || ""}
 Country: ${prospect.country || ""}
 ${prospect.notes ? `Notes: ${prospect.notes}` : ""}
 
 Strict requirements:
-- First line: email subject, prefixed with "Subject: "
+- First line of output: email subject prefixed with "Subject: "
 - Blank line
 - Body in simple HTML: <p> and <strong> tags only, no <html>/<body>
-- Maximum 160 words
-- Mention their city if known
-- Emphasise that Camel Global works alongside their existing business as an additional channel, not replacing it
-- DO NOT mention commission rates, percentages or pricing in this email
-- End with: <p>If you'd like to find out more, you can register at <a href="https://www.camel-global.com/partner/signup" style="color:#ff7a00;">camel-global.com/partner/signup</a> or simply reply to this email.</p>
-- Sign off: <p>The Camel Global Team</p>
+- Maximum 150 words in the body
+- DO NOT mention commission rates, percentages or pricing
 - Do not use placeholder text like [NAME]`;
 
   const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
@@ -224,13 +223,13 @@ Strict requirements:
   const subjectLine = lines.find((l: string) => /^(asunto|subject):/i.test(l.trim())) || "";
   const subject = subjectLine.replace(/^(asunto|subject):\s*/i, "").trim()
     || (locale === "es"
-      ? `Amplía tu negocio de alquiler con Camel Global — ${prospect.company_name}`
-      : `Grow your car hire business with Camel Global — ${prospect.company_name}`);
+      ? `Invitación a socio fundador — Camel Global · ${prospect.city || prospect.company_name}`
+      : `Founding partner invitation — Camel Global · ${prospect.city || prospect.company_name}`);
 
   const bodyStartIndex = lines.findIndex((l: string) => /^(asunto|subject):/i.test(l.trim()));
   const htmlBody = lines.slice(bodyStartIndex + 2).join("\n").trim();
 
-  const headerLabel = locale === "es" ? "Camel Global · Invitación a Socios" : "Camel Global · Partner Invitation";
+  const headerLabel = locale === "es" ? "Camel Global · Invitación a Socios Fundadores" : "Camel Global · Founding Partner Invitation";
 
   const footerEs = `
     Camel Global &middot; <a href="mailto:partners@camel-global.com" style="color:#999;text-decoration:none;">partners@camel-global.com</a> &middot; <a href="https://camel-global.com" style="color:#999;text-decoration:none;">camel-global.com</a><br/>
@@ -246,17 +245,9 @@ Strict requirements:
 
   const fullHtml = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#222;line-height:1.7;max-width:600px;">
-      <div style="background:#000;padding:20px 28px;margin-bottom:0;">
-        <table cellpadding="0" cellspacing="0" border="0" style="width:100%;">
-          <tr>
-            <td style="vertical-align:middle;">
-              <img src="https://portal.camel-global.com/camel-invoice-logo.png" alt="Camel Global" style="height:36px;width:auto;display:block;" />
-            </td>
-            <td style="vertical-align:middle;padding-left:16px;">
-              <p style="color:#ff7a00;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:0;">${headerLabel}</p>
-            </td>
-          </tr>
-        </table>
+      <div style="background:#000;padding:24px 28px;margin-bottom:0;text-align:center;">
+        <img src="https://portal.camel-global.com/camel-logo.png" alt="Camel Global" style="height:56px;width:auto;display:inline-block;filter:brightness(0) invert(1);" />
+        <p style="color:#ff7a00;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin:10px 0 0 0;">${headerLabel}</p>
       </div>
       <div style="padding:28px;border:1px solid #eee;border-top:none;">
         ${htmlBody}
