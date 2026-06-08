@@ -156,7 +156,7 @@ async function generateEmail(prospect: {
 
   const subject = locale === "es"
     ? `Camel Global - Meet & Greet Alquiler de Coches - Invitación a Socio Fundador`
-    : `Camel Global - Meet & Greet Alquiler de Coches - Invitación a Socio Fundador`;
+    : `Camel Global - Meet & Greet Car Hire - Founding Partner Invitation`;
 
   const ctaEs = `
     <p style="text-align:left;margin:32px 0;">
