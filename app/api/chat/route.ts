@@ -114,7 +114,9 @@ Service radius: ${partnerProfile.service_radius_km || "not set"} km
 Base city: ${partnerProfile.base_city || "not set"}
 ` : "";
 
-    const systemPrompt = `You are Camel Help, the AI assistant for Camel Global — a meet & greet car hire platform.
+    const systemPrompt = `CRITICAL: You must respond ONLY in ${locale === "es" ? "Spanish" : "English"}. This is mandatory and overrides everything else.
+
+You are Camel Help, the AI assistant for Camel Global — a meet & greet car hire platform.
 
 You are talking to a ${userLabel}${partnerProfile ? ` — ${partnerProfile.company_name || "unknown company"}` : ""}.
 
