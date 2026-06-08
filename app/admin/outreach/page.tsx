@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 
 const DAILY_LIMIT = 50;
 
+const COUNTRIES = ["All Countries", "Spain", "France", "Italy", "Portugal", "Germany", "UK", "USA"];
+
 type Status = "pending" | "sent" | "bounced" | "replied" | "onboarded";
 
 type Prospect = {
@@ -14,6 +16,7 @@ type Prospect = {
   city: string | null;
   country: string | null;
   status: Status;
+  unsubscribed: boolean | null;
   notes: string | null;
   sent_at: string | null;
   created_at: string;
@@ -45,6 +48,7 @@ export default function OutreachPage() {
   const [batchSending, setBatchSending] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
+  const [countryFilter, setCountryFilter] = useState<string>("All Countries");
   const [sentToday, setSentToday]     = useState(0);
   const [testSending, setTestSending] = useState(false);
   const [totalCount, setTotalCount]   = useState(0);
@@ -114,7 +118,7 @@ export default function OutreachPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        if (res.status === 429) throw new Error(json.error); // daily limit hit
+        if (res.status === 429) throw new Error(json.error);
         throw new Error(json.error || "Send failed");
       }
       setSendResult(r => ({ ...r, [id]: "ok" }));
@@ -125,9 +129,9 @@ export default function OutreachPage() {
       setSendResult(r => ({ ...r, [id]: "error" }));
       if (String(e?.message).includes("Daily limit")) {
         alert(e.message);
-        return false; // stop batch
+        return false;
       }
-      return true; // continue batch on other errors
+      return true;
     } finally {
       setSending(null);
     }
@@ -139,10 +143,11 @@ export default function OutreachPage() {
       alert(`Daily limit of ${DAILY_LIMIT} emails already reached. Come back tomorrow.`);
       return;
     }
-    const pending = prospects.filter(p => p.status === "pending");
+    const pending = filtered.filter(p => p.status === "pending" && !p.unsubscribed);
     if (pending.length === 0) { alert("No pending prospects to send to."); return; }
     const toSend = pending.slice(0, remaining);
-    if (!confirm(`Send emails to ${toSend.length} prospect(s) today?\n\nDaily limit: ${DAILY_LIMIT} | Already sent today: ${sentToday} | Sending now: ${toSend.length}\n\nClaude will write a personalised email for each company.`)) return;
+    const countryNote = countryFilter !== "All Countries" ? ` in ${countryFilter}` : "";
+    if (!confirm(`Send emails to ${toSend.length} prospect(s)${countryNote} today?\n\nDaily limit: ${DAILY_LIMIT} | Already sent today: ${sentToday} | Sending now: ${toSend.length}\n\nClaude will write a personalised email for each company in their local language.`)) return;
 
     setBatchSending(true);
     setBatchProgress({ done: 0, total: toSend.length });
@@ -203,7 +208,10 @@ export default function OutreachPage() {
     }
   }
 
-  const filtered = statusFilter === "all" ? prospects : prospects.filter(p => p.status === statusFilter);
+  // Apply both filters
+  const filtered = prospects
+    .filter(p => statusFilter === "all" || p.status === statusFilter)
+    .filter(p => countryFilter === "All Countries" || (p.country || "").toLowerCase() === countryFilter.toLowerCase());
 
   const counts = prospects.reduce((acc, p) => {
     acc[p.status] = (acc[p.status] || 0) + 1;
@@ -211,8 +219,8 @@ export default function OutreachPage() {
   }, {} as Record<string, number>);
 
   const remaining = Math.max(0, DAILY_LIMIT - sentToday);
-  const pendingCount = counts["pending"] || 0;
-  const batchSize = Math.min(remaining, pendingCount);
+  const pendingInView = filtered.filter(p => p.status === "pending" && !p.unsubscribed).length;
+  const batchSize = Math.min(remaining, pendingInView);
 
   return (
     <div className="space-y-6">
@@ -241,7 +249,7 @@ export default function OutreachPage() {
           </div>
           <button
             onClick={handleBatchSend}
-            disabled={batchSending || loading || remaining === 0 || pendingCount === 0}
+            disabled={batchSending || loading || remaining === 0 || pendingInView === 0}
             className="bg-[#ff7a00] px-4 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap"
           >
             {batchSending
@@ -285,6 +293,27 @@ export default function OutreachPage() {
         ))}
       </div>
 
+      {/* Filters row */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <span className="text-xs font-black uppercase tracking-widest text-black/40">Filter by country:</span>
+        <div className="flex flex-wrap gap-2">
+          {COUNTRIES.map(c => (
+            <button
+              key={c}
+              onClick={() => setCountryFilter(c)}
+              className={[
+                "px-3 py-1.5 text-xs font-black transition-all border",
+                countryFilter === c
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-black/60 border-black/15 hover:border-black/40 hover:text-black",
+              ].join(" ")}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Add Prospect Form */}
       {showAdd && (
         <div className="border border-black/10 bg-white p-6">
@@ -320,10 +349,13 @@ export default function OutreachPage() {
             </div>
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1">Country</label>
-              <input value={form.country}
+              <select value={form.country}
                 onChange={e => setForm(f => ({ ...f, country: e.target.value }))}
-                className="w-full border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-semibold text-black outline-none focus:border-black"
-                placeholder="Spain" />
+                className="w-full border border-black/20 bg-[#f0f0f0] px-3 py-2 text-sm font-semibold text-black outline-none focus:border-black">
+                {COUNTRIES.filter(c => c !== "All Countries").map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-black/50 mb-1">Notes</label>
@@ -361,7 +393,9 @@ export default function OutreachPage() {
           <div className="px-6 py-12 text-center">
             <p className="text-sm font-black text-black/40 uppercase tracking-widest">No prospects found</p>
             <p className="mt-2 text-xs font-semibold text-black/30">
-              {statusFilter !== "all" ? `No ${statusFilter} prospects.` : "Add your first prospect using the button above."}
+              {statusFilter !== "all" || countryFilter !== "All Countries"
+                ? "Try adjusting your filters."
+                : "Add your first prospect using the button above."}
             </p>
           </div>
         ) : (
@@ -381,8 +415,13 @@ export default function OutreachPage() {
               </thead>
               <tbody className="divide-y divide-black/5">
                 {filtered.map(p => (
-                  <tr key={p.id} className="hover:bg-[#f8f8f8] transition-colors">
-                    <td className="px-4 py-3 font-black text-black">{p.company_name}</td>
+                  <tr key={p.id} className={["hover:bg-[#f8f8f8] transition-colors", p.unsubscribed ? "opacity-50" : ""].join(" ")}>
+                    <td className="px-4 py-3 font-black text-black">
+                      {p.company_name}
+                      {p.unsubscribed && (
+                        <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5">unsub</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-semibold text-black/70">{p.contact_name || "—"}</td>
                     <td className="px-4 py-3 font-semibold text-black/70 text-xs">{p.email}</td>
                     <td className="px-4 py-3 font-semibold text-black/70 text-xs">{[p.city, p.country].filter(Boolean).join(", ") || "—"}</td>
@@ -399,7 +438,7 @@ export default function OutreachPage() {
                     <td className="px-4 py-3 text-xs font-semibold text-black/50 max-w-[160px] truncate" title={p.notes || ""}>{p.notes || "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 items-center">
-                        {p.status === "pending" && (
+                        {p.status === "pending" && !p.unsubscribed && (
                           <button
                             onClick={() => handleSend(p.id)}
                             disabled={sending === p.id || batchSending || remaining === 0}

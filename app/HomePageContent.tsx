@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
@@ -35,6 +35,14 @@ export default function HomePageContent() {
   const { locale, setLocale } = useLanguage();
   const year = new Date().getFullYear();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [unsubscribed, setUnsubscribed] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("unsubscribed") === "true") {
+      setUnsubscribed(true);
+    }
+  }, []);
 
   const langOptions: { code: Locale; label: string }[] = [
     { code: "en", label: "EN" },
@@ -43,6 +51,15 @@ export default function HomePageContent() {
 
   return (
     <div className="min-h-screen bg-white text-black flex flex-col">
+
+      {/* ── Unsubscribed banner ── */}
+      {unsubscribed && (
+        <div className="w-full bg-green-600 px-6 py-3 text-center">
+          <p className="text-sm font-black text-white">
+            ✓ You have been unsubscribed and will no longer receive partner outreach emails from Camel Global.
+          </p>
+        </div>
+      )}
 
       {/* ── Nav ── */}
       <header className="w-full bg-black border-b border-white/10 sticky top-0 z-50">

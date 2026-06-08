@@ -13,14 +13,18 @@ export async function sendEmail({
   subject,
   html,
   attachments,
+  from: fromOverride,
+  headers,
 }: {
   to: string;
   subject: string;
   html: string;
   attachments?: EmailAttachment[];
+  from?: string;
+  headers?: Record<string, string>;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from   = process.env.EMAIL_FROM;
+  const from   = fromOverride || process.env.EMAIL_FROM;
 
   const cleanTo = String(to || "").trim().toLowerCase();
 
@@ -46,6 +50,7 @@ export async function sendEmail({
 
   const body: Record<string, unknown> = { from, to: cleanTo, subject, html };
   if (attachments?.length) body.attachments = attachments;
+  if (headers && Object.keys(headers).length) body.headers = headers;
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -214,11 +219,9 @@ export async function sendAccountLiveEmail(to: string, locale: "en" | "es" = "en
 }
 
 // ---------------------------------------------------------------------------
-// Customer emails — English only (customer site has no i18n yet)
+// Customer emails — all accept optional locale (default "en")
 // ---------------------------------------------------------------------------
 
-// FIX: was incorrectly linking to portal. Now links to customer site /bookings/[requestId].
-// requestId is the customer_requests.id — matches the /bookings/[id] route on the customer site.
 export async function sendCustomerBidReceivedEmail(
   to: string,
   jobNumber?: number | null,
@@ -276,9 +279,6 @@ export async function sendCustomerBookingCompletedEmail(to: string, jobNumber?: 
   });
 }
 
-// FIX: was routing via /login?next=... which sent customers to the portal login page.
-// Now links directly to the booking page on the customer site with #review anchor.
-// If the customer is not logged in, the booking page handles the redirect to customer login itself.
 export async function sendReviewReminderEmail(
   to: string,
   jobNumber?: number | null,
