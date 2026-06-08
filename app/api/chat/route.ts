@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     const db = createServiceRoleSupabaseClient();
     const isAdmin = isAdminRole(role);
     const userLabel = isAdmin ? "ADMIN" : "PARTNER";
-const locale = body?.locale === "es" ? "es" : "en";
+    const locale = body?.locale === "es" ? "es" : "en";
 
     // Fetch bookings — admin sees all recent, partner sees their own
     let bookingQuery = db
