@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         .eq("id", existingBid.id);
       if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
     } else {
-      // New bid — insert then notify customer
+      // New bid — insert then notify customer in their preferred language
       const { error: insertErr } = await db
         .from("partner_bids")
         .insert({
@@ -109,15 +109,17 @@ export async function POST(req: Request) {
         });
       if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 400 });
 
-      // Send bid notification email to customer in their preferred language
       if (requestRow.customer_email && requestRow.customer_user_id) {
-        getCustomerLocale(db, requestRow.customer_user_id).then(locale =>
-          sendCustomerBidReceivedEmail(
+        try {
+          const locale = await getCustomerLocale(db, requestRow.customer_user_id);
+          await sendCustomerBidReceivedEmail(
             requestRow.customer_email,
             requestRow.job_number ?? null,
             locale,
-          ).catch(e => console.error("Failed to send bid received email:", e))
-        );
+          );
+        } catch (e) {
+          console.error("Failed to send bid received email:", e);
+        }
       }
     }
 
