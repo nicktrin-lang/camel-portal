@@ -1812,5 +1812,11 @@
 "settings.language.subtitle": "Choose the language for emails and notifications sent to you by Camel Global.",
 "settings.language.saved": "✓ Language preference saved",
 "settings.language.hint": "This affects the language of emails we send you, not the portal display language.",
-"settings.language.label": "Language"
+"settings.language.label": "Language",
+"driver.jobs.steps.label": "Steps",
+"driver.jobs.steps.insurance": "Insurance",
+"driver.jobs.steps.deliveryFuel": "Delivery fuel",
+"driver.jobs.steps.collectionFuel": "Collection fuel",
+"driver.jobs.steps.locked.completeInsurance": "Complete insurance handover first (Step 1)",
+"driver.jobs.steps.locked.completeDelivery": "Record delivery fuel level first (Step 2)"
 }

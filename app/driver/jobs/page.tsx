@@ -312,18 +312,18 @@ export default function DriverJobsPage() {
 
                         {/* ── Step indicator ── */}
                         <div className="border border-black/10 bg-[#f8f8f8] px-4 py-3">
-                          <p className="text-xs font-black uppercase tracking-widest text-black/40 mb-2">Steps</p>
+                          <p className="text-xs font-black uppercase tracking-widest text-black/40 mb-2">{t("driver.jobs.steps.label" as any)}</p>
                           <div className="flex items-center gap-2 text-xs font-black">
                             <span className={insuranceConfirmed ? "text-green-600" : "text-[#ff7a00]"}>
-                              {insuranceConfirmed ? "✓" : "1."} Insurance
+                              {insuranceConfirmed ? "✓" : "1."} {t("driver.jobs.steps.insurance" as any)}
                             </span>
                             <span className="text-black/20">→</span>
                             <span className={deliveryConfirmed ? "text-green-600" : deliveryFuelUnlocked ? "text-[#ff7a00]" : "text-black/30"}>
-                              {deliveryConfirmed ? "✓" : "2."} Delivery fuel
+                              {deliveryConfirmed ? "✓" : "2."} {t("driver.jobs.steps.deliveryFuel" as any)}
                             </span>
                             <span className="text-black/20">→</span>
                             <span className={collectionConfirmed ? "text-green-600" : collectionFuelUnlocked ? "text-[#ff7a00]" : "text-black/30"}>
-                              {collectionConfirmed ? "✓" : "3."} Collection fuel
+                              {collectionConfirmed ? "✓" : "3."} {t("driver.jobs.steps.collectionFuel" as any)}
                             </span>
                           </div>
                         </div>
@@ -348,7 +348,7 @@ export default function DriverJobsPage() {
 
                         {/* ── Step 2: Delivery fuel ── */}
                         {!deliveryFuelUnlocked ? (
-                          <LockedStep message="Complete insurance handover first (Step 1)" />
+                          <LockedStep message={t("driver.jobs.steps.locked.completeInsurance" as any)} />
                         ) : (
                           <div className={`border p-4 ${deliveryConfirmed ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                             <p className="text-xs font-black uppercase tracking-wide text-black/40 mb-2">
@@ -399,8 +399,8 @@ export default function DriverJobsPage() {
                         {!collectionFuelUnlocked ? (
                           <LockedStep message={
                             !insuranceConfirmed
-                              ? "Complete insurance handover first (Step 1)"
-                              : "Record delivery fuel level first (Step 2)"
+                              ? t("driver.jobs.steps.locked.completeInsurance" as any)
+                              : t("driver.jobs.steps.locked.completeDelivery" as any)
                           } />
                         ) : (
                           <div className={`border p-4 ${collectionConfirmed ? "border-green-200 bg-green-50" : "border-black/10 bg-[#f0f0f0]"}`}>

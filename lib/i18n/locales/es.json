@@ -1812,5 +1812,11 @@
 "settings.language.subtitle": "Elige el idioma para los correos electrónicos y notificaciones que te envía Camel Global.",
 "settings.language.saved": "✓ Preferencia de idioma guardada",
 "settings.language.hint": "Esto afecta al idioma de los correos que te enviamos, no al idioma de visualización del portal.",
-"settings.language.label": "Idioma"
+"settings.language.label": "Idioma",
+"driver.jobs.steps.label": "Pasos",
+"driver.jobs.steps.insurance": "Seguro",
+"driver.jobs.steps.deliveryFuel": "Combustible entrega",
+"driver.jobs.steps.collectionFuel": "Combustible recogida",
+"driver.jobs.steps.locked.completeInsurance": "Primero confirma la entrega del seguro (Paso 1)",
+"driver.jobs.steps.locked.completeDelivery": "Primero registra el nivel de combustible de entrega (Paso 2)"
 }
