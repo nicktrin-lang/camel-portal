@@ -1,25 +1,14 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
 import { sendCustomerBidReceivedEmail } from "@/lib/email";
 
-async function getCustomerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, customerEmail: string): Promise<"en" | "es"> {
+async function getCustomerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, customerUserId: string): Promise<"en" | "es"> {
   try {
-    // Customer auth lives in a separate Supabase project — must use customer credentials
-    const customerDb = createClient(
-      process.env.NEXT_PUBLIC_CUSTOMER_SUPABASE_URL!,
-      process.env.CUSTOMER_SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false } }
-    );
-    const { data: usersData } = await customerDb.auth.admin.listUsers();
-    const matchedUser = usersData?.users?.find(u => (u.email || "").toLowerCase() === customerEmail.toLowerCase());
-    if (!matchedUser) return "en";
-    // customer_profiles lives in the portal DB — use portal client to read it
     const { data: profile } = await db
       .from("customer_profiles")
       .select("communication_locale")
-      .eq("user_id", matchedUser.id)
+      .eq("user_id", customerUserId)
       .maybeSingle();
     return (profile?.communication_locale === "es") ? "es" : "en";
   } catch {
@@ -58,7 +47,7 @@ export async function POST(req: Request) {
 
     const { data: requestRow, error: requestErr } = await db
       .from("customer_requests")
-      .select("id, status, expires_at, job_number, customer_email")
+      .select("id, status, expires_at, job_number, customer_email, customer_user_id")
       .eq("id", request_id)
       .maybeSingle();
 
@@ -121,8 +110,8 @@ export async function POST(req: Request) {
       if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 400 });
 
       // Send bid notification email to customer in their preferred language
-      if (requestRow.customer_email) {
-        getCustomerLocale(db, requestRow.customer_email).then(locale =>
+      if (requestRow.customer_email && requestRow.customer_user_id) {
+        getCustomerLocale(db, requestRow.customer_user_id).then(locale =>
           sendCustomerBidReceivedEmail(
             requestRow.customer_email,
             requestRow.job_number ?? null,
