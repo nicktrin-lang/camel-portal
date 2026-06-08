@@ -183,7 +183,7 @@ async function generateEmail(prospect: {
     ${greeting}
     ${openingLine}
     <p>We're launching Camel Global — a meet &amp; greet car rental platform built specifically for independent car hire companies — and we'd like to invite ${prospect.company_name} to join as a founding partner.</p>
-    <p>How it works: Customers request a vehicle online, you send a quote, and your driver delivers it directly to the airport, hotel, or wherever the customer needs it. It works alongside your existing business as an additional booking channel—nothing changes in how you operate.</p>
+    <p>How it works: Customers request a vehicle online, you send a quote, the customer pays and your driver delivers it directly to the airport, hotel, or wherever the customer needs it. It works alongside your existing business as an additional booking channel—nothing changes in how you operate.</p>
     <p><strong>Founding partner positions are limited per destination.</strong> Early partners receive priority visibility when we launch in Spain and expand internationally.</p>
     <p>Joining is completely free. No sign-up fees, no subscription, no monthly costs. Registration takes approximately five minutes.</p>
     ${ctaEn}
