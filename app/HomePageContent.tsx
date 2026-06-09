@@ -415,7 +415,7 @@ export default function HomePageContent() {
       {/* ── Footer ── */}
       <footer className="w-full bg-black border-t border-white/10 px-6 py-8">
         <div className="mx-auto max-w-6xl flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} className="h-10 w-auto brightness-0 invert" style={{ maxWidth: "160px" }} />
+          <div className="w-40 shrink-0"><Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} className="h-10 w-auto brightness-0 invert" /></div>
           <p className="text-xs font-bold text-white/70">{t("common.copyright", { year })}</p>
         </div>
       </footer>
