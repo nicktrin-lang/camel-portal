@@ -98,7 +98,7 @@ export async function POST(req: Request) {
       const emailHtml = await generateEmail(testProspect);
       await sendEmail({
         to: adminEmail,
-        from: "Camel Global Partners <partners@camel-global.com>",
+        from: "Camel Global <noreply@camel-global.com>",
         subject: `[TEST] ${emailHtml.subject}`,
         html: emailHtml.fullHtml,
       });
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
 
     await sendEmail({
       to: prospect.email,
-      from: "Camel Global Partners <partners@camel-global.com>",
+      from: "Camel Global <noreply@camel-global.com>",
       subject: emailHtml.subject,
       html: emailHtml.fullHtml,
       headers: {
