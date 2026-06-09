@@ -59,7 +59,6 @@ export default function HomePageContent() {
     const utmSource = params.get("utm_source");
     const utmTerm = params.get("utm_term") || "";
     const utmContent = params.get("utm_content") || "";
-    // Fire for outreach email traffic only
     if (utmSource === "outreach") {
       fireGtagEvent("outreach_cta_click", {
         cta_position: position,
@@ -68,11 +67,6 @@ export default function HomePageContent() {
       });
     }
   }, []);
-
-  const langOptions: { code: Locale; label: string }[] = [
-    { code: "en", label: "EN" },
-    { code: "es", label: "ES" },
-  ];
 
   return (
     <div className="min-h-screen bg-white text-black flex flex-col">
@@ -394,6 +388,28 @@ export default function HomePageContent() {
         </div>
       </section>
 
+      {/* ── Customer site ── */}
+      <section className="w-full bg-white px-6 py-20 border-t-4 border-[#ff7a00]">
+        <div className="mx-auto max-w-6xl flex flex-col md:flex-row items-start md:items-center justify-between gap-10">
+          <div className="max-w-xl">
+            <p className="mb-3 text-sm font-black uppercase tracking-widest text-[#ff7a00]">{t("home.customerSite.tag")}</p>
+            <h2 className="text-4xl font-black text-black mb-4">{t("home.customerSite.title")}</h2>
+            <p className="text-base font-bold text-black/60 leading-relaxed">{t("home.customerSite.body")}</p>
+            <p className="mt-4 text-sm font-black text-black/30 tracking-widest uppercase">camel-global.com</p>
+          </div>
+          <div className="shrink-0">
+            <a
+              href="https://camel-global.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block bg-[#ff7a00] px-10 py-5 text-base font-black text-white hover:opacity-90 transition-opacity whitespace-nowrap"
+            >
+              {t("home.customerSite.cta")}
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* ── Final CTA ── */}
       <section className="w-full bg-[#ff7a00] px-6 py-20 text-white">
         <div className="mx-auto max-w-4xl text-center">
@@ -415,7 +431,9 @@ export default function HomePageContent() {
       {/* ── Footer ── */}
       <footer className="w-full bg-black border-t border-white/10 px-6 py-8">
         <div className="mx-auto max-w-6xl flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="w-40 shrink-0"><Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} className="h-10 w-auto brightness-0 invert" /></div>
+          <div className="w-40 shrink-0">
+            <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} className="h-10 w-auto brightness-0 invert" />
+          </div>
           <p className="text-xs font-bold text-white/70">{t("common.copyright", { year })}</p>
         </div>
       </footer>
