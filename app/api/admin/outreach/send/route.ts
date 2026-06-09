@@ -16,6 +16,34 @@ function getLocale(country?: string | null): "es" | "en" {
   return esCountries.includes((country || "").toLowerCase().trim()) ? "es" : "en";
 }
 
+function countrySlug(country?: string | null): string {
+  return (country || "unknown").toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+}
+
+function buildSignupUrl(prospectId: string, country?: string | null): string {
+  const params = new URLSearchParams({
+    utm_source: "outreach",
+    utm_medium: "email",
+    utm_campaign: "founding-partner",
+    utm_content: "signup-button",
+    utm_term: countrySlug(country),
+    ref: prospectId,
+  });
+  return `https://portal.camel-global.com/?${params.toString()}`;
+}
+
+function buildUnsubscribeUrl(prospectId: string, country?: string | null): string {
+  const params = new URLSearchParams({
+    id: prospectId,
+    utm_source: "outreach",
+    utm_medium: "email",
+    utm_campaign: "founding-partner",
+    utm_content: "unsubscribe",
+    utm_term: countrySlug(country),
+  });
+  return `https://portal.camel-global.com/api/admin/outreach/unsubscribe?${params.toString()}`;
+}
+
 export async function GET() {
   try {
     const authed = await createRouteHandlerSupabaseClient();
@@ -109,7 +137,7 @@ export async function POST(req: Request) {
     }
 
     const emailHtml = await generateEmail(prospect);
-    const unsubscribeUrl = `https://portal.camel-global.com/api/admin/outreach/unsubscribe?id=${prospect_id}`;
+    const unsubscribeUrl = buildUnsubscribeUrl(prospect_id, prospect.country);
 
     await sendEmail({
       to: prospect.email,
@@ -142,7 +170,8 @@ async function generateEmail(prospect: {
   notes?: string | null;
 }) {
   const locale = getLocale(prospect.country);
-  const unsubscribeUrl = `https://portal.camel-global.com/api/admin/outreach/unsubscribe?id=${prospect.id}`;
+  const signupUrl = buildSignupUrl(prospect.id, prospect.country);
+  const unsubscribeUrl = buildUnsubscribeUrl(prospect.id, prospect.country);
 
   // Hardcoded personalised opening line — no AI needed
   const contactFirst = prospect.contact_name ? prospect.contact_name.split(" ")[0] : null;
@@ -160,12 +189,12 @@ async function generateEmail(prospect: {
 
   const ctaEs = `
     <p style="text-align:left;margin:32px 0;">
-      <a href="https://portal.camel-global.com/" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">REGÍSTRATE AHORA</a>
+      <a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">REGÍSTRATE AHORA</a>
     </p>`;
 
   const ctaEn = `
     <p style="text-align:left;margin:32px 0;">
-      <a href="https://portal.camel-global.com/" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">SIGN UP NOW</a>
+      <a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">SIGN UP NOW</a>
     </p>`;
 
   const bodyEs = `
@@ -206,7 +235,6 @@ async function generateEmail(prospect: {
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#222;line-height:1.7;max-width:600px;">
       <div style="background:#000;padding:28px;text-align:center;">
         <img src="https://portal.camel-global.com/camel-logo-white-new.png" alt="Camel Global" style="height:108px;width:auto;display:inline-block;" />
-        
       </div>
       <div style="padding:28px;border:1px solid #eee;border-top:none;">
         ${htmlBody}

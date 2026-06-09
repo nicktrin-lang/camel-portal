@@ -7,6 +7,15 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
 
+// Fire a GA4 custom event if gtag is available
+function fireGtagEvent(eventName: string, params?: Record<string, string>) {
+  try {
+    if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
+      (window as any).gtag("event", eventName, params || {});
+    }
+  } catch {}
+}
+
 export default function PartnerApplicationSubmittedPage() {
   const { t } = useTranslation();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -31,6 +40,24 @@ export default function PartnerApplicationSubmittedPage() {
     }
     check();
   }, [supabase]);
+
+  // Fire signup_complete GA event when status resolves to "pending"
+  // (pending = just submitted for the first time, not yet reviewed)
+  // Passes utm_term (country) if the partner arrived via outreach email
+  useEffect(() => {
+    if (status !== "pending") return;
+    const params = new URLSearchParams(window.location.search);
+    const utmSource = params.get("utm_source") || "";
+    const utmTerm = params.get("utm_term") || "";
+    const utmCampaign = params.get("utm_campaign") || "";
+    const eventParams: Record<string, string> = {
+      method: "partner_signup",
+    };
+    if (utmSource) eventParams.utm_source = utmSource;
+    if (utmTerm) eventParams.utm_term = utmTerm;
+    if (utmCampaign) eventParams.utm_campaign = utmCampaign;
+    fireGtagEvent("partner_signup_complete", eventParams);
+  }, [status]);
 
   const year = new Date().getFullYear();
 

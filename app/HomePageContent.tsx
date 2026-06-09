@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
@@ -30,6 +30,15 @@ function CompactLanguageToggle() {
   );
 }
 
+// Fire a GA4 custom event if gtag is available
+function fireGtagEvent(eventName: string, params?: Record<string, string>) {
+  try {
+    if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
+      (window as any).gtag("event", eventName, params || {});
+    }
+  } catch {}
+}
+
 export default function HomePageContent() {
   const { t } = useTranslation();
   const { locale, setLocale } = useLanguage();
@@ -41,6 +50,22 @@ export default function HomePageContent() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("unsubscribed") === "true") {
       setUnsubscribed(true);
+    }
+  }, []);
+
+  // Track CTA clicks — only fires when utm_source=outreach so organic clicks aren't counted
+  const handleOutreachCta = useCallback((position: "hero" | "apply" | "final-cta") => {
+    const params = new URLSearchParams(window.location.search);
+    const utmSource = params.get("utm_source");
+    const utmTerm = params.get("utm_term") || "";
+    const utmContent = params.get("utm_content") || "";
+    // Fire for outreach email traffic only
+    if (utmSource === "outreach") {
+      fireGtagEvent("outreach_cta_click", {
+        cta_position: position,
+        utm_term: utmTerm,
+        utm_content: utmContent,
+      });
     }
   }, []);
 
@@ -135,7 +160,8 @@ export default function HomePageContent() {
               {t("home.hero.body")}
             </p>
             <div className="mt-10 flex flex-wrap gap-4">
-              <Link href="/partner/signup" className="bg-[#ff7a00] px-10 py-5 text-base font-black text-white hover:opacity-90 transition-opacity">
+              <Link href="/partner/signup" onClick={() => handleOutreachCta("hero")}
+                className="bg-[#ff7a00] px-10 py-5 text-base font-black text-white hover:opacity-90 transition-opacity">
                 {t("home.hero.cta")}
               </Link>
               <Link href="/partner/login" className="border border-white/30 px-10 py-5 text-base font-black text-white hover:bg-white/10 transition-colors">
@@ -335,7 +361,8 @@ export default function HomePageContent() {
             <p className="mb-3 text-sm font-black uppercase tracking-widest text-[#ff7a00]">{t("home.apply.tag")}</p>
             <h2 className="mb-6 text-4xl font-black text-black">{t("home.apply.title")}</h2>
             <p className="text-base font-bold text-black/70 leading-relaxed mb-8">{t("home.apply.body")}</p>
-            <Link href="/partner/signup" className="inline-block bg-[#ff7a00] px-10 py-5 text-base font-black text-white hover:opacity-90 transition-opacity">
+            <Link href="/partner/signup" onClick={() => handleOutreachCta("apply")}
+              className="inline-block bg-[#ff7a00] px-10 py-5 text-base font-black text-white hover:opacity-90 transition-opacity">
               {t("home.apply.cta")}
             </Link>
           </div>
@@ -374,7 +401,8 @@ export default function HomePageContent() {
           <h2 className="mb-4 text-5xl font-black text-white">{t("home.cta.title")}</h2>
           <p className="mb-10 text-lg font-bold text-white/80 max-w-xl mx-auto leading-relaxed">{t("home.cta.body")}</p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link href="/partner/signup" className="bg-black px-12 py-5 text-base font-black text-white hover:opacity-80 transition-opacity">
+            <Link href="/partner/signup" onClick={() => handleOutreachCta("final-cta")}
+              className="bg-black px-12 py-5 text-base font-black text-white hover:opacity-80 transition-opacity">
               {t("home.cta.primary")}
             </Link>
             <Link href="/partner/login" className="border border-white/40 px-12 py-5 text-base font-black text-white hover:bg-white/10 transition-colors">
