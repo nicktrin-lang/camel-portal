@@ -141,7 +141,7 @@ export default function HomePageContent() {
       </header>
 
       {/* ── Hero ── */}
-      <section className="w-full bg-black px-6 py-24 text-white">
+      <section className="w-full bg-black px-6 py-12 sm:py-24 text-white">
         <div className="mx-auto max-w-6xl">
           <div className="max-w-3xl">
             <p className="mb-4 text-sm font-black uppercase tracking-widest text-[#ff7a00]">{t("home.meta.tagline")}</p>
