@@ -578,11 +578,11 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
   const [dashVisible,   setDashVisible]   = useState(20);
 
   const plByCurr = useMemo(() => {
-    const m: Record<string,{ revenue:number; commission:number; stripeFees:number; partnerPayout:number; camelNetComm:number; fuelCharge:number; fuelRefund:number; count:number }> = {};
+    const m: Record<string,{ revenue:number; commission:number; stripeFees:number; partnerPayout:number; camelNetComm:number; fuelCharge:number; fuelRefund:number; count:number; disputed:number; disputedPayout:number }> = {};
     for (const b of bookings) {
       if (String(b.booking_status||"").toLowerCase()==="cancelled") continue;
       const curr = b.currency??"EUR";
-      if (!m[curr]) m[curr] = { revenue:0, commission:0, stripeFees:0, partnerPayout:0, camelNetComm:0, fuelCharge:0, fuelRefund:0, count:0 };
+      if (!m[curr]) m[curr] = { revenue:0, commission:0, stripeFees:0, partnerPayout:0, camelNetComm:0, fuelCharge:0, fuelRefund:0, count:0, disputed:0, disputedPayout:0 };
       const { commAmt, partnerPayout, camelNetComm, feeInBid, fuelRefund } = calcPayout(b);
       m[curr].revenue      += Number(b.amount??0);
       m[curr].commission   += commAmt;
@@ -637,7 +637,7 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
                   { label:"Partner Payout",   value:pl.partnerPayout, color:"text-black/70",  bg:"border-black/10 bg-[#f0f0f0]" },
                   { label:"Fuel Charges",     value:pl.fuelCharge,    color:"text-[#ff7a00]", bg:"border-black/10 bg-[#f0f0f0]" },
                   { label:"Fuel Refunds",     value:pl.fuelRefund,    color:"text-black/50",  bg:"border-black/10 bg-[#f0f0f0]" },
-                  { label:"Disputed",          value:pl.disputedPayout??0, color:"text-amber-700", bg:"border-amber-300 bg-amber-50", count:pl.disputed??0 },
+                  { label:`Disputed (${pl.disputed??0})`, value:pl.disputedPayout??0, color:"text-amber-700", bg:"border-amber-300 bg-amber-50" },
                 ].map(({ label, value, color, bg }) => (
                   <div key={label} className={`border p-4 ${bg}`}>
                     <p className="text-xs font-black uppercase tracking-widest text-black/40 leading-tight mb-1">{label}</p>
