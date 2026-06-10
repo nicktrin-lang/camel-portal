@@ -37,7 +37,8 @@ export async function GET(
         insurance_docs_confirmed_by_customer, insurance_docs_confirmed_by_customer_at,
         delivery_driver_id, delivery_driver_name, delivery_confirmed_at,
         collection_driver_id, collection_driver_name, collection_confirmed_at,
-        payment_id, payout_hold, payout_hold_reason
+        payment_id, payout_hold, payout_hold_reason,
+        post_completion_refund_total
       `)
       .eq("id", id);
 
@@ -92,7 +93,7 @@ export async function GET(
       }
     }
 
-    // ── Request — includes driver age fields ────────────────────────────────
+    // ── Request ─────────────────────────────────────────────────────────────
     let requestRow = null;
     if (bookingRow.request_id) {
       const { data: reqData } = await db
@@ -109,17 +110,37 @@ export async function GET(
       requestRow = reqData || null;
     }
 
+    // ── Partner profile ──────────────────────────────────────────────────────
     const { data: profileRow } = await db
       .from("partner_profiles")
       .select("company_name")
       .eq("user_id", bookingRow.partner_user_id)
       .maybeSingle();
 
+    // ── Post-completion refunds ──────────────────────────────────────────────
+    const { data: refundRows } = await db
+      .from("partner_booking_refunds")
+      .select("id, amount, reason, stripe_refund_id, created_at")
+      .eq("booking_id", id)
+      .order("created_at", { ascending: true });
+
+    const postCompletionRefunds = (refundRows ?? []).map((r: any) => ({
+      id:               r.id,
+      amount:           Number(r.amount),
+      reason:           r.reason ?? null,
+      stripe_refund_id: r.stripe_refund_id ?? null,
+      created_at:       r.created_at,
+    }));
+
     return NextResponse.json({
-      booking: { ...bookingRow, partner_company_name: profileRow?.company_name || null },
-      payment: paymentData,
-      request: requestRow,
-      role: role || "partner",
+      booking: {
+        ...bookingRow,
+        partner_company_name: profileRow?.company_name || null,
+      },
+      payment:              paymentData,
+      request:              requestRow,
+      role:                 role || "partner",
+      postCompletionRefunds,
     }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });

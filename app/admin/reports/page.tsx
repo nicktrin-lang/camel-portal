@@ -49,6 +49,7 @@ type BookingRow = {
   return_fuel_level_driver:string|null; return_fuel_level_partner:string|null;
   collection_confirmed_by_customer:boolean; return_confirmed_by_customer:boolean;
   insurance_docs_confirmed_by_driver:boolean; insurance_docs_confirmed_by_customer:boolean;
+  post_completion_refund_total:number|null;
 };
 
 type RequestRow = {
@@ -131,22 +132,24 @@ function stripeFeeInBidCurrency(stripe_fee: number|null, stripe_fee_currency: st
   return stripe_fee;
 }
 
-// Stripe fee is Camel's cost — NOT deducted from partner payout
-function calcPayout(b: BookingRow): { hire:number; rate:number; commAmt:number; partnerPayout:number; camelNetComm:number; fuelRefund:number; feeInBid:number } {
+function calcPayout(b: BookingRow): { hire:number; rate:number; commAmt:number; partnerPayout:number; camelNetComm:number; fuelRefund:number; feeInBid:number; pcRefundTotal:number; netFinal:number } {
   const isCancelled  = String(b.booking_status||"").toLowerCase()==="cancelled";
   const refundStatus = b.refund_status||null;
   const fuel         = Number(b.fuel_price??0);
   const bidCurr      = (b.currency??"EUR") as string;
   const feeInBid     = stripeFeeInBidCurrency(b.stripe_fee, b.stripe_fee_currency, bidCurr, b.exchange_rate);
-  if (isCancelled&&refundStatus==="full") return { hire:0, rate:0, commAmt:0, partnerPayout:0, camelNetComm:0, fuelRefund:fuel, feeInBid:0 };
-  const hire         = Number(b.car_hire_price??0);
-  const rate         = b.commission_rate??20;
-  const commAmt      = Math.max((hire*rate)/100, 10);
-  const fuelCharge   = Number(b.fuel_charge??0);
+  const pcRefundTotal = Number(b.post_completion_refund_total ?? 0);
+  if (isCancelled&&refundStatus==="full") return { hire:0, rate:0, commAmt:0, partnerPayout:0, camelNetComm:0, fuelRefund:fuel, feeInBid:0, pcRefundTotal:0, netFinal:0 };
+  const hire          = Number(b.car_hire_price??0);
+  const rate          = b.commission_rate??20;
+  const commAmt       = Math.max((hire*rate)/100, 10);
+  const fuelCharge    = Number(b.fuel_charge??0);
   const partnerPayout = Math.max(0, hire - commAmt + fuelCharge);
   const camelNetComm  = Math.max(0, commAmt - feeInBid);
   const fuelRefund    = (isCancelled&&refundStatus==="partial") ? fuel : Number(b.fuel_refund??0);
-  return { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid };
+  const finalAmount   = hire + fuelCharge;
+  const netFinal      = finalAmount - pcRefundTotal;
+  return { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid, pcRefundTotal, netFinal };
 }
 
 function escapeXml(v: unknown): string {
@@ -180,10 +183,10 @@ function downloadBlob(blob: Blob, filename: string) {
 type CurrencyTotals = {
   total:number; carHire:number; fuelDeposit:number; fuelCharge:number; fuelRefund:number;
   commissionTotal:number; partnerPayoutTotal:number; stripeFeeTotal:number; camelNetCommTotal:number;
+  pcRefundTotal:number;
   count:number; completed:number; cancelled:number;
 };
 
-// ── Payout Drilldown Table ────────────────────────────────────────────────────
 function PayoutDrilldownTable({ bookings }: { bookings: BookingRow[] }) {
   const [visible, setVisible] = useState(15);
   return (
@@ -191,25 +194,30 @@ function PayoutDrilldownTable({ bookings }: { bookings: BookingRow[] }) {
       <table className="min-w-full text-sm">
         <thead className="bg-black/80 text-white">
           <tr>
-            {["Job","Partner","Date","Car Hire","Commission","Partner Payout","Payout Status"].map(h => (
+            {["Job","Partner","Date","Car Hire","Commission","Partner Payout","Post-Completion Refunds","Payout Status"].map(h => (
               <th key={h} className="px-4 py-2.5 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
           {bookings.length === 0 ? (
-            <tr><td colSpan={7} className="px-4 py-4 text-sm text-black/40">No bookings in this bucket.</td></tr>
+            <tr><td colSpan={8} className="px-4 py-4 text-sm text-black/40">No bookings in this bucket.</td></tr>
           ) : bookings.slice(0, visible).map((b, i) => {
-            const { hire, commAmt, partnerPayout } = calcPayout(b);
+            const { hire, commAmt, partnerPayout, pcRefundTotal } = calcPayout(b);
             const curr = b.currency ?? "EUR";
             return (
               <tr key={b.id} className={`hover:bg-[#f0f0f0] ${i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                 <td className="px-4 py-2.5 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
                 <td className="px-4 py-2.5 text-black/70 whitespace-nowrap">{b.partner_company_name||"—"}</td>
                 <td className="px-4 py-2.5 text-black/60 whitespace-nowrap">{fmtDate(b.pickup_at||b.created_at)||"—"}</td>
-                <td className="px-4 py-2.5 font-bold text-black/70 whitespace-nowrap">{fmtCurr(hire,curr)} <span className="text-xs font-normal text-black/40">{curr}</span></td>
+                <td className="px-4 py-2.5 font-bold text-black/70 whitespace-nowrap">{fmtCurr(hire,curr)}</td>
                 <td className="px-4 py-2.5 font-black text-[#ff7a00] whitespace-nowrap">{fmtCurr(commAmt,curr)}</td>
                 <td className="px-4 py-2.5 font-black text-green-700 whitespace-nowrap">{fmtCurr(partnerPayout,curr)}</td>
+                <td className="px-4 py-2.5 whitespace-nowrap">
+                  {pcRefundTotal > 0
+                    ? <span className="font-black text-amber-700">− {fmtCurr(pcRefundTotal,curr)}</span>
+                    : <span className="text-black/30">—</span>}
+                </td>
                 <td className="px-4 py-2.5 whitespace-nowrap">
                   <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${payoutPillClasses(b.payout_status)}`}>
                     {b.payout_status||"—"}
@@ -236,7 +244,6 @@ function PayoutDrilldownTable({ bookings }: { bookings: BookingRow[] }) {
   );
 }
 
-// ── Payout Status Breakdown ───────────────────────────────────────────────────
 function PayoutStatusSection({ bookings }: { bookings: BookingRow[] }) {
   const [expanded, setExpanded] = useState<Record<string,boolean>>({});
   const [partnerFilter, setPartnerFilter] = useState("all");
@@ -281,7 +288,7 @@ function PayoutStatusSection({ bookings }: { bookings: BookingRow[] }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
         <div>
           <h2 className="text-xl font-black text-black mb-1">Payout Status</h2>
-          <p className="text-sm text-black/50">Network-wide breakdown by payout stage. Click a bucket to see individual bookings.</p>
+          <p className="text-sm text-black/50">Network-wide breakdown by payout stage.</p>
         </div>
         <div className="flex items-center gap-2">
           <select value={partnerFilter} onChange={e => { setPartnerFilter(e.target.value); setExpanded({}); }}
@@ -321,7 +328,6 @@ function PayoutStatusSection({ bookings }: { bookings: BookingRow[] }) {
   );
 }
 
-// ── Admin Invoices Section ────────────────────────────────────────────────────
 function AdminInvoicesSection({ partners }: { partners: [string,string][] }) {
   const [invoices,       setInvoices]       = useState<InvoiceRow[]>([]);
   const [invoiceLoading, setInvoiceLoading] = useState(true);
@@ -394,15 +400,15 @@ function AdminInvoicesSection({ partners }: { partners: [string,string][] }) {
           <div>
             <label className="text-xs font-black uppercase tracking-widest text-black/50">Period (YYYY-MM)</label>
             <select value={genMonth} onChange={e => setGenMonth(e.target.value)}
-  className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
-  <option value="">Select month…</option>
-  {Array.from({ length: 24 }, (_, i) => {
-    const now = new Date();
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    return <option key={val} value={val}>{d.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</option>;
-  })}
-</select>
+              className="mt-1 block border border-black/20 bg-white px-3 py-2 text-sm font-bold text-black outline-none focus:border-black">
+              <option value="">Select month…</option>
+              {Array.from({ length: 24 }, (_, i) => {
+                const now = new Date();
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                return <option key={val} value={val}>{d.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</option>;
+              })}
+            </select>
           </div>
           <button type="button" onClick={handleGenerate} disabled={generating}
             className="bg-black px-5 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-50">
@@ -479,7 +485,6 @@ function AdminInvoicesSection({ partners }: { partners: [string,string][] }) {
   );
 }
 
-// ── Currency section ──────────────────────────────────────────────────────────
 function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:CurrencyTotals; bookings:BookingRow[] }) {
   const [showAll, setShowAll] = useState(false);
   const { symbol } = CURRENCY_META[curr];
@@ -493,21 +498,22 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6 mb-4">
         {[
-          { label:"Total Bookings",   value:t.count,              isMoney:false },
-          { label:"Completed",        value:t.completed,          isMoney:false },
-          { label:"Cancelled",        value:t.cancelled,          isMoney:false },
-          { label:"Total Revenue",    value:t.total,              isMoney:true  },
-          { label:"Car Hire Revenue", value:t.carHire,            isMoney:true  },
-          { label:"Stripe Fees",      value:t.stripeFeeTotal,     isMoney:true  },
-          { label:"Fuel Charged",     value:t.fuelCharge,         isMoney:true  },
-          { label:"Fuel Refunded",    value:t.fuelRefund,         isMoney:true  },
-          { label:"Camel Commission", value:t.commissionTotal,    isMoney:true  },
-          { label:"Camel Net Income", value:t.camelNetCommTotal,  isMoney:true  },
-          { label:"Partner Payout",   value:t.partnerPayoutTotal, isMoney:true  },
+          { label:"Total Bookings",          value:t.count,              isMoney:false },
+          { label:"Completed",               value:t.completed,          isMoney:false },
+          { label:"Cancelled",               value:t.cancelled,          isMoney:false },
+          { label:"Total Revenue",           value:t.total,              isMoney:true  },
+          { label:"Car Hire Revenue",        value:t.carHire,            isMoney:true  },
+          { label:"Stripe Fees",             value:t.stripeFeeTotal,     isMoney:true  },
+          { label:"Fuel Charged",            value:t.fuelCharge,         isMoney:true  },
+          { label:"Fuel Refunded",           value:t.fuelRefund,         isMoney:true  },
+          { label:"Post-Completion Refunds", value:t.pcRefundTotal,      isMoney:true  },
+          { label:"Camel Commission",        value:t.commissionTotal,    isMoney:true  },
+          { label:"Camel Net Income",        value:t.camelNetCommTotal,  isMoney:true  },
+          { label:"Partner Payout",          value:t.partnerPayoutTotal, isMoney:true  },
         ].map(({label:lbl,value,isMoney})=>(
-          <div key={lbl} className={`border p-4 ${lbl==="Cancelled"&&(value as number)>0?"border-red-200 bg-red-50":lbl==="Stripe Fees"&&(value as number)>0?"border-amber-100 bg-amber-50":"border-black/10 bg-[#f0f0f0]"}`}>
+          <div key={lbl} className={`border p-4 ${lbl==="Cancelled"&&(value as number)>0?"border-red-200 bg-red-50":lbl==="Stripe Fees"&&(value as number)>0?"border-amber-100 bg-amber-50":lbl==="Post-Completion Refunds"&&(value as number)>0?"border-amber-200 bg-amber-50":"border-black/10 bg-[#f0f0f0]"}`}>
             <p className="text-xs font-black uppercase tracking-widest text-black/50">{lbl}</p>
-            <p className={`mt-1 text-lg font-black ${lbl==="Cancelled"&&(value as number)>0?"text-red-700":lbl==="Stripe Fees"?"text-amber-700":lbl==="Camel Net Income"?"text-green-700":"text-black"}`}>
+            <p className={`mt-1 text-lg font-black ${lbl==="Cancelled"&&(value as number)>0?"text-red-700":lbl==="Stripe Fees"?"text-amber-700":lbl==="Post-Completion Refunds"&&(value as number)>0?"text-amber-700":lbl==="Camel Net Income"?"text-green-700":"text-black"}`}>
               {isMoney?fmtCurr(value as number,curr):value}
             </p>
           </div>
@@ -517,7 +523,7 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
         <table className="min-w-full text-sm">
           <thead className="bg-black text-white">
             <tr>
-              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Post-Comp Refunds","Total","Net Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                 <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -526,7 +532,7 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
             {visible.map((b,i)=>{
               const usedQ=b.fuel_used_quarters;
               const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-              const { commAmt, partnerPayout, camelNetComm, rate, hire, fuelRefund, feeInBid } = calcPayout(b);
+              const { commAmt, partnerPayout, camelNetComm, rate, hire, fuelRefund, feeInBid, pcRefundTotal, netFinal } = calcPayout(b);
               return (
                 <tr key={b.id} className={`hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/50":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                   <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
@@ -551,7 +557,13 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
                   <td className="px-4 py-3 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                   <td className="px-4 py-3 font-black text-[#ff7a00]">{b.fuel_charge!==null?fmtAmt(b.fuel_charge,curr):"—"}</td>
                   <td className="px-4 py-3 font-black text-green-700">{fuelRefund>0?fmtCurr(fuelRefund,curr):"—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {pcRefundTotal>0 ? <span className="font-black text-amber-700">− {fmtCurr(pcRefundTotal,curr)}</span> : <span className="text-black/30">—</span>}
+                  </td>
                   <td className={`px-4 py-3 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,curr)}</td>
+                  <td className="px-4 py-3 font-black text-black">
+                    {pcRefundTotal>0 ? fmtCurr(netFinal,curr) : <span className="text-black/30">—</span>}
+                  </td>
                   <td className={`px-4 py-3 font-black ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-green-700"}`}>{isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(partnerPayout,curr)}</td>
                   <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_by||"—"}</td>
                   <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDateTime(b.cancelled_at):"—"}</td>
@@ -571,26 +583,26 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
   );
 }
 
-// ── Financial Dashboard ───────────────────────────────────────────────────────
 function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
   const [payoutFilter,  setPayoutFilter]  = useState<string>("all");
   const [partnerFilter, setPartnerFilter] = useState<string>("all");
   const [dashVisible,   setDashVisible]   = useState(20);
 
   const plByCurr = useMemo(() => {
-    const m: Record<string,{ revenue:number; commission:number; stripeFees:number; partnerPayout:number; camelNetComm:number; fuelCharge:number; fuelRefund:number; count:number; disputed:number; disputedPayout:number }> = {};
+    const m: Record<string,{ revenue:number; commission:number; stripeFees:number; partnerPayout:number; camelNetComm:number; fuelCharge:number; fuelRefund:number; pcRefundTotal:number; count:number; disputed:number; disputedPayout:number }> = {};
     for (const b of bookings) {
       if (String(b.booking_status||"").toLowerCase()==="cancelled") continue;
       const curr = b.currency??"EUR";
-      if (!m[curr]) m[curr] = { revenue:0, commission:0, stripeFees:0, partnerPayout:0, camelNetComm:0, fuelCharge:0, fuelRefund:0, count:0, disputed:0, disputedPayout:0 };
-      const { commAmt, partnerPayout, camelNetComm, feeInBid, fuelRefund } = calcPayout(b);
-      m[curr].revenue      += Number(b.amount??0);
-      m[curr].commission   += commAmt;
-      m[curr].stripeFees   += feeInBid;
-      m[curr].partnerPayout+= partnerPayout;
-      m[curr].camelNetComm += camelNetComm;
-      m[curr].fuelCharge   += Number(b.fuel_charge??0);
-      m[curr].fuelRefund   += fuelRefund;
+      if (!m[curr]) m[curr] = { revenue:0, commission:0, stripeFees:0, partnerPayout:0, camelNetComm:0, fuelCharge:0, fuelRefund:0, pcRefundTotal:0, count:0, disputed:0, disputedPayout:0 };
+      const { commAmt, partnerPayout, camelNetComm, feeInBid, fuelRefund, pcRefundTotal } = calcPayout(b);
+      m[curr].revenue       += Number(b.amount??0);
+      m[curr].commission    += commAmt;
+      m[curr].stripeFees    += feeInBid;
+      m[curr].partnerPayout += partnerPayout;
+      m[curr].camelNetComm  += camelNetComm;
+      m[curr].fuelCharge    += Number(b.fuel_charge??0);
+      m[curr].fuelRefund    += fuelRefund;
+      m[curr].pcRefundTotal += pcRefundTotal;
       m[curr].count++;
       if (b.payout_hold) { m[curr].disputed = (m[curr].disputed||0) + 1; m[curr].disputedPayout = (m[curr].disputedPayout||0) + partnerPayout; }
     }
@@ -628,15 +640,16 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
                 <span className="border border-black bg-black px-2 py-0.5 text-xs font-black text-white">{curr}</span>
                 <span className="text-xs font-bold text-black/40">{pl.count} booking{pl.count!==1?"s":""}</span>
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
                 {[
-                  { label:"Total Revenue",    value:pl.revenue,       color:"text-black",     bg:"border-black/10 bg-[#f0f0f0]" },
-                  { label:"Camel Commission", value:pl.commission,    color:"text-[#ff7a00]", bg:"border-[#ff7a00]/20 bg-[#fff7f0]" },
-                  { label:"Stripe Fees",      value:pl.stripeFees,    color:"text-amber-700", bg:"border-amber-200 bg-amber-50" },
-                  { label:"Camel Net Income", value:pl.camelNetComm,  color:pl.camelNetComm>=0?"text-green-700":"text-red-600", bg:pl.camelNetComm>=0?"border-green-200 bg-green-50":"border-red-200 bg-red-50" },
-                  { label:"Partner Payout",   value:pl.partnerPayout, color:"text-black/70",  bg:"border-black/10 bg-[#f0f0f0]" },
-                  { label:"Fuel Charges",     value:pl.fuelCharge,    color:"text-[#ff7a00]", bg:"border-black/10 bg-[#f0f0f0]" },
-                  { label:"Fuel Refunds",     value:pl.fuelRefund,    color:"text-black/50",  bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Total Revenue",           value:pl.revenue,        color:"text-black",     bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Camel Commission",         value:pl.commission,     color:"text-[#ff7a00]", bg:"border-[#ff7a00]/20 bg-[#fff7f0]" },
+                  { label:"Stripe Fees",              value:pl.stripeFees,     color:"text-amber-700", bg:"border-amber-200 bg-amber-50" },
+                  { label:"Camel Net Income",         value:pl.camelNetComm,   color:pl.camelNetComm>=0?"text-green-700":"text-red-600", bg:pl.camelNetComm>=0?"border-green-200 bg-green-50":"border-red-200 bg-red-50" },
+                  { label:"Partner Payout",           value:pl.partnerPayout,  color:"text-black/70",  bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Fuel Charges",             value:pl.fuelCharge,     color:"text-[#ff7a00]", bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Fuel Refunds",             value:pl.fuelRefund,     color:"text-black/50",  bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Post-Comp Refunds",        value:pl.pcRefundTotal,  color:pl.pcRefundTotal>0?"text-amber-700":"text-black/30", bg:pl.pcRefundTotal>0?"border-amber-300 bg-amber-50":"border-black/10 bg-[#f0f0f0]" },
                   { label:`Disputed (${pl.disputed??0})`, value:pl.disputedPayout??0, color:"text-amber-700", bg:"border-amber-300 bg-amber-50" },
                 ].map(({ label, value, color, bg }) => (
                   <div key={label} className={`border p-4 ${bg}`}>
@@ -654,7 +667,7 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
           <div>
             <h2 className="text-xl font-black text-black">Payments</h2>
-            <p className="text-sm text-black/50">All payments with commission, Stripe fees and payout status.</p>
+            <p className="text-sm text-black/50">All payments with commission, Stripe fees, post-completion refunds and payout status.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <select value={payoutFilter} onChange={e => { setPayoutFilter(e.target.value); setDashVisible(20); }}
@@ -681,17 +694,17 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Job","Partner","Customer","Booking Status","Payout Status","Bid Curr","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Partner Payout","Fuel Charge","Fuel Refund","Total","Created"].map(h => (
+                {["Job","Partner","Customer","Booking Status","Payout Status","Bid Curr","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Partner Payout","Fuel Charge","Fuel Refund","Post-Comp Refunds","Net Final","Total","Created"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
               {filtered.length===0 ? (
-                <tr><td colSpan={15} className="px-4 py-6 text-sm text-black/40">No payments match the current filters.</td></tr>
+                <tr><td colSpan={17} className="px-4 py-6 text-sm text-black/40">No payments match the current filters.</td></tr>
               ) : filtered.slice(0,dashVisible).map((b,i) => {
                 const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
-                const { hire, commAmt, feeInBid, partnerPayout, camelNetComm, fuelRefund } = calcPayout(b);
+                const { hire, commAmt, feeInBid, partnerPayout, camelNetComm, fuelRefund, pcRefundTotal, netFinal } = calcPayout(b);
                 return (
                   <tr key={b.id} className={`hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/30":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                     <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
@@ -707,6 +720,8 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
                     <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-black/70"}`}>{isCancelled&&b.refund_status==="full"?fmtCurr(0,b.currency??"EUR"):fmtCurr(partnerPayout,b.currency??"EUR")}</td>
                     <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">{Number(b.fuel_charge??0)>0?fmtCurr(Number(b.fuel_charge),b.currency??"EUR"):<span className="text-black/30">—</span>}</td>
                     <td className="px-4 py-3 font-black text-green-600 whitespace-nowrap">{fuelRefund>0?fmtCurr(fuelRefund,b.currency??"EUR"):<span className="text-black/30">—</span>}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{pcRefundTotal>0?<span className="font-black text-amber-700">− {fmtCurr(pcRefundTotal,b.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
+                    <td className="px-4 py-3 font-black whitespace-nowrap">{pcRefundTotal>0?fmtCurr(netFinal,b.currency??"EUR"):<span className="text-black/30">—</span>}</td>
                     <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,b.currency)}</td>
                     <td className="px-4 py-3 text-xs text-black/50 whitespace-nowrap">{fmtDate(b.created_at)}</td>
                   </tr>
@@ -732,7 +747,6 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function AdminReportsPage() {
   const supabase = useMemo(()=>createBrowserSupabaseClient(),[]);
   const router = useRouter();
@@ -779,15 +793,15 @@ export default function AdminReportsPage() {
 
   const revenuesByCurrency = useMemo(()=>{
     const t: Record<Currency,CurrencyTotals> = {
-      EUR:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,count:0,completed:0,cancelled:0 },
-      GBP:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,count:0,completed:0,cancelled:0 },
-      USD:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,count:0,completed:0,cancelled:0 },
+      EUR:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,pcRefundTotal:0,count:0,completed:0,cancelled:0 },
+      GBP:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,pcRefundTotal:0,count:0,completed:0,cancelled:0 },
+      USD:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,pcRefundTotal:0,count:0,completed:0,cancelled:0 },
     };
     for (const b of filteredBookings) {
       const c: Currency = (b.currency as Currency)??"EUR";
       if (!t[c]) continue;
       const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { commAmt, partnerPayout, camelNetComm, hire, fuelRefund, feeInBid } = calcPayout(b);
+      const { commAmt, partnerPayout, camelNetComm, hire, fuelRefund, feeInBid, pcRefundTotal } = calcPayout(b);
       t[c].count++;
       if (!isCancelled) {
         t[c].total              += Number(b.amount??0);
@@ -798,6 +812,7 @@ export default function AdminReportsPage() {
         t[c].partnerPayoutTotal += partnerPayout;
         t[c].stripeFeeTotal     += feeInBid;
         t[c].camelNetCommTotal  += camelNetComm;
+        t[c].pcRefundTotal      += pcRefundTotal;
       }
       t[c].fuelRefund += fuelRefund;
       if (isCancelled) t[c].cancelled++;
@@ -810,13 +825,13 @@ export default function AdminReportsPage() {
   const previousMonthKey = getPreviousMonthKey();
   const bidsSubmitted    = filteredRequests.filter(r=>["bid_submitted","bid_successful","bid_unsuccessful"].includes(String(r.status||"").toLowerCase())).length;
 
-  const partnerMap = new Map<string,{name:string;bookings:number;revenue:number;commission:number;payout:number;stripeFees:number;camelNet:number;completed:number;cancelled:number}>();
+  const partnerMap = new Map<string,{name:string;bookings:number;revenue:number;commission:number;payout:number;stripeFees:number;camelNet:number;completed:number;cancelled:number;pcRefunds:number}>();
   for (const b of filteredBookings) {
     const pid  = String(b.partner_user_id||"unknown");
     const name = String(b.partner_company_name||"Unknown Partner");
     const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
-    const { commAmt, partnerPayout, camelNetComm, hire, feeInBid } = calcPayout(b);
-    const cur = partnerMap.get(pid)||{ name, bookings:0, revenue:0, commission:0, payout:0, stripeFees:0, camelNet:0, completed:0, cancelled:0 };
+    const { commAmt, partnerPayout, camelNetComm, hire, feeInBid, pcRefundTotal } = calcPayout(b);
+    const cur = partnerMap.get(pid)||{ name, bookings:0, revenue:0, commission:0, payout:0, stripeFees:0, camelNet:0, completed:0, cancelled:0, pcRefunds:0 };
     cur.bookings++;
     if (!isCancelled) {
       cur.revenue    += isFinite(Number(b.amount??0))?Number(b.amount??0):0;
@@ -824,6 +839,7 @@ export default function AdminReportsPage() {
       cur.payout     += partnerPayout;
       cur.stripeFees += feeInBid;
       cur.camelNet   += camelNetComm;
+      cur.pcRefunds  += pcRefundTotal;
     }
     if (isCancelled) cur.cancelled++;
     if (String(b.booking_status||"").toLowerCase()==="completed") cur.completed++;
@@ -867,7 +883,9 @@ export default function AdminReportsPage() {
       "Stripe Fee (Camel cost)","Stripe Fee Currency","Camel Net Commission (after Stripe)",
       "Full Fuel Deposit","Collection Fuel (Driver)","Collection Fuel (Partner Override)",
       "Return Fuel (Driver)","Return Fuel (Partner Override)","Quarters Used","Fuel Used Label",
-      "Fuel Charge to Customer","Fuel Refund to Customer","Total Booking Amount","Partner Net Payout",
+      "Fuel Charge to Customer","Fuel Refund to Customer",
+      "Post-Completion Refunds Total","Net Final Amount",
+      "Total Booking Amount","Partner Net Payout",
       "Customer Collection Confirmed","Customer Return Confirmed",
       "Insurance Driver Confirmed","Insurance Customer Confirmed",
       "Booking Status","Payout Status","Cancelled By","Cancelled At","Cancellation Reason","Refund Status","Created At",
@@ -875,7 +893,7 @@ export default function AdminReportsPage() {
     const fuelRows = exportRows.map(b=>{
       const usedQ=b.fuel_used_quarters;
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid } = calcPayout(b);
+      const { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid, pcRefundTotal, netFinal } = calcPayout(b);
       const isCompleted=String(b.booking_status||"").toLowerCase()==="completed";
       return [
         b.job_number||"",b.partner_company_name||"",b.partner_country||"",b.partner_legal_company_name||"",
@@ -895,6 +913,8 @@ export default function AdminReportsPage() {
         usedQ!==null&&usedQ!==undefined?usedQ:"—",
         usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—",
         Number(b.fuel_charge??0),fuelRefund,
+        pcRefundTotal>0?pcRefundTotal:"",
+        pcRefundTotal>0?Number(netFinal.toFixed(2)):"",
         isCancelled?0:Number(b.amount??0), partnerPayout,
         b.collection_confirmed_by_customer?"Yes":"No",b.return_confirmed_by_customer?"Yes":"No",
         b.insurance_docs_confirmed_by_driver?"Yes":"No",b.insurance_docs_confirmed_by_customer?"Yes":"No",
@@ -908,24 +928,27 @@ export default function AdminReportsPage() {
       "Total Revenue (excl. cancelled)","Car Hire Revenue",
       "Camel Commission","Stripe Fees (Camel cost)","Camel Net Income (after Stripe)",
       "Partner Net Payout","Fuel Deposits","Fuel Charges Billed","Fuel Refunds Issued",
+      "Post-Completion Refunds Total",
     ];
     const summaryRows = (["EUR","GBP","USD"] as Currency[]).map(curr=>{
       const t=revenuesByCurrency[curr];
-      return [`${curr} ${CURRENCY_META[curr].symbol}`,t.count,t.completed,t.cancelled,t.total,t.carHire,t.commissionTotal,t.stripeFeeTotal,t.camelNetCommTotal,t.partnerPayoutTotal,t.fuelDeposit,t.fuelCharge,t.fuelRefund];
+      return [`${curr} ${CURRENCY_META[curr].symbol}`,t.count,t.completed,t.cancelled,t.total,t.carHire,t.commissionTotal,t.stripeFeeTotal,t.camelNetCommTotal,t.partnerPayoutTotal,t.fuelDeposit,t.fuelCharge,t.fuelRefund,t.pcRefundTotal];
     });
-    const partnerHeaders = ["Partner","Total Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees (Camel)","Camel Net Income","Partner Net Payout"];
-    const partnerRows = partnerBreakdown.map(p=>[p.name,p.bookings,p.completed,p.cancelled,p.revenue,p.commission,p.stripeFees,p.camelNet,p.payout]);
+    const partnerHeaders = ["Partner","Total Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees (Camel)","Camel Net Income","Partner Net Payout","Post-Completion Refunds"];
+    const partnerRows = partnerBreakdown.map(p=>[p.name,p.bookings,p.completed,p.cancelled,p.revenue,p.commission,p.stripeFees,p.camelNet,p.payout,p.pcRefunds]);
     const allHeaders = [
       "Job","Partner","Partner Country","Customer","Booking Status","Payout Status","Bid Currency",
       "Car Hire","Commission Rate (%)","Commission Amount",
       "Stripe Fee (Camel cost)","Camel Net Income",
-      "Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Net Payout",
+      "Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund",
+      "Post-Completion Refunds","Net Final Amount",
+      "Total","Partner Net Payout",
       "Cancelled By","Cancelled At","Refund Status","Insurance","Created At",
     ];
     const allRows = exportRows.map(b=>{
       const usedQ=b.fuel_used_quarters;
       const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-      const { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid } = calcPayout(b);
+      const { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid, pcRefundTotal, netFinal } = calcPayout(b);
       return [
         b.job_number||"",b.partner_company_name||"",b.partner_country||"",b.customer_name||"",
         b.payout_hold ? "Disputed" : (b.booking_status||""), b.payout_hold ? "On Hold" : (b.payout_status||""), b.currency||"EUR",
@@ -934,6 +957,8 @@ export default function AdminReportsPage() {
         Number(b.fuel_price??0),
         usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—",
         Number(b.fuel_charge??0), fuelRefund,
+        pcRefundTotal>0?pcRefundTotal:"",
+        pcRefundTotal>0?Number(netFinal.toFixed(2)):"",
         isCancelled?0:Number(b.amount??0), partnerPayout,
         b.cancelled_by||"", b.cancelled_at?fmtDateTime(b.cancelled_at):"",
         b.refund_status||"",
@@ -1025,18 +1050,18 @@ export default function AdminReportsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Post-Comp Refunds","Total","Net Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
               {filteredBookings.length===0 ? (
-                <tr><td colSpan={17} className="px-4 py-4 text-black/50">No bookings found.</td></tr>
+                <tr><td colSpan={19} className="px-4 py-4 text-black/50">No bookings found.</td></tr>
               ) : filteredBookings.slice(0,allBookingsVisible).map((b,i)=>{
                 const usedQ=b.fuel_used_quarters;
                 const isCancelled=String(b.booking_status||"").toLowerCase()==="cancelled";
-                const { commAmt, partnerPayout, camelNetComm, rate, hire, fuelRefund, feeInBid } = calcPayout(b);
+                const { commAmt, partnerPayout, camelNetComm, rate, hire, fuelRefund, feeInBid, pcRefundTotal, netFinal } = calcPayout(b);
                 return (
                   <tr key={b.id} className={`hover:bg-[#f0f0f0] ${isCancelled?"bg-red-50/50":i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                     <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
@@ -1055,7 +1080,9 @@ export default function AdminReportsPage() {
                     <td className="px-4 py-3 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                     <td className="px-4 py-3 font-black text-[#ff7a00]">{b.fuel_charge!==null?fmtAmt(b.fuel_charge,b.currency):"—"}</td>
                     <td className="px-4 py-3 font-black text-green-600">{fuelRefund>0?fmtCurr(fuelRefund,b.currency??"EUR"):"—"}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{pcRefundTotal>0?<span className="font-black text-amber-700">− {fmtCurr(pcRefundTotal,b.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
                     <td className={`px-4 py-3 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,b.currency)}</td>
+                    <td className="px-4 py-3 font-black">{pcRefundTotal>0?fmtCurr(netFinal,b.currency??"EUR"):<span className="text-black/30">—</span>}</td>
                     <td className={`px-4 py-3 font-black ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-green-700"}`}>{isCancelled&&b.refund_status==="full"?fmtCurr(0,b.currency??"EUR"):fmtCurr(partnerPayout,b.currency??"EUR")}</td>
                     <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_by||"—"}</td>
                     <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDateTime(b.cancelled_at):"—"}</td>
@@ -1094,14 +1121,14 @@ export default function AdminReportsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Partner","Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees (Camel)","Camel Net Income","Partner Net Payout"].map(h=>(
+                {["Partner","Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees (Camel)","Camel Net Income","Partner Net Payout","Post-Comp Refunds"].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
               {partnerBreakdown.length===0 ? (
-                <tr><td colSpan={9} className="px-4 py-4 text-black/50">No partner data.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-4 text-black/50">No partner data.</td></tr>
               ) : partnerBreakdown.map((p,i)=>(
                 <tr key={i} className={`hover:bg-[#f0f0f0] ${i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                   <td className="px-4 py-3 font-black text-black">{p.name}</td>
@@ -1113,6 +1140,7 @@ export default function AdminReportsPage() {
                   <td className="px-4 py-3 font-black text-amber-700">{p.stripeFees.toFixed(2)}</td>
                   <td className="px-4 py-3 font-black text-green-700">{p.camelNet.toFixed(2)}</td>
                   <td className="px-4 py-3 font-black text-black/70">{p.payout.toFixed(2)}</td>
+                  <td className="px-4 py-3 font-black text-amber-700">{p.pcRefunds>0?p.pcRefunds.toFixed(2):<span className="text-black/30">—</span>}</td>
                 </tr>
               ))}
             </tbody>

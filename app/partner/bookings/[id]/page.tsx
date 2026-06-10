@@ -13,6 +13,14 @@ const CURRENCY_META: Record<Currency, { symbol: string; locale: string; label: s
 };
 type Rates = { GBP: number; USD: number };
 
+type PostCompletionRefund = {
+  id: string;
+  amount: number;
+  reason: string | null;
+  stripe_refund_id: string | null;
+  created_at: string;
+};
+
 type DriverRow = {
   id: string; partner_user_id: string; auth_user_id: string | null;
   full_name: string; email: string; phone: string | null;
@@ -50,6 +58,7 @@ type BookingRow = {
   payment_id?: string | null;
   payout_hold?: boolean | null;
   payout_hold_reason?: string | null;
+  post_completion_refund_total?: number | null;
 };
 
 type PaymentData = {
@@ -75,7 +84,14 @@ type RequestRow = {
   vehicle_category_name: string | null; notes: string | null; status: string | null; created_at: string | null;
 };
 
-type BookingApiResponse = { booking: BookingRow; payment: PaymentData; request: RequestRow | null; role: string | null };
+type BookingApiResponse = {
+  booking: BookingRow;
+  payment: PaymentData;
+  request: RequestRow | null;
+  role: string | null;
+  postCompletionRefunds?: PostCompletionRefund[];
+};
+
 type FuelLevel = "full" | "3/4" | "half" | "quarter" | "empty";
 
 const PRE_COLLECTION = ["confirmed","driver_assigned","en_route","arrived"];
@@ -85,6 +101,10 @@ const labelCls = "text-xs font-black uppercase tracking-widest text-black";
 function fmtCurr(amount: number, curr: Currency | string): string {
   const locale = curr === "GBP" ? "en-GB" : curr === "USD" ? "en-US" : "es-ES";
   return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(amount);
+}
+function fmtDate(v?: string | null) {
+  if (!v) return "—";
+  try { return new Date(v).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); } catch { return v; }
 }
 function toEur(amount: number, stored: Currency, rates: Rates): number {
   if (stored==="EUR") return amount;
@@ -135,21 +155,16 @@ function fmtDuration(m?: number|null) {
   if (m<60) return `${m} min`;
   const h=Math.floor(m/60),mins=m%60; return mins?`${h}h ${mins}m`:`${h}h`;
 }
-
 function effectiveFuel(driverFuel: unknown, partnerFuel: unknown): string|null {
   return normalizeFuel(partnerFuel) || normalizeFuel(driverFuel);
 }
-
 function isLocked(opts: {
-  driverFuel: string|null;
-  partnerFuel: string|null|undefined;
-  customerConfirmed: boolean|null|undefined;
-  customerFuel: string|null|undefined;
+  driverFuel: string|null; partnerFuel: string|null|undefined;
+  customerConfirmed: boolean|null|undefined; customerFuel: string|null|undefined;
 }): boolean {
   const effective = normalizeFuel(opts.partnerFuel) || normalizeFuel(opts.driverFuel);
   return !!effective && !!opts.customerConfirmed && effective === normalizeFuel(opts.customerFuel);
 }
-
 const QUARTER_LABELS: Record<number,string> = { 0:"Empty",1:"¼ Tank",2:"½ Tank",3:"¾ Tank",4:"Full Tank" };
 
 function Field({ label, children }: { label:string; children:React.ReactNode }) {
@@ -161,16 +176,25 @@ function Field({ label, children }: { label:string; children:React.ReactNode }) 
   );
 }
 
-function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentData; bidCurrency: Currency; booking: BookingRow }) {
+function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds }: {
+  payment: PaymentData;
+  bidCurrency: Currency;
+  booking: BookingRow;
+  postCompletionRefunds: PostCompletionRefund[];
+}) {
   const { t } = useTranslation();
   if (!payment) return null;
   const fmtB = (n: number) => fmtCurr(n, bidCurrency);
-  const hire       = Number(booking.car_hire_price ?? 0);
-  const rate       = booking.commission_rate ?? 20;
-  const commAmt    = Math.max((hire * rate) / 100, 10);
+  const hire        = Number(booking.car_hire_price ?? 0);
+  const rate        = booking.commission_rate ?? 20;
+  const commAmt     = Math.max((hire * rate) / 100, 10);
   const fuelDeposit = Number(booking.fuel_price ?? 0);
-  const fuelCharge = Number(booking.fuel_charge ?? 0);
-  const netPayout  = (booking.booking_status === "cancelled" && booking.refund_status === "full") ? 0 : Math.max(0, hire - commAmt + fuelCharge);
+  const fuelCharge  = Number(booking.fuel_charge ?? 0);
+  const netPayout   = (booking.booking_status === "cancelled" && booking.refund_status === "full") ? 0 : Math.max(0, hire - commAmt + fuelCharge);
+  const pcTotal     = Number(booking.post_completion_refund_total ?? 0);
+  const finalAmount = hire + fuelCharge;
+  const netFinal    = finalAmount - pcTotal;
+
   return (
     <div className="border border-black/10 bg-[#f8f8f8] p-6">
       <h2 className="text-base font-black text-black mb-1">{t("bookings.detail.payment.title")}</h2>
@@ -208,6 +232,36 @@ function PaymentFeesCard({ payment, bidCurrency, booking }: { payment: PaymentDa
           <p className="text-xs font-bold text-red-600 mt-2">{t("bookings.detail.payment.fullRefundNote")}</p>
         )}
       </div>
+
+      {/* Post-completion refunds — read-only for partner */}
+      {postCompletionRefunds.length > 0 && (
+        <div className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">
+            Post-Completion Adjustments
+          </p>
+          {postCompletionRefunds.map((r, i) => (
+            <div key={r.id} className="flex items-start justify-between py-2 border-b border-amber-100 last:border-0">
+              <span className="text-sm font-semibold text-amber-800">
+                Refund {i + 1}{r.reason ? ` — ${r.reason}` : ""}
+                <span className="ml-2 text-xs text-amber-600">{fmtDate(r.created_at)}</span>
+              </span>
+              <span className="text-sm font-black text-amber-700 ml-4 shrink-0">− {fmtB(r.amount)}</span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between pt-3 mt-1 border-t-2 border-amber-300">
+            <span className="text-sm font-black text-amber-800">Total refunded to customer</span>
+            <span className="text-sm font-black text-amber-700">− {fmtB(pcTotal)}</span>
+          </div>
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-sm font-black text-black">Net final amount (after adjustments)</span>
+            <span className="text-sm font-black text-black">{fmtB(netFinal)}</span>
+          </div>
+          <p className="mt-3 text-xs font-bold text-amber-600">
+            These post-completion adjustments were issued by Camel Global. Contact us at info@camel-global.com if you have any questions.
+          </p>
+        </div>
+      )}
+
       <p className="mt-3 text-xs font-bold text-black/40">
         {t("bookings.detail.payment.stripeNote")}{" "}
         <a href="/partner/terms" className="underline">{t("bookings.detail.payment.stripeNoteLink")}</a>{" "}
@@ -326,7 +380,6 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking:BookingRow; ra
   const primary = (v:number)=>fmtCurr(v,stored);
   const sec = (v:number)=>{ const inEur=toEur(v,stored,rates); return `(${fmtCurr(fromEur(inEur,secondary,rates),secondary)} · ${fmtCurr(fromEur(inEur,tertiary,rates),tertiary)})`; };
   const rateBadge = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
-
   function fuelLevelLabel(v: unknown): string {
     switch(normalizeFuel(v)) {
       case "empty":   return t("bookings.detail.fuel.level.empty");
@@ -337,7 +390,6 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking:BookingRow; ra
       default:        return "—";
     }
   }
-
   return (
     <div className="bg-[#1a1a1a] p-8 text-white">
       <div className="flex items-center justify-between mb-4"><h2 className="text-xl font-black text-white">{t("bookings.detail.summary.title")}</h2><span className="border border-white/30 px-3 py-1 text-xs font-black text-white">{t("bookings.detail.summary.finalised")}</span></div>
@@ -378,7 +430,6 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
   onSave:()=>void; saving:boolean; locked:boolean;
 }) {
   const { t } = useTranslation();
-
   function fuelLabel(v: unknown): string {
     switch(normalizeFuel(v)) {
       case "empty":   return t("bookings.detail.fuel.level.empty");
@@ -389,7 +440,6 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
       default:        return "—";
     }
   }
-
   const isC               = stage==="collection";
   const driverConfirmed   = isC?!!booking.collection_confirmed_by_driver:!!booking.return_confirmed_by_driver;
   const driverFuel        = isC?booking.collection_fuel_level_driver:booking.return_fuel_level_driver;
@@ -402,7 +452,6 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
   const savedPartnerAt    = isC?booking.collection_confirmed_by_partner_at:booking.return_confirmed_by_partner_at;
   const hasOverride       = !!savedPartnerFuel && savedPartnerFuel !== driverFuel;
   const effective         = effectiveFuel(driverFuel, savedPartnerFuel);
-
   const cardBg    = locked ? "border-[#1a1a1a] bg-[#1a1a1a]"  : "border-black/5 bg-white";
   const titleCol  = locked ? "text-white"                       : "text-black";
   const labelCol  = locked ? "text-white/40"                    : "text-black/40";
@@ -412,7 +461,6 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
   const rowBgFill = (filled: boolean) => locked
     ? (filled ? "border-white/20 bg-white/10" : "border-white/10 bg-white/5")
     : (filled ? "border-black/20 bg-[#f0f0f0]" : "border-black/10 bg-[#f0f0f0]");
-
   return (
     <div className={`border p-6 ${cardBg}`}>
       <div className="flex items-center justify-between mb-4">
@@ -424,7 +472,7 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
           {savedPartnerFuel ? t("bookings.detail.fuel.officeOverride") : t("bookings.detail.fuel.driverRecorded")}
         </p>
         {savedPartnerFuel
-          ? <><p className={`mt-1 text-lg font-black ${valueCol}`}>{fuelLabel(savedPartnerFuel)}</p><FuelBar level={savedPartnerFuel}/><p className={`mt-1 text-xs text-[#ff7a00]`}>{t("bookings.detail.fuel.setByOffice")}{savedPartnerAt ? ` ${t("bookings.detail.fuel.at")} ${fmt(savedPartnerAt)}` : ""}</p>{driverFuel&&<p className={`mt-1 text-xs ${labelCol}`}>{t("bookings.detail.fuel.driverRecordedAs")} {fuelLabel(driverFuel)}</p>}</>
+          ? <><p className={`mt-1 text-lg font-black ${valueCol}`}>{fuelLabel(savedPartnerFuel)}</p><FuelBar level={savedPartnerFuel}/><p className="mt-1 text-xs text-[#ff7a00]">{t("bookings.detail.fuel.setByOffice")}{savedPartnerAt ? ` ${t("bookings.detail.fuel.at")} ${fmt(savedPartnerAt)}` : ""}</p>{driverFuel&&<p className={`mt-1 text-xs ${labelCol}`}>{t("bookings.detail.fuel.driverRecordedAs")} {fuelLabel(driverFuel)}</p>}</>
           : driverConfirmed&&driverFuel
             ? <><p className={`mt-1 text-lg font-black ${valueCol}`}>{fuelLabel(driverFuel)}</p><FuelBar level={driverFuel}/><p className={`mt-1 text-xs ${labelCol}`}>{fmt(driverAt)}</p></>
             : <p className={`mt-1 text-sm font-bold italic ${italicCol}`}>{t("bookings.detail.fuel.driverNotRecorded")}</p>}
@@ -598,6 +646,7 @@ export default function PartnerBookingDetailPage() {
 
   const bk  = data.booking;
   const req = data.request;
+  const postCompletionRefunds = data.postCompletionRefunds ?? [];
   const stored: Currency = (bk.currency==="EUR"||bk.currency==="GBP"||bk.currency==="USD")?bk.currency:"EUR";
   const { symbol, label: currLabel } = CURRENCY_META[stored];
 
@@ -650,6 +699,20 @@ export default function PartnerBookingDetailPage() {
           <div>
             <p className="text-sm font-black text-amber-800">{t("bookings.detail.hold.title")}</p>
             <p className="text-xs font-bold text-amber-600 mt-0.5">{t("bookings.detail.hold.body")}</p>
+          </div>
+        </div>
+      )}
+
+      {postCompletionRefunds.length > 0 && (
+        <div className="border border-amber-300 bg-amber-50 px-5 py-3 flex items-center gap-3">
+          <span className="text-xl">↩</span>
+          <div>
+            <p className="text-sm font-black text-amber-800">
+              Post-completion refund{postCompletionRefunds.length !== 1 ? "s" : ""} issued on this booking
+            </p>
+            <p className="text-xs font-bold text-amber-600 mt-0.5">
+              Total refunded to customer: {fmtCurr(Number(bk.post_completion_refund_total ?? 0), stored)} — see Payment &amp; Fee Breakdown below
+            </p>
           </div>
         </div>
       )}
@@ -735,7 +798,12 @@ export default function PartnerBookingDetailPage() {
         </div>
       </div>
 
-      <PaymentFeesCard payment={data.payment} bidCurrency={stored} booking={bk} />
+      <PaymentFeesCard
+        payment={data.payment}
+        bidCurrency={stored}
+        booking={bk}
+        postCompletionRefunds={postCompletionRefunds}
+      />
 
       {!isCancelled&&(
         <div className="border border-black/5 bg-white p-6">

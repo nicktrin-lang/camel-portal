@@ -24,6 +24,7 @@ type BookingRow = {
   pickup_address: string | null; dropoff_address: string | null;
   customer_name: string | null; vehicle_category_name: string | null;
   payout_status: string | null; payout_hold?: boolean | null;
+  post_completion_refund_total: number | null;
 };
 
 type InvoiceRow = {
@@ -57,14 +58,17 @@ function matchesDateRange(value: string | null | undefined, from: string, to: st
 function calcPayout(b: BookingRow) {
   const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
   const fuel = Number(b.fuel_price ?? 0);
-  if (isCancelled && b.refund_status === "full") return { hire:0, rate:0, commAmt:0, partnerPayout:0, fuelRefund:fuel };
+  const pcRefundTotal = Number(b.post_completion_refund_total ?? 0);
+  if (isCancelled && b.refund_status === "full") return { hire:0, rate:0, commAmt:0, partnerPayout:0, fuelRefund:fuel, pcRefundTotal:0, netFinal:0 };
   const hire        = Number(b.car_hire_price ?? 0);
   const rate        = b.commission_rate ?? 20;
   const commAmt     = Math.max((hire * rate) / 100, 10);
   const fuelCharge  = Number(b.fuel_charge ?? 0);
   const partnerPayout = Math.max(0, hire - commAmt + fuelCharge);
   const fuelRefund  = (isCancelled && b.refund_status === "partial") ? fuel : Number(b.fuel_refund ?? 0);
-  return { hire, rate, commAmt, partnerPayout, fuelRefund };
+  const finalAmount = hire + fuelCharge;
+  const netFinal    = finalAmount - pcRefundTotal;
+  return { hire, rate, commAmt, partnerPayout, fuelRefund, pcRefundTotal, netFinal };
 }
 function statusPillClasses(status?: string | null) {
   switch (String(status || "").toLowerCase()) {
@@ -102,7 +106,6 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-// ── Commission Invoices ───────────────────────────────────────────────────────
 function CommissionInvoices() {
   const { t } = useTranslation();
   const [invoices,      setInvoices]      = useState<InvoiceRow[]>([]);
@@ -163,7 +166,6 @@ function CommissionInvoices() {
     <div className="border border-black/10 bg-white p-6 md:p-8">
       <h2 className="text-xl font-black text-black mb-1">{t("reports.invoices.title")}</h2>
       <p className="text-sm text-black/50 mb-6">{t("reports.invoices.subtitle")}</p>
-
       <div className="border border-black/10 bg-[#f0f0f0] p-5 mb-6">
         <p className="text-xs font-black uppercase tracking-widest text-black mb-3">{t("reports.invoices.generate.title")}</p>
         <div className="flex flex-wrap items-end gap-3">
@@ -183,7 +185,6 @@ function CommissionInvoices() {
         {genSuccess && <p className="mt-3 text-sm font-bold text-green-700">✓ {genSuccess}</p>}
         <p className="mt-3 text-xs font-bold text-black/40">{t("reports.invoices.generate.hint")}</p>
       </div>
-
       {loading ? (
         <p className="text-sm font-bold text-black/50">{t("reports.invoices.loading")}</p>
       ) : invoices.length === 0 ? (
@@ -197,12 +198,9 @@ function CommissionInvoices() {
             <thead className="bg-black text-white">
               <tr>
                 {[
-                  t("reports.invoices.col.number"),
-                  t("reports.invoices.col.period"),
-                  t("reports.invoices.col.bookings"),
-                  t("reports.invoices.col.commission"),
-                  t("reports.invoices.col.issued"),
-                  t("reports.invoices.col.emailed"),
+                  t("reports.invoices.col.number"), t("reports.invoices.col.period"),
+                  t("reports.invoices.col.bookings"), t("reports.invoices.col.commission"),
+                  t("reports.invoices.col.issued"), t("reports.invoices.col.emailed"),
                   t("reports.invoices.col.download"),
                 ].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
@@ -240,7 +238,6 @@ function CommissionInvoices() {
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function PartnerReportsPage() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -282,18 +279,19 @@ export default function PartnerReportsPage() {
   }, [bookings, dateFrom, dateTo, statusFilter]);
 
   const totals = useMemo(() => {
-    const tot: Record<string, { carHire:number; commission:number; payout:number; fuelCharge:number; fuelRefund:number; count:number; completed:number; cancelled:number; disputed:number; disputedPayout:number }> = {};
+    const tot: Record<string, { carHire:number; commission:number; payout:number; fuelCharge:number; fuelRefund:number; count:number; completed:number; cancelled:number; disputed:number; disputedPayout:number; pcRefundTotal:number }> = {};
     for (const b of filtered) {
       const curr = b.currency ?? "EUR";
-      if (!tot[curr]) tot[curr] = { carHire:0, commission:0, payout:0, fuelCharge:0, fuelRefund:0, count:0, completed:0, cancelled:0, disputed:0, disputedPayout:0 };
+      if (!tot[curr]) tot[curr] = { carHire:0, commission:0, payout:0, fuelCharge:0, fuelRefund:0, count:0, completed:0, cancelled:0, disputed:0, disputedPayout:0, pcRefundTotal:0 };
       const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
-      const { hire, commAmt, partnerPayout, fuelRefund } = calcPayout(b);
+      const { hire, commAmt, partnerPayout, fuelRefund, pcRefundTotal } = calcPayout(b);
       tot[curr].count++;
       if (!isCancelled) {
         tot[curr].carHire    += hire;
         tot[curr].commission += commAmt;
         tot[curr].payout     += partnerPayout;
         tot[curr].fuelCharge += Number(b.fuel_charge ?? 0);
+        tot[curr].pcRefundTotal += pcRefundTotal;
       }
       tot[curr].fuelRefund += fuelRefund;
       if (isCancelled) tot[curr].cancelled++;
@@ -312,13 +310,14 @@ export default function PartnerReportsPage() {
       "Pickup Date","Dropoff Date","Vehicle","Currency",
       "Car Hire","Commission Rate (%)","Commission Amount",
       "Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund",
+      "Post-Completion Refunds","Net Final Amount",
       "Total Booking","Your Net Payout",
       "Booking Status","Payout Status","Cancelled By","Refund Status","Created At",
     ];
     const rows = filtered.map(b => {
       const usedQ = b.fuel_used_quarters;
       const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
-      const { hire, rate, commAmt, partnerPayout, fuelRefund } = calcPayout(b);
+      const { hire, rate, commAmt, partnerPayout, fuelRefund, pcRefundTotal, netFinal } = calcPayout(b);
       return [
         b.job_number || "", b.customer_name || "",
         b.pickup_address || "", b.dropoff_address || "",
@@ -328,6 +327,8 @@ export default function PartnerReportsPage() {
         Number(b.fuel_price ?? 0),
         usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—",
         Number(b.fuel_charge ?? 0), fuelRefund,
+        pcRefundTotal > 0 ? pcRefundTotal : "",
+        pcRefundTotal > 0 ? Number(netFinal.toFixed(2)) : "",
         isCancelled ? 0 : Number(b.amount ?? 0), partnerPayout,
         b.payout_hold ? "Disputed" : (b.booking_status || ""), b.payout_hold ? "On Hold" : (b.payout_status || ""),
         b.cancelled_by || "", b.refund_status || "", fmtDate(b.created_at),
@@ -343,7 +344,6 @@ export default function PartnerReportsPage() {
     <div className="space-y-6">
       {error && <div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
 
-      {/* Filters */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h1 className="text-2xl font-black text-black mb-1">{t("reports.title")}</h1>
         <p className="text-sm text-black/50 mb-5">{t("reports.subtitle")}</p>
@@ -375,18 +375,18 @@ export default function PartnerReportsPage() {
         </div>
       </div>
 
-      {/* Totals per currency */}
       {Object.entries(totals).filter(([, tot]) => tot.count > 0).map(([curr, tot]) => {
         const sym = CURRENCY_META[curr as Currency]?.symbol ?? curr;
         const summaryItems = [
-          { label: t("reports.summary.bookings"),    value: tot.count,      isMoney: false },
-          { label: t("reports.summary.completed"),   value: tot.completed,  isMoney: false },
-          { label: t("reports.summary.cancelled"),   value: tot.cancelled,  isMoney: false },
-          { label: t("reports.summary.carHire"),     value: tot.carHire,    isMoney: true  },
-          { label: t("reports.summary.commission"),  value: tot.commission, isMoney: true  },
-          { label: t("reports.summary.yourPayout"),  value: tot.payout,     isMoney: true  },
-          { label: t("reports.summary.fuelRefunded"),value: tot.fuelRefund, isMoney: true  },
-          { label: t("reports.summary.disputed"),    value: tot.disputedPayout,  isMoney: true, isDisputed: true  },
+          { label: t("reports.summary.bookings"),    value: tot.count,          isMoney: false },
+          { label: t("reports.summary.completed"),   value: tot.completed,      isMoney: false },
+          { label: t("reports.summary.cancelled"),   value: tot.cancelled,      isMoney: false },
+          { label: t("reports.summary.carHire"),     value: tot.carHire,        isMoney: true  },
+          { label: t("reports.summary.commission"),  value: tot.commission,     isMoney: true  },
+          { label: t("reports.summary.yourPayout"),  value: tot.payout,         isMoney: true  },
+          { label: t("reports.summary.fuelRefunded"),value: tot.fuelRefund,     isMoney: true  },
+          { label: "Post-Comp Refunds",              value: tot.pcRefundTotal,  isMoney: true, isPcRefund: true },
+          { label: t("reports.summary.disputed"),    value: tot.disputedPayout, isMoney: true, isDisputed: true },
         ];
         return (
           <div key={curr} className="border border-black/10 bg-white p-6">
@@ -394,14 +394,22 @@ export default function PartnerReportsPage() {
               <span className="border border-black bg-black px-3 py-1 text-sm font-black text-white">{sym} {curr}</span>
               <h2 className="text-lg font-black text-black">{t("reports.summary.title")}</h2>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-              {summaryItems.map(({ label, value, isMoney, isDisputed }: any) => (
-                <div key={label} className={`border p-4 ${isDisputed && (value as number) > 0 ? "border-amber-300 bg-amber-50" : label === t("reports.summary.cancelled") && (value as number) > 0 ? "border-red-200 bg-red-50" : "border-black/10 bg-[#f0f0f0]"}`}>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
+              {summaryItems.map(({ label, value, isMoney, isDisputed, isPcRefund }: any) => (
+                <div key={label} className={`border p-4 ${
+                  isDisputed && (value as number) > 0 ? "border-amber-300 bg-amber-50" :
+                  isPcRefund && (value as number) > 0 ? "border-amber-200 bg-amber-50" :
+                  label === t("reports.summary.cancelled") && (value as number) > 0 ? "border-red-200 bg-red-50" :
+                  "border-black/10 bg-[#f0f0f0]"
+                }`}>
                   <p className="text-xs font-black uppercase tracking-widest text-black/50">{label}</p>
                   <p className={`mt-1 text-lg font-black ${
                     label === t("reports.summary.cancelled") && (value as number) > 0 ? "text-red-700" :
                     label === t("reports.summary.yourPayout")  ? "text-green-700" :
-                    label === t("reports.summary.commission") ? "text-amber-700" : isDisputed && (value as number) > 0 ? "text-amber-700" : "text-black"
+                    label === t("reports.summary.commission") ? "text-amber-700" :
+                    isDisputed && (value as number) > 0 ? "text-amber-700" :
+                    isPcRefund && (value as number) > 0 ? "text-amber-700" :
+                    "text-black"
                   }`}>
                     {isMoney ? fmtCurr(value as number, curr) : value}
                   </p>
@@ -412,10 +420,8 @@ export default function PartnerReportsPage() {
         );
       })}
 
-      {/* Commission Invoices */}
       <CommissionInvoices />
 
-      {/* Bookings table */}
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xl font-black text-black">{t("reports.bookings.title")}</h2>
@@ -429,19 +435,14 @@ export default function PartnerReportsPage() {
             <thead className="bg-black text-white">
               <tr>
                 {[
-                  t("reports.bookings.col.job"),
-                  t("reports.bookings.col.customer"),
-                  t("reports.bookings.col.pickup"),
-                  t("reports.bookings.col.status"),
-                  t("reports.bookings.col.currency"),
-                  t("reports.bookings.col.carHire"),
-                  t("reports.bookings.col.commission"),
-                  t("reports.bookings.col.fuelDeposit"),
-                  t("reports.bookings.col.fuelUsed"),
-                  t("reports.bookings.col.fuelCharge"),
+                  t("reports.bookings.col.job"), t("reports.bookings.col.customer"),
+                  t("reports.bookings.col.pickup"), t("reports.bookings.col.status"),
+                  t("reports.bookings.col.currency"), t("reports.bookings.col.carHire"),
+                  t("reports.bookings.col.commission"), t("reports.bookings.col.fuelDeposit"),
+                  t("reports.bookings.col.fuelUsed"), t("reports.bookings.col.fuelCharge"),
                   t("reports.bookings.col.fuelRefund"),
-                  t("reports.bookings.col.total"),
-                  t("reports.bookings.col.yourPayout"),
+                  "Post-Comp Refunds", "Net Final",
+                  t("reports.bookings.col.total"), t("reports.bookings.col.yourPayout"),
                   t("reports.bookings.col.payoutStatus"),
                 ].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
@@ -450,12 +451,12 @@ export default function PartnerReportsPage() {
             </thead>
             <tbody className="divide-y divide-black/5">
               {filtered.length === 0 ? (
-                <tr><td colSpan={14} className="px-4 py-6 text-sm text-black/40">{t("reports.bookings.empty")}</td></tr>
+                <tr><td colSpan={16} className="px-4 py-6 text-sm text-black/40">{t("reports.bookings.empty")}</td></tr>
               ) : filtered.slice(0, visibleCount).map((b, i) => {
                 const usedQ = b.fuel_used_quarters;
                 const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
                 const curr = b.currency ?? "EUR";
-                const { hire, rate, commAmt, partnerPayout, fuelRefund } = calcPayout(b);
+                const { hire, rate, commAmt, partnerPayout, fuelRefund, pcRefundTotal, netFinal } = calcPayout(b);
                 return (
                   <tr key={b.id} onClick={() => router.push(`/partner/bookings/${b.id}`)}
                     className={`cursor-pointer hover:bg-[#f0f0f0] ${isCancelled ? "bg-red-50/50" : i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"}`}>
@@ -478,13 +479,24 @@ export default function PartnerReportsPage() {
                     <td className="px-4 py-3 text-black/70">{usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—"}</td>
                     <td className="px-4 py-3 font-black text-[#ff7a00]">{Number(b.fuel_charge ?? 0) > 0 ? fmtCurr(Number(b.fuel_charge), curr) : "—"}</td>
                     <td className="px-4 py-3 font-black text-green-600">{fuelRefund > 0 ? fmtCurr(fuelRefund, curr) : "—"}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {pcRefundTotal > 0
+                        ? <span className="font-black text-amber-700">− {fmtCurr(pcRefundTotal, curr)}</span>
+                        : <span className="text-black/30">—</span>}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {pcRefundTotal > 0
+                        ? <span className="font-black text-black">{fmtCurr(netFinal, curr)}</span>
+                        : <span className="text-black/30">—</span>}
+                    </td>
                     <td className={`px-4 py-3 font-black ${isCancelled ? "text-red-400 line-through" : "text-black"}`}>{fmtCurr(isCancelled ? 0 : Number(b.amount ?? 0), curr)}</td>
                     <td className={`px-4 py-3 font-black ${isCancelled && b.refund_status === "full" ? "text-red-400" : "text-green-700"}`}>
                       {isCancelled && b.refund_status === "full" ? fmtCurr(0, curr) : fmtCurr(partnerPayout, curr)}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${
-                        b.payout_hold ? "border-amber-300 bg-amber-50 text-amber-700" : b.payout_status === "paid"  ? "border-green-200 bg-green-50 text-green-700" :
+                        b.payout_hold ? "border-amber-300 bg-amber-50 text-amber-700" :
+                        b.payout_status === "paid"  ? "border-green-200 bg-green-50 text-green-700" :
                         b.payout_status === "ready" ? "border-blue-200 bg-blue-50 text-blue-700" :
                         b.payout_status === "held"  ? "border-amber-200 bg-amber-50 text-amber-700" :
                         "border-black/10 bg-[#f0f0f0] text-black/50"

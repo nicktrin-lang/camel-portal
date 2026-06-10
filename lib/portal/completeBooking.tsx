@@ -51,14 +51,18 @@ const ps = StyleSheet.create({
   totalBox:    { flexDirection:"row", justifyContent:"space-between", backgroundColor:"#f0f0f0", padding:"8 10", marginTop:6 },
   totalLabel:  { fontFamily:"Helvetica-Bold", color:"#111", fontSize:10 },
   totalValue:  { fontFamily:"Helvetica-Bold", color:"#111", fontSize:10 },
+  amendedBox:  { flexDirection:"row", justifyContent:"space-between", backgroundColor:"#fff3e0", padding:"8 10", marginTop:6, borderLeft:"3 solid #ff7a00" },
+  amendedLabel:{ fontFamily:"Helvetica-Bold", color:"#cc5500", fontSize:10 },
+  amendedValue:{ fontFamily:"Helvetica-Bold", color:"#cc5500", fontSize:10 },
   note:        { fontSize:7.5, color:"#888", marginTop:8, lineHeight:1.5 },
+  amendNote:   { fontSize:7.5, color:"#cc5500", marginTop:8, lineHeight:1.5, backgroundColor:"#fff3e0", padding:"4 6" },
   footer:      { position:"absolute", bottom:0, left:0, right:0, borderTop:"1 solid #e5e5e5", padding:"6 24", flexDirection:"row", justifyContent:"space-between" },
   footerText:  { fontSize:7, color:"#aaa" },
 });
 
 const QUARTER_LABELS: Record<number,string> = { 0:"Empty", 1:"¼ Tank", 2:"½ Tank", 3:"¾ Tank", 4:"Full Tank" };
 
-function fuelLabel(v: string|null): string {
+export function fuelLabel(v: string|null): string {
   switch(v) {
     case "empty":   return "Empty";
     case "quarter": return "¼ Tank";
@@ -80,37 +84,51 @@ function fmtDuration(minutes: number | null | undefined): string {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-interface StatementData {
-  jobNumber:        number|null;
-  bookingId:        string;
-  customerName:     string|null;
-  pickupAddress:    string|null;
-  dropoffAddress:   string|null;
-  pickupAt:         string|null;
-  dropoffAt:        string|null;
-  durationMinutes:  number|null;
-  vehicleCategory:  string|null;
-  companyName:      string|null;
-  currency:         string;
-  carHire:          number;
-  fuelDeposit:      number;
-  totalPaid:        number;
-  collectionFuel:   string|null;
-  returnFuel:       string|null;
-  usedQuarters:     number;
-  fuelCharge:       number;
-  fuelRefund:       number;
-  issuedAt:         string;
-  logoBase64:       string|null;
+export type PostCompletionRefund = {
+  id: string;
+  amount: number;
+  reason: string | null;
+  stripe_refund_id: string | null;
+  created_at: string;
+};
+
+export interface StatementData {
+  jobNumber:              number|null;
+  bookingId:              string;
+  customerName:           string|null;
+  pickupAddress:          string|null;
+  dropoffAddress:         string|null;
+  pickupAt:               string|null;
+  dropoffAt:              string|null;
+  durationMinutes:        number|null;
+  vehicleCategory:        string|null;
+  companyName:            string|null;
+  currency:               string;
+  carHire:                number;
+  fuelDeposit:            number;
+  totalPaid:              number;
+  collectionFuel:         string|null;
+  returnFuel:             string|null;
+  usedQuarters:           number;
+  fuelCharge:             number;
+  fuelRefund:             number;
+  issuedAt:               string;
+  logoBase64:             string|null;
+  postCompletionRefunds?: PostCompletionRefund[];
 }
 
-function StatementDocument({ d }: { d: StatementData }) {
-  const cur    = d.currency;
-  const locale = cur==="GBP"?"en-GB":cur==="USD"?"en-US":"es-ES";
-  const fmt    = (n: number) => new Intl.NumberFormat(locale,{style:"currency",currency:cur}).format(n);
-  const ref    = d.jobNumber ? `#${d.jobNumber}` : d.bookingId.slice(0,8).toUpperCase();
-  const dateStr    = new Date(d.issuedAt).toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+export function StatementDocument({ d }: { d: StatementData }) {
+  const cur       = d.currency;
+  const locale    = cur==="GBP"?"en-GB":cur==="USD"?"en-US":"es-ES";
+  const fmt       = (n: number) => new Intl.NumberFormat(locale,{style:"currency",currency:cur}).format(n);
+  const ref       = d.jobNumber ? `#${d.jobNumber}` : d.bookingId.slice(0,8).toUpperCase();
+  const dateStr   = new Date(d.issuedAt).toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
   const finalAmount = d.carHire + d.fuelCharge;
+
+  const refunds        = d.postCompletionRefunds ?? [];
+  const totalRefunded  = refunds.reduce((s, r) => s + r.amount, 0);
+  const netFinalAmount = finalAmount - totalRefunded;
+  const isAmended      = refunds.length > 0;
 
   return (
     <Document>
@@ -122,14 +140,19 @@ function StatementDocument({ d }: { d: StatementData }) {
             : <Text style={{fontSize:13,fontFamily:"Helvetica-Bold",color:"#ff7a00"}}>CAMEL GLOBAL</Text>
           }
           <View style={ps.headerRight}>
-            <Text style={ps.headerSub}>BOOKING COMPLETION STATEMENT</Text>
+            <Text style={ps.headerSub}>
+              {isAmended ? "AMENDED BOOKING COMPLETION STATEMENT" : "BOOKING COMPLETION STATEMENT"}
+            </Text>
             <Text style={ps.headerDate}>Issued: {dateStr}</Text>
             <Text style={ps.headerDate}>Ref: {ref}</Text>
+            {isAmended && <Text style={{...ps.headerDate, color:"#cc5500"}}>AMENDED — supersedes previous statement</Text>}
           </View>
         </View>
 
         <View style={ps.body}>
-          <Text style={ps.title}>Booking Completion Statement</Text>
+          <Text style={ps.title}>
+            {isAmended ? "Amended Booking Completion Statement" : "Booking Completion Statement"}
+          </Text>
           <Text style={ps.subtitle}>
             {ref} · {d.pickupAddress||"—"} · Settled in {cur}
           </Text>
@@ -179,6 +202,29 @@ function StatementDocument({ d }: { d: StatementData }) {
             <Text style={ps.totalValue}>{fmt(finalAmount)}</Text>
           </View>
 
+          {isAmended && (
+            <View style={ps.section}>
+              <Text style={{...ps.sectionHead, color:"#cc5500", marginTop:12}}>Post-Completion Adjustments</Text>
+              {refunds.map((r, i) => (
+                <View key={r.id} style={ps.row}>
+                  <Text style={{...ps.rowLabel, color:"#cc5500"}}>
+                    Refund {i+1}{r.reason ? ` — ${r.reason}` : ""}
+                    {r.created_at ? ` (${new Date(r.created_at).toLocaleDateString("en-GB")})` : ""}
+                  </Text>
+                  <Text style={{...ps.rowValue, color:"#cc5500"}}>− {fmt(r.amount)}</Text>
+                </View>
+              ))}
+              <View style={ps.amendedBox}>
+                <Text style={ps.amendedLabel}>Net amount after adjustments</Text>
+                <Text style={ps.amendedValue}>{fmt(netFinalAmount)}</Text>
+              </View>
+              <Text style={ps.amendNote}>
+                This is an amended statement. Post-completion refunds totalling {fmt(totalRefunded)} have been issued to your original payment method.
+                Please allow 5–10 business days for refunds to appear. This statement supersedes any previously issued statement for this booking.
+              </Text>
+            </View>
+          )}
+
           {d.fuelRefund>0 && (
             <Text style={ps.note}>
               A fuel deposit refund of {fmt(d.fuelRefund)} has been issued to your original payment method.
@@ -199,7 +245,7 @@ function StatementDocument({ d }: { d: StatementData }) {
   );
 }
 
-function getLogoBase64(): string | null {
+export function getLogoBase64(): string | null {
   try {
     const logoPath = path.join(process.cwd(), "public", "camel-invoice-logo.png");
     return fs.readFileSync(logoPath).toString("base64");
@@ -209,7 +255,7 @@ function getLogoBase64(): string | null {
   }
 }
 
-async function generateCompletionStatementPDF(d: StatementData): Promise<Buffer> {
+export async function generateCompletionStatementPDF(d: StatementData): Promise<Buffer> {
   return renderToBuffer(<StatementDocument d={d} />);
 }
 
@@ -372,8 +418,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   const partnerPayout = Math.max(0, carHire - commAmt + fuel_charge);
   const partnerLocale = (partnerProfile?.communication_locale as "en" | "es") || "en";
 
-// ── Look up customer communication locale ─────────────────────────────────
-  // Use customer_user_id from customer_requests — direct lookup, no listUsers() needed
+  // ── Look up customer communication locale ─────────────────────────────────
   let customerLocale: "en" | "es" = "en";
   try {
     if (request?.customer_user_id) {
@@ -413,6 +458,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
       fuelRefund:      fuel_refund,
       issuedAt:        now,
       logoBase64:      getLogoBase64(),
+      postCompletionRefunds: [],
     };
 
     const pdfBuffer = await generateCompletionStatementPDF(statementData);
