@@ -42,7 +42,7 @@ export async function GET(
         insurance_docs_confirmed_by_customer, insurance_docs_confirmed_by_customer_at,
         delivery_driver_id, delivery_driver_name, delivery_confirmed_at,
         collection_driver_id, collection_driver_name, collection_confirmed_at,
-        payment_id
+        payment_id, payout_hold, payout_hold_reason
       `)
       .eq("id", id)
       .maybeSingle();
@@ -124,6 +124,50 @@ export async function GET(
       request: requestRow,
       role: adminRow.role,
     }, { status: 200 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
+  }
+}
+
+// ── PATCH — hold or release payout (admin only) ──────────────────────────────
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const authed = await createRouteHandlerSupabaseClient();
+    const { data: userData, error: userErr } = await authed.auth.getUser();
+    const email = (userData?.user?.email || "").toLowerCase().trim();
+    if (userErr || !email) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+    const db = createServiceRoleSupabaseClient();
+
+    const { data: adminRow } = await db
+      .from("admin_users").select("role").eq("email", email).maybeSingle();
+    if (!adminRow || !["admin","super_admin"].includes(adminRow.role)) {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
+
+    const body = await req.json().catch(() => null);
+    const { payout_hold, payout_hold_reason } = body || {};
+
+    if (typeof payout_hold !== "boolean") {
+      return NextResponse.json({ error: "payout_hold must be a boolean" }, { status: 400 });
+    }
+
+    const { error: updateErr } = await db
+      .from("partner_bookings")
+      .update({
+        payout_hold,
+        payout_hold_reason: payout_hold ? (payout_hold_reason || null) : null,
+      })
+      .eq("id", id);
+
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
+
+    return NextResponse.json({ ok: true, payout_hold, payout_hold_reason: payout_hold ? (payout_hold_reason || null) : null });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
   }

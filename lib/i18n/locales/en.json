@@ -326,6 +326,8 @@
   "appSubmitted.loading": "Loading…",
   "appSubmitted.partnerLogin": "Partner Login",
   "appSubmitted.copyright": "© {{year}} NTUK Ltd. All rights reserved. Trading as Camel Global.",
+  "bookings.detail.hold.title": "Payment Disputed",
+  "bookings.detail.hold.body": "There is an open dispute on this booking. Our team will be in touch. Your payout will be processed once resolved.",
   "appSubmitted.guest.label": "Application Received",
   "appSubmitted.guest.title": "Thank you for applying.",
   "appSubmitted.guest.body": "Your partner application has been received successfully. Our team will review your details and you will hear from us by email within 48 hours.",

@@ -45,7 +45,8 @@ export async function GET(req: Request) {
       payout_status, payment_id,
       created_at, booking_status, refund_status, cancellation_reason
     `)
-    .eq("payout_status", "ready");
+    .eq("payout_status", "ready")
+    .eq("payout_hold", false);
 
   if (bkErr) {
     console.error("monthly-payout: fetch error", bkErr.message);

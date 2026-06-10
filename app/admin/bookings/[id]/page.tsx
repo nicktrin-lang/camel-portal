@@ -39,6 +39,8 @@ type BookingRow = {
   delivery_driver_id?: string | null; delivery_driver_name?: string | null; delivery_confirmed_at?: string | null;
   collection_driver_id?: string | null; collection_driver_name?: string | null; collection_confirmed_at?: string | null;
   payment_id?: string | null;
+  payout_hold?: boolean | null;
+  payout_hold_reason?: string | null;
 };
 
 type PaymentData = {
@@ -150,7 +152,6 @@ function PaymentFeesCard({ payment, bidCurrency, booking }: {
   const fuelCharge  = Number(booking.fuel_charge ?? 0);
   const fuelRefund  = Number(booking.fuel_refund ?? payment.fuel_refund_amount ?? 0);
   const totalPaid   = hire + fuelDeposit;
-  // Stripe fee borne by Camel via application_fee_amount — not deducted from partner payout
   const netPayout   = Math.max(0, hire - commAmt + fuelCharge);
 
   const Row = ({ label, bidAmt, color, prefix, note }: {
@@ -284,11 +285,11 @@ function InsuranceStatusCard({ booking }: { booking: BookingRow }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className={`border p-4 ${driverConfirmed?"border-white/10 bg-white/5":"border-black/10 bg-[#f0f0f0]"}`}>
           <p className={`text-xs font-black uppercase tracking-widest ${bothConfirmed?"text-white/40":"text-black/40"}`}>Driver</p>
-          {driverConfirmed?<><p className="mt-1 font-black text-white">✓ Handed over</p><p className="mt-0.5 text-xs text-white/40">{fmt(booking.insurance_docs_confirmed_by_driver_at)}</p></>:<p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
+          {driverConfirmed?<><p className={`mt-1 font-black text-white`}>✓ Handed over</p><p className="mt-0.5 text-xs text-white/40">{fmt(booking.insurance_docs_confirmed_by_driver_at)}</p></>:<p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
         </div>
         <div className={`border p-4 ${customerConfirmed?"border-white/10 bg-white/5":"border-black/10 bg-[#f0f0f0]"}`}>
           <p className={`text-xs font-black uppercase tracking-widest ${bothConfirmed?"text-white/40":"text-black/40"}`}>Customer</p>
-          {customerConfirmed?<><p className="mt-1 font-black text-white">✓ Received</p><p className="mt-0.5 text-xs text-white/40">{fmt(booking.insurance_docs_confirmed_by_customer_at)}</p></>:<p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
+          {customerConfirmed?<><p className={`mt-1 font-black text-white`}>✓ Received</p><p className="mt-0.5 text-xs text-white/40">{fmt(booking.insurance_docs_confirmed_by_customer_at)}</p></>:<p className="mt-1 text-sm font-bold italic text-black/40">Not yet confirmed</p>}
         </div>
       </div>
       <div className={`mt-4 border p-3 text-sm font-bold ${bothConfirmed?"border-[#ff7a00]/30 bg-[#ff7a00]/10 text-[#ff7a00]":"border-amber-300 bg-amber-100 text-amber-800"}`}>
@@ -371,6 +372,85 @@ function FuelStageCard({ title, booking, stage, locked }: { title:string; bookin
   );
 }
 
+// ── Payout Hold Card — admin only ─────────────────────────────────────────────
+function PayoutHoldCard({ bookingId, held, reason, onUpdate }: {
+  bookingId: string;
+  held: boolean;
+  reason: string | null | undefined;
+  onUpdate: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+  const [holdReason, setHoldReason] = useState(reason || "");
+
+  async function toggle() {
+    setSaving(true); setError(null);
+    try {
+      const res = await fetch(`/api/admin/bookings/${bookingId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payout_hold: !held, payout_hold_reason: !held ? holdReason : null }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Failed to update hold");
+      onUpdate();
+    } catch (e: any) {
+      setError(e?.message || "Failed to update hold");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={`border p-6 ${held ? "border-amber-300 bg-amber-50" : "border-black/10 bg-white"}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">{held ? "⚠️" : "💰"}</span>
+          <h2 className="text-base font-black text-black">Payout Hold</h2>
+        </div>
+        {held && (
+          <span className="border border-amber-500 bg-amber-100 px-3 py-1 text-xs font-black text-amber-700">
+            HELD — excluded from monthly payout
+          </span>
+        )}
+      </div>
+      <p className="text-xs font-bold text-black/50 mb-4">
+        {held
+          ? "This booking's payout is on hold. It will be excluded from the monthly cron run until released."
+          : "Hold this booking's payout to prevent it being included in the next monthly run. Use when a dispute or chargeback needs resolving first."}
+      </p>
+      {held && reason && (
+        <div className="mb-4 border border-amber-200 bg-amber-100 px-4 py-3">
+          <p className="text-xs font-black uppercase tracking-widest text-amber-700 mb-1">Hold reason</p>
+          <p className="text-sm font-bold text-amber-900">{reason}</p>
+        </div>
+      )}
+      {!held && (
+        <div className="mb-4">
+          <label className="text-xs font-black uppercase tracking-widest text-black/50">Reason for hold (optional)</label>
+          <textarea
+            rows={2}
+            value={holdReason}
+            onChange={e => setHoldReason(e.target.value)}
+            placeholder="e.g. Chargeback dispute filed by customer on 10 Jun 2026"
+            className="mt-1 w-full border border-black/10 bg-[#f0f0f0] px-3 py-2 text-sm font-bold outline-none focus:border-black resize-none"
+          />
+        </div>
+      )}
+      {error && <p className="mb-3 text-sm font-bold text-red-600">{error}</p>}
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={saving}
+        className={`px-6 py-3 text-sm font-black text-white disabled:opacity-50 transition-opacity ${held ? "bg-green-600 hover:opacity-90" : "bg-amber-600 hover:opacity-90"}`}
+      >
+        {saving ? "Saving…" : held ? "Release Payout Hold" : "Hold Payout"}
+      </button>
+    </div>
+  );
+}
+
 export default function AdminBookingDetailPage() {
   const params    = useParams<{ id: string }>();
   const bookingId = String(params?.id||"");
@@ -447,6 +527,17 @@ export default function AdminBookingDetailPage() {
       {error&&<div className="border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
       {ok&&<div className="border border-black/10 bg-[#f0f0f0] p-3 text-sm font-bold text-black">{ok}</div>}
 
+      {/* Payout hold badge at top if active */}
+      {bk.payout_hold && (
+        <div className="border border-amber-300 bg-amber-50 px-5 py-3 flex items-center gap-3">
+          <span className="text-xl">⚠️</span>
+          <div>
+            <p className="text-sm font-black text-amber-800">Payout on hold — excluded from monthly run</p>
+            {bk.payout_hold_reason && <p className="text-xs font-bold text-amber-600 mt-0.5">{bk.payout_hold_reason}</p>}
+          </div>
+        </div>
+      )}
+
       {isCancelled && <CancellationSummary bk={bk as any} />}
 
       {!isCancelled&&(
@@ -474,6 +565,14 @@ export default function AdminBookingDetailPage() {
           )}
         </div>
       )}
+
+      {/* Payout Hold Card */}
+      <PayoutHoldCard
+        bookingId={bookingId}
+        held={!!bk.payout_hold}
+        reason={bk.payout_hold_reason}
+        onUpdate={load}
+      />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="border border-black/5 bg-white p-6">

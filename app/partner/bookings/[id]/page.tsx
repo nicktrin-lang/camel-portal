@@ -48,6 +48,8 @@ type BookingRow = {
   delivery_driver_id?: string | null; delivery_driver_name?: string | null; delivery_confirmed_at?: string | null;
   collection_driver_id?: string | null; collection_driver_name?: string | null; collection_confirmed_at?: string | null;
   payment_id?: string | null;
+  payout_hold?: boolean | null;
+  payout_hold_reason?: string | null;
 };
 
 type PaymentData = {
@@ -641,6 +643,16 @@ export default function PartnerBookingDetailPage() {
     <div className="space-y-6">
       {error&&<div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
       {ok&&<div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm font-bold text-black">{ok}</div>}
+
+      {bk?.payout_hold && (
+        <div className="border border-amber-300 bg-amber-50 px-5 py-3 flex items-center gap-3">
+          <span className="text-xl">⚠️</span>
+          <div>
+            <p className="text-sm font-black text-amber-800">{t("bookings.detail.hold.title")}</p>
+            <p className="text-xs font-bold text-amber-600 mt-0.5">{t("bookings.detail.hold.body")}</p>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-4">
         <div>
