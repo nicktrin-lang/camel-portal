@@ -928,7 +928,7 @@ export default function AdminReportsPage() {
       const { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid } = calcPayout(b);
       return [
         b.job_number||"",b.partner_company_name||"",b.partner_country||"",b.customer_name||"",
-        b.payout_hold ? "Disputed" : (b.booking_status||""), b.payout_hold?"Disputed":"", b.payout_hold ? "On Hold" : (b.payout_status||""), b.currency||"EUR",
+        b.payout_hold ? "Disputed" : (b.booking_status||""), b.payout_hold ? "On Hold" : (b.payout_status||""), b.currency||"EUR",
         hire, rate, commAmt,
         feeInBid>0?Number(feeInBid.toFixed(4)):"", camelNetComm>0?Number(camelNetComm.toFixed(2)):"",
         Number(b.fuel_price??0),

@@ -276,7 +276,8 @@ export default function PartnerReportsPage() {
   const filtered = useMemo(() => {
     let rows = bookings;
     if (dateFrom || dateTo) rows = rows.filter(r => matchesDateRange(r.created_at, dateFrom, dateTo));
-    if (statusFilter !== "all") rows = rows.filter(r => String(r.booking_status || "").toLowerCase() === statusFilter);
+    if (statusFilter === "disputed") rows = rows.filter(r => !!r.payout_hold);
+    else if (statusFilter !== "all") rows = rows.filter(r => String(r.booking_status || "").toLowerCase() === statusFilter);
     return [...rows].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
   }, [bookings, dateFrom, dateTo, statusFilter]);
 
@@ -302,7 +303,7 @@ export default function PartnerReportsPage() {
     return tot;
   }, [filtered]);
 
-  const statusOptions = Array.from(new Set(bookings.map(r => String(r.booking_status || "").toLowerCase()).filter(Boolean))).sort();
+  const statusOptions = ["disputed", ...Array.from(new Set(bookings.map(r => String(r.booking_status || "").toLowerCase()).filter(Boolean))).sort()];
 
   function exportExcel() {
     const dateStr = new Date().toISOString().split("T")[0];

@@ -317,7 +317,8 @@ export default function AdminBookingsPage() {
   const filtered = useMemo(()=>{
     let rows = bookings;
     if (dateFrom||dateTo) rows=rows.filter(r=>matchesDateRange(r.created_at,dateFrom,dateTo));
-    if (statusFilter!=="all") rows=rows.filter(r=>String(r.booking_status||"").toLowerCase()===statusFilter);
+    if (statusFilter==="disputed") rows=rows.filter(r=>!!r.payout_hold);
+    else if (statusFilter!=="all") rows=rows.filter(r=>String(r.booking_status||"").toLowerCase()===statusFilter);
     if (currencyFilter!=="all") rows=rows.filter(r=>(r.currency??"EUR")===currencyFilter);
     if (normalizedSearch) rows=rows.filter(r=>[r.job_number,r.partner_company_name,r.pickup_address,r.dropoff_address,r.vehicle_category_name,r.booking_status,r.amount,r.customer_name].map(v=>String(v||"").toLowerCase()).join(" ").includes(normalizedSearch));
     return [...rows].sort((a,b)=>new Date(b.created_at||0).getTime()-new Date(a.created_at||0).getTime());
@@ -357,7 +358,7 @@ export default function AdminBookingsPage() {
   const confirmed     = filtered.filter(r=>String(r.booking_status||"").toLowerCase()==="confirmed").length;
   const active        = filtered.filter(r=>["driver_assigned","en_route","arrived","collected","returned"].includes(String(r.booking_status||"").toLowerCase())).length;
   const cancelled     = filtered.filter(r=>String(r.booking_status||"").toLowerCase()==="cancelled").length;
-  const statusOptions = Array.from(new Set(bookings.map(r=>String(r.booking_status||"").toLowerCase()).filter(Boolean))).sort();
+  const statusOptions = ["disputed", ...Array.from(new Set(bookings.map(r=>String(r.booking_status||"").toLowerCase()).filter(Boolean))).sort()];
   const visible       = filtered.slice(0,visibleCount);
   const hasMore       = filtered.length>visibleCount;
 
