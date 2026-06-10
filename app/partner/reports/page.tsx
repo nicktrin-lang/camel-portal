@@ -23,7 +23,7 @@ type BookingRow = {
   created_at: string | null; pickup_at: string | null; dropoff_at: string | null;
   pickup_address: string | null; dropoff_address: string | null;
   customer_name: string | null; vehicle_category_name: string | null;
-  payout_status: string | null;
+  payout_status: string | null; payout_hold?: boolean | null;
 };
 
 type InvoiceRow = {
@@ -327,7 +327,7 @@ export default function PartnerReportsPage() {
         usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—",
         Number(b.fuel_charge ?? 0), fuelRefund,
         isCancelled ? 0 : Number(b.amount ?? 0), partnerPayout,
-        b.booking_status || "", b.payout_status || "",
+        b.payout_hold ? "Disputed" : (b.booking_status || ""), b.payout_hold ? "On Hold" : (b.payout_status || ""),
         b.cancelled_by || "", b.refund_status || "", fmtDate(b.created_at),
       ];
     });
@@ -460,8 +460,8 @@ export default function PartnerReportsPage() {
                     <td className="px-4 py-3 text-black/70">{b.customer_name || "—"}</td>
                     <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{fmtDate(b.pickup_at)}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(b.booking_status)}`}>
-                        {fmtStatus(b.booking_status)}
+                      <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? statusPillClasses("disputed") : statusPillClasses(b.booking_status)}`}>
+                        {b.payout_hold ? "Disputed" : fmtStatus(b.booking_status)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs font-bold text-black/60">{curr}</td>
@@ -481,11 +481,11 @@ export default function PartnerReportsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${
-                        b.payout_status === "paid"  ? "border-green-200 bg-green-50 text-green-700" :
+                        b.payout_hold ? "border-amber-300 bg-amber-50 text-amber-700" : b.payout_status === "paid"  ? "border-green-200 bg-green-50 text-green-700" :
                         b.payout_status === "ready" ? "border-blue-200 bg-blue-50 text-blue-700" :
                         b.payout_status === "held"  ? "border-amber-200 bg-amber-50 text-amber-700" :
                         "border-black/10 bg-[#f0f0f0] text-black/50"
-                      }`}>{b.payout_status || "—"}</span>
+                      }`}>{b.payout_hold ? "On Hold" : (b.payout_status || "—")}</span>
                     </td>
                   </tr>
                 );

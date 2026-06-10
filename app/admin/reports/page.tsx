@@ -696,7 +696,7 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
                     <td className="px-4 py-3 text-black/70 whitespace-nowrap">{b.partner_company_name||"—"}</td>
                     <td className="px-4 py-3 text-black/70 whitespace-nowrap">{b.customer_name||"—"}</td>
                     <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? statusPillClasses("disputed") : statusPillClasses(b.booking_status)}`}>{b.payout_hold ? "Disputed" : String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
-                    <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${payoutPillClasses(b.payout_status)}`}>{b.payout_status||"—"}</span></td>
+                    <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? "border-amber-300 bg-amber-50 text-amber-700" : payoutPillClasses(b.payout_status)}`}>{b.payout_hold ? "On Hold" : (b.payout_status||"—")}</span></td>
                     <td className="px-4 py-3 text-xs font-bold text-black/60">{b.currency||"—"}</td>
                     <td className={`px-4 py-3 font-bold whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,b.currency??"EUR")}</td>
                     <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">{isCancelled&&b.refund_status==="full"?<span className="line-through text-red-400">{fmtCurr(commAmt,b.currency??"EUR")}</span>:fmtCurr(commAmt,b.currency??"EUR")}</td>
@@ -926,7 +926,7 @@ export default function AdminReportsPage() {
       const { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid } = calcPayout(b);
       return [
         b.job_number||"",b.partner_company_name||"",b.partner_country||"",b.customer_name||"",
-        b.booking_status||"", b.payout_hold?"Disputed":"", b.payout_status||"", b.currency||"EUR",
+        b.payout_hold ? "Disputed" : (b.booking_status||""), b.payout_hold?"Disputed":"", b.payout_hold ? "On Hold" : (b.payout_status||""), b.currency||"EUR",
         hire, rate, commAmt,
         feeInBid>0?Number(feeInBid.toFixed(4)):"", camelNetComm>0?Number(camelNetComm.toFixed(2)):"",
         Number(b.fuel_price??0),

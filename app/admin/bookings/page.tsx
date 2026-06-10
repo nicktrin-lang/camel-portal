@@ -237,7 +237,7 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
                   <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
                   <td className="px-4 py-3 text-black/70"><div>{b.partner_company_name||"—"}</div>{b.partner_vat_number&&<div className="text-xs text-black/40">{b.partner_vat_number}</div>}</td>
                   <td className="px-4 py-3 text-black/70">{b.customer_name||"—"}</td>
-                  <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(b.booking_status)}`}>{fmtStatus(b.booking_status)}</span></td>
+                  <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? statusPillClasses("disputed") : statusPillClasses(b.booking_status)}`}>{b.payout_hold ? "Disputed" : fmtStatus(b.booking_status)}</span></td>
                   <td className={`px-4 py-3 ${isCancelled?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,curr)}</td>
                   <td className="px-4 py-3">
                     {isCancelled&&b.refund_status==="full"
