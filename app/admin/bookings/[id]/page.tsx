@@ -12,7 +12,7 @@ type Rates = { GBP: number; USD: number };
 
 type BookingRow = {
   id: string; request_id: string; partner_user_id: string; winning_bid_id: string;
-  partner_company_name?: string | null;
+  partner_company_name?: string | null; partner_contact_email?: string | null;
   booking_status: string; amount: number | null; notes: string | null;
   created_at: string; job_number: number | null; assigned_driver_id?: string | null;
   driver_name: string | null; driver_phone: string | null;
@@ -581,6 +581,7 @@ export default function AdminBookingDetailPage() {
             <Field label="Job No.">{String(bk.job_number??req?.job_number??"—")}</Field>
             <Field label="Status">{statusLabel(bk.booking_status)}</Field>
             <Field label="Partner">{bk.partner_company_name||"—"}</Field>
+            <Field label="Partner email">{bk.partner_contact_email||"—"}</Field>
             <Field label="Bid Currency">{bk.currency??"EUR"}</Field>
             <Field label="Created">{fmt(bk.created_at)}</Field>
             <Field label="Driver">{bk.driver_name||"—"}</Field>

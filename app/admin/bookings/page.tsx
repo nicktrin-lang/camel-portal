@@ -24,7 +24,7 @@ type BookingRow = {
   pickup_at: string | null; dropoff_at: string | null;
   vehicle_category_name: string | null; customer_name: string | null;
   customer_email: string | null; customer_phone: string | null;
-  driver_name: string | null; driver_vehicle: string | null;
+  driver_name: string | null; driver_vehicle: string | null; payout_hold?: boolean | null;
   delivery_confirmed_at: string | null; collection_confirmed_at: string | null;
   collection_fuel_level_driver: string | null; collection_fuel_level_partner: string | null;
   return_fuel_level_driver: string | null; return_fuel_level_partner: string | null;
@@ -64,6 +64,7 @@ function statusPillClasses(status?: string | null) {
     case "collected": case "returned":  return "border-amber-200 bg-amber-50 text-amber-800";
     case "driver_assigned": case "en_route": case "arrived": return "border-[#ff7a00]/30 bg-[#ff7a00]/10 text-[#ff7a00]";
     case "cancelled": return "border-red-200 bg-red-50 text-red-700";
+    case "disputed": return "border-amber-300 bg-amber-50 text-amber-700";
     default: return "border-black/10 bg-white text-black";
   }
 }
@@ -73,6 +74,7 @@ function fmtStatus(value?: string | null) {
     case "en_route": return "En route"; case "arrived": return "Arrived";
     case "collected": return "On hire"; case "returned": return "Returned";
     case "completed": return "Completed"; case "cancelled": return "Cancelled";
+    case "disputed": return "Disputed";
     default: return String(value || "—").replaceAll("_", " ");
   }
 }
@@ -543,7 +545,7 @@ export default function AdminBookingsPage() {
                     <td className="px-4 py-4 font-black text-black whitespace-nowrap">{row.job_number||"—"}</td>
                     <td className="px-4 py-4 text-black/70"><div>{row.partner_company_name||"—"}</div>{row.partner_vat_number&&<div className="text-xs text-black/40">{row.partner_vat_number}</div>}</td>
                     <td className="px-4 py-4 text-black/70"><div>{row.customer_name||"—"}</div><div className="text-xs text-black/40">{row.customer_phone||""}</div></td>
-                    <td className="px-4 py-4"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(row.booking_status)}`}>{fmtStatus(row.booking_status)}</span></td>
+                    <td className="px-4 py-4"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${row.payout_hold ? statusPillClasses("disputed") : statusPillClasses(row.booking_status)}`}>{row.payout_hold ? "Disputed" : fmtStatus(row.booking_status)}</span></td>
                     <td className={`px-4 py-4 ${isCancelled&&row.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,row.currency??"EUR")}</td>
                     <td className="px-4 py-4">{isCancelled&&row.refund_status==="full"?(<span className="text-xs font-black text-red-400 line-through">{fmtCurr(commAmt,row.currency??"EUR")}</span>):(<><div className="text-xs font-black text-[#ff7a00]">{fmtCurr(commAmt,row.currency??"EUR")}</div><div className="text-xs text-black/40">{rate}%</div></>)}</td>
                     <td className="px-4 py-4 whitespace-nowrap">{feeInBid>0?<span className="text-xs font-black text-amber-700">− {fmtCurr(feeInBid,row.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>

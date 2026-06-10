@@ -37,7 +37,7 @@ export async function GET(
         insurance_docs_confirmed_by_customer, insurance_docs_confirmed_by_customer_at,
         delivery_driver_id, delivery_driver_name, delivery_confirmed_at,
         collection_driver_id, collection_driver_name, collection_confirmed_at,
-        payment_id
+        payment_id, payout_hold, payout_hold_reason
       `)
       .eq("id", id);
 

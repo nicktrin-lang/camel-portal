@@ -114,12 +114,12 @@ export async function GET(
 
     const { data: profileRow } = await db
       .from("partner_profiles")
-      .select("company_name")
+      .select("company_name, contact_email")
       .eq("user_id", bookingRow.partner_user_id)
       .maybeSingle();
 
     return NextResponse.json({
-      booking: { ...bookingRow, partner_company_name: profileRow?.company_name || null },
+      booking: { ...bookingRow, partner_company_name: profileRow?.company_name || null, partner_contact_email: profileRow?.contact_email || null },
       payment: paymentData,
       request: requestRow,
       role: adminRow.role,
