@@ -261,6 +261,52 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
   );
 }
 
+// ── Resend Statement Card ─────────────────────────────────────────────────────
+function ResendStatementCard({ bookingId, hasRefunds }: { bookingId: string; hasRefunds: boolean }) {
+  const [resending, setResending] = useState(false);
+  const [ok,        setOk]        = useState<string | null>(null);
+  const [error,     setError]     = useState<string | null>(null);
+
+  async function resend() {
+    setResending(true); setOk(null); setError(null);
+    try {
+      const res = await fetch(`/api/admin/bookings/${bookingId}/resend-statement`, {
+        method: "POST", credentials: "include",
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Resend failed");
+      setOk(`Statement ${json.amended ? "(amended) " : ""}resent to customer.`);
+    } catch (e: any) {
+      setError(e?.message || "Resend failed");
+    } finally { setResending(false); }
+  }
+
+  return (
+    <div className="border border-black/10 bg-white p-5 flex items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-black text-black">
+          {hasRefunds ? "Resend Amended Completion Statement" : "Resend Completion Statement"}
+        </p>
+        <p className="text-xs font-bold text-black/40 mt-0.5">
+          {hasRefunds
+            ? "Re-emails the amended statement (including all post-completion refunds) to the customer."
+            : "Re-emails the original completion statement PDF to the customer."}
+        </p>
+        {ok    && <p className="mt-2 text-sm font-bold text-green-700">✓ {ok}</p>}
+        {error && <p className="mt-2 text-sm font-bold text-red-600">{error}</p>}
+      </div>
+      <button
+        type="button"
+        onClick={resend}
+        disabled={resending}
+        className="shrink-0 border border-black/20 bg-[#f0f0f0] px-4 py-2.5 text-xs font-black text-black hover:bg-black/10 disabled:opacity-50 transition-colors whitespace-nowrap"
+      >
+        {resending ? "Sending…" : "↗ Resend Statement"}
+      </button>
+    </div>
+  );
+}
+
 // ── Post-Completion Refund Card ───────────────────────────────────────────────
 function PostCompletionRefundCard({ bookingId, bidCurrency, booking, postCompletionRefunds, onUpdate }: {
   bookingId: string;
@@ -272,7 +318,6 @@ function PostCompletionRefundCard({ bookingId, bidCurrency, booking, postComplet
   const [amount,   setAmount]   = useState("");
   const [reason,   setReason]   = useState("");
   const [saving,   setSaving]   = useState(false);
-  const [resending, setResending] = useState(false);
   const [error,    setError]    = useState<string | null>(null);
   const [ok,       setOk]       = useState<string | null>(null);
 
@@ -304,26 +349,12 @@ function PostCompletionRefundCard({ bookingId, bidCurrency, booking, postComplet
     } finally { setSaving(false); }
   }
 
-  async function resendStatement() {
-    setResending(true); setError(null); setOk(null);
-    try {
-      const res = await fetch(`/api/admin/bookings/${bookingId}/resend-statement`, {
-        method: "POST",
-        credentials: "include",
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Resend failed");
-      setOk(`Statement ${json.amended ? "(amended) " : ""}resent to customer.`);
-    } catch (e: any) {
-      setError(e?.message || "Resend failed");
-    } finally { setResending(false); }
-  }
 
   if (booking.booking_status !== "completed") return null;
 
   return (
     <div className="border border-black/10 bg-white p-6 space-y-5">
-      <div className="flex items-start justify-between gap-4">
+      <div>
         <div>
           <h2 className="text-base font-black text-black">Post-Completion Refunds</h2>
           <p className="text-xs font-bold text-black/40 mt-1">
@@ -331,14 +362,6 @@ function PostCompletionRefundCard({ bookingId, bidCurrency, booking, postComplet
             Each refund issues a Stripe charge and regenerates the amended completion statement emailed to the customer.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={resendStatement}
-          disabled={resending}
-          className="shrink-0 border border-black/20 bg-[#f0f0f0] px-4 py-2 text-xs font-black text-black hover:bg-black/10 disabled:opacity-50 transition-colors"
-        >
-          {resending ? "Sending…" : "↗ Resend Statement"}
-        </button>
       </div>
 
       {/* Refund history */}
@@ -763,7 +786,7 @@ export default function AdminBookingDetailPage() {
 
       {!isCancelled && (
         <div className="border border-red-200 bg-red-50 p-6">
-          <div className="flex items-start justify-between gap-4">
+          <div>
             <div>
               <h2 className="text-base font-black text-red-800">Cancel This Booking (Admin)</h2>
               <p className="mt-1 text-sm font-semibold text-red-600">Admin cancellation always issues a full refund of {fmtCurr(refundTotal, stored)}. This cannot be undone.</p>
@@ -788,6 +811,14 @@ export default function AdminBookingDetailPage() {
       )}
 
       <PayoutHoldCard bookingId={bookingId} held={!!bk.payout_hold} reason={bk.payout_hold_reason} onUpdate={load} />
+
+      {/* Resend statement — all completed bookings */}
+      {bk.booking_status === "completed" && (
+        <ResendStatementCard
+          bookingId={bookingId}
+          hasRefunds={postCompletionRefunds.length > 0}
+        />
+      )}
 
       {/* Post-completion refund card — only on completed bookings */}
       <PostCompletionRefundCard
