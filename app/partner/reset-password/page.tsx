@@ -9,6 +9,9 @@ import { createAuthSupabaseClient, createCustomerAuthSupabaseClient } from "@/li
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
 
+const inputCls = "w-full bg-[#f0f0f0] px-4 py-4 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
+const labelCls = "block text-xs font-black uppercase tracking-widest text-black mb-2";
+
 function PartnerResetPasswordInner() {
   const { t }               = useTranslation();
   const supabase            = useMemo(() => createBrowserSupabaseClient(), []);
@@ -16,21 +19,21 @@ function PartnerResetPasswordInner() {
   const customerAuthClient  = useMemo(() => createCustomerAuthSupabaseClient(), []);
   const router              = useRouter();
 
-  const [password, setPassword]         = useState("");
-  const [confirm, setConfirm]           = useState("");
-  const [loading, setLoading]           = useState(false);
-  const [error, setError]               = useState("");
-  const [success, setSuccess]           = useState(false);
+  const [password,     setPassword]     = useState("");
+  const [confirm,      setConfirm]      = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
+  const [success,      setSuccess]      = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
     async function init() {
-      const hash        = window.location.hash.substring(1);
-      const params      = new URLSearchParams(hash);
-      const accessToken = params.get("access_token");
-      const refreshToken= params.get("refresh_token");
-      const errorCode   = params.get("error_code");
+      const hash         = window.location.hash.substring(1);
+      const params       = new URLSearchParams(hash);
+      const accessToken  = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+      const errorCode    = params.get("error_code");
 
       if (errorCode) { setSessionError(t("reset.expired.body")); return; }
 
@@ -60,13 +63,13 @@ function PartnerResetPasswordInner() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (password !== confirm)    { setError(t("reset.err.match"));  return; }
-    if (password.length < 8)     { setError(t("reset.err.length")); return; }
+    if (password !== confirm)  { setError(t("reset.err.match"));  return; }
+    if (password.length < 8)   { setError(t("reset.err.length")); return; }
     setLoading(true); setError("");
     try {
-      const portalCookie  = document.cookie.split("; ").find(r => r.startsWith("resetPortal="))?.split("=")[1] ?? null;
-      const activeClient  = portalCookie === "customer" ? customerAuthClient : authClient;
-      const { error }     = await activeClient.auth.updateUser({ password });
+      const portalCookie = document.cookie.split("; ").find(r => r.startsWith("resetPortal="))?.split("=")[1] ?? null;
+      const activeClient = portalCookie === "customer" ? customerAuthClient : authClient;
+      const { error }    = await activeClient.auth.updateUser({ password });
       if (error) throw error;
       setSuccess(true);
       const redirect = await getSuccessRedirect();
@@ -77,58 +80,84 @@ function PartnerResetPasswordInner() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f9fc]">
-      <header className="fixed inset-x-0 top-0 z-40 h-20 border-b border-black/10 bg-[#0f4f8a] text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
-        <div className="flex h-full items-center justify-between px-4 md:px-8">
-          <Link href="/partner/login" className="flex items-center">
-            <Image src="/camel-logo.png" alt="Camel Global logo" width={180} height={60} priority className="h-[52px] w-auto" />
+    <div className="min-h-screen bg-white flex flex-col">
+      <header className="w-full bg-black border-b border-white/10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
+          <Link href="/partner/login">
+            <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
           </Link>
           <LanguageToggle />
         </div>
       </header>
 
-      <div className="mx-auto flex min-h-screen max-w-7xl justify-center px-4 pt-24 pb-10">
-        <div className="mt-8 w-full max-w-2xl rounded-3xl border border-black/5 bg-white p-10 shadow-[0_18px_45px_rgba(0,0,0,0.10)]">
-          {sessionError ? (
-            <>
-              <h1 className="text-4xl font-semibold text-[#003768]">{t("reset.expired.title")}</h1>
-              <p className="mt-3 text-lg text-slate-600">{sessionError}</p>
-              <Link href="/partner/login" className="mt-8 inline-block rounded-full bg-[#ff7a00] px-6 py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.18)] hover:opacity-95">
-                {t("reset.expired.cta")}
-              </Link>
-            </>
-          ) : success ? (
-            <>
-              <h1 className="text-4xl font-semibold text-[#003768]">{t("reset.success.title")}</h1>
-              <p className="mt-3 text-lg text-slate-600">{t("reset.success.body")}</p>
-            </>
-          ) : !sessionReady ? (
-            <p className="text-slate-600">{t("reset.verifying")}</p>
-          ) : (
-            <>
-              <h1 className="text-4xl font-semibold text-[#003768]">{t("reset.title")}</h1>
-              <p className="mt-3 text-lg text-slate-600">{t("reset.subtitle")}</p>
-              {error && <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-              <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-                <div>
-                  <label className="text-sm font-medium text-[#003768]">{t("reset.newPassword")}</label>
-                  <input type="password" required autoComplete="new-password"
-                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 text-black outline-none transition focus:border-[#0f4f8a]"
-                    value={password} onChange={e => setPassword(e.target.value)} placeholder={t("reset.newPassword.placeholder")} />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-[#003768]">{t("reset.confirmPassword")}</label>
-                  <input type="password" required autoComplete="new-password"
-                    className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-4 text-black outline-none transition focus:border-[#0f4f8a]"
-                    value={confirm} onChange={e => setConfirm(e.target.value)} placeholder={t("reset.confirmPassword.placeholder")} />
-                </div>
-                <button type="submit" disabled={loading}
-                  className="w-full rounded-full bg-[#ff7a00] px-6 py-4 text-lg font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.18)] hover:opacity-95 disabled:opacity-60">
-                  {loading ? t("reset.updating") : t("reset.cta")}
-                </button>
-              </form>
-            </>
-          )}
+      <div className="w-full bg-black px-6 pb-16 pt-10 text-white">
+        <div className="mx-auto max-w-xl">
+          <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">
+            {t("login.tag")}
+          </p>
+          <h1 className="text-4xl font-black text-white md:text-5xl">
+            {t("reset.title")}
+          </h1>
+          <p className="mt-3 text-base font-semibold text-white/70">
+            {t("reset.subtitle")}
+          </p>
+        </div>
+      </div>
+
+      <div className="w-full bg-[#f0f0f0] px-6 py-10 flex-1">
+        <div className="mx-auto max-w-xl">
+          <div className="bg-white p-8 space-y-5">
+            {sessionError ? (
+              <>
+                <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">{t("reset.expired.title")}</p>
+                <h2 className="text-2xl font-black text-black">{t("reset.expired.body")}</h2>
+                <Link href="/partner/login"
+                  className="inline-block bg-[#ff7a00] px-6 py-4 text-sm font-black text-white hover:opacity-90 transition-opacity">
+                  {t("reset.expired.cta")}
+                </Link>
+              </>
+            ) : success ? (
+              <>
+                <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">✓ {t("reset.success.title")}</p>
+                <h2 className="text-2xl font-black text-black">{t("reset.success.body")}</h2>
+              </>
+            ) : !sessionReady ? (
+              <p className="text-sm font-semibold text-black/50">{t("reset.verifying")}</p>
+            ) : (
+              <>
+                {error && (
+                  <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                    {error}
+                  </div>
+                )}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className={labelCls}>{t("reset.newPassword")}</label>
+                    <input
+                      type="password" required autoComplete="new-password"
+                      value={password} onChange={e => setPassword(e.target.value)}
+                      placeholder={t("reset.newPassword.placeholder")}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>{t("reset.confirmPassword")}</label>
+                    <input
+                      type="password" required autoComplete="new-password"
+                      value={confirm} onChange={e => setConfirm(e.target.value)}
+                      placeholder={t("reset.confirmPassword.placeholder")}
+                      className={inputCls}
+                    />
+                  </div>
+                  <button
+                    type="submit" disabled={loading}
+                    className="w-full bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 disabled:opacity-60 transition-opacity">
+                    {loading ? t("reset.updating") : t("reset.cta")}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -137,7 +166,7 @@ function PartnerResetPasswordInner() {
 
 export default function PartnerResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#f7f9fc]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
       <PartnerResetPasswordInner />
     </Suspense>
   );
