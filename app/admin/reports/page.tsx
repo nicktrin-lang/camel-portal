@@ -870,7 +870,7 @@ export default function AdminReportsPage() {
       "Fuel Charge to Customer","Fuel Refund to Customer","Total Booking Amount","Partner Net Payout",
       "Customer Collection Confirmed","Customer Return Confirmed",
       "Insurance Driver Confirmed","Insurance Customer Confirmed",
-      "Booking Status","Cancelled By","Cancelled At","Cancellation Reason","Refund Status","Created At",
+      "Booking Status","Payout Status","Cancelled By","Cancelled At","Cancellation Reason","Refund Status","Created At",
     ];
     const fuelRows = exportRows.map(b=>{
       const usedQ=b.fuel_used_quarters;
@@ -898,7 +898,7 @@ export default function AdminReportsPage() {
         isCancelled?0:Number(b.amount??0), partnerPayout,
         b.collection_confirmed_by_customer?"Yes":"No",b.return_confirmed_by_customer?"Yes":"No",
         b.insurance_docs_confirmed_by_driver?"Yes":"No",b.insurance_docs_confirmed_by_customer?"Yes":"No",
-        b.payout_hold ? "Disputed" : (b.booking_status||""), b.cancelled_by||"",
+        b.payout_hold ? "Disputed" : (b.booking_status||""), b.payout_hold ? "On Hold" : (b.payout_status||""), b.cancelled_by||"",
         b.cancelled_at?fmtDateTime(b.cancelled_at):"",
         b.cancellation_reason||"",b.refund_status||"",fmtDate(b.created_at),
       ];
