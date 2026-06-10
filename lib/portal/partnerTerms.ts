@@ -1,5 +1,5 @@
-export const TERMS_VERSION   = "2026-06b";
-export const TERMS_EFFECTIVE = "1 June 2026";
+export const TERMS_VERSION   = "2026-06c";
+export const TERMS_EFFECTIVE = "10 June 2026";
 
 export type TermsSection = { title: string; clauses: string[] };
 
@@ -96,6 +96,7 @@ export const PARTNER_TERMS: TermsSection[] = [
       "Camel Global will issue commission invoices to Partners on a monthly basis with reverse charge treatment under Article 44/196 of the EU VAT Directive where applicable.",
       "The Partner is solely responsible for accounting for and paying all taxes on income received through the Platform.",
       "In the event of a Customer refund dispute, the financial liability rests with the Partner.",
+      "Customer Disputes & Chargebacks: If a Customer raises a payment dispute or chargeback with their bank or card issuer in relation to a Booking, Camel Global will place the Partner's payout for that Booking on hold pending resolution. The Partner will be notified by email. The payout will remain on hold until the dispute is resolved. If the dispute is resolved in the Customer's favour, the relevant amounts will be refunded to the Customer and the Partner's payout for that Booking will be forfeited. If the dispute is resolved in the Partner's favour, the payout will be released and processed in the next monthly payout run.",
       "All fuel refunds owed to Customers are processed automatically by the Platform from the Partner's connected account balance.",
     ],
   },
