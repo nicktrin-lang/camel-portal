@@ -296,6 +296,7 @@ export const PARTNER_TERMS_ES: TermsSection[] = [
       "Camel Global emitirá facturas de comisión a los Socios mensualmente con tratamiento de inversión del sujeto pasivo según el Artículo 44/196 de la Directiva de IVA de la UE cuando sea aplicable.",
       "El Socio es el único responsable de contabilizar y pagar todos los impuestos sobre los ingresos recibidos a través de la Plataforma.",
       "En caso de una disputa de reembolso del Cliente, la responsabilidad financiera recae en el Socio.",
+      "Disputas y contracargos de clientes: Si un Cliente presenta una disputa de pago o contracargo ante su banco o entidad emisora de tarjeta en relación con una Reserva, Camel Global retendrá el pago del Socio correspondiente a esa Reserva hasta que se resuelva la disputa. El Socio será notificado por correo electrónico. El pago permanecerá retenido hasta la resolución completa de la disputa. Si la disputa se resuelve a favor del Cliente, los importes correspondientes serán reembolsados al Cliente y el pago del Socio por esa Reserva quedará anulado. Si la disputa se resuelve a favor del Socio, el pago se liberará y se procesará en el siguiente ciclo mensual de pagos.",
       "Todos los reembolsos de combustible adeudados a los Clientes son procesados automáticamente por la Plataforma desde el saldo de la cuenta conectada del Socio.",
     ],
   },
