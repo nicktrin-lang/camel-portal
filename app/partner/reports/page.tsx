@@ -281,10 +281,10 @@ export default function PartnerReportsPage() {
   }, [bookings, dateFrom, dateTo, statusFilter]);
 
   const totals = useMemo(() => {
-    const tot: Record<string, { carHire:number; commission:number; payout:number; fuelCharge:number; fuelRefund:number; count:number; completed:number; cancelled:number }> = {};
+    const tot: Record<string, { carHire:number; commission:number; payout:number; fuelCharge:number; fuelRefund:number; count:number; completed:number; cancelled:number; disputed:number; disputedPayout:number }> = {};
     for (const b of filtered) {
       const curr = b.currency ?? "EUR";
-      if (!tot[curr]) tot[curr] = { carHire:0, commission:0, payout:0, fuelCharge:0, fuelRefund:0, count:0, completed:0, cancelled:0 };
+      if (!tot[curr]) tot[curr] = { carHire:0, commission:0, payout:0, fuelCharge:0, fuelRefund:0, count:0, completed:0, cancelled:0, disputed:0, disputedPayout:0 };
       const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
       const { hire, commAmt, partnerPayout, fuelRefund } = calcPayout(b);
       tot[curr].count++;
@@ -297,6 +297,7 @@ export default function PartnerReportsPage() {
       tot[curr].fuelRefund += fuelRefund;
       if (isCancelled) tot[curr].cancelled++;
       if (String(b.booking_status || "").toLowerCase() === "completed") tot[curr].completed++;
+      if (b.payout_hold) { tot[curr].disputed++; tot[curr].disputedPayout += partnerPayout; }
     }
     return tot;
   }, [filtered]);
@@ -384,6 +385,7 @@ export default function PartnerReportsPage() {
           { label: t("reports.summary.commission"),  value: tot.commission, isMoney: true  },
           { label: t("reports.summary.yourPayout"),  value: tot.payout,     isMoney: true  },
           { label: t("reports.summary.fuelRefunded"),value: tot.fuelRefund, isMoney: true  },
+          { label: "Disputed",                       value: tot.disputedPayout,  isMoney: true, isDisputed: true  },
         ];
         return (
           <div key={curr} className="border border-black/10 bg-white p-6">
@@ -392,13 +394,13 @@ export default function PartnerReportsPage() {
               <h2 className="text-lg font-black text-black">{t("reports.summary.title")}</h2>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-              {summaryItems.map(({ label, value, isMoney }) => (
-                <div key={label} className={`border p-4 ${label === t("reports.summary.cancelled") && (value as number) > 0 ? "border-red-200 bg-red-50" : "border-black/10 bg-[#f0f0f0]"}`}>
+              {summaryItems.map(({ label, value, isMoney, isDisputed }: any) => (
+                <div key={label} className={`border p-4 ${isDisputed && (value as number) > 0 ? "border-amber-300 bg-amber-50" : label === t("reports.summary.cancelled") && (value as number) > 0 ? "border-red-200 bg-red-50" : "border-black/10 bg-[#f0f0f0]"}`}>
                   <p className="text-xs font-black uppercase tracking-widest text-black/50">{label}</p>
                   <p className={`mt-1 text-lg font-black ${
                     label === t("reports.summary.cancelled") && (value as number) > 0 ? "text-red-700" :
                     label === t("reports.summary.yourPayout")  ? "text-green-700" :
-                    label === t("reports.summary.commission")  ? "text-amber-700" : "text-black"
+                    label === t("reports.summary.commission") ? "text-amber-700" : isDisputed && (value as number) > 0 ? "text-amber-700" : "text-black"
                   }`}>
                     {isMoney ? fmtCurr(value as number, curr) : value}
                   </p>

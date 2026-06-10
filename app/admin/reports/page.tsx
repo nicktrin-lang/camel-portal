@@ -592,6 +592,7 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
       m[curr].fuelCharge   += Number(b.fuel_charge??0);
       m[curr].fuelRefund   += fuelRefund;
       m[curr].count++;
+      if (b.payout_hold) { m[curr].disputed = (m[curr].disputed||0) + 1; m[curr].disputedPayout = (m[curr].disputedPayout||0) + partnerPayout; }
     }
     return m;
   }, [bookings]);
@@ -636,6 +637,7 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
                   { label:"Partner Payout",   value:pl.partnerPayout, color:"text-black/70",  bg:"border-black/10 bg-[#f0f0f0]" },
                   { label:"Fuel Charges",     value:pl.fuelCharge,    color:"text-[#ff7a00]", bg:"border-black/10 bg-[#f0f0f0]" },
                   { label:"Fuel Refunds",     value:pl.fuelRefund,    color:"text-black/50",  bg:"border-black/10 bg-[#f0f0f0]" },
+                  { label:"Disputed",          value:pl.disputedPayout??0, color:"text-amber-700", bg:"border-amber-300 bg-amber-50", count:pl.disputed??0 },
                 ].map(({ label, value, color, bg }) => (
                   <div key={label} className={`border p-4 ${bg}`}>
                     <p className="text-xs font-black uppercase tracking-widest text-black/40 leading-tight mb-1">{label}</p>
@@ -896,7 +898,7 @@ export default function AdminReportsPage() {
         isCancelled?0:Number(b.amount??0), partnerPayout,
         b.collection_confirmed_by_customer?"Yes":"No",b.return_confirmed_by_customer?"Yes":"No",
         b.insurance_docs_confirmed_by_driver?"Yes":"No",b.insurance_docs_confirmed_by_customer?"Yes":"No",
-        b.booking_status||"",b.cancelled_by||"",
+        b.payout_hold ? "Disputed" : (b.booking_status||""), b.cancelled_by||"",
         b.cancelled_at?fmtDateTime(b.cancelled_at):"",
         b.cancellation_reason||"",b.refund_status||"",fmtDate(b.created_at),
       ];
