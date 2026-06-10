@@ -35,7 +35,7 @@ type BookingRow = {
   commission_rate:number|null; commission_amount:number|string|null;
   partner_payout_amount:number|string|null;
   stripe_fee:number|null; stripe_fee_currency:string|null; exchange_rate:number|null;
-  payout_status:string|null;
+  payout_status:string|null; payout_hold?:boolean|null;
   cancelled_by:string|null; cancelled_at:string|null;
   cancellation_reason:string|null; refund_status:string|null;
   created_at:string|null; job_number:string|null;
@@ -82,6 +82,7 @@ function statusPillClasses(status?: string|null) {
     case "collected": case "returned":  return "border-amber-200 bg-amber-50 text-amber-800";
     case "driver_assigned": case "en_route": case "arrived": return "border-[#ff7a00]/30 bg-[#ff7a00]/10 text-[#ff7a00]";
     case "cancelled": return "border-red-200 bg-red-50 text-red-700";
+    case "disputed": return "border-amber-300 bg-amber-50 text-amber-700";
     default: return "border-black/10 bg-white text-black";
   }
 }
@@ -531,7 +532,7 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
                   <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
                   <td className="px-4 py-3 text-black/70"><div>{b.partner_company_name||"—"}</div>{b.partner_vat_number&&<div className="text-xs text-black/40">{b.partner_vat_number}</div>}</td>
                   <td className="px-4 py-3 text-black/70">{b.customer_name||"—"}</td>
-                  <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(b.booking_status)}`}>{String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
+                  <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? statusPillClasses("disputed") : statusPillClasses(b.booking_status)}`}>{b.payout_hold ? "Disputed" : String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
                   <td className={`px-4 py-3 ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,curr)}</td>
                   <td className="px-4 py-3">
                     {isCancelled&&b.refund_status==="full"
@@ -694,7 +695,7 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
                     <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
                     <td className="px-4 py-3 text-black/70 whitespace-nowrap">{b.partner_company_name||"—"}</td>
                     <td className="px-4 py-3 text-black/70 whitespace-nowrap">{b.customer_name||"—"}</td>
-                    <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(b.booking_status)}`}>{String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
+                    <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? statusPillClasses("disputed") : statusPillClasses(b.booking_status)}`}>{b.payout_hold ? "Disputed" : String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
                     <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${payoutPillClasses(b.payout_status)}`}>{b.payout_status||"—"}</span></td>
                     <td className="px-4 py-3 text-xs font-bold text-black/60">{b.currency||"—"}</td>
                     <td className={`px-4 py-3 font-bold whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,b.currency??"EUR")}</td>
@@ -925,7 +926,7 @@ export default function AdminReportsPage() {
       const { hire, rate, commAmt, partnerPayout, camelNetComm, fuelRefund, feeInBid } = calcPayout(b);
       return [
         b.job_number||"",b.partner_company_name||"",b.partner_country||"",b.customer_name||"",
-        b.booking_status||"",b.payout_status||"",b.currency||"EUR",
+        b.booking_status||"", b.payout_hold?"Disputed":"", b.payout_status||"", b.currency||"EUR",
         hire, rate, commAmt,
         feeInBid>0?Number(feeInBid.toFixed(4)):"", camelNetComm>0?Number(camelNetComm.toFixed(2)):"",
         Number(b.fuel_price??0),
@@ -1039,7 +1040,7 @@ export default function AdminReportsPage() {
                     <td className="px-4 py-3 font-black text-black whitespace-nowrap">{b.job_number||"—"}</td>
                     <td className="px-4 py-3 text-black/70"><div>{b.partner_company_name||"—"}</div>{b.partner_vat_number&&<div className="text-xs text-black/40">{b.partner_vat_number}</div>}</td>
                     <td className="px-4 py-3 text-black/70">{b.customer_name||"—"}</td>
-                    <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${statusPillClasses(b.booking_status)}`}>{String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
+                    <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? statusPillClasses("disputed") : statusPillClasses(b.booking_status)}`}>{b.payout_hold ? "Disputed" : String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
                     <td className={`px-4 py-3 ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,b.currency??"EUR")}</td>
                     <td className="px-4 py-3">
                       {isCancelled&&b.refund_status==="full"

@@ -11,7 +11,7 @@ type BookingRow = {
   booking_status: string; amount: number | null; currency: Currency | null;
   charge_currency: string | null; conversion_rate: number | null;
   notes: string | null; created_at: string; cancelled_by: string | null; cancelled_at: string | null;
-  cancellation_reason: string | null; refund_status: string | null; job_number: number | null;
+  cancellation_reason: string | null; refund_status: string | null; job_number: number | null; payout_hold?: boolean | null;
   driver_name: string | null; driver_phone: string | null;
   driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
   delivery_confirmed_at: string | null; collection_confirmed_at: string | null;
@@ -151,7 +151,7 @@ function downloadExcel(rows: BookingRow[]) {
     "Car Hire Price","Commission Rate (%)","Commission Amount",
     "Fuel Deposit","Fuel Charge","Fuel Refund",
     "Total Amount","Net Payout",
-    "Created At","Cancelled By","Cancelled At","Cancellation Reason","Refund Status",
+    "Created At","Cancelled By","Cancelled At","Cancellation Reason","Refund Status","Payout Hold",
   ];
   const exRows = rows.map(r => {
     const hire      = Number(r.car_hire_price ?? 0);
@@ -175,7 +175,7 @@ function downloadExcel(rows: BookingRow[]) {
       r.amount ?? "", netPayout.toFixed(2),
       fmtDateTimeStr(r.created_at), r.cancelled_by ?? "",
       r.cancelled_at ? fmtDateTimeStr(r.cancelled_at) : "",
-      r.cancellation_reason ?? "", r.refund_status ?? "",
+      r.cancellation_reason ?? "", r.refund_status ?? "", r.payout_hold ? "Yes" : "No",
     ];
   });
   const blob = buildXls([{ name: "Booking Detail", headers, rows: exRows }]);
