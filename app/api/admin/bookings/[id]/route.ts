@@ -112,14 +112,26 @@ export async function GET(
       requestRow = reqData || null;
     }
 
+    // ── Partner profile ──────────────────────────────────────────────────────
     const { data: profileRow } = await db
       .from("partner_profiles")
-      .select("company_name, contact_email")
+      .select("company_name")
+      .eq("user_id", bookingRow.partner_user_id)
+      .maybeSingle();
+
+    // ── Partner email from partner_applications ──────────────────────────────
+    const { data: applicationRow } = await db
+      .from("partner_applications")
+      .select("email")
       .eq("user_id", bookingRow.partner_user_id)
       .maybeSingle();
 
     return NextResponse.json({
-      booking: { ...bookingRow, partner_company_name: profileRow?.company_name || null, partner_contact_email: profileRow?.contact_email || null },
+      booking: {
+        ...bookingRow,
+        partner_company_name: profileRow?.company_name || null,
+        partner_contact_email: applicationRow?.email || null,
+      },
       payment: paymentData,
       request: requestRow,
       role: adminRow.role,

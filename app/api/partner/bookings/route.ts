@@ -177,6 +177,7 @@ export async function GET() {
         stripe_fee_currency: payment?.stripe_fee_currency ?? null,
         exchange_rate: payment?.exchange_rate ?? null,
         payout_status: booking.payout_status ?? null,
+        payout_hold: booking.payout_hold ?? false,
         role,
         adminMode,
       };

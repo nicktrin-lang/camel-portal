@@ -405,7 +405,7 @@ export default function AdminBookingsPage() {
         isCancelled?0:Number(b.amount??0), partnerPayout,
         b.collection_confirmed_by_customer?"Yes":"No",b.return_confirmed_by_customer?"Yes":"No",
         b.insurance_docs_confirmed_by_driver?"Yes":"No",b.insurance_docs_confirmed_by_customer?"Yes":"No",
-        b.booking_status||"", b.payout_hold?"Yes":"No", b.cancelled_by||"",
+        b.payout_hold ? "Disputed" : (b.booking_status||""), b.payout_hold ? "Yes" : "No", b.cancelled_by||"",
         b.cancelled_at?fmtDateTime(b.cancelled_at):"",
         b.cancellation_reason||"",b.refund_status||"",fmtDate(b.created_at),
       ];

@@ -80,6 +80,7 @@ function statusPill(status?: string | null) {
     returned:        "border-blue-200 bg-blue-50 text-blue-700",
     completed:       "border-green-200 bg-green-50 text-green-700",
     cancelled:       "border-red-200 bg-red-50 text-red-700",
+    disputed:        "border-amber-300 bg-amber-50 text-amber-700",
   };
   return map[status ?? ""] ?? "border-black/10 bg-white text-black/60";
 }
@@ -163,7 +164,7 @@ function downloadExcel(rows: BookingRow[]) {
       r.job_number ?? "", r.partner_company_name ?? "", r.partner_legal_company_name ?? "",
       r.partner_company_registration_number ?? "", r.partner_vat_number ?? "",
       r.customer_name ?? "", r.customer_email ?? "", r.customer_phone ?? "",
-      r.booking_status ?? "", r.driver_name ?? "", r.vehicle_category_name ?? "",
+      r.payout_hold ? "Disputed" : (r.booking_status ?? ""), r.driver_name ?? "", r.vehicle_category_name ?? "",
       r.pickup_address ?? "", r.dropoff_address ?? "",
       fmtDateTimeStr(r.pickup_at), fmtDateTimeStr(r.dropoff_at),
       fmtDateTimeStr(r.delivery_confirmed_at), fmtDateTimeStr(r.collection_confirmed_at),
@@ -415,8 +416,8 @@ export default function PartnerBookingsPage() {
                           <div className="text-xs font-bold text-black/40">{row.customer_phone || row.customer_email || ""}</div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`inline-flex border px-2 py-0.5 text-xs font-black ${statusPill(row.booking_status)}`}>
-                            {fmtStatus(row.booking_status)}
+                          <span className={`inline-flex border px-2 py-0.5 text-xs font-black ${row.payout_hold ? statusPill("disputed") : statusPill(row.booking_status)}`}>
+                            {row.payout_hold ? "Disputed" : fmtStatus(row.booking_status)}
                           </span>
                         </td>
                         <td className="px-4 py-3 font-bold text-black/70 whitespace-nowrap">{row.driver_name || "—"}</td>
