@@ -327,6 +327,8 @@
   "appSubmitted.partnerLogin": "Acceso socios",
   "appSubmitted.copyright": "© {{year}} NTUK Ltd. Todos los derechos reservados. Operando como Camel Global.",
   "bookings.detail.hold.title": "Pago en disputa",
+  "reports.summary.disputed": "En disputa",
+  "reports.filter.disputed": "En disputa",
   "bookings.detail.hold.body": "Hay una disputa abierta en esta reserva. Nuestro equipo se pondrá en contacto. Tu pago se procesará una vez resuelto.",
   "appSubmitted.guest.label": "Solicitud recibida",
   "appSubmitted.guest.title": "Gracias por solicitar.",

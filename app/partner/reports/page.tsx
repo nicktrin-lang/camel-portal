@@ -276,7 +276,7 @@ export default function PartnerReportsPage() {
   const filtered = useMemo(() => {
     let rows = bookings;
     if (dateFrom || dateTo) rows = rows.filter(r => matchesDateRange(r.created_at, dateFrom, dateTo));
-    if (statusFilter === "Disputed") rows = rows.filter(r => !!r.payout_hold);
+    if (statusFilter === t("reports.filter.disputed")) rows = rows.filter(r => !!r.payout_hold);
     else if (statusFilter !== "all") rows = rows.filter(r => String(r.booking_status || "").toLowerCase() === statusFilter);
     return [...rows].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
   }, [bookings, dateFrom, dateTo, statusFilter]);
@@ -303,7 +303,7 @@ export default function PartnerReportsPage() {
     return tot;
   }, [filtered]);
 
-  const statusOptions = ["Disputed", ...Array.from(new Set(bookings.map(r => String(r.booking_status || "").toLowerCase()).filter(Boolean))).sort()];
+  const statusOptions = [t("reports.filter.disputed"), ...Array.from(new Set(bookings.map(r => String(r.booking_status || "").toLowerCase()).filter(Boolean))).sort()];
 
   function exportExcel() {
     const dateStr = new Date().toISOString().split("T")[0];
@@ -386,7 +386,7 @@ export default function PartnerReportsPage() {
           { label: t("reports.summary.commission"),  value: tot.commission, isMoney: true  },
           { label: t("reports.summary.yourPayout"),  value: tot.payout,     isMoney: true  },
           { label: t("reports.summary.fuelRefunded"),value: tot.fuelRefund, isMoney: true  },
-          { label: "Disputed",                       value: tot.disputedPayout,  isMoney: true, isDisputed: true  },
+          { label: t("reports.summary.disputed"),    value: tot.disputedPayout,  isMoney: true, isDisputed: true  },
         ];
         return (
           <div key={curr} className="border border-black/10 bg-white p-6">
