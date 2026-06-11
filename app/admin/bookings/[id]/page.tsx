@@ -195,66 +195,71 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
     );
   };
 
+  const customerFinal = Math.max(0, totalPaid - fuelRefund - pcTotal - (payment?.cancellation_refund_amount ?? 0));
+  const partnerFinal  = Math.max(0, netPayout - pcTotal);
+
   return (
-    <div className="border border-black/10 bg-[#f8f8f8] p-6">
-      <h2 className="text-base font-black text-black mb-1">Payment & Fee Breakdown</h2>
-      <p className="text-xs font-bold text-black/40 mb-4">
-        All amounts in bid currency ({bidCurrency}). Customer always pays in bid currency — no conversion fee applies.
-      </p>
-      <div className="mt-4 bg-white border border-black/10 px-4 py-1">
+    <div className="border border-black/10 bg-[#f8f8f8] p-6 space-y-5">
+      <div>
+        <h2 className="text-base font-black text-black mb-1">Payment & Fee Breakdown</h2>
+        <p className="text-xs font-bold text-black/40">
+          All amounts in bid currency ({bidCurrency}). Customer always pays in bid currency — no conversion fee applies.
+        </p>
+      </div>
+
+      {/* ── SECTION 1: What the customer paid ── */}
+      <div className="bg-white border border-black/10 px-4 py-1">
+        <p className="text-xs font-black uppercase tracking-widest text-black/40 pt-3 pb-1">What the customer paid</p>
         <Row label="Car hire"     bidAmt={hire}        color="text-black" />
         <Row label="Fuel deposit" bidAmt={fuelDeposit} color="text-black" />
         <div className="flex items-center justify-between py-2.5 border-b border-black/5 font-black">
-          <span className="text-sm text-black">Total paid by customer</span>
-          <span className="text-sm text-black">{fmtCurr(totalPaid, bidCurrency)}</span>
+          <span className="text-sm font-black text-black">Total charged to customer</span>
+          <span className="text-sm font-black text-black">{fmtCurr(totalPaid, bidCurrency)}</span>
         </div>
-        <Row label={`Commission (${rate}%)`} bidAmt={commAmt} color="text-amber-700" prefix="− " />
-        {fuelCharge > 0 && <Row label="Fuel charge retained from deposit" bidAmt={fuelCharge} color="text-[#ff7a00]" prefix="+ " />}
         {fuelRefund > 0 && (
-          <Row label="Fuel deposit refund to customer" bidAmt={fuelRefund} color="text-green-700" prefix="− "
+          <Row label="Fuel deposit refund" bidAmt={fuelRefund} color="text-green-700" prefix="− "
             note={payment?.fuel_refund_stripe_id ?? undefined} />
         )}
         {payment?.cancellation_refund_amount != null && payment.cancellation_refund_amount > 0 && (
-          <Row label="Cancellation refund to customer" bidAmt={payment.cancellation_refund_amount}
+          <Row label="Cancellation refund" bidAmt={payment.cancellation_refund_amount}
             color="text-red-600" prefix="− " note={payment.cancellation_refund_stripe_id ?? undefined} />
         )}
+        {postCompletionRefunds.length > 0 && postCompletionRefunds.map((r, i) => (
+          <Row key={r.id}
+            label={`Post-completion refund ${i + 1}${r.reason ? ` — ${r.reason}` : ""}`}
+            bidAmt={r.amount} color="text-amber-700" prefix="− "
+            note={r.stripe_refund_id ?? undefined} />
+        ))}
         <div className="flex items-center justify-between py-3 mt-1 border-t-2 border-black">
-          <span className="text-sm font-black text-black">Partner net payout</span>
-          <span className="text-sm font-black text-green-700">{fmtCurr(netPayout, bidCurrency)}</span>
+          <span className="text-sm font-black text-black">Customer net paid</span>
+          <span className="text-sm font-black text-black">{fmtCurr(customerFinal, bidCurrency)}</span>
         </div>
       </div>
 
-      {/* Post-completion refunds block */}
-      {postCompletionRefunds.length > 0 && (
-        <div className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">
-            Post-Completion Refunds
-          </p>
-          {postCompletionRefunds.map((r, i) => (
-            <div key={r.id} className="flex items-start justify-between py-2 border-b border-amber-100 last:border-0">
-              <span className="text-sm font-semibold text-amber-800">
-                Refund {i + 1}{r.reason ? ` — ${r.reason}` : ""}
-                <span className="ml-2 text-xs text-amber-600">{fmtDate(r.created_at)}</span>
-                {r.stripe_refund_id && <span className="ml-2 text-xs text-amber-500">({r.stripe_refund_id})</span>}
-              </span>
-              <span className="text-sm font-black text-amber-700 ml-4 shrink-0">− {fmtCurr(r.amount, bidCurrency)}</span>
-            </div>
-          ))}
-          <div className="flex items-center justify-between pt-3 mt-1 border-t-2 border-amber-300">
-            <span className="text-sm font-black text-amber-800">Total post-completion refunded</span>
-            <span className="text-sm font-black text-amber-700">− {fmtCurr(pcTotal, bidCurrency)}</span>
-          </div>
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-sm font-black text-black">Net final amount (after all refunds)</span>
-            <span className="text-sm font-black text-black">{fmtCurr(netFinal, bidCurrency)}</span>
-          </div>
+      {/* ── SECTION 2: Partner payout breakdown ── */}
+      <div className="bg-white border border-black/10 px-4 py-1">
+        <p className="text-xs font-black uppercase tracking-widest text-black/40 pt-3 pb-1">Partner payout breakdown</p>
+        <Row label="Car hire" bidAmt={hire} color="text-black" />
+        <Row label={`Commission (${rate}%)`} bidAmt={commAmt} color="text-amber-700" prefix="− " />
+        {fuelCharge > 0 && <Row label="Fuel charge retained from deposit" bidAmt={fuelCharge} color="text-[#ff7a00]" prefix="+ " />}
+        {fuelRefund > 0 && <Row label="Fuel deposit refunded to customer" bidAmt={fuelRefund} color="text-black/40" prefix="− " />}
+        <div className="flex items-center justify-between py-2.5 border-b border-black/5 font-black">
+          <span className="text-sm font-black text-black">Partner payout (before post-comp refunds)</span>
+          <span className="text-sm font-black text-green-700">{fmtCurr(netPayout, bidCurrency)}</span>
         </div>
-      )}
+        {postCompletionRefunds.length > 0 && (
+          <Row label="Post-completion refunds (absorbed by partner)" bidAmt={pcTotal} color="text-amber-700" prefix="− " />
+        )}
+        <div className="flex items-center justify-between py-3 mt-1 border-t-2 border-black">
+          <span className="text-sm font-black text-black">Partner net payout</span>
+          <span className={`text-sm font-black ${partnerFinal > 0 ? "text-green-700" : "text-red-600"}`}>{fmtCurr(partnerFinal, bidCurrency)}</span>
+        </div>
+      </div>
 
-      <p className="mt-3 text-xs font-bold text-black/40">
+      <p className="text-xs font-bold text-black/40">
         Stripe processing fees are covered by Camel Global and are not deducted from partner payout.
         {payment?.stripe_fee != null && payment.stripe_fee > 0 && (
-          <span className="ml-1">Actual Stripe fee on this payment: {fmtCurr(payment.stripe_fee, payment.stripe_fee_currency ?? bidCurrency)} (Camel absorbed).</span>
+          <span className="ml-1">Actual Stripe fee: {fmtCurr(payment.stripe_fee, payment.stripe_fee_currency ?? bidCurrency)} (Camel absorbed).</span>
         )}
       </p>
     </div>
