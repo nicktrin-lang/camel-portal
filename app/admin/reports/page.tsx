@@ -693,7 +693,7 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Job","Partner","Customer","Booking Status","Payout Status","Bid Curr","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Partner Payout","Fuel Charge","Fuel Refund","Post-Comp Refunds","Net Final","Total","Created"].map(h => (
+                {["Job","Partner","Customer","Booking Status","Payout Status","Bid Curr","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Total","Partner Payout","Fuel Charge","Fuel Refund","Refund","Customer Final","Created"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -716,12 +716,12 @@ function FinancialDashboard({ bookings }: { bookings: BookingRow[] }) {
                     <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">{isCancelled&&b.refund_status==="full"?<span className="line-through text-red-400">{fmtCurr(commAmt,b.currency??"EUR")}</span>:fmtCurr(commAmt,b.currency??"EUR")}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{feeInBid>0?<span className="font-black text-amber-700">− {fmtCurr(feeInBid,b.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
                     <td className="px-4 py-3 font-black whitespace-nowrap text-green-700">{isCancelled&&b.refund_status==="full"?<span className="text-black/30">—</span>:fmtCurr(camelNetComm,b.currency??"EUR")}</td>
-                    <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-black/70"}`}>{isCancelled&&b.refund_status==="full"?fmtCurr(0,b.currency??"EUR"):fmtCurr(partnerPayout,b.currency??"EUR")}</td>
+                    <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,b.currency)}</td>
+                    <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-green-700"}`}>{isCancelled&&b.refund_status==="full"?fmtCurr(0,b.currency??"EUR"):fmtCurr(Math.max(0,partnerPayout-pcRefundTotal),b.currency??"EUR")}</td>
                     <td className="px-4 py-3 font-black text-[#ff7a00] whitespace-nowrap">{Number(b.fuel_charge??0)>0?fmtCurr(Number(b.fuel_charge),b.currency??"EUR"):<span className="text-black/30">—</span>}</td>
                     <td className="px-4 py-3 font-black text-green-600 whitespace-nowrap">{fuelRefund>0?fmtCurr(fuelRefund,b.currency??"EUR"):<span className="text-black/30">—</span>}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{pcRefundTotal>0?<span className="font-black text-amber-700">− {fmtCurr(pcRefundTotal,b.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
-                    <td className="px-4 py-3 font-black whitespace-nowrap">{pcRefundTotal>0?fmtCurr(netFinal,b.currency??"EUR"):<span className="text-black/30">—</span>}</td>
-                    <td className={`px-4 py-3 font-black whitespace-nowrap ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,b.currency)}</td>
+                    <td className="px-4 py-3 font-black whitespace-nowrap">{fmtCurr(Math.max(0,Number(b.amount??0)-fuelRefund-pcRefundTotal),b.currency??"EUR")}</td>
                     <td className="px-4 py-3 text-xs text-black/50 whitespace-nowrap">{fmtDate(b.created_at)}</td>
                   </tr>
                 );
