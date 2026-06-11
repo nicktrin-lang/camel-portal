@@ -262,7 +262,7 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
                   <td className="px-4 py-3 font-black text-[#ff7a00]">{b.fuel_charge!==null?fmtAmt(b.fuel_charge,curr):"—"}</td>
                   <td className="px-4 py-3 font-black text-green-700">{fuelRefund>0?fmtCurr(fuelRefund,curr):"—"}</td>
                   <td className="px-4 py-3 font-black text-amber-600 whitespace-nowrap">{Number(b.post_completion_refund_total??0)>0?`− ${fmtCurr(Number(b.post_completion_refund_total),curr)}`:"—"}</td>
-                  <td className="px-4 py-3 font-black text-black whitespace-nowrap">{isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(Math.max(0,Number(b.amount??0)-Number(b.post_completion_refund_total??0)),curr)}</td>
+                  <td className="px-4 py-3 font-black text-black whitespace-nowrap">{isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(Math.max(0,Number(b.amount??0)-Number(b.fuel_refund??0)-Number(b.post_completion_refund_total??0)),curr)}</td>
                   <td className={`px-4 py-3 font-black ${isCancelled&&b.refund_status==="full"?"text-red-400":"text-green-700"}`}>
                     {isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(partnerPayout,curr)}
                   </td>
@@ -561,7 +561,7 @@ export default function AdminBookingsPage() {
                     <td className="px-4 py-4 font-black text-[#ff7a00]">{row.fuel_charge!==null?fmtAmt(row.fuel_charge,row.currency):"—"}</td>
                     <td className="px-4 py-4 font-black text-green-600">{fuelRefund>0?fmtCurr(fuelRefund,row.currency??"EUR"):"—"}</td>
                     <td className="px-4 py-4 font-black text-amber-600 whitespace-nowrap">{Number(row.post_completion_refund_total??0)>0?`− ${fmtCurr(Number(row.post_completion_refund_total),row.currency??"EUR")}`:"—"}</td>
-                    <td className="px-4 py-4 font-black text-black whitespace-nowrap">{isCancelled&&row.refund_status==="full"?fmtCurr(0,row.currency??"EUR"):fmtCurr(Math.max(0,Number(row.amount??0)-Number(row.post_completion_refund_total??0)),row.currency??"EUR")}</td>
+                    <td className="px-4 py-4 font-black text-black whitespace-nowrap">{isCancelled&&row.refund_status==="full"?fmtCurr(0,row.currency??"EUR"):fmtCurr(Math.max(0,Number(row.amount??0)-Number(row.fuel_refund??0)-Number(row.post_completion_refund_total??0)),row.currency??"EUR")}</td>
                     <td className={`px-4 py-4 font-black ${isCancelled&&row.refund_status==="full"?"text-red-600":"text-green-700"}`}>{isCancelled&&row.refund_status==="full"?fmtCurr(0,row.currency??"EUR"):fmtCurr(partnerPayout,row.currency??"EUR")}</td>
                     <td className="px-4 py-4 text-xs text-black/60">{row.cancelled_by||"—"}</td>
                     <td className="px-4 py-4 text-xs text-black/60 whitespace-nowrap">{row.cancelled_at?fmtDateTime(row.cancelled_at):"—"}</td>
