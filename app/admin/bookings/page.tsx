@@ -223,7 +223,7 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
         <table className="min-w-full text-sm">
           <thead className="bg-black text-white">
             <tr>
-              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Total Paid","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Customer Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                 <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -256,12 +256,13 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
                       ? <span className="text-black/30">—</span>
                       : <span className="text-xs font-black text-green-700">{fmtCurr(camelNetComm,curr)}</span>}
                   </td>
+                  <td className={`px-4 py-3 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,curr)}</td>
                   <td className="px-4 py-3 text-black/70">{fmtAmt(b.fuel_price,curr)}</td>
                   <td className="px-4 py-3 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                   <td className="px-4 py-3 font-black text-[#ff7a00]">{b.fuel_charge!==null?fmtAmt(b.fuel_charge,curr):"—"}</td>
                   <td className="px-4 py-3 font-black text-green-700">{fuelRefund>0?fmtCurr(fuelRefund,curr):"—"}</td>
                   <td className="px-4 py-3 font-black text-amber-600 whitespace-nowrap">{Number(b.post_completion_refund_total??0)>0?`− ${fmtCurr(Number(b.post_completion_refund_total),curr)}`:"—"}</td>
-                  <td className={`px-4 py-3 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,curr)}</td>
+                  <td className="px-4 py-3 font-black text-black whitespace-nowrap">{isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(Math.max(0,Number(b.amount??0)-Number(b.post_completion_refund_total??0)),curr)}</td>
                   <td className={`px-4 py-3 font-black ${isCancelled&&b.refund_status==="full"?"text-red-400":"text-green-700"}`}>
                     {isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(partnerPayout,curr)}
                   </td>
@@ -534,13 +535,13 @@ export default function AdminBookingsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Total Paid","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Customer Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {visible.length===0?(<tr><td colSpan={18} className="px-4 py-4 text-black/50">No bookings found.</td></tr>):visible.map((row,i)=>{
+              {visible.length===0?(<tr><td colSpan={19} className="px-4 py-4 text-black/50">No bookings found.</td></tr>):visible.map((row,i)=>{
                 const usedQ=row.fuel_used_quarters;
                 const isCancelled=String(row.booking_status||"").toLowerCase()==="cancelled";
                 const { commAmt, partnerPayout, camelNetComm, rate, hire, fuelRefund, feeInBid } = calcPayout(row);
@@ -554,12 +555,13 @@ export default function AdminBookingsPage() {
                     <td className="px-4 py-4">{isCancelled&&row.refund_status==="full"?(<span className="text-xs font-black text-red-400 line-through">{fmtCurr(commAmt,row.currency??"EUR")}</span>):(<><div className="text-xs font-black text-[#ff7a00]">{fmtCurr(commAmt,row.currency??"EUR")}</div><div className="text-xs text-black/40">{rate}%</div></>)}</td>
                     <td className="px-4 py-4 whitespace-nowrap">{feeInBid>0?<span className="text-xs font-black text-amber-700">− {fmtCurr(feeInBid,row.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
                     <td className="px-4 py-4 whitespace-nowrap">{isCancelled&&row.refund_status==="full"?<span className="text-black/30">—</span>:<span className="text-xs font-black text-green-700">{fmtCurr(camelNetComm,row.currency??"EUR")}</span>}</td>
+                    <td className={`px-4 py-4 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(row.amount,row.currency)}</td>
                     <td className="px-4 py-4 text-black/70">{fmtAmt(row.fuel_price,row.currency)}</td>
                     <td className="px-4 py-4 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                     <td className="px-4 py-4 font-black text-[#ff7a00]">{row.fuel_charge!==null?fmtAmt(row.fuel_charge,row.currency):"—"}</td>
                     <td className="px-4 py-4 font-black text-green-600">{fuelRefund>0?fmtCurr(fuelRefund,row.currency??"EUR"):"—"}</td>
                     <td className="px-4 py-4 font-black text-amber-600 whitespace-nowrap">{Number(row.post_completion_refund_total??0)>0?`− ${fmtCurr(Number(row.post_completion_refund_total),row.currency??"EUR")}`:"—"}</td>
-                    <td className={`px-4 py-4 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(row.amount,row.currency)}</td>
+                    <td className="px-4 py-4 font-black text-black whitespace-nowrap">{isCancelled&&row.refund_status==="full"?fmtCurr(0,row.currency??"EUR"):fmtCurr(Math.max(0,Number(row.amount??0)-Number(row.post_completion_refund_total??0)),row.currency??"EUR")}</td>
                     <td className={`px-4 py-4 font-black ${isCancelled&&row.refund_status==="full"?"text-red-600":"text-green-700"}`}>{isCancelled&&row.refund_status==="full"?fmtCurr(0,row.currency??"EUR"):fmtCurr(partnerPayout,row.currency??"EUR")}</td>
                     <td className="px-4 py-4 text-xs text-black/60">{row.cancelled_by||"—"}</td>
                     <td className="px-4 py-4 text-xs text-black/60 whitespace-nowrap">{row.cancelled_at?fmtDateTime(row.cancelled_at):"—"}</td>
