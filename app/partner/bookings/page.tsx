@@ -393,7 +393,7 @@ export default function PartnerBookingsPage() {
                       t("bookings.table.col.commission"),
                       t("bookings.table.col.fuelCharge"),
                       t("bookings.table.col.fuelRefund"),
-                      "Post-Comp Refund",
+                      "Refund",
                       t("bookings.table.col.netPayout"),
                       t("bookings.table.col.created"),
                     ].map(h => (

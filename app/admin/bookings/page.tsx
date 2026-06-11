@@ -223,7 +223,7 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
         <table className="min-w-full text-sm">
           <thead className="bg-black text-white">
             <tr>
-              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Post-Comp Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                 <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -260,6 +260,7 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
                   <td className="px-4 py-3 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                   <td className="px-4 py-3 font-black text-[#ff7a00]">{b.fuel_charge!==null?fmtAmt(b.fuel_charge,curr):"—"}</td>
                   <td className="px-4 py-3 font-black text-green-700">{fuelRefund>0?fmtCurr(fuelRefund,curr):"—"}</td>
+                  <td className="px-4 py-3 font-black text-amber-600 whitespace-nowrap">{Number(b.post_completion_refund_total??0)>0?`− ${fmtCurr(Number(b.post_completion_refund_total),curr)}`:"—"}</td>
                   <td className={`px-4 py-3 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,curr)}</td>
                   <td className={`px-4 py-3 font-black ${isCancelled&&b.refund_status==="full"?"text-red-400":"text-green-700"}`}>
                     {isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(partnerPayout,curr)}
@@ -533,13 +534,13 @@ export default function AdminBookingsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Post-Comp Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {visible.length===0?(<tr><td colSpan={17} className="px-4 py-4 text-black/50">No bookings found.</td></tr>):visible.map((row,i)=>{
+              {visible.length===0?(<tr><td colSpan={18} className="px-4 py-4 text-black/50">No bookings found.</td></tr>):visible.map((row,i)=>{
                 const usedQ=row.fuel_used_quarters;
                 const isCancelled=String(row.booking_status||"").toLowerCase()==="cancelled";
                 const { commAmt, partnerPayout, camelNetComm, rate, hire, fuelRefund, feeInBid } = calcPayout(row);
