@@ -27,6 +27,7 @@ type BookingRow = {
   request_status: string | null;
   car_hire_price: number | null; fuel_price: number | null;
   fuel_charge: number | null; fuel_refund: number | null;
+  post_completion_refund_total: number | null;
   commission_rate: number | null; commission_amount: number | null;
   partner_payout_amount: number | null;
   stripe_fee: number | null; stripe_fee_currency: string | null; exchange_rate: number | null;
@@ -67,7 +68,8 @@ function calcNetPayout(r: BookingRow): number {
   const hire    = Number(r.car_hire_price ?? 0);
   const rate    = r.commission_rate ?? 20;
   const commAmt = Math.max((hire * rate) / 100, 10);
-  return Math.max(0, hire - commAmt + Number(r.fuel_charge ?? 0));
+  const pcRefund = Number(r.post_completion_refund_total ?? 0);
+  return Math.max(0, hire - commAmt + Number(r.fuel_charge ?? 0) - pcRefund);
 }
 
 function statusPill(status?: string | null) {
@@ -391,6 +393,7 @@ export default function PartnerBookingsPage() {
                       t("bookings.table.col.commission"),
                       t("bookings.table.col.fuelCharge"),
                       t("bookings.table.col.fuelRefund"),
+                      "Post-Comp Refund",
                       t("bookings.table.col.netPayout"),
                       t("bookings.table.col.created"),
                     ].map(h => (
@@ -444,6 +447,9 @@ export default function PartnerBookingsPage() {
                         </td>
                         <td className="px-4 py-3 font-black text-green-600 whitespace-nowrap">
                           {row.fuel_refund != null ? fmtAmount(Number(row.fuel_refund), row.currency) : "—"}
+                        </td>
+                        <td className="px-4 py-3 font-black text-amber-600 whitespace-nowrap">
+                          {Number(row.post_completion_refund_total ?? 0) > 0 ? `− ${fmtAmount(Number(row.post_completion_refund_total), row.currency)}` : "—"}
                         </td>
                         <td className="px-4 py-3 font-black text-black whitespace-nowrap">{fmtAmount(netPayout, row.currency)}</td>
                         <td className="px-4 py-3 font-bold text-black/50 whitespace-nowrap">{fmt(row.created_at)}</td>

@@ -16,6 +16,7 @@ type BookingRow = {
   fuel_used_quarters: number | null; fuel_charge: number | string | null; fuel_refund: number | string | null;
   commission_rate: number | null; commission_amount: number | string | null;
   partner_payout_amount: number | string | null;
+  post_completion_refund_total: number | string | null;
   stripe_fee: number | null; stripe_fee_currency: string | null; exchange_rate: number | null;
   cancelled_by: string | null; cancelled_at: string | null;
   cancellation_reason: string | null; refund_status: string | null;
@@ -131,7 +132,8 @@ function calcPayout(b: BookingRow): {
   const commAmt      = Math.max((hire * rate) / 100, 10);
   const fuelCharge   = Number(b.fuel_charge ?? 0);
   // Partner payout: car hire minus commission plus any fuel charge retained — Stripe fee is NOT their cost
-  const partnerPayout = Math.max(0, hire - commAmt + fuelCharge);
+  const pcRefund      = Number(b.post_completion_refund_total ?? 0);
+  const partnerPayout = Math.max(0, hire - commAmt + fuelCharge - pcRefund);
   // Camel net commission: what Camel actually keeps after paying Stripe
   const camelNetComm  = Math.max(0, commAmt - feeInBid);
   const fuelRefund    = (isCancelled && refundStatus === "partial") ? fuel : Number(b.fuel_refund ?? 0);
@@ -221,7 +223,7 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
         <table className="min-w-full text-sm">
           <thead className="bg-black text-white">
             <tr>
-              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Post-Comp Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                 <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -531,7 +533,7 @@ export default function AdminBookingsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Post-Comp Refund","Total","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -555,6 +557,7 @@ export default function AdminBookingsPage() {
                     <td className="px-4 py-4 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                     <td className="px-4 py-4 font-black text-[#ff7a00]">{row.fuel_charge!==null?fmtAmt(row.fuel_charge,row.currency):"—"}</td>
                     <td className="px-4 py-4 font-black text-green-600">{fuelRefund>0?fmtCurr(fuelRefund,row.currency??"EUR"):"—"}</td>
+                    <td className="px-4 py-4 font-black text-amber-600 whitespace-nowrap">{Number(row.post_completion_refund_total??0)>0?`− ${fmtCurr(Number(row.post_completion_refund_total),row.currency??"EUR")}`:"—"}</td>
                     <td className={`px-4 py-4 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(row.amount,row.currency)}</td>
                     <td className={`px-4 py-4 font-black ${isCancelled&&row.refund_status==="full"?"text-red-600":"text-green-700"}`}>{isCancelled&&row.refund_status==="full"?fmtCurr(0,row.currency??"EUR"):fmtCurr(partnerPayout,row.currency??"EUR")}</td>
                     <td className="px-4 py-4 text-xs text-black/60">{row.cancelled_by||"—"}</td>
