@@ -64,7 +64,7 @@ function DriverResetPasswordInner() {
   }
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-xl py-10">
       <div className="bg-white p-8 space-y-5">
         {sessionError ? (
           <>
