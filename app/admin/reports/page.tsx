@@ -523,7 +523,7 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
         <table className="min-w-full text-sm">
           <thead className="bg-black text-white">
             <tr>
-              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Post-Comp Refunds","Total","Net Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+              {["Job","Partner","Customer","Status","Payout Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Total Paid","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Customer Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                 <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -539,6 +539,7 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
                   <td className="px-4 py-3 text-black/70"><div>{b.partner_company_name||"—"}</div>{b.partner_vat_number&&<div className="text-xs text-black/40">{b.partner_vat_number}</div>}</td>
                   <td className="px-4 py-3 text-black/70">{b.customer_name||"—"}</td>
                   <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? statusPillClasses("disputed") : statusPillClasses(b.booking_status)}`}>{b.payout_hold ? "Disputed" : String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
+                  <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? "border-amber-300 bg-amber-50 text-amber-700" : payoutPillClasses(b.payout_status)}`}>{b.payout_hold ? "On Hold" : (b.payout_status||"—")}</span></td>
                   <td className={`px-4 py-3 ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,curr)}</td>
                   <td className="px-4 py-3">
                     {isCancelled&&b.refund_status==="full"
@@ -553,6 +554,7 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
                       ? <span className="text-black/30">—</span>
                       : <span className="text-xs font-black text-green-700">{fmtCurr(camelNetComm,curr)}</span>}
                   </td>
+                  <td className={`px-4 py-3 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,curr)}</td>
                   <td className="px-4 py-3 text-black/70">{fmtAmt(b.fuel_price,curr)}</td>
                   <td className="px-4 py-3 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                   <td className="px-4 py-3 font-black text-[#ff7a00]">{b.fuel_charge!==null?fmtAmt(b.fuel_charge,curr):"—"}</td>
@@ -560,10 +562,7 @@ function AdminCurrencySection({ curr, t, bookings }: { curr:Currency; t:Currency
                   <td className="px-4 py-3 whitespace-nowrap">
                     {pcRefundTotal>0 ? <span className="font-black text-amber-700">− {fmtCurr(pcRefundTotal,curr)}</span> : <span className="text-black/30">—</span>}
                   </td>
-                  <td className={`px-4 py-3 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,curr)}</td>
-                  <td className="px-4 py-3 font-black text-black">
-                    {pcRefundTotal>0 ? fmtCurr(netFinal,curr) : <span className="text-black/30">—</span>}
-                  </td>
+                  <td className="px-4 py-3 font-black text-black whitespace-nowrap">{fmtCurr(Math.max(0,Number(b.amount??0)-Number(b.fuel_refund??0)-pcRefundTotal),curr)}</td>
                   <td className={`px-4 py-3 font-black ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-green-700"}`}>{isCancelled&&b.refund_status==="full"?fmtCurr(0,curr):fmtCurr(partnerPayout,curr)}</td>
                   <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_by||"—"}</td>
                   <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDateTime(b.cancelled_at):"—"}</td>
@@ -1050,7 +1049,7 @@ export default function AdminReportsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Post-Comp Refunds","Total","Net Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+                {["Job","Partner","Customer","Status","Payout Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Total Paid","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Customer Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -1068,6 +1067,7 @@ export default function AdminReportsPage() {
                     <td className="px-4 py-3 text-black/70"><div>{b.partner_company_name||"—"}</div>{b.partner_vat_number&&<div className="text-xs text-black/40">{b.partner_vat_number}</div>}</td>
                     <td className="px-4 py-3 text-black/70">{b.customer_name||"—"}</td>
                     <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? statusPillClasses("disputed") : statusPillClasses(b.booking_status)}`}>{b.payout_hold ? "Disputed" : String(b.booking_status||"—").replaceAll("_"," ")}</span></td>
+                    <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? "border-amber-300 bg-amber-50 text-amber-700" : payoutPillClasses(b.payout_status)}`}>{b.payout_hold ? "On Hold" : (b.payout_status||"—")}</span></td>
                     <td className={`px-4 py-3 ${isCancelled&&b.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,b.currency??"EUR")}</td>
                     <td className="px-4 py-3">
                       {isCancelled&&b.refund_status==="full"
@@ -1076,13 +1076,13 @@ export default function AdminReportsPage() {
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">{feeInBid>0?<span className="font-black text-amber-700">− {fmtCurr(feeInBid,b.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{isCancelled&&b.refund_status==="full"?<span className="text-black/30">—</span>:<span className="text-xs font-black text-green-700">{fmtCurr(camelNetComm,b.currency??"EUR")}</span>}</td>
+                    <td className={`px-4 py-3 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,b.currency)}</td>
                     <td className="px-4 py-3 text-black/70">{fmtAmt(b.fuel_price,b.currency)}</td>
                     <td className="px-4 py-3 text-black/70">{usedQ!==null&&usedQ!==undefined?(QUARTER_LABELS[usedQ]??`${usedQ}/4`):"—"}</td>
                     <td className="px-4 py-3 font-black text-[#ff7a00]">{b.fuel_charge!==null?fmtAmt(b.fuel_charge,b.currency):"—"}</td>
                     <td className="px-4 py-3 font-black text-green-600">{fuelRefund>0?fmtCurr(fuelRefund,b.currency??"EUR"):"—"}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{pcRefundTotal>0?<span className="font-black text-amber-700">− {fmtCurr(pcRefundTotal,b.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
-                    <td className={`px-4 py-3 font-black ${isCancelled?"text-red-400 line-through":"text-black"}`}>{fmtAmt(b.amount,b.currency)}</td>
-                    <td className="px-4 py-3 font-black">{pcRefundTotal>0?fmtCurr(netFinal,b.currency??"EUR"):<span className="text-black/30">—</span>}</td>
+                    <td className="px-4 py-3 font-black text-black whitespace-nowrap">{fmtCurr(Math.max(0,Number(b.amount??0)-Number(b.fuel_refund??0)-pcRefundTotal),b.currency??"EUR")}</td>
                     <td className={`px-4 py-3 font-black ${isCancelled&&b.refund_status==="full"?"text-red-600":"text-green-700"}`}>{isCancelled&&b.refund_status==="full"?fmtCurr(0,b.currency??"EUR"):fmtCurr(partnerPayout,b.currency??"EUR")}</td>
                     <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_by||"—"}</td>
                     <td className="px-4 py-3 text-xs text-black/60 whitespace-nowrap">{b.cancelled_at?fmtDateTime(b.cancelled_at):"—"}</td>
