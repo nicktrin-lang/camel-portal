@@ -1,13 +1,13 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
+
+
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAuthSupabaseClient } from "@/lib/supabase/auth-client";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useTranslation } from "@/lib/i18n/useTranslation";
-import LanguageToggle from "@/lib/i18n/LanguageToggle";
+
 
 const inputCls = "w-full bg-[#f0f0f0] px-4 py-4 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
 const labelCls = "block text-xs font-black uppercase tracking-widest text-black mb-2";
@@ -66,18 +66,9 @@ function DriverResetPasswordInner() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <header className="w-full bg-black border-b border-white/10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
-          <Link href="/driver/login">
-            <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
-          </Link>
-          <LanguageToggle />
-        </div>
-      </header>
-
-      <div className="w-full bg-black px-6 pb-16 pt-10 text-white">
-        <div className="mx-auto max-w-xl">
+    <div>
+      <div className="w-full bg-black px-6 pb-16 pt-10 text-white -mx-4 -mt-5 md:-mx-8 md:-mt-8 mb-8">
+        <div className="mx-auto max-w-xl px-4 md:px-8">
           <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">
             {t("login.tag")}
           </p>
@@ -90,8 +81,7 @@ function DriverResetPasswordInner() {
         </div>
       </div>
 
-      <div className="w-full bg-[#f0f0f0] px-6 py-10 flex-1">
-        <div className="mx-auto max-w-xl">
+      <div className="mx-auto max-w-xl">
           <div className="bg-white p-8 space-y-5">
             {sessionError ? (
               <>
