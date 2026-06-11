@@ -25,7 +25,7 @@ type BookingRow = {
   pickup_at: string | null; dropoff_at: string | null;
   vehicle_category_name: string | null; customer_name: string | null;
   customer_email: string | null; customer_phone: string | null;
-  driver_name: string | null; driver_vehicle: string | null; payout_hold?: boolean | null;
+  driver_name: string | null; driver_vehicle: string | null; payout_hold?: boolean | null; payout_status?: string | null;
   delivery_confirmed_at: string | null; collection_confirmed_at: string | null;
   collection_fuel_level_driver: string | null; collection_fuel_level_partner: string | null;
   return_fuel_level_driver: string | null; return_fuel_level_partner: string | null;
@@ -69,6 +69,16 @@ function statusPillClasses(status?: string | null) {
     default: return "border-black/10 bg-white text-black";
   }
 }
+function payoutPillClasses(s?: string | null): string {
+  switch (String(s || "").toLowerCase()) {
+    case "paid":     return "border-green-300 bg-green-50 text-green-700";
+    case "ready":    return "border-blue-200 bg-blue-50 text-blue-700";
+    case "held":     return "border-amber-300 bg-amber-50 text-amber-700";
+    case "disputed": return "border-amber-300 bg-amber-50 text-amber-700";
+    default:         return "border-black/10 bg-[#f0f0f0] text-black/50";
+  }
+}
+
 function fmtStatus(value?: string | null) {
   switch (String(value || "").toLowerCase()) {
     case "confirmed": return "Confirmed"; case "driver_assigned": return "Driver assigned";
@@ -223,7 +233,7 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
         <table className="min-w-full text-sm">
           <thead className="bg-black text-white">
             <tr>
-              {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Total Paid","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Customer Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+              {["Job","Partner","Customer","Status","Payout Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Total Paid","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Customer Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                 <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -240,6 +250,7 @@ function AdminCurrencySection({ curr, t, bookings, router }: { curr:Currency; t:
                   <td className="px-4 py-3 text-black/70"><div>{b.partner_company_name||"—"}</div>{b.partner_vat_number&&<div className="text-xs text-black/40">{b.partner_vat_number}</div>}</td>
                   <td className="px-4 py-3 text-black/70">{b.customer_name||"—"}</td>
                   <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? statusPillClasses("disputed") : statusPillClasses(b.booking_status)}`}>{b.payout_hold ? "Disputed" : fmtStatus(b.booking_status)}</span></td>
+                  <td className="px-4 py-3"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${b.payout_hold ? "border-amber-300 bg-amber-50 text-amber-700" : payoutPillClasses(b.payout_status)}`}>{b.payout_hold ? "On Hold" : (b.payout_status || "—")}</span></td>
                   <td className={`px-4 py-3 ${isCancelled?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,curr)}</td>
                   <td className="px-4 py-3">
                     {isCancelled&&b.refund_status==="full"
@@ -535,13 +546,13 @@ export default function AdminBookingsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Job","Partner","Customer","Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Total Paid","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Customer Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
+                {["Job","Partner","Customer","Status","Payout Status","Car Hire","Commission","Stripe Fee (Camel)","Camel Net Income","Total Paid","Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund","Refund","Customer Final","Partner Payout","Cancelled By","Cancelled At","Insurance"].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
-              {visible.length===0?(<tr><td colSpan={19} className="px-4 py-4 text-black/50">No bookings found.</td></tr>):visible.map((row,i)=>{
+              {visible.length===0?(<tr><td colSpan={20} className="px-4 py-4 text-black/50">No bookings found.</td></tr>):visible.map((row,i)=>{
                 const usedQ=row.fuel_used_quarters;
                 const isCancelled=String(row.booking_status||"").toLowerCase()==="cancelled";
                 const { commAmt, partnerPayout, camelNetComm, rate, hire, fuelRefund, feeInBid } = calcPayout(row);
@@ -551,6 +562,7 @@ export default function AdminBookingsPage() {
                     <td className="px-4 py-4 text-black/70"><div>{row.partner_company_name||"—"}</div>{row.partner_vat_number&&<div className="text-xs text-black/40">{row.partner_vat_number}</div>}</td>
                     <td className="px-4 py-4 text-black/70"><div>{row.customer_name||"—"}</div><div className="text-xs text-black/40">{row.customer_phone||""}</div></td>
                     <td className="px-4 py-4"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${row.payout_hold ? statusPillClasses("disputed") : statusPillClasses(row.booking_status)}`}>{row.payout_hold ? "Disputed" : fmtStatus(row.booking_status)}</span></td>
+                    <td className="px-4 py-4"><span className={`inline-flex border px-2 py-0.5 text-xs font-black uppercase tracking-widest ${row.payout_hold ? "border-amber-300 bg-amber-50 text-amber-700" : payoutPillClasses(row.payout_status)}`}>{row.payout_hold ? "On Hold" : (row.payout_status || "—")}</span></td>
                     <td className={`px-4 py-4 ${isCancelled&&row.refund_status==="full"?"text-red-400 line-through":"text-black/70"}`}>{fmtCurr(hire,row.currency??"EUR")}</td>
                     <td className="px-4 py-4">{isCancelled&&row.refund_status==="full"?(<span className="text-xs font-black text-red-400 line-through">{fmtCurr(commAmt,row.currency??"EUR")}</span>):(<><div className="text-xs font-black text-[#ff7a00]">{fmtCurr(commAmt,row.currency??"EUR")}</div><div className="text-xs text-black/40">{rate}%</div></>)}</td>
                     <td className="px-4 py-4 whitespace-nowrap">{feeInBid>0?<span className="text-xs font-black text-amber-700">− {fmtCurr(feeInBid,row.currency??"EUR")}</span>:<span className="text-black/30">—</span>}</td>
