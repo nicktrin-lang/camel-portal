@@ -64,10 +64,10 @@ function calcPayout(b: BookingRow) {
   const rate        = b.commission_rate ?? 20;
   const commAmt     = Math.max((hire * rate) / 100, 10);
   const fuelCharge  = Number(b.fuel_charge ?? 0);
-  const partnerPayout = Math.max(0, hire - commAmt + fuelCharge);
+  const partnerPayout = Math.max(0, hire - commAmt + fuelCharge - pcRefundTotal);
   const fuelRefund  = (isCancelled && b.refund_status === "partial") ? fuel : Number(b.fuel_refund ?? 0);
-  const finalAmount = hire + fuelCharge;
-  const netFinal    = finalAmount - pcRefundTotal;
+  const totalPaid   = hire + fuel;
+  const netFinal    = Math.max(0, totalPaid - fuelRefund - pcRefundTotal);
   return { hire, rate, commAmt, partnerPayout, fuelRefund, pcRefundTotal, netFinal };
 }
 function statusPillClasses(status?: string | null) {
@@ -310,7 +310,7 @@ export default function PartnerReportsPage() {
       "Pickup Date","Dropoff Date","Vehicle","Currency",
       "Car Hire","Commission Rate (%)","Commission Amount",
       "Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund",
-      "Post-Completion Refunds","Net Final Amount",
+      "Refund","Customer Final",
       "Total Booking","Your Net Payout",
       "Booking Status","Payout Status","Cancelled By","Refund Status","Created At",
     ];
@@ -328,7 +328,7 @@ export default function PartnerReportsPage() {
         usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—",
         Number(b.fuel_charge ?? 0), fuelRefund,
         pcRefundTotal > 0 ? pcRefundTotal : "",
-        pcRefundTotal > 0 ? Number(netFinal.toFixed(2)) : "",
+        Number(netFinal.toFixed(2)),
         isCancelled ? 0 : Number(b.amount ?? 0), partnerPayout,
         b.payout_hold ? "Disputed" : (b.booking_status || ""), b.payout_hold ? "On Hold" : (b.payout_status || ""),
         b.cancelled_by || "", b.refund_status || "", fmtDate(b.created_at),
@@ -385,7 +385,7 @@ export default function PartnerReportsPage() {
           { label: t("reports.summary.commission"),  value: tot.commission,     isMoney: true  },
           { label: t("reports.summary.yourPayout"),  value: tot.payout,         isMoney: true  },
           { label: t("reports.summary.fuelRefunded"),value: tot.fuelRefund,     isMoney: true  },
-          { label: "Post-Comp Refunds",              value: tot.pcRefundTotal,  isMoney: true, isPcRefund: true },
+          { label: "Refund",              value: tot.pcRefundTotal,  isMoney: true, isPcRefund: true },
           { label: t("reports.summary.disputed"),    value: tot.disputedPayout, isMoney: true, isDisputed: true },
         ];
         return (
@@ -437,12 +437,12 @@ export default function PartnerReportsPage() {
                 {[
                   t("reports.bookings.col.job"), t("reports.bookings.col.customer"),
                   t("reports.bookings.col.pickup"), t("reports.bookings.col.status"),
-                  t("reports.bookings.col.currency"), t("reports.bookings.col.carHire"),
+                  t("reports.bookings.col.total"), t("reports.bookings.col.currency"), t("reports.bookings.col.carHire"),
                   t("reports.bookings.col.commission"), t("reports.bookings.col.fuelDeposit"),
                   t("reports.bookings.col.fuelUsed"), t("reports.bookings.col.fuelCharge"),
                   t("reports.bookings.col.fuelRefund"),
-                  "Post-Comp Refunds", "Net Final",
-                  t("reports.bookings.col.total"), t("reports.bookings.col.yourPayout"),
+                  "Refund", "Customer Final",
+                  t("reports.bookings.col.yourPayout"),
                   t("reports.bookings.col.payoutStatus"),
                 ].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
@@ -468,6 +468,7 @@ export default function PartnerReportsPage() {
                         {b.payout_hold ? "Disputed" : fmtStatus(b.booking_status)}
                       </span>
                     </td>
+                    <td className={`px-4 py-3 font-black ${isCancelled ? "text-red-400 line-through" : "text-black"}`}>{fmtCurr(isCancelled ? 0 : Number(b.amount ?? 0), curr)}</td>
                     <td className="px-4 py-3 text-xs font-bold text-black/60">{curr}</td>
                     <td className={`px-4 py-3 ${isCancelled && b.refund_status === "full" ? "text-red-400 line-through" : "text-black/70"}`}>{fmtCurr(hire, curr)}</td>
                     <td className="px-4 py-3">
@@ -484,12 +485,7 @@ export default function PartnerReportsPage() {
                         ? <span className="font-black text-amber-700">− {fmtCurr(pcRefundTotal, curr)}</span>
                         : <span className="text-black/30">—</span>}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {pcRefundTotal > 0
-                        ? <span className="font-black text-black">{fmtCurr(netFinal, curr)}</span>
-                        : <span className="text-black/30">—</span>}
-                    </td>
-                    <td className={`px-4 py-3 font-black ${isCancelled ? "text-red-400 line-through" : "text-black"}`}>{fmtCurr(isCancelled ? 0 : Number(b.amount ?? 0), curr)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap font-black text-black">{fmtCurr(netFinal, curr)}</td>
                     <td className={`px-4 py-3 font-black ${isCancelled && b.refund_status === "full" ? "text-red-400" : "text-green-700"}`}>
                       {isCancelled && b.refund_status === "full" ? fmtCurr(0, curr) : fmtCurr(partnerPayout, curr)}
                     </td>
