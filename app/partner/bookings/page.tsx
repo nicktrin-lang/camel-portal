@@ -153,6 +153,7 @@ function downloadExcel(rows: BookingRow[]) {
     "Bid Currency","Charge Currency",
     "Car Hire Price","Commission Rate (%)","Commission Amount",
     "Fuel Deposit","Fuel Charge","Fuel Refund",
+    "Refund","Customer Final",
     "Total Amount","Net Payout",
     "Created At","Cancelled By","Cancelled At","Cancellation Reason","Refund Status","Payout Hold",
   ];
@@ -175,6 +176,8 @@ function downloadExcel(rows: BookingRow[]) {
       r.currency ?? "EUR", r.charge_currency ?? r.currency ?? "EUR",
       hire, rate, commAmt,
       r.fuel_price ?? "", r.fuel_charge ?? "", r.fuel_refund ?? "",
+      Number(r.post_completion_refund_total??0)>0?Number(r.post_completion_refund_total??0):"",
+      Number((Math.max(0,Number(r.amount??0)-Number(r.fuel_refund??0)-Number(r.post_completion_refund_total??0))).toFixed(2)),
       r.amount ?? "", netPayout.toFixed(2),
       fmtDateTimeStr(r.created_at), r.cancelled_by ?? "",
       r.cancelled_at ? fmtDateTimeStr(r.cancelled_at) : "",
