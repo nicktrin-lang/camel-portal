@@ -180,11 +180,15 @@ function Field({ label, children }: { label:string; children:React.ReactNode }) 
 }
 
 // ── Invoice data PDF download ─────────────────────────────────────────────────
-async function downloadInvoiceData(booking: BookingRow, req: RequestRow | null) {
+async function downloadInvoiceData(
+  booking: BookingRow,
+  req: RequestRow | null,
+  postCompletionRefunds: PostCompletionRefund[] = [],
+) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const pageW  = doc.internal.pageSize.getWidth();
-  const margin = 15;
+  const pageW   = doc.internal.pageSize.getWidth();
+  const margin  = 15;
   const usableW = pageW - margin * 2;
   let y = margin;
 
@@ -267,33 +271,23 @@ async function downloadInvoiceData(booking: BookingRow, req: RequestRow | null) 
 
   // ── Customer details ─────────────────────────────────────────────────────
   addSectionHeader("Customer Details");
-  addLine("Full name",       req?.customer_name   || "—");
-  addLine("Email",           req?.customer_email  || "—");
-  addLine("Phone",           req?.customer_phone  || "—");
-
-  if (req?.customer_billing_address) {
-    addLine("Billing address", req.customer_billing_address);
-  } else {
-    addLine("Billing address", "Not provided by customer");
-  }
-
-  if (req?.customer_tax_id) {
-    addLine("Tax ID / VAT No.", req.customer_tax_id);
-  } else {
-    addLine("Tax ID / VAT No.", "Not provided by customer");
-  }
+  addLine("Full name",  req?.customer_name  || "—");
+  addLine("Email",      req?.customer_email || "—");
+  addLine("Phone",      req?.customer_phone || "—");
+  addLine("Billing address", req?.customer_billing_address || "Not provided by customer");
+  addLine("Tax ID / VAT No.", req?.customer_tax_id         || "Not provided by customer");
   addDivider();
 
   // ── Hire details ─────────────────────────────────────────────────────────
   addSectionHeader("Hire Details");
-  addLine("Pickup address",  req?.pickup_address  || "—");
-  addLine("Dropoff address", req?.dropoff_address || "—");
+  addLine("Pickup address",    req?.pickup_address  || "—");
+  addLine("Dropoff address",   req?.dropoff_address || "—");
   addLine("Pickup date/time",  fmtDateStr(req?.pickup_at));
   addLine("Dropoff date/time", fmtDateStr(req?.dropoff_at));
-  addLine("Duration",        fmtDuration(req?.journey_duration_minutes));
-  addLine("Vehicle type",    req?.vehicle_category_name || "—");
-  addLine("Passengers",      req?.passengers != null ? String(req.passengers) : "—");
-  addLine("Main driver age", req?.driver_age != null ? String(req.driver_age) : "—");
+  addLine("Duration",          fmtDuration(req?.journey_duration_minutes));
+  addLine("Vehicle type",      req?.vehicle_category_name || "—");
+  addLine("Passengers",        req?.passengers != null ? String(req.passengers) : "—");
+  addLine("Main driver age",   req?.driver_age != null ? String(req.driver_age) : "—");
   if ((req?.additional_drivers ?? 0) > 0) {
     addLine("Additional drivers", `${req!.additional_drivers}${req!.additional_driver_ages ? ` (ages: ${req!.additional_driver_ages})` : ""}`);
   }
@@ -305,15 +299,79 @@ async function downloadInvoiceData(booking: BookingRow, req: RequestRow | null) 
   const fuelDep    = Number(booking.fuel_price ?? 0);
   const fuelCharge = Number(booking.fuel_charge ?? 0);
   const fuelRefund = Number(booking.fuel_refund ?? 0);
-  const total      = hire + fuelCharge;
+  const pcTotal    = Number(booking.post_completion_refund_total ?? 0);
+  const grossTotal = hire + fuelCharge;
+  const netTotal   = Math.max(0, grossTotal - pcTotal);
 
-  addLine("Currency",           currency);
-  addLine("Car hire amount",    fmtMoney(hire), true);
-  addLine("Fuel deposit",       fmtMoney(fuelDep));
+  addLine("Currency",        currency);
+  addLine("Car hire amount", fmtMoney(hire), true);
+  addLine("Fuel deposit",    fmtMoney(fuelDep));
   if (fuelCharge > 0) addLine("Fuel charge (actual)", fmtMoney(fuelCharge));
   if (fuelRefund > 0) addLine("Fuel refunded",        fmtMoney(fuelRefund));
-  addLine("Total (hire + fuel charged)", fmtMoney(total), true);
+  addLine(
+    postCompletionRefunds.length > 0 ? "Gross total (hire + fuel charged)" : "Total (hire + fuel charged)",
+    fmtMoney(grossTotal),
+    true,
+  );
 
+  // ── Post-completion refunds ───────────────────────────────────────────────
+  if (postCompletionRefunds.length > 0) {
+    y += 3;
+
+    // Measure box height needed
+    const refundLineH = 6;
+    const boxHeight   = 7 + postCompletionRefunds.length * refundLineH + 12;
+    if (y + boxHeight > 275) { doc.addPage(); y = margin; }
+
+    // Amber box
+    doc.setFillColor(255, 251, 235);
+    doc.rect(margin, y, usableW, boxHeight, "F");
+    doc.setDrawColor(251, 191, 36);
+    doc.setLineWidth(0.4);
+    doc.rect(margin, y, usableW, boxHeight, "S");
+
+    y += 5;
+    doc.setFontSize(7.5); doc.setFont("helvetica", "bold"); doc.setTextColor(146, 64, 14);
+    doc.text("POST-COMPLETION REFUNDS ISSUED BY CAMEL GLOBAL", margin + 3, y);
+    y += 6;
+
+    postCompletionRefunds.forEach((r, i) => {
+      doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(120, 53, 15);
+      const refundDate = r.created_at
+        ? new Date(r.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+        : "—";
+      const label = `Refund ${i + 1}${r.reason ? ` — ${r.reason}` : ""} (${refundDate})`;
+      const labelLines = doc.splitTextToSize(label, usableW - 55);
+      doc.text(labelLines, margin + 3, y);
+      doc.setFont("helvetica", "bold");
+      doc.text(`− ${fmtMoney(r.amount)}`, pageW - margin - 3, y, { align: "right" });
+      doc.setFont("helvetica", "normal");
+      y += refundLineH;
+    });
+
+    y += 3;
+    doc.setFont("helvetica", "bold"); doc.setTextColor(146, 64, 14);
+    doc.text("Total refunded to customer:", margin + 3, y);
+    doc.text(`− ${fmtMoney(pcTotal)}`, pageW - margin - 3, y, { align: "right" });
+    y += 8;
+
+    // Net total line outside the box
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 0, 0);
+    doc.text("NET TOTAL AFTER REFUNDS", margin, y);
+    doc.text(fmtMoney(netTotal), pageW - margin, y, { align: "right" });
+    y += 6;
+
+    // Guidance note
+    doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(120, 120, 120);
+    const refundNote = doc.splitTextToSize(
+      "Note: Post-completion refunds were issued by Camel Global directly to the customer and reduce the net amount received by them. The taxable supply on your VAT invoice is the gross car hire amount. If you have issued a credit note to account for a partial refund of services, include that reference on your invoice.",
+      usableW
+    );
+    doc.text(refundNote, margin, y);
+    y += refundNote.length * 4 + 4;
+  }
+
+  // General note
   doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(120, 120, 120);
   const noteLines = doc.splitTextToSize(
     "Note: The car hire amount above is the gross amount paid by the customer through the Camel Global platform before Camel's commission is deducted. For your VAT invoice to the customer, the taxable supply is the full car hire amount. Camel Global's commission is a separate platform fee charged to you — it does not reduce the value of the supply to the customer.",
@@ -333,7 +391,6 @@ async function downloadInvoiceData(booking: BookingRow, req: RequestRow | null) 
   doc.text(supplierNote, margin, y);
   y += supplierNote.length * 4.5 + 4;
 
-  // Blank fields for manual completion
   const blankFields = [
     "Your company name",
     "Your registered address",
@@ -424,7 +481,6 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
         )}
       </div>
 
-      {/* Post-completion refunds — read-only for partner */}
       {postCompletionRefunds.length > 0 && (
         <div className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">
@@ -740,9 +796,9 @@ export default function PartnerBookingDetailPage() {
   const [returnFuel,          setReturnFuel]          = useState<FuelLevel>("full");
   const [returnConfirmed,     setReturnConfirmed]     = useState(false);
   const [returnNotes,         setReturnNotes]         = useState("");
-  const [showCancel,   setShowCancel]   = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
-  const [cancelling,   setCancelling]   = useState(false);
+  const [showCancel,     setShowCancel]     = useState(false);
+  const [cancelReason,   setCancelReason]   = useState("");
+  const [cancelling,     setCancelling]     = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   function hydrateForm(d: BookingApiResponse) {
@@ -837,7 +893,7 @@ export default function PartnerBookingDetailPage() {
     if (!data) return;
     setDownloadingPdf(true);
     try {
-      await downloadInvoiceData(data.booking, data.request);
+      await downloadInvoiceData(data.booking, data.request, data.postCompletionRefunds ?? []);
     } catch (e: any) {
       setError("Failed to generate PDF: " + (e?.message || "Unknown error"));
     } finally {
@@ -1010,7 +1066,6 @@ export default function PartnerBookingDetailPage() {
             <Field label={t("bookings.detail.journey.vehicle")}>{req?.vehicle_category_name||"—"}</Field>
             {req?.notes&&<Field label={t("bookings.detail.info.notes")}>{req.notes}</Field>}
 
-            {/* Customer billing details — only shown when populated */}
             {(req?.customer_billing_address || req?.customer_tax_id) && (
               <div className="mt-4 border-t border-black/10 pt-4 space-y-3">
                 <p className="text-xs font-black uppercase tracking-widest text-black/30">Customer Invoice Details</p>
@@ -1028,7 +1083,6 @@ export default function PartnerBookingDetailPage() {
               </div>
             )}
 
-            {/* Prompt when no billing details provided */}
             {!req?.customer_billing_address && !req?.customer_tax_id && (
               <div className="mt-4 border-t border-black/10 pt-4">
                 <p className="text-xs font-black uppercase tracking-widest text-black/30 mb-1">Customer Invoice Details</p>
