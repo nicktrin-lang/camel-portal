@@ -358,6 +358,28 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (refundCents > 0 && payment.stripe_payment_intent_id) {
     try {
+      // Step 1: Reverse the transfer to the partner — pulls money back before refunding customer
+      const pi = await stripe.paymentIntents.retrieve(
+        payment.stripe_payment_intent_id,
+        { expand: ["latest_charge"] }
+      );
+      const charge = pi.latest_charge as any;
+      const transferId = charge?.transfer as string | null;
+
+      if (transferId) {
+        await stripe.transfers.createReversal(transferId, {
+          amount: refundCents,
+          metadata: {
+            refund_type: "fuel_refund",
+            booking_id:  bookingId,
+            job_number:  jobNo,
+          },
+        });
+      } else {
+        console.warn(`completeBooking: no transfer found on PI ${payment.stripe_payment_intent_id} — skipping transfer reversal`);
+      }
+
+      // Step 2: Refund the customer from Camel's main account
       const refund = await stripe.refunds.create({
         payment_intent: payment.stripe_payment_intent_id,
         amount: refundCents,

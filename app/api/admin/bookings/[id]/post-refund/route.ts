@@ -104,11 +104,36 @@ export async function POST(
       return NextResponse.json({ error: "No Stripe payment intent found for this booking" }, { status: 400 });
     }
 
-    // ── Issue Stripe refund ───────────────────────────────────────────────
+    // ── Issue Stripe transfer reversal + refund ──────────────────────────
     const jobNo = booking.job_number ? `#${booking.job_number}` : bookingId.slice(0, 8);
     let stripeRefundId: string | null = null;
 
     try {
+      // Step 1: Reverse the transfer to the partner's connected account
+      // This pulls the refund amount back from the partner before refunding the customer
+      const pi = await stripe.paymentIntents.retrieve(
+        payment.stripe_payment_intent_id,
+        { expand: ["latest_charge"] }
+      );
+      const charge = pi.latest_charge as any;
+      const transferId = charge?.transfer as string | null;
+
+      if (transferId) {
+        await stripe.transfers.createReversal(transferId, {
+          amount: Math.round(amount * 100),
+          metadata: {
+            refund_type: "post_completion_refund",
+            booking_id:  bookingId,
+            job_number:  jobNo,
+            reason:      reason || "Post-completion adjustment",
+            issued_by:   email,
+          },
+        });
+      } else {
+        console.warn(`post-refund: no transfer found on payment intent ${payment.stripe_payment_intent_id} — skipping transfer reversal`);
+      }
+
+      // Step 2: Refund the customer from Camel's main account
       const refund = await stripe.refunds.create({
         payment_intent: payment.stripe_payment_intent_id,
         amount: Math.round(amount * 100),
