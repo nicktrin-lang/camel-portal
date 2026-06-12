@@ -1,5 +1,5 @@
-export const TERMS_VERSION   = "2026-06c";
-export const TERMS_EFFECTIVE = "10 June 2026";
+export const TERMS_VERSION   = "2026-06d";
+export const TERMS_EFFECTIVE = "12 June 2026";
 
 export type TermsSection = { title: string; clauses: string[] };
 
@@ -125,8 +125,11 @@ export const PARTNER_TERMS: TermsSection[] = [
     ],
   },
   {
-    title: "9. VAT and Tax",
+    title: "9. VAT, Tax and Invoicing",
     clauses: [
+      "The Partner is the supplier of car hire services to the Customer. The legal contract for the provision of those services is between the Partner and the Customer. Camel Global is a marketplace intermediary only.",
+      "The booking confirmation receipt issued by Camel Global to Customers confirms payment received by NTUK Ltd as a platform intermediary. It is not a VAT invoice for car hire services and does not fulfil the Partner's invoicing obligations to Customers.",
+      "The Partner is solely responsible for issuing VAT invoices to Customers in accordance with all applicable tax legislation. Where a Customer requests a VAT invoice for a Booking, the Partner must issue one directly to the Customer within a reasonable time. Camel Global does not issue VAT invoices for car hire services and is not responsible for the Partner's compliance with invoicing obligations.",
       "The Partner is responsible for charging and accounting for VAT on the full Booking price paid by the Customer.",
       "Camel Global will invoice the Partner for commission using the reverse charge mechanism under Article 44/196 of the EU VAT Directive.",
       "Partners operating in Spain must provide a valid NIF. This is required for account activation and commission invoicing.",
@@ -325,8 +328,11 @@ export const PARTNER_TERMS_ES: TermsSection[] = [
     ],
   },
   {
-    title: "9. IVA e Impuestos",
+    title: "9. IVA, Impuestos y Facturación",
     clauses: [
+      "El Socio es el proveedor de servicios de alquiler de vehículos al Cliente. El contrato legal para la prestación de dichos servicios se celebra directamente entre el Socio y el Cliente. Camel Global actúa únicamente como intermediario de la plataforma.",
+      "El recibo de confirmación de reserva emitido por Camel Global a los Clientes confirma el pago recibido por NTUK Ltd como intermediario de la plataforma. No constituye una factura de IVA por servicios de alquiler de vehículos y no cumple las obligaciones de facturación del Socio frente a los Clientes.",
+      "El Socio es el único responsable de emitir facturas de IVA a los Clientes de conformidad con toda la legislación fiscal aplicable. Cuando un Cliente solicite una factura de IVA por una Reserva, el Socio debe emitirla directamente al Cliente en un plazo razonable. Camel Global no emite facturas de IVA por servicios de alquiler de vehículos y no es responsable del cumplimiento por parte del Socio de sus obligaciones de facturación.",
       "El Socio es responsable de cobrar y contabilizar el IVA sobre el precio total de la Reserva pagado por el Cliente.",
       "Camel Global facturará al Socio la comisión utilizando el mecanismo de inversión del sujeto pasivo según el Artículo 44/196 de la Directiva de IVA de la UE.",
       "Los Socios que operen en España deben proporcionar un NIF válido. Esto es necesario para la activación de la cuenta y la facturación de comisiones.",

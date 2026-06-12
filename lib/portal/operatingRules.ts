@@ -119,6 +119,17 @@ export const OPERATING_RULES = [
     ],
   },
   {
+    section: "9b. Invoicing Obligations",
+    rules: [
+      "Partners are the supplier of car hire services to customers. The contract for the provision of those services is directly between the partner and the customer. Camel Global is a marketplace intermediary only and is not a party to that contract.",
+      "The booking confirmation receipt issued by Camel Global to customers is a platform payment receipt issued by NTUK Ltd. It is not a VAT invoice for car hire services and does not fulfil the partner's invoicing obligations to customers.",
+      "Partners are solely responsible for issuing VAT invoices to customers in accordance with all applicable tax legislation in their jurisdiction. Where a customer requests a VAT invoice for a booking, the partner must issue one directly to the customer within a reasonable time.",
+      "Camel Global does not issue VAT invoices for car hire services on behalf of partners and is not responsible for the partner's compliance with invoicing obligations.",
+      "Partners must not direct customers to Camel Global to obtain a VAT invoice for car hire services. Such requests must be handled by the partner directly.",
+      "It is the partner's responsibility to ensure they have the internal accounting and invoicing processes in place to meet their obligations to customers and to tax authorities. Camel Global does not provide accounting or tax advice.",
+    ],
+  },
+  {
     section: "10. Data & Privacy",
     rules: [
       "Customer data shared via the platform (name, phone, email, pickup/dropoff address) may only be used for the purpose of fulfilling the booking.",
@@ -267,6 +278,17 @@ export const OPERATING_RULES_ES = [
       "En caso de disputa de reembolso de un cliente, Camel Global puede mediar, pero la responsabilidad financiera recae en el socio.",
       "Disputas y contracargos de clientes: Si un cliente presenta una disputa de pago o contracargo ante su banco o entidad emisora de tarjeta, Camel Global retendrá el pago del socio correspondiente a esa reserva hasta que se resuelva la disputa. El socio será notificado por correo electrónico. El pago permanecerá retenido hasta la resolución completa de la disputa. Si se resuelve a favor del cliente, el pago será anulado. Si se resuelve a favor del socio, el pago se liberará en el siguiente ciclo mensual.",
       "Todos los reembolsos de combustible adeudados a los clientes deben procesarse en un plazo de 5 días hábiles desde la finalización de la reserva.",
+    ],
+  },
+  {
+    section: "9b. Obligaciones de Facturación",
+    rules: [
+      "Los socios son el proveedor de servicios de alquiler de vehículos a los clientes. El contrato para la prestación de dichos servicios se celebra directamente entre el socio y el cliente. Camel Global actúa únicamente como intermediario de la plataforma y no es parte de dicho contrato.",
+      "El recibo de confirmación de reserva emitido por Camel Global a los clientes es un recibo de pago de la plataforma emitido por NTUK Ltd. No constituye una factura de IVA por servicios de alquiler de vehículos y no cumple las obligaciones de facturación del socio frente a los clientes.",
+      "Los socios son los únicos responsables de emitir facturas de IVA a los clientes de conformidad con toda la legislación fiscal aplicable en su jurisdicción. Cuando un cliente solicite una factura de IVA por una reserva, el socio debe emitirla directamente al cliente en un plazo razonable.",
+      "Camel Global no emite facturas de IVA por servicios de alquiler de vehículos en nombre de los socios y no es responsable del cumplimiento por parte del socio de sus obligaciones de facturación.",
+      "Los socios no deben dirigir a los clientes a Camel Global para obtener una factura de IVA por servicios de alquiler de vehículos. Dichas solicitudes deben ser gestionadas directamente por el socio.",
+      "Es responsabilidad del socio asegurarse de contar con los procesos internos de contabilidad y facturación necesarios para cumplir sus obligaciones frente a los clientes y a las autoridades fiscales. Camel Global no proporciona asesoramiento contable ni fiscal.",
     ],
   },
   {
