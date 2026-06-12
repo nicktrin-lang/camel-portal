@@ -153,7 +153,7 @@ function downloadExcel(rows: BookingRow[]) {
     "Bid Currency","Charge Currency",
     "Car Hire Price","Commission Rate (%)","Commission Amount",
     "Fuel Deposit","Fuel Charge","Fuel Refund",
-    t("bookings.table.col.refund"),t("bookings.table.col.customerFinal"),
+    "Refund","Customer Final",
     "Total Amount","Net Payout",
     "Created At","Cancelled By","Cancelled At","Cancellation Reason","Refund Status","Payout Hold",
   ];
