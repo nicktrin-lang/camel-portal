@@ -385,7 +385,7 @@ export default function PartnerReportsPage() {
           { label: t("reports.summary.commission"),  value: tot.commission,     isMoney: true  },
           { label: t("reports.summary.yourPayout"),  value: tot.payout,         isMoney: true  },
           { label: t("reports.summary.fuelRefunded"),value: tot.fuelRefund,     isMoney: true  },
-          { label: "Refund",              value: tot.pcRefundTotal,  isMoney: true, isPcRefund: true },
+          { label: t("reports.bookings.col.refund"),              value: tot.pcRefundTotal,  isMoney: true, isPcRefund: true },
           { label: t("reports.summary.disputed"),    value: tot.disputedPayout, isMoney: true, isDisputed: true },
         ];
         return (
@@ -441,7 +441,7 @@ export default function PartnerReportsPage() {
                   t("reports.bookings.col.commission"), t("reports.bookings.col.fuelDeposit"),
                   t("reports.bookings.col.fuelUsed"), t("reports.bookings.col.fuelCharge"),
                   t("reports.bookings.col.fuelRefund"),
-                  "Refund", "Customer Final",
+                  t("reports.bookings.col.refund"), t("reports.bookings.col.customerFinal"),
                   t("reports.bookings.col.yourPayout"),
                   t("reports.bookings.col.payoutStatus"),
                 ].map(h => (

@@ -153,7 +153,7 @@ function downloadExcel(rows: BookingRow[]) {
     "Bid Currency","Charge Currency",
     "Car Hire Price","Commission Rate (%)","Commission Amount",
     "Fuel Deposit","Fuel Charge","Fuel Refund",
-    "Refund","Customer Final",
+    t("bookings.table.col.refund"),t("bookings.table.col.customerFinal"),
     "Total Amount","Net Payout",
     "Created At","Cancelled By","Cancelled At","Cancellation Reason","Refund Status","Payout Hold",
   ];
@@ -396,7 +396,7 @@ export default function PartnerBookingsPage() {
                       t("bookings.table.col.commission"),
                       t("bookings.table.col.fuelCharge"),
                       t("bookings.table.col.fuelRefund"),
-                      "Refund",
+                      t("bookings.table.col.refund"),
                       t("bookings.table.col.netPayout"),
                       t("bookings.table.col.created"),
                     ].map(h => (
