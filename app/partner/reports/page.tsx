@@ -437,7 +437,7 @@ export default function PartnerReportsPage() {
                 {[
                   t("reports.bookings.col.job"), t("reports.bookings.col.customer"),
                   t("reports.bookings.col.pickup"), t("reports.bookings.col.status"),
-                  t("reports.bookings.col.total"), t("reports.bookings.col.currency"), t("reports.bookings.col.carHire"),
+                  t("reports.bookings.col.currency"), t("reports.bookings.col.total"), t("reports.bookings.col.carHire"),
                   t("reports.bookings.col.commission"), t("reports.bookings.col.fuelDeposit"),
                   t("reports.bookings.col.fuelUsed"), t("reports.bookings.col.fuelCharge"),
                   t("reports.bookings.col.fuelRefund"),
@@ -468,8 +468,8 @@ export default function PartnerReportsPage() {
                         {b.payout_hold ? "Disputed" : fmtStatus(b.booking_status)}
                       </span>
                     </td>
-                    <td className={`px-4 py-3 font-black ${isCancelled ? "text-red-400 line-through" : "text-black"}`}>{fmtCurr(isCancelled ? 0 : Number(b.amount ?? 0), curr)}</td>
                     <td className="px-4 py-3 text-xs font-bold text-black/60">{curr}</td>
+                    <td className={`px-4 py-3 font-black ${isCancelled ? "text-red-400 line-through" : "text-black"}`}>{fmtCurr(isCancelled ? 0 : Number(b.amount ?? 0), curr)}</td>
                     <td className={`px-4 py-3 ${isCancelled && b.refund_status === "full" ? "text-red-400 line-through" : "text-black/70"}`}>{fmtCurr(hire, curr)}</td>
                     <td className="px-4 py-3">
                       {isCancelled && b.refund_status === "full"
