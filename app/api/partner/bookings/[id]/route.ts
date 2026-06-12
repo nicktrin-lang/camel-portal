@@ -103,11 +103,36 @@ export async function GET(
           pickup_address, dropoff_address, pickup_at, dropoff_at,
           journey_duration_minutes, passengers, suitcases, hand_luggage,
           sport_equipment, driver_age, additional_drivers, additional_driver_ages,
-          vehicle_category_name, notes, status, created_at
+          vehicle_category_name, notes, status, created_at,
+          customer_user_id
         `)
         .eq("id", bookingRow.request_id)
         .maybeSingle();
-      requestRow = reqData || null;
+
+      if (reqData) {
+        // ── Customer billing details (for VAT invoice purposes) ─────────────
+        // Only fetched if the customer has populated them — never exposed otherwise
+        let customerBillingAddress: string | null = null;
+        let customerTaxId: string | null = null;
+
+        if (reqData.customer_user_id) {
+          const { data: profileRow } = await db
+            .from("customer_profiles")
+            .select("billing_address, tax_id")
+            .eq("user_id", reqData.customer_user_id)
+            .maybeSingle();
+          if (profileRow) {
+            customerBillingAddress = profileRow.billing_address ?? null;
+            customerTaxId          = profileRow.tax_id ?? null;
+          }
+        }
+
+        requestRow = {
+          ...reqData,
+          customer_billing_address: customerBillingAddress,
+          customer_tax_id:          customerTaxId,
+        };
+      }
     }
 
     // ── Partner profile ──────────────────────────────────────────────────────

@@ -59,6 +59,7 @@ type BookingRow = {
   payout_hold?: boolean | null;
   payout_hold_reason?: string | null;
   post_completion_refund_total?: number | null;
+  partner_company_name?: string | null;
 };
 
 type PaymentData = {
@@ -82,6 +83,8 @@ type RequestRow = {
   additional_drivers: number;
   additional_driver_ages: string | null;
   vehicle_category_name: string | null; notes: string | null; status: string | null; created_at: string | null;
+  customer_billing_address: string | null;
+  customer_tax_id: string | null;
 };
 
 type BookingApiResponse = {
@@ -174,6 +177,194 @@ function Field({ label, children }: { label:string; children:React.ReactNode }) 
       <span className="text-sm font-bold text-black">{children}</span>
     </div>
   );
+}
+
+// ── Invoice data PDF download ─────────────────────────────────────────────────
+async function downloadInvoiceData(booking: BookingRow, req: RequestRow | null) {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW  = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  const usableW = pageW - margin * 2;
+  let y = margin;
+
+  const currency = booking.currency ?? "EUR";
+  const jobRef   = booking.job_number ? `#${booking.job_number}` : booking.id.slice(0, 8).toUpperCase();
+  const dateStr  = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+  function fmtMoney(amount: number | null | undefined): string {
+    if (amount == null) return "—";
+    const locale = currency === "GBP" ? "en-GB" : currency === "USD" ? "en-US" : "es-ES";
+    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount);
+  }
+
+  function fmtDateStr(iso: string | null | undefined): string {
+    if (!iso) return "—";
+    try { return new Date(iso).toLocaleString("en-GB"); } catch { return iso; }
+  }
+
+  function addLine(label: string, value: string, bold = false) {
+    if (y > 270) { doc.addPage(); y = margin; }
+    doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.setTextColor(120, 120, 120);
+    doc.text(label.toUpperCase(), margin, y);
+    doc.setFontSize(9); doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setTextColor(0, 0, 0);
+    const lines = doc.splitTextToSize(value || "—", usableW - 52);
+    doc.text(lines, margin + 52, y);
+    y += lines.length * 5 + 2;
+  }
+
+  function addSectionHeader(title: string) {
+    if (y > 260) { doc.addPage(); y = margin; }
+    y += 4;
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, y - 3, usableW, 8, "F");
+    doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 0, 0);
+    doc.text(title.toUpperCase(), margin + 2, y + 2);
+    y += 10;
+  }
+
+  function addDivider() {
+    doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.2);
+    doc.line(margin, y, pageW - margin, y);
+    y += 4;
+  }
+
+  // ── Header bar ────────────────────────────────────────────────────────────
+  doc.setFillColor(0, 0, 0);
+  doc.rect(0, 0, pageW, 18, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(12); doc.setFont("helvetica", "bold");
+  doc.text("CAMEL GLOBAL", margin, 7);
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text("Booking Data for Invoice Purposes", margin, 13);
+  doc.text(`Generated: ${dateStr}`, pageW - margin, 7, { align: "right" });
+  doc.text(`Booking ref: ${jobRef}`, pageW - margin, 13, { align: "right" });
+
+  y = 28;
+
+  // ── Notice box ───────────────────────────────────────────────────────────
+  doc.setFillColor(245, 245, 245);
+  doc.rect(margin, y, usableW, 16, "F");
+  doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3);
+  doc.rect(margin, y, usableW, 16, "S");
+  doc.setFontSize(7.5); doc.setFont("helvetica", "bold"); doc.setTextColor(80, 80, 80);
+  doc.text("NOTICE", margin + 3, y + 5);
+  doc.setFont("helvetica", "normal");
+  const noticeText = doc.splitTextToSize(
+    "This document contains booking data provided by Camel Global to assist you in preparing a VAT invoice for your customer. It is not itself a VAT invoice. You are responsible for issuing a compliant invoice directly to your customer in accordance with applicable tax legislation.",
+    usableW - 6
+  );
+  doc.text(noticeText, margin + 3, y + 10);
+  y += 22;
+
+  // ── Booking reference ────────────────────────────────────────────────────
+  addSectionHeader("Booking Reference");
+  addLine("Booking ref",     jobRef, true);
+  addLine("Job number",      booking.job_number ? String(booking.job_number) : "—");
+  addLine("Booking status",  String(booking.booking_status ?? "—").replaceAll("_", " "));
+  addLine("Booking created", fmtDateStr(booking.created_at));
+  addDivider();
+
+  // ── Customer details ─────────────────────────────────────────────────────
+  addSectionHeader("Customer Details");
+  addLine("Full name",       req?.customer_name   || "—");
+  addLine("Email",           req?.customer_email  || "—");
+  addLine("Phone",           req?.customer_phone  || "—");
+
+  if (req?.customer_billing_address) {
+    addLine("Billing address", req.customer_billing_address);
+  } else {
+    addLine("Billing address", "Not provided by customer");
+  }
+
+  if (req?.customer_tax_id) {
+    addLine("Tax ID / VAT No.", req.customer_tax_id);
+  } else {
+    addLine("Tax ID / VAT No.", "Not provided by customer");
+  }
+  addDivider();
+
+  // ── Hire details ─────────────────────────────────────────────────────────
+  addSectionHeader("Hire Details");
+  addLine("Pickup address",  req?.pickup_address  || "—");
+  addLine("Dropoff address", req?.dropoff_address || "—");
+  addLine("Pickup date/time",  fmtDateStr(req?.pickup_at));
+  addLine("Dropoff date/time", fmtDateStr(req?.dropoff_at));
+  addLine("Duration",        fmtDuration(req?.journey_duration_minutes));
+  addLine("Vehicle type",    req?.vehicle_category_name || "—");
+  addLine("Passengers",      req?.passengers != null ? String(req.passengers) : "—");
+  addLine("Main driver age", req?.driver_age != null ? String(req.driver_age) : "—");
+  if ((req?.additional_drivers ?? 0) > 0) {
+    addLine("Additional drivers", `${req!.additional_drivers}${req!.additional_driver_ages ? ` (ages: ${req!.additional_driver_ages})` : ""}`);
+  }
+  addDivider();
+
+  // ── Financial summary ─────────────────────────────────────────────────────
+  addSectionHeader("Financial Summary (for invoice reference)");
+  const hire       = Number(booking.car_hire_price ?? 0);
+  const fuelDep    = Number(booking.fuel_price ?? 0);
+  const fuelCharge = Number(booking.fuel_charge ?? 0);
+  const fuelRefund = Number(booking.fuel_refund ?? 0);
+  const total      = hire + fuelCharge;
+
+  addLine("Currency",           currency);
+  addLine("Car hire amount",    fmtMoney(hire), true);
+  addLine("Fuel deposit",       fmtMoney(fuelDep));
+  if (fuelCharge > 0) addLine("Fuel charge (actual)", fmtMoney(fuelCharge));
+  if (fuelRefund > 0) addLine("Fuel refunded",        fmtMoney(fuelRefund));
+  addLine("Total (hire + fuel charged)", fmtMoney(total), true);
+
+  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(120, 120, 120);
+  const noteLines = doc.splitTextToSize(
+    "Note: The car hire amount above is the gross amount paid by the customer through the Camel Global platform before Camel's commission is deducted. For your VAT invoice to the customer, the taxable supply is the full car hire amount. Camel Global's commission is a separate platform fee charged to you — it does not reduce the value of the supply to the customer.",
+    usableW
+  );
+  doc.text(noteLines, margin, y);
+  y += noteLines.length * 4 + 4;
+  addDivider();
+
+  // ── Supplier details (partner fills in) ──────────────────────────────────
+  addSectionHeader("Your Details (to complete on your invoice)");
+  doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80);
+  const supplierNote = doc.splitTextToSize(
+    "The following fields must be completed by you on your VAT invoice: your company name, registered address, VAT/tax registration number, your own invoice number (sequential series), date of issue, and your applicable VAT rate and amount.",
+    usableW
+  );
+  doc.text(supplierNote, margin, y);
+  y += supplierNote.length * 4.5 + 4;
+
+  // Blank fields for manual completion
+  const blankFields = [
+    "Your company name",
+    "Your registered address",
+    "Your VAT / tax number",
+    "Your invoice number",
+    "Date of issue",
+    "VAT rate applicable",
+    "VAT amount",
+  ];
+  blankFields.forEach(field => {
+    if (y > 272) { doc.addPage(); y = margin; }
+    doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.setTextColor(80, 80, 80);
+    doc.text(field.toUpperCase(), margin, y);
+    doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3);
+    doc.line(margin + 52, y, pageW - margin, y);
+    y += 8;
+  });
+
+  // ── Footer ────────────────────────────────────────────────────────────────
+  const totalPages = (doc.internal as any).getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    const pageH = doc.internal.pageSize.getHeight();
+    doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3);
+    doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
+    doc.setFontSize(7); doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "normal");
+    doc.text(`Camel Global — Booking Data for Invoice Purposes — Ref ${jobRef} — camel-global.com`, margin, pageH - 6);
+    doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 6, { align: "right" });
+  }
+
+  doc.save(`Camel-Invoice-Data-${jobRef.replace("#", "")}.pdf`);
 }
 
 function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds }: {
@@ -552,6 +743,7 @@ export default function PartnerBookingDetailPage() {
   const [showCancel,   setShowCancel]   = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling,   setCancelling]   = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   function hydrateForm(d: BookingApiResponse) {
     const b=d.booking;
@@ -641,6 +833,18 @@ export default function PartnerBookingDetailPage() {
     } catch(e:any) { setError(e?.message||t("bookings.error.cancel")); } finally { setCancelling(false); }
   }
 
+  async function handleDownloadInvoiceData() {
+    if (!data) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadInvoiceData(data.booking, data.request);
+    } catch (e: any) {
+      setError("Failed to generate PDF: " + (e?.message || "Unknown error"));
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
   if (loading) return <div className="border border-black/5 bg-white p-8"><p className="text-sm font-bold text-black/50">{t("bookings.loading")}</p></div>;
   if (!data?.booking) return <div className="border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">{error||t("bookings.error.notFound")}</div>;
 
@@ -722,7 +926,17 @@ export default function PartnerBookingDetailPage() {
           <h1 className="text-3xl font-black text-black">{t("bookings.detail.title")}</h1>
           <p className="mt-1 text-sm font-bold text-black/50">{t("bookings.detail.subtitle")}</p>
         </div>
-        <Link href="/partner/bookings" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">{t("bookings.detail.backBtn")}</Link>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleDownloadInvoiceData}
+            disabled={downloadingPdf}
+            className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors disabled:opacity-50"
+          >
+            {downloadingPdf ? "Generating…" : "↓ Invoice Data"}
+          </button>
+          <Link href="/partner/bookings" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">{t("bookings.detail.backBtn")}</Link>
+        </div>
       </div>
 
       {isCancelled && <CancellationSummary bk={bk} rates={rates} />}
@@ -772,6 +986,7 @@ export default function PartnerBookingDetailPage() {
             <div className="inline-flex items-center gap-1.5 border border-black/20 bg-[#f0f0f0] px-3 py-1 text-xs font-black text-black">{symbol} {t("bookings.detail.info.currency")} {currLabel}</div>
           </div>
         </div>
+
         <div className="border border-black/5 bg-white p-6">
           <h2 className="text-lg font-black text-black mb-4">{t("bookings.detail.journey.title")}</h2>
           <div className="space-y-3">
@@ -794,6 +1009,34 @@ export default function PartnerBookingDetailPage() {
             </Field>
             <Field label={t("bookings.detail.journey.vehicle")}>{req?.vehicle_category_name||"—"}</Field>
             {req?.notes&&<Field label={t("bookings.detail.info.notes")}>{req.notes}</Field>}
+
+            {/* Customer billing details — only shown when populated */}
+            {(req?.customer_billing_address || req?.customer_tax_id) && (
+              <div className="mt-4 border-t border-black/10 pt-4 space-y-3">
+                <p className="text-xs font-black uppercase tracking-widest text-black/30">Customer Invoice Details</p>
+                {req?.customer_billing_address && (
+                  <Field label="Billing Address">
+                    <span className="whitespace-pre-line">{req.customer_billing_address}</span>
+                  </Field>
+                )}
+                {req?.customer_tax_id && (
+                  <Field label="Tax ID / VAT No.">{req.customer_tax_id}</Field>
+                )}
+                <p className="text-xs font-bold text-black/30">
+                  Provided by customer for VAT invoice purposes. Use the ↓ Invoice Data button to download a full data sheet.
+                </p>
+              </div>
+            )}
+
+            {/* Prompt when no billing details provided */}
+            {!req?.customer_billing_address && !req?.customer_tax_id && (
+              <div className="mt-4 border-t border-black/10 pt-4">
+                <p className="text-xs font-black uppercase tracking-widest text-black/30 mb-1">Customer Invoice Details</p>
+                <p className="text-xs font-bold text-black/30">
+                  Not provided. If this customer requires a VAT invoice, ask them to add their billing address and tax ID in their Camel Global account settings.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
