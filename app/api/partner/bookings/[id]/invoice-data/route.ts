@@ -16,7 +16,7 @@ export async function GET(
     const adminMode = isAdminRole(role);
     const db        = createServiceRoleSupabaseClient();
 
-    // ── Fetch booking ────────────────────────────────────────────────────────
+    // ── Fetch booking ─────────────────────────────────────────────────────────
     let bookingQuery = db
       .from("partner_bookings")
       .select(`
@@ -31,10 +31,20 @@ export async function GET(
     if (!adminMode) bookingQuery = bookingQuery.eq("partner_user_id", user.id);
 
     const { data: bk, error: bkErr } = await bookingQuery.maybeSingle();
-    if (bkErr)  return NextResponse.json({ error: bkErr.message }, { status: 400 });
-    if (!bk)    return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+    if (bkErr) return NextResponse.json({ error: bkErr.message }, { status: 400 });
+    if (!bk)   return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
-    // ── Fetch request + customer billing details ──────────────────────────────
+    // ── Fetch partner locale ──────────────────────────────────────────────────
+    const { data: partnerProfile } = await db
+      .from("partner_profiles")
+      .select("communication_locale")
+      .eq("user_id", bk.partner_user_id)
+      .maybeSingle();
+
+    const locale: "en" | "es" =
+      partnerProfile?.communication_locale === "es" ? "es" : "en";
+
+    // ── Fetch request + customer billing details ───────────────────────────────
     const { data: cr } = await db
       .from("customer_requests")
       .select(`
@@ -107,6 +117,7 @@ export async function GET(
       fuelRefund:             Number(bk.fuel_refund    || 0),
       postCompletionRefunds,
       issuedAt:               new Date().toISOString(),
+      locale,
     });
 
     // ── Upload to storage and return signed URL ───────────────────────────────
