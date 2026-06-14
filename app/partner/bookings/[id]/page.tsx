@@ -168,7 +168,7 @@ function isLocked(opts: {
   const effective = normalizeFuel(opts.partnerFuel) || normalizeFuel(opts.driverFuel);
   return !!effective && !!opts.customerConfirmed && effective === normalizeFuel(opts.customerFuel);
 }
-const QUARTER_LABELS: Record<number,string> = { 0:"Empty",1:"1/4 Tank",2:"1/2 Tank",3:"3/4 Tank",4:"Full Tank" };
+const QUARTER_LABELS: Record<number,string> = { 0:"Empty",1:"¼ Tank",2:"½ Tank",3:"¾ Tank",4:"Full Tank" };
 
 function Field({ label, children }: { label:string; children:React.ReactNode }) {
   return (
@@ -177,261 +177,6 @@ function Field({ label, children }: { label:string; children:React.ReactNode }) 
       <span className="text-sm font-bold text-black">{children}</span>
     </div>
   );
-}
-
-// ── Invoice data PDF download ─────────────────────────────────────────────────
-async function downloadInvoiceData(
-  booking: BookingRow,
-  req: RequestRow | null,
-  postCompletionRefunds: PostCompletionRefund[] = [],
-) {
-  const { jsPDF } = await import("jspdf");
-  const doc     = new jsPDF({ unit: "mm", format: "a4" });
-  const pageW   = doc.internal.pageSize.getWidth();
-  const pageH   = doc.internal.pageSize.getHeight();
-  const margin  = 15;
-  const col2X   = margin + 90; // left edge of right column
-  const usableW = pageW - margin * 2;
-  let y = margin;
-
-  const currency = booking.currency ?? "EUR";
-  const jobRef   = booking.job_number ? `#${booking.job_number}` : booking.id.slice(0, 8).toUpperCase();
-  const dateStr  = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-
-  function fmtMoney(amount: number | null | undefined): string {
-    if (amount == null) return "-";
-    const locale = currency === "GBP" ? "en-GB" : currency === "USD" ? "en-US" : "es-ES";
-    // Strip unicode minus from output — jsPDF can't render it
-    return new Intl.NumberFormat(locale, { style: "currency", currency })
-      .format(amount)
-      .replace(/\u2212/g, "-");
-  }
-
-  function fmtDateStr(iso: string | null | undefined): string {
-    if (!iso) return "-";
-    try { return new Date(iso).toLocaleString("en-GB"); } catch { return iso; }
-  }
-
-  // Two-column row: label on left, value on right (right-aligned to page margin)
-  function addRow(label: string, value: string, bold = false) {
-    if (y > 270) { doc.addPage(); y = margin; }
-    doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.setTextColor(100, 100, 100);
-    doc.text(label.toUpperCase(), margin, y);
-    doc.setFontSize(9); doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setTextColor(0, 0, 0);
-    // Wrap long values starting from col2X
-    const maxW = pageW - margin - col2X;
-    const lines = doc.splitTextToSize(value || "-", maxW);
-    doc.text(lines, col2X, y);
-    y += lines.length * 5 + 2;
-  }
-
-  function addSectionHeader(title: string) {
-    if (y > 260) { doc.addPage(); y = margin; }
-    y += 4;
-    doc.setFillColor(240, 240, 240);
-    doc.rect(margin, y - 3, usableW, 8, "F");
-    doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 0, 0);
-    doc.text(title.toUpperCase(), margin + 2, y + 2);
-    y += 10;
-  }
-
-  function addDivider() {
-    doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.2);
-    doc.line(margin, y, pageW - margin, y);
-    y += 5;
-  }
-
-  // ── Header bar ────────────────────────────────────────────────────────────
-  doc.setFillColor(0, 0, 0);
-  doc.rect(0, 0, pageW, 18, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(12); doc.setFont("helvetica", "bold");
-  doc.text("CAMEL GLOBAL", margin, 7);
-  doc.setFontSize(8); doc.setFont("helvetica", "normal");
-  doc.text("Booking Data for Invoice Purposes", margin, 13);
-  doc.text(`Generated: ${dateStr}`, pageW - margin, 7, { align: "right" });
-  doc.text(`Booking ref: ${jobRef}`, pageW - margin, 13, { align: "right" });
-  y = 28;
-
-  // ── Notice box ───────────────────────────────────────────────────────────
-  doc.setFillColor(245, 245, 245);
-  doc.rect(margin, y, usableW, 16, "F");
-  doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3);
-  doc.rect(margin, y, usableW, 16, "S");
-  doc.setFontSize(7.5); doc.setFont("helvetica", "bold"); doc.setTextColor(80, 80, 80);
-  doc.text("NOTICE", margin + 3, y + 5);
-  doc.setFont("helvetica", "normal");
-  const noticeText = doc.splitTextToSize(
-    "This document contains booking data provided by Camel Global to assist you in preparing a VAT invoice for your customer. It is not itself a VAT invoice. You are responsible for issuing a compliant invoice directly to your customer in accordance with applicable tax legislation.",
-    usableW - 6
-  );
-  doc.text(noticeText, margin + 3, y + 10);
-  y += 22;
-
-  // ── Booking reference ────────────────────────────────────────────────────
-  addSectionHeader("Booking Reference");
-  addRow("Booking ref",     jobRef, true);
-  addRow("Job number",      booking.job_number ? String(booking.job_number) : "-");
-  addRow("Booking status",  String(booking.booking_status ?? "-").replaceAll("_", " "));
-  addRow("Booking created", fmtDateStr(booking.created_at));
-  addDivider();
-
-  // ── Customer details ─────────────────────────────────────────────────────
-  addSectionHeader("Customer Details");
-  addRow("Full name",         req?.customer_name  || "-");
-  addRow("Email",             req?.customer_email || "-");
-  addRow("Phone",             req?.customer_phone || "-");
-  addRow("Billing address",   req?.customer_billing_address || "Not provided by customer");
-  addRow("Tax ID / VAT No.",  req?.customer_tax_id          || "Not provided by customer");
-  addDivider();
-
-  // ── Hire details ─────────────────────────────────────────────────────────
-  addSectionHeader("Hire Details");
-  addRow("Pickup address",    req?.pickup_address  || "-");
-  addRow("Dropoff address",   req?.dropoff_address || "-");
-  addRow("Pickup date/time",  fmtDateStr(req?.pickup_at));
-  addRow("Dropoff date/time", fmtDateStr(req?.dropoff_at));
-  addRow("Duration",          fmtDuration(req?.journey_duration_minutes));
-  addRow("Vehicle type",      req?.vehicle_category_name || "-");
-  addRow("Passengers",        req?.passengers != null ? String(req.passengers) : "-");
-  addRow("Main driver age",   req?.driver_age != null ? String(req.driver_age) : "-");
-  if ((req?.additional_drivers ?? 0) > 0) {
-    addRow("Additional drivers", `${req!.additional_drivers}${req!.additional_driver_ages ? ` (ages: ${req!.additional_driver_ages})` : ""}`);
-  }
-  addDivider();
-
-  // ── Financial summary ─────────────────────────────────────────────────────
-  addSectionHeader("Financial Summary (for invoice reference)");
-  const hire       = Number(booking.car_hire_price ?? 0);
-  const fuelDep    = Number(booking.fuel_price ?? 0);
-  const fuelCharge = Number(booking.fuel_charge ?? 0);
-  const fuelRefund = Number(booking.fuel_refund ?? 0);
-  const pcTotal    = Number(booking.post_completion_refund_total ?? 0);
-  const grossTotal = hire + fuelCharge;
-  const netTotal   = Math.max(0, grossTotal - pcTotal);
-
-  addRow("Currency",        currency);
-  addRow("Car hire amount", fmtMoney(hire), true);
-  addRow("Fuel deposit",    fmtMoney(fuelDep));
-  if (fuelCharge > 0) addRow("Fuel charge (actual)", fmtMoney(fuelCharge));
-  if (fuelRefund > 0) addRow("Fuel refunded",        fmtMoney(fuelRefund));
-  addRow(
-    postCompletionRefunds.length > 0 ? "Gross total (hire + fuel charged)" : "Total (hire + fuel charged)",
-    fmtMoney(grossTotal),
-    true,
-  );
-
-  // ── Post-completion refunds ───────────────────────────────────────────────
-  if (postCompletionRefunds.length > 0) {
-    y += 3;
-    if (y > 240) { doc.addPage(); y = margin; }
-
-    const boxStartY  = y;
-    const lineH      = 6.5;
-    // header + each refund line + total line + padding
-    const boxH       = 7 + postCompletionRefunds.length * lineH + lineH + 6;
-
-    // Draw amber fill and border
-    doc.setFillColor(255, 251, 235);
-    doc.rect(margin, boxStartY, usableW, boxH, "F");
-    doc.setDrawColor(245, 158, 11);
-    doc.setLineWidth(0.5);
-    doc.rect(margin, boxStartY, usableW, boxH, "S");
-
-    // Header row
-    y = boxStartY + 6;
-    doc.setFontSize(7.5); doc.setFont("helvetica", "bold"); doc.setTextColor(146, 64, 14);
-    doc.text("POST-COMPLETION REFUNDS ISSUED BY CAMEL GLOBAL", margin + 3, y);
-    y += lineH;
-
-    // Each refund line — label left, amount right, both at same y
-    postCompletionRefunds.forEach((r, i) => {
-      const refundDate = r.created_at
-        ? new Date(r.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-        : "-";
-      const label  = `Refund ${i + 1}${r.reason ? ` - ${r.reason}` : ""} (${refundDate})`;
-      const amount = `- ${fmtMoney(r.amount)}`;
-
-      doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(120, 53, 15);
-      const labelLines = doc.splitTextToSize(label, usableW - 55);
-      doc.text(labelLines, margin + 3, y);
-      doc.setFont("helvetica", "bold");
-      doc.text(amount, pageW - margin - 3, y, { align: "right" });
-      y += labelLines.length * lineH;
-    });
-
-    // Total row
-    doc.setFont("helvetica", "bold"); doc.setTextColor(146, 64, 14);
-    doc.text("Total refunded to customer:", margin + 3, y);
-    doc.text(`- ${fmtMoney(pcTotal)}`, pageW - margin - 3, y, { align: "right" });
-    y = boxStartY + boxH + 3;
-
-    // Net total — outside box, bold, full width
-    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(0, 0, 0);
-    doc.text("NET TOTAL AFTER REFUNDS", margin, y);
-    doc.text(fmtMoney(netTotal), pageW - margin, y, { align: "right" });
-    y += 7;
-
-    // Guidance note
-    doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(100, 100, 100);
-    const refundNote = doc.splitTextToSize(
-      "Note: Post-completion refunds were issued by Camel Global directly to the customer. The taxable supply on your VAT invoice is the gross car hire amount. If you have issued a credit note to account for a partial refund of services, include that reference on your invoice.",
-      usableW
-    );
-    doc.text(refundNote, margin, y);
-    y += refundNote.length * 4 + 4;
-  }
-
-  // General note
-  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(100, 100, 100);
-  const noteLines = doc.splitTextToSize(
-    "Note: The car hire amount above is the gross amount paid by the customer through the Camel Global platform before Camel's commission is deducted. For your VAT invoice to the customer, the taxable supply is the full car hire amount. Camel Global's commission is a separate platform fee charged to you - it does not reduce the value of the supply to the customer.",
-    usableW
-  );
-  doc.text(noteLines, margin, y);
-  y += noteLines.length * 4 + 4;
-  addDivider();
-
-  // ── Supplier details (partner fills in) ──────────────────────────────────
-  addSectionHeader("Your Details (to complete on your invoice)");
-  doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80);
-  const supplierNote = doc.splitTextToSize(
-    "The following fields must be completed by you on your VAT invoice: your company name, registered address, VAT/tax registration number, your own invoice number (sequential series), date of issue, and your applicable VAT rate and amount.",
-    usableW
-  );
-  doc.text(supplierNote, margin, y);
-  y += supplierNote.length * 4.5 + 4;
-
-  const blankFields = [
-    "Your company name",
-    "Your registered address",
-    "Your VAT / tax number",
-    "Your invoice number",
-    "Date of issue",
-    "VAT rate applicable",
-    "VAT amount",
-  ];
-  blankFields.forEach(field => {
-    if (y > 272) { doc.addPage(); y = margin; }
-    doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.setTextColor(80, 80, 80);
-    doc.text(field.toUpperCase(), margin, y);
-    doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3);
-    doc.line(margin + 52, y, pageW - margin, y);
-    y += 8;
-  });
-
-  // ── Footer on every page ──────────────────────────────────────────────────
-  const totalPages = (doc.internal as any).getNumberOfPages();
-  for (let p = 1; p <= totalPages; p++) {
-    doc.setPage(p);
-    doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.3);
-    doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
-    doc.setFontSize(7); doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "normal");
-    doc.text(`Camel Global - Booking Data for Invoice Purposes - Ref ${jobRef} - camel-global.com`, margin, pageH - 6);
-    doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 6, { align: "right" });
-  }
-
-  doc.save(`Camel-Invoice-Data-${jobRef.replace("#", "")}.pdf`);
 }
 
 function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds }: {
@@ -460,7 +205,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
       <div className="space-y-2">
         <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.payment.carHire")}</span><span className="font-black text-black">{fmtB(hire)}</span></div>
         <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.payment.fuelDeposit")}</span><span className="font-black text-black">{fmtB(fuelDeposit)}</span></div>
-        <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.payment.commission", { rate: String(rate) })}</span><span className="font-black text-amber-700">- {fmtB(commAmt)}</span></div>
+        <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.payment.commission", { rate: String(rate) })}</span><span className="font-black text-amber-700">− {fmtB(commAmt)}</span></div>
         {fuelCharge > 0 && (
           <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.payment.fuelCharge")}</span><span className="font-black text-[#ff7a00]">+ {fmtB(fuelCharge)}</span></div>
         )}
@@ -470,7 +215,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
               {t("bookings.detail.payment.fuelRefund")}
               {payment.fuel_refund_stripe_id && <span className="ml-1 text-xs text-black/30">({payment.fuel_refund_stripe_id})</span>}
             </span>
-            <span className="font-black text-green-700">- {fmtB(payment.fuel_refund_amount)}</span>
+            <span className="font-black text-green-700">− {fmtB(payment.fuel_refund_amount)}</span>
           </div>
         )}
         {payment.cancellation_refund_amount != null && payment.cancellation_refund_amount > 0 && (
@@ -479,7 +224,7 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
               {t("bookings.detail.payment.cancelRefund")}
               {payment.cancellation_refund_stripe_id && <span className="ml-1 text-xs text-black/30">({payment.cancellation_refund_stripe_id})</span>}
             </span>
-            <span className="font-black text-red-600">- {fmtB(payment.cancellation_refund_amount)}</span>
+            <span className="font-black text-red-600">− {fmtB(payment.cancellation_refund_amount)}</span>
           </div>
         )}
         <div className="flex justify-between text-sm font-black border-t border-black pt-2 mt-2">
@@ -493,21 +238,19 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
 
       {postCompletionRefunds.length > 0 && (
         <div className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">
-            Post-Completion Adjustments
-          </p>
+          <p className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">Post-Completion Adjustments</p>
           {postCompletionRefunds.map((r, i) => (
             <div key={r.id} className="flex items-start justify-between py-2 border-b border-amber-100 last:border-0">
               <span className="text-sm font-semibold text-amber-800">
                 Refund {i + 1}{r.reason ? ` — ${r.reason}` : ""}
                 <span className="ml-2 text-xs text-amber-600">{fmtDate(r.created_at)}</span>
               </span>
-              <span className="text-sm font-black text-amber-700 ml-4 shrink-0">- {fmtB(r.amount)}</span>
+              <span className="text-sm font-black text-amber-700 ml-4 shrink-0">− {fmtB(r.amount)}</span>
             </div>
           ))}
           <div className="flex items-center justify-between pt-3 mt-1 border-t-2 border-amber-300">
             <span className="text-sm font-black text-amber-800">Total refunded to customer</span>
-            <span className="text-sm font-black text-amber-700">- {fmtB(pcTotal)}</span>
+            <span className="text-sm font-black text-amber-700">− {fmtB(pcTotal)}</span>
           </div>
           <div className="flex items-center justify-between pt-2">
             <span className="text-sm font-black text-black">Net final amount (after adjustments)</span>
@@ -560,7 +303,7 @@ function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
         <p className="text-xs font-black uppercase tracking-widest text-black/50 mb-3">{t("bookings.detail.cancellation.originalAmounts")}</p>
         <div className="space-y-2">
           <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.cancellation.carHire")}</span><span className="font-black text-black">{fmtCurr(carHire,stored)}</span></div>
-          <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.cancellation.commission", { rate: String(commRate) })}</span><span className="font-black text-amber-700">- {fmtCurr(commAmt,stored)}</span></div>
+          <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.cancellation.commission", { rate: String(commRate) })}</span><span className="font-black text-amber-700">− {fmtCurr(commAmt,stored)}</span></div>
           <div className="flex justify-between text-sm border-t border-black/10 pt-2"><span className="font-semibold text-black/60">{t("bookings.detail.cancellation.payoutExclFuel")}</span><span className="font-black text-black">{fmtCurr(basePayout,stored)}</span></div>
           <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.cancellation.fuelDeposit")}</span><span className="font-black text-black">{fmtCurr(fuel,stored)}</span></div>
           <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2"><span className="text-black/60">{t("bookings.detail.cancellation.totalCollected")}</span><span className="text-black">{fmtCurr(carHire+fuel,stored)}</span></div>
@@ -579,9 +322,9 @@ function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
           <p className="text-xs font-black uppercase tracking-widest text-black/60 mb-3">{t("bookings.detail.cancellation.yourPosition")}</p>
           <div className="space-y-2">
             <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.cancellation.carHireKeep")}</span><span className={`font-black ${partnerKeepsCarHire>0?"text-black":"text-red-500"}`}>{partnerKeepsCarHire>0?fmtCurr(partnerKeepsCarHire,stored):t("bookings.detail.cancellation.none")}</span></div>
-            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.cancellation.commissionPayable")}</span><span className={`font-black ${partnerKeepsComm>0?"text-amber-700":"text-black/30"}`}>{partnerKeepsComm>0?`- ${fmtCurr(partnerKeepsComm,stored)}`:t("bookings.detail.cancellation.none")}</span></div>
-            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.cancellation.fuelReturned")}</span><span className="font-black text-black/40">- {fmtCurr(fuel,stored)}</span></div>
-            <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2"><span className="text-black">{t("bookings.detail.cancellation.netPayout")}</span><span className={partnerNetPayout>0?"text-green-700":"text-red-600"}>{partnerNetPayout>0?fmtCurr(partnerNetPayout,stored):`${fmtCurr(0,stored)} - ${t("bookings.detail.cancellation.noPayout")}`}</span></div>
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.cancellation.commissionPayable")}</span><span className={`font-black ${partnerKeepsComm>0?"text-amber-700":"text-black/30"}`}>{partnerKeepsComm>0?`− ${fmtCurr(partnerKeepsComm,stored)}`:t("bookings.detail.cancellation.none")}</span></div>
+            <div className="flex justify-between text-sm"><span className="font-semibold text-black/60">{t("bookings.detail.cancellation.fuelReturned")}</span><span className="font-black text-black/40">— {fmtCurr(fuel,stored)}</span></div>
+            <div className="flex justify-between text-sm font-black border-t border-black/10 pt-2"><span className="text-black">{t("bookings.detail.cancellation.netPayout")}</span><span className={partnerNetPayout>0?"text-green-700":"text-red-600"}>{partnerNetPayout>0?fmtCurr(partnerNetPayout,stored):`${fmtCurr(0,stored)} — ${t("bookings.detail.cancellation.noPayout")}`}</span></div>
           </div>
           {isPartial&&<p className="mt-3 text-xs font-bold text-amber-700 bg-amber-100 px-3 py-2">{t("bookings.detail.cancellation.partialNote")}</p>}
           {isFull&&<p className="mt-3 text-xs font-bold text-red-700 bg-red-100 px-3 py-2">{t("bookings.detail.cancellation.fullNote")}</p>}
@@ -644,7 +387,7 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking:BookingRow; ra
       case "half":    return t("bookings.detail.fuel.level.half");
       case "3/4":     return t("bookings.detail.fuel.level.threequarter");
       case "full":    return t("bookings.detail.fuel.level.full");
-      default:        return "-";
+      default:        return "—";
     }
   }
   return (
@@ -669,8 +412,8 @@ function BookingSummaryCard({ booking, rates, isLive }: { booking:BookingRow; ra
         ))}
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="bg-[#ff7a00]/30 border border-[#ff7a00]/50 p-5"><p className="text-xs font-black uppercase tracking-widest text-white/70">{t("bookings.detail.summary.fuelCharge")}</p><p className="mt-2 text-3xl font-black">{fuelCharge!=null?primary(fuelCharge):"-"} {fuelCharge!=null&&<span className="text-xl font-bold opacity-60">{sec(fuelCharge)}</span>}</p></div>
-        <div className="bg-green-500/20 border border-green-400/40 p-5"><p className="text-xs font-black uppercase tracking-widest text-white/70">{t("bookings.detail.summary.fuelRefund")}</p><p className="mt-2 text-3xl font-black">{fuelRefund!=null?primary(fuelRefund):"-"} {fuelRefund!=null&&<span className="text-xl font-bold opacity-60">{sec(fuelRefund)}</span>}</p></div>
+        <div className="bg-[#ff7a00]/30 border border-[#ff7a00]/50 p-5"><p className="text-xs font-black uppercase tracking-widest text-white/70">{t("bookings.detail.summary.fuelCharge")}</p><p className="mt-2 text-3xl font-black">{fuelCharge!=null?primary(fuelCharge):"—"} {fuelCharge!=null&&<span className="text-xl font-bold opacity-60">{sec(fuelCharge)}</span>}</p></div>
+        <div className="bg-green-500/20 border border-green-400/40 p-5"><p className="text-xs font-black uppercase tracking-widest text-white/70">{t("bookings.detail.summary.fuelRefund")}</p><p className="mt-2 text-3xl font-black">{fuelRefund!=null?primary(fuelRefund):"—"} {fuelRefund!=null&&<span className="text-xl font-bold opacity-60">{sec(fuelRefund)}</span>}</p></div>
       </div>
       <div className={`mt-5 inline-flex items-center gap-2 px-4 py-2 text-sm font-black ${isLive?"bg-white/5 text-white":"bg-white/5 text-white/40"}`}>
         <span className={`h-2 w-2 ${isLive?"bg-[#ff7a00]":"bg-white/30"}`}/>{rateBadge}{isLive?` ${t("bookings.detail.info.liveRate")}` : ""}
@@ -694,7 +437,7 @@ function FuelStageCard({ title,booking,stage,fuelValue,onFuelChange,confirmed,on
       case "half":    return t("bookings.detail.fuel.level.half");
       case "3/4":     return t("bookings.detail.fuel.level.threequarter");
       case "full":    return t("bookings.detail.fuel.level.full");
-      default:        return "-";
+      default:        return "—";
     }
   }
   const isC               = stage==="collection";
@@ -900,12 +643,14 @@ export default function PartnerBookingDetailPage() {
   }
 
   async function handleDownloadInvoiceData() {
-    if (!data) return;
-    setDownloadingPdf(true);
+    setDownloadingPdf(true); setError(null);
     try {
-      await downloadInvoiceData(data.booking, data.request, data.postCompletionRefunds ?? []);
+      const res  = await fetch(`/api/partner/bookings/${bookingId}/invoice-data`, { credentials: "include" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Failed to generate PDF");
+      if (json?.url) window.open(json.url, "_blank");
     } catch (e: any) {
-      setError("Failed to generate PDF: " + (e?.message || "Unknown error"));
+      setError("Failed to generate invoice data PDF: " + (e?.message || "Unknown error"));
     } finally {
       setDownloadingPdf(false);
     }
@@ -1039,7 +784,7 @@ export default function PartnerBookingDetailPage() {
             <Field label={t("bookings.detail.info.status")}>{statusLabel(bk.booking_status)}</Field>
             <Field label={t("bookings.detail.info.carHire")}><Amt amount={bk.car_hire_price} stored={stored} rates={rates}/></Field>
             <Field label={t("bookings.detail.info.commission")}>
-              <span className="text-amber-700">- {fmtCurr(commissionAmount,stored)}</span>
+              <span className="text-amber-700">− {fmtCurr(commissionAmount,stored)}</span>
               <span className="ml-2 text-xs font-bold text-black/40">{commissionRate}% {t("bookings.detail.info.commissionNote")}</span>
             </Field>
             <Field label={t("bookings.detail.info.payout")}><span className="font-black text-black">{fmtCurr(partnerPayout,stored)}</span></Field>
@@ -1105,12 +850,7 @@ export default function PartnerBookingDetailPage() {
         </div>
       </div>
 
-      <PaymentFeesCard
-        payment={data.payment}
-        bidCurrency={stored}
-        booking={bk}
-        postCompletionRefunds={postCompletionRefunds}
-      />
+      <PaymentFeesCard payment={data.payment} bidCurrency={stored} booking={bk} postCompletionRefunds={postCompletionRefunds}/>
 
       {!isCancelled&&(
         <div className="border border-black/5 bg-white p-6">
