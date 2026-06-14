@@ -57,21 +57,17 @@ const s = StyleSheet.create({
   body:         { padding: "20 24" },
   title:        { fontSize: 18, fontFamily: "Helvetica-Bold", color: "#111", marginBottom: 4 },
   subtitle:     { fontSize: 9, color: "#888", marginBottom: 14 },
-  // Notice box
   noticeBox:    { backgroundColor: "#f5f5f5", borderLeft: "3 solid #999", padding: "8 10", marginBottom: 14 },
   noticeLabel:  { fontSize: 7, fontFamily: "Helvetica-Bold", color: "#555", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 },
   noticeText:   { fontSize: 7.5, color: "#444", lineHeight: 1.5 },
-  // Sections
   section:      { marginBottom: 14 },
   sectionHead:  { fontSize: 7, fontFamily: "Helvetica-Bold", color: "#ff7a00", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, borderBottom: "1 solid #f0f0f0", paddingBottom: 3 },
   row:          { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, borderBottom: "1 solid #f5f5f5" },
   rowLabel:     { color: "#555", flex: 1.2 },
   rowValue:     { fontFamily: "Helvetica-Bold", color: "#111", textAlign: "right", flex: 1 },
-  // Total row — gross
   totalRow:     { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#111", padding: "8 10", marginTop: 6 },
   totalLabel:   { fontFamily: "Helvetica-Bold", color: "#fff", fontSize: 10 },
   totalValue:   { fontFamily: "Helvetica-Bold", color: "#ff7a00", fontSize: 10 },
-  // Refunds box
   refundBox:    { backgroundColor: "#fffbeb", borderLeft: "3 solid #f59e0b", padding: "8 10", marginTop: 8, marginBottom: 6 },
   refundHead:   { fontSize: 7, fontFamily: "Helvetica-Bold", color: "#b45309", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5 },
   refundRow:    { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2.5, borderBottom: "1 solid #fde68a" },
@@ -80,17 +76,13 @@ const s = StyleSheet.create({
   refundTotal:  { flexDirection: "row", justifyContent: "space-between", marginTop: 5, paddingTop: 4, borderTop: "1 solid #f59e0b" },
   refundTotalL: { fontFamily: "Helvetica-Bold", color: "#b45309", flex: 1.2, fontSize: 8 },
   refundTotalV: { fontFamily: "Helvetica-Bold", color: "#b45309", textAlign: "right", flex: 1, fontSize: 8 },
-  // Net total after refunds
   netRow:       { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#1a1a1a", padding: "8 10", marginTop: 4 },
   netLabel:     { fontFamily: "Helvetica-Bold", color: "#fff", fontSize: 10 },
   netValue:     { fontFamily: "Helvetica-Bold", color: "#ff7a00", fontSize: 10 },
-  // Notes
   note:         { fontSize: 7.5, color: "#888", marginTop: 6, lineHeight: 1.5 },
-  // Blank fields
   blankRow:     { flexDirection: "row", alignItems: "flex-end", marginBottom: 8 },
   blankLabel:   { fontSize: 7.5, fontFamily: "Helvetica-Bold", color: "#555", textTransform: "uppercase", width: 120 },
   blankLine:    { flex: 1, borderBottom: "1 solid #ccc", height: 12 },
-  // Footer
   footer:       { position: "absolute", bottom: 0, left: 0, right: 0, borderTop: "1 solid #e5e5e5", padding: "6 24", flexDirection: "row", justifyContent: "space-between" },
   footerText:   { fontSize: 7, color: "#aaa" },
 });
@@ -136,7 +128,7 @@ function InvoiceDataDocument({ p, logoBase64 }: { p: InvoiceDataParams; logoBase
   const fmt        = (n: number) => fmtMoney(n, cur);
   const ref        = p.jobNumber ? `#${p.jobNumber}` : p.bookingId.slice(0, 8).toUpperCase();
   const grossTotal = p.carHire + p.fuelCharge;
-  const pcTotal    = p.postCompletionRefunds.reduce((s, r) => s + r.amount, 0);
+  const pcTotal    = p.postCompletionRefunds.reduce((sum, r) => sum + r.amount, 0);
   const netTotal   = Math.max(0, grossTotal - pcTotal);
   const hasRefunds = p.postCompletionRefunds.length > 0;
 
@@ -165,7 +157,6 @@ function InvoiceDataDocument({ p, logoBase64 }: { p: InvoiceDataParams; logoBase
           <Text style={s.title}>Booking Data for Invoice Purposes</Text>
           <Text style={s.subtitle}>{ref} · {cur} · Generated {fmtDateShort(p.issuedAt)}</Text>
 
-          {/* Notice */}
           <View style={s.noticeBox}>
             <Text style={s.noticeLabel}>Notice</Text>
             <Text style={s.noticeText}>
@@ -189,100 +180,75 @@ function InvoiceDataDocument({ p, logoBase64 }: { p: InvoiceDataParams; logoBase
             <View style={s.row}><Text style={s.rowLabel}>Full name</Text><Text style={s.rowValue}>{p.customerName || "—"}</Text></View>
             <View style={s.row}><Text style={s.rowLabel}>Email</Text><Text style={s.rowValue}>{p.customerEmail || "—"}</Text></View>
             <View style={s.row}><Text style={s.rowLabel}>Phone</Text><Text style={s.rowValue}>{p.customerPhone || "—"}</Text></View>
-            <View style={s.row}>
-              <Text style={s.rowLabel}>Billing address</Text>
-              <Text style={s.rowValue}>{p.customerBillingAddress || "Not provided by customer"}</Text>
-            </View>
-            <View style={s.row}>
-              <Text style={s.rowLabel}>Tax ID / VAT No.</Text>
-              <Text style={s.rowValue}>{p.customerTaxId || "Not provided by customer"}</Text>
-            </View>
+            <View style={s.row}><Text style={s.rowLabel}>Billing address</Text><Text style={s.rowValue}>{p.customerBillingAddress || "Not provided by customer"}</Text></View>
+            <View style={s.row}><Text style={s.rowLabel}>Tax ID / VAT No.</Text><Text style={s.rowValue}>{p.customerTaxId || "Not provided by customer"}</Text></View>
           </View>
 
           {/* Hire details */}
           <View style={s.section}>
             <Text style={s.sectionHead}>Hire Details</Text>
             <View style={s.row}><Text style={s.rowLabel}>Pickup address</Text><Text style={s.rowValue}>{p.pickupAddress || "—"}</Text></View>
-            {p.dropoffAddress ? (
-              <View style={s.row}><Text style={s.rowLabel}>Drop-off address</Text><Text style={s.rowValue}>{p.dropoffAddress}</Text></View>
-            ) : null}
+            {p.dropoffAddress ? <View style={s.row}><Text style={s.rowLabel}>Drop-off address</Text><Text style={s.rowValue}>{p.dropoffAddress}</Text></View> : null}
             <View style={s.row}><Text style={s.rowLabel}>Pickup date / time</Text><Text style={s.rowValue}>{fmtDateTime(p.pickupAt)}</Text></View>
-            {p.dropoffAt ? (
-              <View style={s.row}><Text style={s.rowLabel}>Drop-off date / time</Text><Text style={s.rowValue}>{fmtDateTime(p.dropoffAt)}</Text></View>
-            ) : null}
-            {p.durationMinutes ? (
-              <View style={s.row}><Text style={s.rowLabel}>Duration</Text><Text style={s.rowValue}>{fmtDuration(p.durationMinutes)}</Text></View>
-            ) : null}
-            {p.vehicleCategory ? (
-              <View style={s.row}><Text style={s.rowLabel}>Vehicle type</Text><Text style={s.rowValue}>{p.vehicleCategory}</Text></View>
-            ) : null}
-            {p.passengers != null ? (
-              <View style={s.row}><Text style={s.rowLabel}>Passengers</Text><Text style={s.rowValue}>{p.passengers}</Text></View>
-            ) : null}
-            {p.driverAge != null ? (
-              <View style={s.row}><Text style={s.rowLabel}>Main driver age</Text><Text style={s.rowValue}>{p.driverAge}</Text></View>
-            ) : null}
+            {p.dropoffAt ? <View style={s.row}><Text style={s.rowLabel}>Drop-off date / time</Text><Text style={s.rowValue}>{fmtDateTime(p.dropoffAt)}</Text></View> : null}
+            {p.durationMinutes ? <View style={s.row}><Text style={s.rowLabel}>Duration</Text><Text style={s.rowValue}>{fmtDuration(p.durationMinutes)}</Text></View> : null}
+            {p.vehicleCategory ? <View style={s.row}><Text style={s.rowLabel}>Vehicle type</Text><Text style={s.rowValue}>{p.vehicleCategory}</Text></View> : null}
+            {p.passengers != null ? <View style={s.row}><Text style={s.rowLabel}>Passengers</Text><Text style={s.rowValue}>{p.passengers}</Text></View> : null}
+            {p.driverAge != null ? <View style={s.row}><Text style={s.rowLabel}>Main driver age</Text><Text style={s.rowValue}>{p.driverAge}</Text></View> : null}
             <View style={s.row}><Text style={s.rowLabel}>Additional drivers</Text><Text style={s.rowValue}>{additionalDriversText}</Text></View>
           </View>
 
-          {/* ── Block 1: section header + data rows + gross total bar ──────────
-              wrap={false} keeps the gross total bar attached to the rows above
-              it so the bar never sits alone at the top of a page. The rows
-              themselves are short enough that this block fits on page 1. ── */}
-          <View wrap={false} style={{ marginBottom: 0 }}>
-            <Text style={s.sectionHead}>Financial Summary (for invoice reference)</Text>
-            <View style={s.row}><Text style={s.rowLabel}>Currency</Text><Text style={s.rowValue}>{cur}</Text></View>
-            <View style={s.row}><Text style={s.rowLabel}>Car hire amount</Text><Text style={s.rowValue}>{fmt(p.carHire)}</Text></View>
-            <View style={s.row}><Text style={s.rowLabel}>Fuel deposit</Text><Text style={s.rowValue}>{fmt(p.fuelDeposit)}</Text></View>
-            {p.fuelCharge > 0 ? (
-              <View style={s.row}><Text style={s.rowLabel}>Fuel charge (actual)</Text><Text style={s.rowValue}>{fmt(p.fuelCharge)}</Text></View>
-            ) : null}
-            {p.fuelRefund > 0 ? (
-              <View style={s.row}><Text style={s.rowLabel}>Fuel refunded</Text><Text style={s.rowValue}>{fmt(p.fuelRefund)}</Text></View>
-            ) : null}
+          {/* ── Financial data rows — can flow freely ── */}
+          <Text style={s.sectionHead}>Financial Summary (for invoice reference)</Text>
+          <View style={s.row}><Text style={s.rowLabel}>Currency</Text><Text style={s.rowValue}>{cur}</Text></View>
+          <View style={s.row}><Text style={s.rowLabel}>Car hire amount</Text><Text style={s.rowValue}>{fmt(p.carHire)}</Text></View>
+          <View style={s.row}><Text style={s.rowLabel}>Fuel deposit</Text><Text style={s.rowValue}>{fmt(p.fuelDeposit)}</Text></View>
+          {p.fuelCharge > 0 ? <View style={s.row}><Text style={s.rowLabel}>Fuel charge (actual)</Text><Text style={s.rowValue}>{fmt(p.fuelCharge)}</Text></View> : null}
+          {p.fuelRefund > 0 ? <View style={s.row}><Text style={s.rowLabel}>Fuel refunded</Text><Text style={s.rowValue}>{fmt(p.fuelRefund)}</Text></View> : null}
+
+          {/* ── wrap={false}: gross total bar + refunds + net total + notes ──
+              All kept together as one atomic unit. If they don't fit below
+              the data rows they move to page 2 as a complete block. ── */}
+          <View wrap={false}>
             <View style={s.totalRow}>
               <Text style={s.totalLabel}>{hasRefunds ? "Gross total (hire + fuel charged)" : "Total (hire + fuel charged)"}</Text>
               <Text style={s.totalValue}>{fmt(grossTotal)}</Text>
             </View>
-          </View>
 
-          {/* ── Block 2: refund box + net total bar + notes ───────────────────
-              Separate wrap={false} block so it moves as a unit if it doesn't
-              fit below block 1. No orphaned bars or split amber boxes. ── */}
-          {hasRefunds && (
-            <View wrap={false}>
-              <View style={s.refundBox}>
-                <Text style={s.refundHead}>Post-Completion Refunds Issued by Camel Global</Text>
-                {p.postCompletionRefunds.map((r, i) => (
-                  <View key={r.id} style={s.refundRow}>
-                    <Text style={s.refundLabel}>
-                      {`Refund ${i + 1}${r.reason ? ` — ${r.reason}` : ""}${r.created_at ? ` (${new Date(r.created_at).toLocaleDateString("en-GB")})` : ""}`}
-                    </Text>
-                    <Text style={s.refundValue}>- {fmt(r.amount)}</Text>
+            {hasRefunds && (
+              <View>
+                <View style={s.refundBox}>
+                  <Text style={s.refundHead}>Post-Completion Refunds Issued by Camel Global</Text>
+                  {p.postCompletionRefunds.map((r, i) => (
+                    <View key={r.id} style={s.refundRow}>
+                      <Text style={s.refundLabel}>
+                        {`Refund ${i + 1}${r.reason ? ` — ${r.reason}` : ""}${r.created_at ? ` (${new Date(r.created_at).toLocaleDateString("en-GB")})` : ""}`}
+                      </Text>
+                      <Text style={s.refundValue}>- {fmt(r.amount)}</Text>
+                    </View>
+                  ))}
+                  <View style={s.refundTotal}>
+                    <Text style={s.refundTotalL}>Total refunded to customer</Text>
+                    <Text style={s.refundTotalV}>- {fmt(pcTotal)}</Text>
                   </View>
-                ))}
-                <View style={s.refundTotal}>
-                  <Text style={s.refundTotalL}>Total refunded to customer</Text>
-                  <Text style={s.refundTotalV}>- {fmt(pcTotal)}</Text>
                 </View>
+                <View style={s.netRow}>
+                  <Text style={s.netLabel}>Net total after refunds</Text>
+                  <Text style={s.netValue}>{fmt(netTotal)}</Text>
+                </View>
+                <Text style={s.note}>
+                  Post-completion refunds were issued by Camel Global directly to the customer. The taxable supply on your VAT invoice is the gross car hire amount.
+                  If you have issued a credit note to account for a partial refund of services, include that reference on your invoice.
+                </Text>
               </View>
-              <View style={s.netRow}>
-                <Text style={s.netLabel}>Net total after refunds</Text>
-                <Text style={s.netValue}>{fmt(netTotal)}</Text>
-              </View>
-              <Text style={s.note}>
-                Post-completion refunds were issued by Camel Global directly to the customer. The taxable supply on your VAT invoice is the gross car hire amount.
-                If you have issued a credit note to account for a partial refund of services, include that reference on your invoice.
-              </Text>
-            </View>
-          )}
+            )}
 
-          {/* General note — always shown */}
-          <Text style={s.note}>
-            Note: The car hire amount above is the gross amount paid by the customer through the Camel Global platform before Camel's commission is deducted.
-            For your VAT invoice to the customer, the taxable supply is the full car hire amount.
-            Camel Global's commission is a separate platform fee charged to you — it does not reduce the value of the supply to the customer.
-          </Text>
+            <Text style={s.note}>
+              Note: The car hire amount above is the gross amount paid by the customer through the Camel Global platform before Camel's commission is deducted.
+              For your VAT invoice to the customer, the taxable supply is the full car hire amount.
+              Camel Global's commission is a separate platform fee charged to you — it does not reduce the value of the supply to the customer.
+            </Text>
+          </View>
 
           {/* Blank fields for partner to complete */}
           <View style={[s.section, { marginTop: 16 }]}>
