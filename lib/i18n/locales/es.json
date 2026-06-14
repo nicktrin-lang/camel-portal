@@ -28,11 +28,9 @@
   "common.partnerLogin": "Acceso socios",
   "common.alreadyHaveAccount": "¿Ya tienes cuenta?",
   "common.signIn": "Iniciar sesión",
-
   "session.error": "Error de sesión",
   "session.conflict": "Tu sesión tiene un conflicto. Haz clic abajo para borrarla e iniciar sesión de nuevo.",
   "session.clearAndLogin": "Borrar sesión e iniciar sesión de nuevo",
-
   "nav.camelGlobal": "Camel Global",
   "nav.partnerPortal": "Portal de Socios",
   "nav.adminPortal": "Portal de Administración",
@@ -59,7 +57,6 @@
   "nav.applyNow": "Solicitar ahora — es gratis →",
   "nav.alreadyDriver": "¿Ya eres conductor?",
   "nav.driverLoginArrow": "Acceso conductores →",
-
   "home.meta.tagline": "Camel Global — Portal de Socios",
   "home.hero.line1": "Más reservas",
   "home.hero.line2": "Menos complicaciones",
@@ -201,7 +198,6 @@
   "home.cta.body": "Sin cuotas mensuales. Sin compromisos. Funciona junto a tu negocio actual. Más reservas, entregadas a tu puerta.",
   "home.cta.primary": "Solicitar ahora — es gratis →",
   "home.cta.secondary": "Acceso socios",
-
   "signup.tag": "Hazte socio",
   "signup.title": "Únete a Camel Global.",
   "signup.subtitle": "Solicita registrar tu empresa de alquiler en la plataforma. Tarda menos de 5 minutos.",
@@ -294,7 +290,6 @@
   "signup.step5.cta": "Crear mi cuenta →",
   "signup.step5.err.captcha": "Por favor, completa el CAPTCHA.",
   "signup.step5.err.captchaFail": "La verificación del CAPTCHA ha fallado. Por favor, inténtalo de nuevo.",
-
   "login.tag": "Portal de Socios",
   "login.title": "Bienvenido de nuevo.",
   "login.subtitle": "Inicia sesión para gestionar tu perfil y reservas.",
@@ -322,7 +317,6 @@
   "login.reason.notSignedIn": "Por favor, inicia sesión para continuar.",
   "login.reason.notAuthorized": "No estás autorizado para acceder a esa página.",
   "login.reason.accountDeleted": "Tu cuenta ha sido eliminada. Si crees que es un error, contacta con support@camel-global.com.",
-
   "appSubmitted.loading": "Cargando…",
   "appSubmitted.partnerLogin": "Acceso socios",
   "appSubmitted.copyright": "© {{year}} NTUK Ltd. Todos los derechos reservados. Operando como Camel Global.",
@@ -347,7 +341,6 @@
   "appSubmitted.rejected.title": "Tu solicitud no ha sido aprobada.",
   "appSubmitted.rejected.body": "Lamentablemente no hemos podido aprobar tu solicitud en este momento. Si crees que es un error o deseas hablar sobre tu solicitud, contacta con nuestro equipo.",
   "appSubmitted.rejected.cta": "Contactar con nosotros →",
-
   "reset.verifying": "Verificando enlace de restablecimiento…",
   "reset.expired.title": "Enlace caducado",
   "reset.expired.body": "Este enlace de restablecimiento ha caducado o no es válido. Por favor, solicita uno nuevo.",
@@ -365,7 +358,6 @@
   "reset.err.match": "Las contraseñas no coinciden.",
   "reset.err.length": "La contraseña debe tener al menos 8 caracteres.",
   "reset.err.failed": "No se ha podido actualizar la contraseña.",
-
   "onboarding.tag": "Portal de Socios",
   "onboarding.title": "Primeros pasos",
   "onboarding.subtitle": "Completa tu configuración para empezar a recibir reservas.",
@@ -510,7 +502,6 @@
   "onboarding.golive.incompleteBody": "Puedes completar los pasos restantes desde tu panel. Nota: se necesita un número de IVA y una cuenta de pagos Stripe para que tu cuenta pueda activarse.",
   "onboarding.golive.ctaDone": "Ir al panel",
   "onboarding.golive.ctaSave": "Guardar progreso e ir al panel",
-
   "dashboard.title": "Panel del socio",
   "dashboard.welcomeBack": "Bienvenido de nuevo",
   "dashboard.accountApproved": "✓ Cuenta aprobada",
@@ -579,26 +570,22 @@
   "dashboard.missing.driver": "No hay conductores activos",
   "dashboard.missing.default_currency": "Moneda de facturación no configurada",
   "dashboard.missing.vat_number": "Número de IVA / NIF no configurado",
-
   "booking.status.onHire": "En alquiler",
   "booking.status.driverAssigned": "Conductor asignado",
   "booking.status.enRoute": "En camino",
   "booking.status.bidSubmitted": "Oferta enviada",
   "booking.status.bidWon": "Oferta ganada",
   "booking.status.bidLost": "Oferta perdida",
-"account.loading": "Cargando…",
+  "account.loading": "Cargando…",
   "account.error.load": "Error al cargar la cuenta.",
-
   "account.card.company": "Empresa",
   "account.card.appStatus": "Estado de solicitud",
   "account.card.serviceRadius": "Radio de servicio",
   "account.card.billingCurrency": "Moneda de facturación",
-
   "account.live.title": "Tu cuenta está activa",
   "account.live.body": "Eres visible para los clientes y puedes recibir y pujar en solicitudes dentro de tu radio de servicio.",
   "account.notLive.title": "Tu cuenta aún no está activa",
   "account.notLive.body": "Completa lo siguiente para activarte y empezar a recibir solicitudes de clientes:",
-
   "account.section.companyDetails": "Datos de la empresa",
   "account.field.contactName": "Nombre de contacto",
   "account.field.email": "Correo electrónico",
@@ -606,7 +593,6 @@
   "account.field.website": "Sitio web",
   "account.field.billingCurrency": "Moneda de facturación",
   "account.field.serviceRadius": "Radio de servicio",
-
   "account.section.commission": "Comisión de Camel",
   "account.section.commission.subtitle": "La tasa aplicada al precio del alquiler en cada reserva completada.",
   "account.commission.currentRate": "Tu tarifa actual",
@@ -620,7 +606,6 @@
   "account.commission.note3.bold": "€10",
   "account.commission.note3.end": "por reserva.",
   "account.commission.reduced": "✓ Tienes una tarifa reducida por acuerdo con Camel Global.",
-
   "account.section.billing": "Empresa y facturación",
   "account.section.billing.subtitle": "Tus datos legales para la facturación de comisiones.",
   "account.field.legalName": "Nombre legal de la empresa",
@@ -630,7 +615,6 @@
   "account.vat.required": "Requerido",
   "account.vat.warning": "⚠️ Tu número de IVA / NIF es obligatorio antes de que tu cuenta pueda activarse.",
   "account.vat.warningLink": "Añádelo en tu perfil →",
-
   "account.section.bizAddress": "Dirección de la empresa",
   "account.field.fullAddress": "Dirección completa",
   "account.field.addr1": "Dirección línea 1",
@@ -639,41 +623,34 @@
   "account.field.province": "Provincia",
   "account.field.postcode": "Código postal",
   "account.field.country": "País",
-
   "account.section.fleetBase": "Ubicación base de la flota",
   "account.field.gps": "GPS",
   "account.field.coverageRadius": "Radio de cobertura",
   "account.field.coverageRadius.body": "{{radius}} km — Las solicitudes de clientes dentro de este radio se te enviarán.",
-
   "account.actions.title": "Acciones de cuenta",
   "account.actions.editProfile": "Editar perfil",
   "account.actions.manageFleet": "Gestionar flota",
   "account.actions.manageDrivers": "Gestionar conductores",
-
   "account.application.title": "Solicitud",
   "account.field.status": "Estado",
   "account.field.applied": "Fecha de solicitud",
   "account.application.pending": "Tu solicitud está en revisión. Recibirás un correo electrónico cuando sea aprobada.",
   "account.application.approved": "Tu cuenta está aprobada. Completa la configuración de tu perfil para activarte.",
-
   "account.terms.title": "Términos y condiciones",
   "account.terms.versionAccepted": "Versión aceptada",
   "account.terms.acceptedOn": "Aceptado el",
   "account.terms.confirmed": "✓ Has aceptado los Términos y Condiciones de socio vigentes.",
   "account.terms.viewCta": "Ver T&C actuales",
-
   "account.quickLinks.title": "Accesos rápidos",
   "account.quickLinks.bookings": "Ver mis reservas",
   "account.quickLinks.requests": "Ver mis solicitudes",
   "account.quickLinks.reports": "Gestión de informes",
   "account.quickLinks.drivers": "Mis conductores",
   "account.quickLinks.fleet": "Mi flota",
-
   "account.rules.title": "Normas operativas del socio",
   "account.rules.subtitle": "Estas normas rigen tu conducta como socio de Camel Global. Al operar en la plataforma aceptas cumplir con todas las secciones.",
   "account.rules.downloadPdf": "⬇ Descargar PDF",
   "account.rules.footer": "Normas operativas del socio de Camel Global — Última actualización abril 2026 — Sujeto a cambios con 14 días de preaviso.",
-
   "account.missing.service_radius_km": "Radio de servicio no establecido",
   "account.missing.base_address": "Dirección base de la flota no establecida",
   "account.missing.base_location": "Ubicación base de la flota (pin) no establecida",
@@ -683,12 +660,11 @@
   "account.missing.driver": "No hay conductores activos",
   "account.missing.default_currency": "Moneda de facturación no establecida",
   "account.missing.vat_number": "Número de IVA / NIF no establecido",
-
   "account.currency.eur": "Euro (€)",
   "account.currency.gbp": "Libra esterlina (£)",
   "account.currency.usd": "Dólar estadounidense ($)",
   "account.currency.notSet": "No establecido",
-"profile.loading": "Cargando…",
+  "profile.loading": "Cargando…",
   "profile.saving": "Guardando…",
   "profile.saved": "✓ Perfil guardado correctamente.",
   "profile.savedShort": "✓ Guardado correctamente",
@@ -703,7 +679,6 @@
   "profile.error.searchFailed": "Error en la búsqueda.",
   "profile.error.noResults": "Sin resultados — prueba otra búsqueda o mueve el pin en el mapa.",
   "profile.saveBtn": "Guardar cambios",
-
   "profile.section.company": "Información de la empresa",
   "profile.section.company.desc": "Tus datos básicos de empresa que se muestran a los clientes cuando ganas una puja.",
   "profile.field.companyName": "Nombre de la empresa",
@@ -714,7 +689,6 @@
   "profile.field.phone.placeholder": "+34 600 000 000",
   "profile.field.website": "Sitio web",
   "profile.field.website.placeholder": "https://tuempresa.com",
-
   "profile.section.service": "Configuración del servicio",
   "profile.section.service.desc": "Controla tu radio de servicio y la moneda en la que pujas.",
   "profile.field.radius": "Radio de servicio (km)",
@@ -728,7 +702,6 @@
   "profile.field.currency.locked": "Tu moneda de facturación se establece durante el alta en Stripe y no se puede cambiar aquí. Contacta con",
   "profile.field.currency.lockedLink": "el soporte de Camel Global",
   "profile.field.currency.lockedEnd": "si necesitas cambiarla.",
-
   "profile.section.billing": "Empresa y facturación",
   "profile.section.billing.desc": "Tus datos legales para la facturación de comisiones.",
   "profile.billing.managedTitle": "🔒 Estos datos son gestionados por Camel Global",
@@ -743,7 +716,6 @@
   "profile.field.vatNumber.notSet": "No establecido — contacta con soporte",
   "profile.vat.ok": "✓",
   "profile.vat.required": "Requerido",
-
   "profile.section.bizAddress": "Dirección de la empresa",
   "profile.section.bizAddress.desc": "Tu dirección registrada para correspondencia y registros.",
   "profile.searchingNear": "Buscando cerca de",
@@ -768,7 +740,6 @@
   "profile.field.postcode.placeholder": "p. ej. 46001",
   "profile.field.country": "País",
   "profile.field.country.placeholder": "p. ej. España",
-
   "profile.section.fleetBase": "Ubicación base de la flota",
   "profile.section.fleetBase.desc": "Desde dónde se despachan tus vehículos. Las coordenadas aquí controlan tu radio de servicio.",
   "profile.fleetBase.sameAsBusiness": "Igual que la dirección de empresa",
@@ -786,13 +757,12 @@
   "profile.field.latitude.placeholder": "p. ej. 38.842",
   "profile.field.longitude": "Longitud",
   "profile.field.longitude.placeholder": "p. ej. 0.112",
-"bookings.loading": "Cargando…",
+  "bookings.loading": "Cargando…",
   "bookings.error.load": "Error al cargar.",
   "bookings.error.missingId": "ID de reserva no encontrado.",
   "bookings.error.notFound": "Reserva no encontrada",
   "bookings.error.update": "Error al actualizar.",
   "bookings.error.cancel": "Error al cancelar la reserva.",
-
   "bookings.list.title": "Reservas",
   "bookings.list.subtitle": "Reservas asignadas a tu cuenta de socio. Haz clic en una fila para ver el detalle.",
   "bookings.list.subtitleAdmin": "Todas las reservas de la red.",
@@ -807,20 +777,17 @@
   "bookings.list.showMore": "▼ Ver más ({{count}} restantes)",
   "bookings.list.showLess": "▲ Ver menos",
   "bookings.list.empty": "No se encontraron reservas.",
-
   "bookings.filter.all": "Todas",
   "bookings.filter.confirmed": "Confirmada",
   "bookings.filter.driver_assigned": "Conductor asignado",
   "bookings.filter.collected": "En alquiler",
   "bookings.filter.completed": "Completada",
   "bookings.filter.cancelled": "Cancelada",
-
   "bookings.stats.total": "Total reservas",
   "bookings.stats.active": "Activas",
   "bookings.stats.completed": "Completadas",
   "bookings.stats.netPayout": "Pago neto ({{label}})",
   "bookings.stats.afterCommission": "tras comisión",
-
   "bookings.currency.title": "Ingresos por moneda",
   "bookings.currency.subtitle": "Desglose de reservas y pago neto por moneda.",
   "bookings.currency.col.currency": "Moneda",
@@ -828,7 +795,6 @@
   "bookings.currency.col.completed": "Completadas",
   "bookings.currency.col.gross": "Ingresos brutos",
   "bookings.currency.col.payout": "Pago neto",
-
   "bookings.table.col.jobNo": "Nº trabajo",
   "bookings.table.col.partner": "Socio",
   "bookings.table.col.customer": "Cliente",
@@ -847,7 +813,6 @@
   "bookings.table.col.netPayout": "Pago neto",
   "bookings.table.col.created": "Creada",
   "bookings.table.custCurrency": "cliente: {{currency}}",
-
   "bookings.status.confirmed": "Confirmada",
   "bookings.status.driver_assigned": "Conductor asignado",
   "bookings.status.en_route": "En camino",
@@ -857,11 +822,9 @@
   "bookings.status.cancelled": "Cancelada",
   "bookings.status.awaiting": "Pendiente de entrega",
   "bookings.status.onHire": "En alquiler",
-
   "bookings.detail.title": "Detalle de reserva",
   "bookings.detail.subtitle": "Ver y gestionar esta reserva.",
   "bookings.detail.backBtn": "Volver a reservas",
-
   "bookings.detail.info.title": "Información de la reserva",
   "bookings.detail.info.jobNo": "Nº trabajo",
   "bookings.detail.info.status": "Estado",
@@ -874,7 +837,6 @@
   "bookings.detail.info.notes": "Notas",
   "bookings.detail.info.liveRate": "· Tipo en tiempo real (frankfurter.app)",
   "bookings.detail.info.currency": "Moneda de reserva:",
-
   "bookings.detail.journey.title": "Información del trayecto",
   "bookings.detail.journey.customer": "Cliente",
   "bookings.detail.journey.email": "Correo electrónico",
@@ -892,7 +854,6 @@
   "bookings.detail.journey.additionalDriversValue": "{{count}} (edades: {{ages}})",
   "bookings.detail.journey.additionalDriversNone": "Ninguno",
   "bookings.detail.journey.vehicle": "Vehículo",
-
   "bookings.detail.payment.title": "Desglose de pago y tarifas",
   "bookings.detail.payment.subtitle": "Todos los importes en tu moneda de puja ({{currency}}). El cliente siempre paga en la moneda de puja — sin cargo de conversión.",
   "bookings.detail.payment.carHire": "Alquiler del vehículo",
@@ -906,7 +867,6 @@
   "bookings.detail.payment.stripeNote": "Los gastos de procesamiento de Stripe son cubiertos por Camel Global y no se deducen de tu pago. Consulta tus",
   "bookings.detail.payment.stripeNoteLink": "condiciones de socio",
   "bookings.detail.payment.stripeNoteEnd": "para más detalles.",
-
   "bookings.detail.cancel.title": "Cancelar esta reserva",
   "bookings.detail.cancel.subtitle": "Cancelar como socio siempre supone el reembolso completo al cliente. Esta acción no se puede deshacer.",
   "bookings.detail.cancel.btn": "Cancelar reserva",
@@ -916,7 +876,6 @@
   "bookings.detail.cancel.confirming": "Cancelando…",
   "bookings.detail.cancel.keep": "Mantener reserva",
   "bookings.detail.cancel.success": "Reserva cancelada. Todas las partes han sido notificadas por correo electrónico.",
-
   "bookings.detail.cancellation.title": "❌ Reserva cancelada",
   "bookings.detail.cancellation.cancelledBy": "Cancelada por:",
   "bookings.detail.cancellation.cancelledByCustomer": "Cliente",
@@ -948,7 +907,6 @@
   "bookings.detail.cancellation.none": "Ninguno",
   "bookings.detail.cancellation.partialNote": "⚠ El cliente canceló dentro de las 48h previas a la recogida — conservas el alquiler menos la comisión.",
   "bookings.detail.cancellation.fullNote": "Reembolso completo emitido — no hay pago por esta reserva.",
-
   "bookings.detail.driver.title": "Asignación de conductor",
   "bookings.detail.driver.currentStatus": "Estado actual:",
   "bookings.detail.driver.assignLabel": "Asignar conductor",
@@ -965,7 +923,6 @@
   "bookings.detail.driver.saveBtn": "Guardar datos del conductor",
   "bookings.detail.driver.saving": "Guardando…",
   "bookings.detail.driver.saved": "Datos del conductor guardados.",
-
   "bookings.detail.audit.title": "Auditoría del conductor",
   "bookings.detail.audit.subtitle": "Registro exacto de quién entregó y recogió el vehículo y cuándo.",
   "bookings.detail.audit.delivery": "🚗 Conductor de entrega",
@@ -976,7 +933,6 @@
   "bookings.detail.audit.notCollected": "Aún no recogido",
   "bookings.detail.audit.differentDriver": "⚠ Conductor diferente a la asignación actual",
   "bookings.detail.audit.differentFromDelivery": "⚠ Conductor diferente al de entrega",
-
   "bookings.detail.insurance.title": "Documentos de seguro",
   "bookings.detail.insurance.subtitle": "El conductor confirma la entrega en su app. El cliente confirma la recepción en su portal.",
   "bookings.detail.insurance.refreshNote": "(Se actualiza cada 10s)",
@@ -990,7 +946,6 @@
   "bookings.detail.insurance.waitingDriver": "Esperando confirmación del conductor.",
   "bookings.detail.insurance.waitingCustomer": "Esperando confirmación del cliente.",
   "bookings.detail.insurance.bothConfirmed": "✓ Tanto el conductor como el cliente confirman que los documentos de seguro se entregaron.",
-
   "bookings.detail.fuel.title": "Control de combustible",
   "bookings.detail.fuel.subtitle": "El conductor registra el nivel de combustible en su app. Usa la corrección de oficina si es necesario — el cliente verá y confirmará este valor.",
   "bookings.detail.fuel.refreshNote": "(Se actualiza cada 10s)",
@@ -1016,7 +971,6 @@
   "bookings.detail.fuel.saving": "Guardando…",
   "bookings.detail.fuel.saved.delivery": "Combustible de entrega guardado.",
   "bookings.detail.fuel.saved.collection": "Combustible de recogida guardado.",
-
   "bookings.detail.fuel.level.empty": "Vacío",
   "bookings.detail.fuel.level.quarter": "¼ depósito",
   "bookings.detail.fuel.level.half": "½ depósito",
@@ -1027,7 +981,6 @@
   "bookings.detail.fuel.option.half": "½ depósito",
   "bookings.detail.fuel.option.quarter": "¼ depósito",
   "bookings.detail.fuel.option.empty": "Vacío",
-
   "bookings.detail.summary.title": "Resumen de reserva",
   "bookings.detail.summary.finalised": "Finalizada",
   "bookings.detail.summary.totalValue": "Valor total de la reserva",
@@ -1039,7 +992,6 @@
   "bookings.detail.summary.perQuarter": "Por cuarto",
   "bookings.detail.summary.fuelCharge": "Cargo de combustible al cliente",
   "bookings.detail.summary.fuelRefund": "Reembolso al cliente",
-
   "bookings.sport.none": "Ninguno",
   "bookings.sport.golf_single": "Palos de golf — 1 bolsa",
   "bookings.sport.golf_two": "Palos de golf — 2 bolsas",
@@ -1052,14 +1004,13 @@
   "bookings.sport.bikes_two": "Bicicletas — 2",
   "bookings.sport.bikes_three": "Bicicletas — 3+",
   "bookings.sport.other": "Otro equipamiento voluminoso",
-"requests.loading": "Cargando…",
+  "requests.loading": "Cargando…",
   "requests.error.load": "Error al cargar.",
   "requests.error.notFound": "Solicitud no encontrada",
   "requests.error.bid.noFleet": "Por favor selecciona un vehículo de tu flota.",
   "requests.error.bid.carHire": "Por favor introduce un precio de alquiler válido.",
   "requests.error.bid.fuel": "Por favor introduce un precio de combustible válido.",
   "requests.error.bid.failed": "Error al enviar la puja.",
-
   "requests.list.title": "Solicitudes",
   "requests.list.subtitle": "Historial de solicitudes asignadas a tu cuenta de socio. Haz clic en una fila para ver el detalle.",
   "requests.list.subtitleAdmin": "Todas las solicitudes de la red.",
@@ -1072,14 +1023,12 @@
   "requests.list.empty": "No se encontraron solicitudes.",
   "requests.list.showMore": "▼ Ver más ({{count}} restantes)",
   "requests.list.showLess": "▲ Ver menos",
-
   "requests.filter.all": "Todas",
   "requests.filter.open": "Abierta",
   "requests.filter.bid_submitted": "Puja enviada",
   "requests.filter.bid_successful": "Puja exitosa",
   "requests.filter.bid_unsuccessful": "Puja sin éxito",
   "requests.filter.expired": "Expirada",
-
   "requests.table.col.jobNo": "Nº trabajo",
   "requests.table.col.bookingStatus": "Estado reserva",
   "requests.table.col.requestStatus": "Estado solicitud",
@@ -1090,16 +1039,13 @@
   "requests.table.col.vehicle": "Vehículo",
   "requests.table.col.passengers": "Pasajeros",
   "requests.table.col.created": "Creada",
-
   "requests.detail.title": "Detalle de solicitud",
   "requests.detail.subtitle": "Revisa esta solicitud y envía tu puja.",
   "requests.detail.backBtn": "Volver a solicitudes",
   "requests.detail.loading": "Cargando solicitud…",
-
   "requests.detail.strip.timeRemaining": "Tiempo restante",
   "requests.detail.strip.yourStatus": "Tu estado",
   "requests.detail.strip.requestStatus": "Estado de solicitud",
-
   "requests.detail.info.title": "Información de la solicitud",
   "requests.detail.info.jobNo": "Nº trabajo",
   "requests.detail.info.customer": "Cliente",
@@ -1122,12 +1068,10 @@
   "requests.detail.info.notes": "Notas",
   "requests.detail.info.created": "Creada",
   "requests.detail.info.expiresAt": "Expira el",
-
   "requests.detail.youngDriver.title": "⚠ Conductor joven (21–24) en esta reserva",
   "requests.detail.youngDriver.main": "El conductor principal tiene {{age}} años. ",
   "requests.detail.youngDriver.additional": "Conductor(es) adicional(es) de entre 21 y 24 años. ",
   "requests.detail.youngDriver.body": "Si aplicas un suplemento por conductor joven, inclúyelo en el precio del alquiler y menciónalo en las notas de tu puja.",
-
   "requests.detail.bid.title": "Resultado de la puja",
   "requests.detail.bid.expired": "Esta solicitud ha expirado.",
   "requests.detail.bid.successful": "✓ Tu puja fue exitosa — esta solicitud ya está en Reservas.",
@@ -1136,7 +1080,6 @@
   "requests.detail.bid.submitted": "Puja enviada — esperando decisión del cliente.",
   "requests.detail.bid.noFleet": "No se encontraron vehículos compatibles en tu flota para esta solicitud.",
   "requests.detail.bid.goToBooking": "Ir a la reserva →",
-
   "requests.detail.bid.field.status": "Estado de la puja",
   "requests.detail.bid.field.currency": "Moneda",
   "requests.detail.bid.field.vehicle": "Vehículo",
@@ -1153,7 +1096,6 @@
   "requests.detail.bid.field.submitted": "Enviada",
   "requests.detail.bid.yes": "Sí",
   "requests.detail.bid.no": "No",
-
   "requests.detail.form.biddingIn": "Pujando en {{label}}",
   "requests.detail.form.changeInProfile": "Cambiar en perfil",
   "requests.detail.form.commission.title": "💰 Comisión en esta reserva",
@@ -1186,19 +1128,16 @@
   "requests.detail.form.submitBtn": "Enviar puja",
   "requests.detail.form.saving": "Guardando…",
   "requests.detail.form.ok": "Puja enviada correctamente.",
-
   "requests.partnerStatus.successful": "Puja exitosa",
   "requests.partnerStatus.unsuccessful": "Puja sin éxito",
   "requests.partnerStatus.expired": "Expirada",
   "requests.partnerStatus.submitted": "Puja enviada — esperando cliente",
   "requests.partnerStatus.open": "Abierta",
-"reports.loading": "Cargando informe…",
+  "reports.loading": "Cargando informe…",
   "reports.error.load": "Error al cargar las reservas.",
   "reports.error.loadData": "Error al cargar los datos del informe.",
-
   "reports.title": "Gestión de informes",
   "reports.subtitle": "Tu historial de reservas, resumen de ingresos y pagos.",
-
   "reports.filter.dateFrom": "Fecha desde",
   "reports.filter.dateTo": "Fecha hasta",
   "reports.filter.status": "Estado",
@@ -1206,7 +1145,6 @@
   "reports.filter.export": "⬇ Exportar Excel",
   "reports.filter.clear": "Limpiar",
   "reports.filter.refresh": "Actualizar",
-
   "reports.status.confirmed": "Confirmada",
   "reports.status.driver_assigned": "Conductor asignado",
   "reports.status.en_route": "En camino",
@@ -1215,7 +1153,6 @@
   "reports.status.returned": "Devuelto",
   "reports.status.completed": "Completada",
   "reports.status.cancelled": "Cancelada",
-
   "reports.summary.title": "Resumen",
   "reports.summary.bookings": "Reservas",
   "reports.summary.completed": "Completadas",
@@ -1224,7 +1161,6 @@
   "reports.summary.commission": "Comisión",
   "reports.summary.yourPayout": "Tu pago",
   "reports.summary.fuelRefunded": "Combustible reembolsado",
-
   "reports.invoices.title": "Facturas de comisión",
   "reports.invoices.subtitle": "Las facturas de comisión mensuales se generan automáticamente el día 1 de cada mes y se te envían por correo. También puedes generar o descargar cualquier factura anterior aquí.",
   "reports.invoices.generate.title": "Generar / Descargar factura",
@@ -1248,14 +1184,12 @@
   "reports.invoices.notSent": "No enviada",
   "reports.invoices.unavailable": "No disponible",
   "reports.invoices.pdf": "⬇ PDF",
-
   "reports.bookings.title": "Reservas",
   "reports.bookings.showing": "Mostrando",
   "reports.bookings.of": "de",
   "reports.bookings.empty": "No se encontraron reservas.",
   "reports.bookings.showMore": "▼ Ver más ({{count}} restantes)",
   "reports.bookings.showLess": "▲ Ver menos",
-
   "reports.bookings.col.job": "Trabajo",
   "reports.bookings.col.customer": "Cliente",
   "reports.bookings.col.pickup": "Recogida",
@@ -1272,7 +1206,7 @@
   "reports.bookings.col.total": "Total",
   "reports.bookings.col.yourPayout": "Tu pago",
   "reports.bookings.col.payoutStatus": "Estado de pago",
-"fleet.title": "Flota de vehículos",
+  "fleet.title": "Flota de vehículos",
   "fleet.subtitle": "Añade las categorías de vehículos que puedes ofrecer para que las solicitudes de clientes se puedan asignar correctamente.",
   "fleet.error.load": "Error al cargar la flota.",
   "fleet.error.add": "Error al añadir la categoría de vehículo.",
@@ -1283,7 +1217,6 @@
   "fleet.ok.added": "Categoría de vehículo añadida.",
   "fleet.loading": "Cargando flota…",
   "fleet.empty": "Aún no se han añadido categorías de vehículos.",
-
   "fleet.add.title": "Añadir categoría de vehículo",
   "fleet.add.categoryLabel": "Categoría de vehículo",
   "fleet.add.passengersLabel": "Máx. pasajeros",
@@ -1299,7 +1232,6 @@
   "fleet.add.activeLabel": "Activo y disponible para asignación",
   "fleet.add.saveBtn": "Añadir categoría de vehículo",
   "fleet.add.saving": "Guardando…",
-
   "fleet.list.title": "Tu flota",
   "fleet.list.passengers": "Pasajeros:",
   "fleet.list.suitcases": "Maletas:",
@@ -1311,7 +1243,6 @@
   "fleet.list.setInactive": "Desactivar",
   "fleet.list.setActive": "Activar",
   "fleet.list.remove": "Eliminar",
-
   "drivers.title": "Conductores",
   "drivers.subtitle": "Añade y gestiona los conductores de tu empresa.",
   "drivers.error.load": "Error al cargar los conductores.",
@@ -1322,12 +1253,10 @@
   "drivers.ok.deactivated": "Conductor desactivado.",
   "drivers.loading": "Cargando conductores…",
   "drivers.empty": "Aún no se han añadido conductores.",
-
   "drivers.portal.title": "🚗 Portal de conductores",
   "drivers.portal.body1": "Cada conductor que añadas aquí debe iniciar sesión en el Portal de Conductores de Camel Global para aceptar trabajos, registrar niveles de combustible y confirmar recogidas y devoluciones.",
   "drivers.portal.body2": "Comparte el enlace del portal de conductores con tus conductores para que puedan iniciar sesión con la dirección de correo electrónico con la que los registraste.",
   "drivers.portal.btn": "Abrir portal de conductores →",
-
   "drivers.add.title": "Añadir conductor",
   "drivers.add.nameLabel": "Nombre completo del conductor",
   "drivers.add.namePlaceholder": "p. ej. Juan García",
@@ -1337,7 +1266,6 @@
   "drivers.add.phonePlaceholder": "p. ej. +34 600 000 000",
   "drivers.add.saveBtn": "Añadir conductor",
   "drivers.add.saving": "Añadiendo…",
-
   "drivers.list.title": "Lista de conductores",
   "drivers.list.col.name": "Nombre",
   "drivers.list.col.email": "Correo",
@@ -1350,7 +1278,7 @@
   "drivers.list.activate": "Activar",
   "drivers.list.deactivate": "Desactivar",
   "drivers.list.saving": "Guardando…",
-"reviews.title": "Reseñas de clientes",
+  "reviews.title": "Reseñas de clientes",
   "reviews.subtitle": "Reseñas dejadas por clientes tras reservas completadas. Puedes responder una vez a cada reseña.",
   "reviews.error.load": "Error al cargar las reseñas",
   "reviews.error.reply": "Error al enviar la respuesta",
@@ -1367,7 +1295,6 @@
   "reviews.reply.placeholder": "Agradece al cliente o responde a sus comentarios…",
   "reviews.reply.submit": "Enviar respuesta",
   "reviews.reply.submitting": "Enviando…",
-
   "settings.title": "Configuración",
   "settings.subtitle": "Gestiona las preferencias de tu cuenta y los pagos.",
   "settings.payouts.title": "Configuración de pagos",
@@ -1410,7 +1337,6 @@
   "settings.delete.confirm.cancel": "Cancelar",
   "settings.delete.confirm.btn": "Confirmar eliminación de cuenta",
   "settings.delete.confirm.deleting": "Eliminando…",
-
   "suggestions.tag": "Portal de socios",
   "suggestions.title": "Sugerencias",
   "suggestions.subtitle": "¿Tienes una idea, has detectado un error o quieres sugerir una mejora? Cuéntanos.",
@@ -1437,7 +1363,7 @@
   "suggestions.status.reviewing": "En revisión",
   "suggestions.status.planned": "Planificada",
   "suggestions.status.done": "Completada",
-"footer.tagline": "Alquiler de coches con entrega a domicilio.",
+  "footer.tagline": "Alquiler de coches con entrega a domicilio.",
   "footer.company.label": "Empresa",
   "footer.company.about": "Sobre nosotros",
   "footer.company.contact": "Contacto",
@@ -1451,7 +1377,6 @@
   "footer.platform.partnerLogin": "Acceso socios",
   "footer.platform.becomePartner": "Hazte socio",
   "footer.driver.platform.label": "Plataforma",
-
   "contact.tag": "Soporte",
   "contact.title": "Contactar con Camel Global",
   "contact.subtitle": "¿Tienes una pregunta sobre tu cuenta, una reserva o la plataforma? Rellena el formulario y te responderemos en un día hábil.",
@@ -1488,7 +1413,7 @@
   "contact.form.submitting": "Enviando…",
   "contact.form.captchaNote": "Este sitio está protegido por hCaptcha.",
   "contact.form.captchaPrivacy": "Política de privacidad",
-"terms.tag": "Legal",
+  "terms.tag": "Legal",
   "terms.title": "Términos y condiciones para socios",
   "terms.intro": "Estos Términos rigen tu uso de la plataforma Camel Global como socio. Léelos detenidamente. Al registrarte como socio y marcar la casilla de aceptación durante el registro, aceptas quedar vinculado por estos Términos y las Normas Operativas del Socio, que se incorporan por referencia.",
   "terms.version": "Versión {{version}} — En vigor desde {{effective}}",
@@ -1519,7 +1444,6 @@
   "terms.rules.accountLink": "página de cuenta de socio",
   "terms.rules.end": ".",
   "terms.footer": "Términos y condiciones para socios de Camel Global — Versión {{version}} — En vigor desde {{effective}} — Sujeto a cambios con 14 días de preaviso.",
-
   "rules.tag": "Legal",
   "rules.title": "Acuerdo operativo del socio",
   "rules.intro": "Estas normas rigen tu conducta como socio de Camel Global. Al operar en la plataforma aceptas cumplir con todas las secciones.",
@@ -1527,7 +1451,6 @@
   "rules.downloadPdf": "⬇ Descargar PDF",
   "rules.downloading": "Generando…",
   "rules.footer": "Acuerdo operativo del socio de Camel Global — Última actualización abril 2026 — Sujeto a cambios con 14 días de preaviso.",
-
   "about.tag": "Sobre Camel Global",
   "about.hero.title": "El alquiler de coches que llega a ti.",
   "about.hero.body": "Creamos Camel Global porque recoger un coche de alquiler no debería significar hacer cola en un mostrador del aeropuerto o tomar un autobús a una cochera alejada. Tu coche debería esperarte — exactamente donde lo necesitas, exactamente cuando lo necesitas.",
@@ -1555,7 +1478,6 @@
   "about.cta.title": "¿Tienes alguna pregunta?",
   "about.cta.body": "¿Preguntas sobre la plataforma, tu cuenta o una consulta de asociación?",
   "about.cta.btn": "Contáctanos →",
-
   "privacy.tag": "Legal",
   "privacy.title": "Política de privacidad",
   "privacy.effective": "En vigor desde:",
@@ -1650,7 +1572,6 @@
   "privacy.s10.body.link": "formulario de contacto",
   "privacy.s10.body.end": ".",
   "privacy.footer": "Política de privacidad de Camel Global — En vigor desde {{date}}",
-
   "cookies.tag": "Legal",
   "cookies.title": "Política de cookies",
   "cookies.effective": "En vigor desde:",
@@ -1686,7 +1607,7 @@
   "cookies.s6.body.link": "formulario de contacto",
   "cookies.s6.body.end": "y te responderemos.",
   "cookies.footer": "Política de cookies de Camel Global — En vigor desde {{date}}",
-"driver.login.tag": "Portal de conductores",
+  "driver.login.tag": "Portal de conductores",
   "driver.login.title": "Acceso conductores",
   "driver.login.subtitle": "Inicia sesión para ver tus trabajos asignados.",
   "driver.login.email": "Correo electrónico",
@@ -1710,7 +1631,6 @@
   "driver.login.reset.emailPlaceholder": "tu@correo.com",
   "driver.login.reset.sendBtn": "Enviar enlace de restablecimiento",
   "driver.login.reset.sending": "Enviando…",
-
   "driver.signup.tag": "Portal de conductores",
   "driver.signup.title": "Establece tu contraseña",
   "driver.signup.subtitle": "Crea tu acceso de conductor para ver los trabajos asignados.",
@@ -1725,7 +1645,6 @@
   "driver.signup.success": "Cuenta creada. Redirigiendo al inicio de sesión…",
   "driver.signup.createBtn": "Crear cuenta",
   "driver.signup.creating": "Creando cuenta…",
-
   "driver.reset.verifying": "Verificando enlace de restablecimiento…",
   "driver.reset.expired.title": "Enlace expirado",
   "driver.reset.expired.body": "Este enlace ha expirado o no es válido. Por favor solicita uno nuevo.",
@@ -1743,7 +1662,6 @@
   "driver.reset.err.match": "Las contraseñas no coinciden.",
   "driver.reset.err.length": "La contraseña debe tener al menos 8 caracteres.",
   "driver.reset.err.failed": "Error al actualizar la contraseña.",
-
   "driver.jobs.tag": "Portal de conductores",
   "driver.jobs.title": "Mis trabajos",
   "driver.jobs.loading": "Cargando tus trabajos…",
@@ -1759,7 +1677,6 @@
   "driver.jobs.active.label": "Trabajos activos",
   "driver.jobs.history.label": "Completados y cancelados",
   "driver.jobs.footer": "Se actualiza cada 15 segundos · Portal de conductores de Camel Global",
-
   "driver.jobs.status.confirmed": "Pendiente de entrega",
   "driver.jobs.status.driver_assigned": "Asignado a ti",
   "driver.jobs.status.en_route": "En camino",
@@ -1768,7 +1685,6 @@
   "driver.jobs.status.returned": "Devuelto",
   "driver.jobs.status.completed": "Completado",
   "driver.jobs.status.cancelled": "Cancelado",
-
   "driver.jobs.detail.customer": "Cliente",
   "driver.jobs.detail.customerPhone": "Teléfono del cliente",
   "driver.jobs.detail.vehicle": "Vehículo",
@@ -1778,7 +1694,6 @@
   "driver.jobs.detail.dropoffAddress": "Dirección de entrega",
   "driver.jobs.detail.partnerNotes": "Notas del socio",
   "driver.jobs.detail.whatsapp": "💬 WhatsApp al cliente",
-
   "driver.jobs.insurance.label": "📄 Documentos de seguro",
   "driver.jobs.insurance.confirmed": "✓ Entrega confirmada el {{time}}",
   "driver.jobs.insurance.body": "Confirma que has entregado los documentos de seguro al cliente.",
@@ -1786,7 +1701,6 @@
   "driver.jobs.insurance.saving": "Guardando…",
   "driver.jobs.insurance.historyLabel": "📄 Entrega de seguro",
   "driver.jobs.insurance.notConfirmed": "No confirmado",
-
   "driver.jobs.fuel.delivery.label": "⛽ Nivel de combustible en entrega",
   "driver.jobs.fuel.collection.label": "⛽ Nivel de combustible en recogida",
   "driver.jobs.fuel.recorded": "✓ Registraste: {{level}}",
@@ -1804,7 +1718,6 @@
   "driver.jobs.fuel.officeRecordedBadge": "Registrado por oficina",
   "driver.jobs.fuel.deliveryHistoryLabel": "⛽ Combustible en entrega",
   "driver.jobs.fuel.collectionHistoryLabel": "⛽ Combustible en recogida",
-
   "driver.jobs.fuel.level.full": "Lleno",
   "driver.jobs.fuel.level.threequarter": "¾ depósito",
   "driver.jobs.fuel.level.half": "½ depósito",
@@ -1815,34 +1728,40 @@
   "driver.jobs.fuel.display.half": "½ depósito",
   "driver.jobs.fuel.display.quarter": "¼ depósito",
   "driver.jobs.fuel.display.empty": "Vacío",
-
   "driver.jobs.confirm.delivery": "Entrega confirmada ✓",
   "driver.jobs.confirm.collection": "Recogida confirmada ✓",
   "driver.jobs.confirm.insurance": "Seguro confirmado ✓",
   "driver.jobs.confirm.error": "Error al confirmar.",
-"settings.language.title": "Idioma de comunicación",
-"settings.language.subtitle": "Elige el idioma para los correos electrónicos y notificaciones que te envía Camel Global.",
-"settings.language.saved": "✓ Preferencia de idioma guardada",
-"settings.language.hint": "Esto afecta al idioma de los correos que te enviamos, no al idioma de visualización del portal.",
-"settings.language.label": "Idioma",
-"driver.jobs.steps.label": "Pasos",
-"driver.jobs.steps.insurance": "Seguro",
-"driver.jobs.steps.deliveryFuel": "Combustible entrega",
-"driver.jobs.steps.collectionFuel": "Combustible recogida",
-"driver.jobs.steps.locked.completeInsurance": "Primero confirma la entrega del seguro (Paso 1)",
-"driver.jobs.steps.locked.completeDelivery": "Primero registra el nivel de combustible de entrega (Paso 2)",
-"chat.suggestions.0": "¿Dónde está mi conductor?",
-"chat.suggestions.1": "¿Cuál es el estado de mi reserva?",
-"chat.suggestions.2": "¿Cómo funciona el depósito de combustible?",
-"chat.suggestions.3": "¿Cómo cancelo una reserva?",
-"chat.welcome": "👋 ¡Hola! Soy Camel Help. Puedo responder preguntas sobre tus reservas, detalles del conductor, depósitos de combustible y más. ¿En qué puedo ayudarte?",
-"chat.endChat": "Finalizar chat",
-"chat.sendingTranscript": "Enviando transcripción…",
-"chat.ended.transcript": "✅ Chat finalizado. Se te ha enviado una transcripción por correo.",
-"chat.ended.noTranscript": "Chat finalizado.",
-"chat.startNew": "Nuevo chat",
-"chat.subtitle": "Asistente IA · normalmente instantáneo",
-"chat.placeholder": "Escribe un mensaje…",
-"chat.error.failed": "No se pudo obtener una respuesta.",
-"chat.error.generic": "Algo salió mal. Por favor, inténtalo de nuevo."
+  "settings.language.title": "Idioma de comunicación",
+  "settings.language.subtitle": "Elige el idioma para los correos electrónicos y notificaciones que te envía Camel Global.",
+  "settings.language.saved": "✓ Preferencia de idioma guardada",
+  "settings.language.hint": "Esto afecta al idioma de los correos que te enviamos, no al idioma de visualización del portal.",
+  "settings.language.label": "Idioma",
+  "driver.jobs.steps.label": "Pasos",
+  "driver.jobs.steps.insurance": "Seguro",
+  "driver.jobs.steps.deliveryFuel": "Combustible entrega",
+  "driver.jobs.steps.collectionFuel": "Combustible recogida",
+  "driver.jobs.steps.locked.completeInsurance": "Primero confirma la entrega del seguro (Paso 1)",
+  "driver.jobs.steps.locked.completeDelivery": "Primero registra el nivel de combustible de entrega (Paso 2)",
+  "chat.suggestions.0": "¿Dónde está mi conductor?",
+  "chat.suggestions.1": "¿Cuál es el estado de mi reserva?",
+  "chat.suggestions.2": "¿Cómo funciona el depósito de combustible?",
+  "chat.suggestions.3": "¿Cómo cancelo una reserva?",
+  "chat.welcome": "👋 ¡Hola! Soy Camel Help. Puedo responder preguntas sobre tus reservas, detalles del conductor, depósitos de combustible y más. ¿En qué puedo ayudarte?",
+  "chat.endChat": "Finalizar chat",
+  "chat.sendingTranscript": "Enviando transcripción…",
+  "chat.ended.transcript": "✅ Chat finalizado. Se te ha enviado una transcripción por correo.",
+  "chat.ended.noTranscript": "Chat finalizado.",
+  "chat.startNew": "Nuevo chat",
+  "chat.subtitle": "Asistente IA · normalmente instantáneo",
+  "chat.placeholder": "Escribe un mensaje…",
+  "chat.error.failed": "No se pudo obtener una respuesta.",
+  "chat.error.generic": "Algo salió mal. Por favor, inténtalo de nuevo.",
+  "bookings.detail.payment.postCompletionTitle": "Ajustes Posteriores a la Finalización",
+  "bookings.detail.payment.postCompletionRefund": "Reembolso",
+  "bookings.detail.payment.postCompletionTotal": "Total reembolsado al cliente",
+  "bookings.detail.payment.postCompletionNet": "Importe neto final (tras ajustes)",
+  "bookings.detail.payment.postCompletionNote": "Estos ajustes posteriores a la finalización fueron emitidos por Camel Global. Contáctanos en info@camel-global.com si tienes alguna pregunta.",
+  "bookings.detail.payment.postCompletionBannerTitle": "Reembolso{{s}} posterior a la finalización emitido en esta reserva",
+  "bookings.detail.payment.postCompletionBannerBody": "Total reembolsado al cliente: {{amount}} — ver Desglose de Pago y Tarifas abajo"
 }

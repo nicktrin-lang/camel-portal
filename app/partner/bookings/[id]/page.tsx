@@ -238,26 +238,26 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
 
       {postCompletionRefunds.length > 0 && (
         <div className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">Post-Completion Adjustments</p>
+          <p className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">{t("bookings.detail.payment.postCompletionTitle")}</p>
           {postCompletionRefunds.map((r, i) => (
             <div key={r.id} className="flex items-start justify-between py-2 border-b border-amber-100 last:border-0">
               <span className="text-sm font-semibold text-amber-800">
-                Refund {i + 1}{r.reason ? ` — ${r.reason}` : ""}
+                {t("bookings.detail.payment.postCompletionRefund")} {i + 1}{r.reason ? ` — ${r.reason}` : ""}
                 <span className="ml-2 text-xs text-amber-600">{fmtDate(r.created_at)}</span>
               </span>
               <span className="text-sm font-black text-amber-700 ml-4 shrink-0">− {fmtB(r.amount)}</span>
             </div>
           ))}
           <div className="flex items-center justify-between pt-3 mt-1 border-t-2 border-amber-300">
-            <span className="text-sm font-black text-amber-800">Total refunded to customer</span>
+            <span className="text-sm font-black text-amber-800">{t("bookings.detail.payment.postCompletionTotal")}</span>
             <span className="text-sm font-black text-amber-700">− {fmtB(pcTotal)}</span>
           </div>
           <div className="flex items-center justify-between pt-2">
-            <span className="text-sm font-black text-black">Net final amount (after adjustments)</span>
+            <span className="text-sm font-black text-black">{t("bookings.detail.payment.postCompletionNet")}</span>
             <span className="text-sm font-black text-black">{fmtB(netFinal)}</span>
           </div>
           <p className="mt-3 text-xs font-bold text-amber-600">
-            These post-completion adjustments were issued by Camel Global. Contact us at info@camel-global.com if you have any questions.
+            {t("bookings.detail.payment.postCompletionNote")}
           </p>
         </div>
       )}
@@ -723,10 +723,10 @@ export default function PartnerBookingDetailPage() {
           <span className="text-xl">↩</span>
           <div>
             <p className="text-sm font-black text-amber-800">
-              Post-completion refund{postCompletionRefunds.length !== 1 ? "s" : ""} issued on this booking
+              {t("bookings.detail.payment.postCompletionBannerTitle", { s: postCompletionRefunds.length !== 1 ? "s" : "" })}
             </p>
             <p className="text-xs font-bold text-amber-600 mt-0.5">
-              Total refunded to customer: {fmtCurr(Number(bk.post_completion_refund_total ?? 0), stored)} — see Payment &amp; Fee Breakdown below
+              {t("bookings.detail.payment.postCompletionBannerBody", { amount: fmtCurr(Number(bk.post_completion_refund_total ?? 0), stored) })}
             </p>
           </div>
         </div>
