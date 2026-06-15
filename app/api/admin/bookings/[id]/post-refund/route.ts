@@ -4,7 +4,6 @@ import { createRouteHandlerSupabaseClient, createServiceRoleSupabaseClient } fro
 import {
   generateCompletionStatementPDF,
   getLogoBase64,
-  fuelLabel,
   StatementData,
   PostCompletionRefund,
 } from "@/lib/portal/completeBooking";
@@ -68,7 +67,7 @@ export async function POST(
         fuel_used_quarters, fuel_charge, fuel_refund,
         collection_fuel_level_partner, collection_fuel_level_driver,
         return_fuel_level_partner, return_fuel_level_driver,
-        post_completion_refund_total
+        post_completion_refund_total, commission_rate
       `)
       .eq("id", bookingId)
       .maybeSingle();
@@ -81,8 +80,10 @@ export async function POST(
     }
 
     // ── Cap check: total refunded must not exceed final amount ────────────
-    const carHire    = Number(booking.car_hire_price ?? 0);
-    const fuelCharge = Number(booking.fuel_charge ?? 0);
+    const carHire     = Number(booking.car_hire_price ?? 0);
+    const fuelCharge  = Number(booking.fuel_charge ?? 0);
+    const fuelRefund  = Number(booking.fuel_refund ?? 0);
+    const commRate    = Number(booking.commission_rate ?? 20);
     const finalAmount = carHire + fuelCharge;
     const existingTotal = Number(booking.post_completion_refund_total ?? 0);
     const newTotal = existingTotal + amount;
@@ -104,46 +105,63 @@ export async function POST(
       return NextResponse.json({ error: "No Stripe payment intent found for this booking" }, { status: 400 });
     }
 
-    // ── Issue Stripe transfer reversal + refund ──────────────────────────
+    // ── Calculate how much the partner actually has available to reverse ──
+    // Original transfer = car hire - commission + fuel charge
+    const commAmt          = Math.max((carHire * commRate) / 100, 10);
+    const originalTransfer = Math.max(0, carHire - commAmt + fuelCharge);
+    // Fuel refund already reversed from partner
+    const alreadyReversed  = fuelRefund + existingTotal;
+    // What the partner still has
+    const partnerAvailable = Math.max(0, originalTransfer - alreadyReversed);
+    // Only reverse up to what the partner has
+    const reversalAmount   = Math.min(amount, partnerAvailable);
+
     const jobNo = booking.job_number ? `#${booking.job_number}` : bookingId.slice(0, 8);
     let stripeRefundId: string | null = null;
 
     try {
-      // Step 1: Reverse the transfer to the partner's connected account
-      // This pulls the refund amount back from the partner before refunding the customer
       const pi = await stripe.paymentIntents.retrieve(
         payment.stripe_payment_intent_id,
         { expand: ["latest_charge"] }
       );
-      const charge = pi.latest_charge as any;
+      const charge    = pi.latest_charge as any;
       const transferId = charge?.transfer as string | null;
 
-      if (transferId) {
+      // Step 1: Reverse only what the partner has available
+      if (transferId && reversalAmount > 0) {
         await stripe.transfers.createReversal(transferId, {
-          amount: Math.round(amount * 100),
+          amount: Math.round(reversalAmount * 100),
           metadata: {
-            refund_type: "post_completion_refund",
-            booking_id:  bookingId,
-            job_number:  jobNo,
-            reason:      reason || "Post-completion adjustment",
-            issued_by:   email,
+            refund_type:      "post_completion_refund",
+            booking_id:       bookingId,
+            job_number:       jobNo,
+            reason:           reason || "Post-completion adjustment",
+            issued_by:        email,
+            reversal_amount:  String(reversalAmount),
+            refund_amount:    String(amount),
+            shortfall:        String(amount - reversalAmount),
           },
         });
-      } else {
+      } else if (!transferId) {
         console.warn(`post-refund: no transfer found on payment intent ${payment.stripe_payment_intent_id} — skipping transfer reversal`);
+      } else {
+        console.warn(`post-refund: partner has no available balance (available: ${partnerAvailable}) — refunding entirely from Camel balance`);
       }
 
-      // Step 2: Refund the customer from Camel's main account
+      // Step 2: Refund the full amount to the customer from Camel's balance
+      // Any shortfall (amount - reversalAmount) comes from Camel's commission
       const refund = await stripe.refunds.create({
         payment_intent: payment.stripe_payment_intent_id,
         amount: Math.round(amount * 100),
         reason: "requested_by_customer",
         metadata: {
-          refund_type: "post_completion_refund",
-          booking_id:  bookingId,
-          job_number:  jobNo,
-          reason:      reason || "Post-completion adjustment",
-          issued_by:   email,
+          refund_type:     "post_completion_refund",
+          booking_id:      bookingId,
+          job_number:      jobNo,
+          reason:          reason || "Post-completion adjustment",
+          issued_by:       email,
+          reversal_amount: String(reversalAmount),
+          camel_absorbs:   String(amount - reversalAmount),
         },
       });
       stripeRefundId = refund.id;
@@ -269,6 +287,7 @@ export async function POST(
 
     const totalRefunded = postCompletionRefunds.reduce((s, r) => s + r.amount, 0);
     const netFinal = finalAmount - totalRefunded;
+    const camelAbsorbs = amount - reversalAmount;
 
     // ── Email customer ────────────────────────────────────────────────────
     if (request?.customer_email) {
@@ -363,7 +382,9 @@ export async function POST(
               <strong>Issued by admin:</strong> ${email}<br/>
               <strong>Total post-completion refunded:</strong> ${fmt(newTotal)}<br/>
               <strong>Original final amount:</strong> ${fmt(finalAmount)}<br/>
-              <strong>Net final amount:</strong> ${fmt(netFinal)}
+              <strong>Net final amount:</strong> ${fmt(netFinal)}<br/>
+              <strong>Reversed from partner:</strong> ${fmt(reversalAmount)}<br/>
+              <strong>Absorbed by Camel (from commission):</strong> ${fmt(camelAbsorbs)}
             </p>
           </div>
         `,
@@ -377,6 +398,8 @@ export async function POST(
       amount,
       new_total:        newTotal,
       net_final:        netFinal,
+      reversed_from_partner: reversalAmount,
+      absorbed_by_camel:     camelAbsorbs,
     }, { status: 200 });
 
   } catch (e: any) {
