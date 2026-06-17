@@ -32,7 +32,7 @@ export default function MapPickerInner({ lat, lng, onPick }: Props) {
   const defaultLng = lng ?? -0.3763;
 
   return (
-    <div className="border border-black/10 overflow-hidden">
+    <div className="border border-black/10 overflow-hidden" style={{ zIndex: 0, position: "relative" }}>
       <MapContainer center={[defaultLat, defaultLng]} zoom={13} scrollWheelZoom className="h-[360px] w-full">
         {/* CartoDB Positron — free, no API key, clean modern style */}
         <TileLayer

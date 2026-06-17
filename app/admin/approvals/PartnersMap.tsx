@@ -77,7 +77,7 @@ export default function PartnersMap({ partners }: Props) {
   if (partners.length === 0) return null;
   const center: [number, number] = [partners[0].lat, partners[0].lng];
   return (
-    <div className="relative overflow-hidden border border-black/10" style={{ height: 420 }}>
+    <div className="relative overflow-hidden border border-black/10" style={{ height: 420, zIndex: 0 }}>
       <MapContainer center={center} zoom={5} scrollWheelZoom style={{ height: "100%", width: "100%" }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
