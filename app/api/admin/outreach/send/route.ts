@@ -5,7 +5,7 @@ import {
 } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
 
-const DAILY_LIMIT = 50;
+export const DAILY_LIMIT = 50;
 
 function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";
@@ -22,24 +22,25 @@ function countrySlug(country?: string | null): string {
 
 function buildSignupUrl(prospectId: string, country?: string | null): string {
   const params = new URLSearchParams({
-    utm_source: "outreach",
-    utm_medium: "email",
+    utm_source:   "outreach",
+    utm_medium:   "email",
     utm_campaign: "founding-partner",
-    utm_content: "signup-button",
-    utm_term: countrySlug(country),
-    ref: prospectId,
+    utm_content:  "signup-button",
+    utm_term:     countrySlug(country),
+    ref:          prospectId,
   });
+  // Links directly to signup page to reduce friction
   return `https://portal.camel-global.com/?${params.toString()}`;
 }
 
 function buildUnsubscribeUrl(prospectId: string, country?: string | null): string {
   const params = new URLSearchParams({
-    id: prospectId,
-    utm_source: "outreach",
-    utm_medium: "email",
+    id:           prospectId,
+    utm_source:   "outreach",
+    utm_medium:   "email",
     utm_campaign: "founding-partner",
-    utm_content: "unsubscribe",
-    utm_term: countrySlug(country),
+    utm_content:  "unsubscribe",
+    utm_term:     countrySlug(country),
   });
   return `https://portal.camel-global.com/api/admin/outreach/unsubscribe?${params.toString()}`;
 }
@@ -88,19 +89,19 @@ export async function POST(req: Request) {
     // TEST MODE
     if (test_email) {
       const testProspect = {
-        id: "test-id",
+        id:           "test-id",
         company_name: "City Car Hire Ltd",
         contact_name: "James Smith",
-        city: "Manchester",
-        country: "UK",
-        notes: null,
+        city:         "Manchester",
+        country:      "UK",
+        notes:        null,
       };
       const emailHtml = await generateEmail(testProspect);
       await sendEmail({
-        to: adminEmail,
-        from: "Camel Global <noreply@camel-global.com>",
+        to:      adminEmail,
+        from:    "Camel Global <noreply@camel-global.com>",
         subject: `[TEST] ${emailHtml.subject}`,
-        html: emailHtml.fullHtml,
+        html:    emailHtml.fullHtml,
       });
       return NextResponse.json({ ok: true, test: true, subject: emailHtml.subject });
     }
@@ -118,7 +119,7 @@ export async function POST(req: Request) {
     if (sentToday >= DAILY_LIMIT) {
       return NextResponse.json({
         error: `Daily limit of ${DAILY_LIMIT} emails reached. Come back tomorrow.`,
-        sent_today: sentToday,
+        sent_today:  sentToday,
         daily_limit: DAILY_LIMIT,
       }, { status: 429 });
     }
@@ -136,16 +137,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Prospect has unsubscribed" }, { status: 400 });
     }
 
-    const emailHtml = await generateEmail(prospect);
+    const emailHtml     = await generateEmail(prospect);
     const unsubscribeUrl = buildUnsubscribeUrl(prospect_id, prospect.country);
 
     await sendEmail({
-      to: prospect.email,
-      from: "Camel Global <noreply@camel-global.com>",
+      to:      prospect.email,
+      from:    "Camel Global <noreply@camel-global.com>",
       subject: emailHtml.subject,
-      html: emailHtml.fullHtml,
+      html:    emailHtml.fullHtml,
       headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
+        "List-Unsubscribe":      `<${unsubscribeUrl}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
     });
@@ -169,13 +170,12 @@ async function generateEmail(prospect: {
   country?: string | null;
   notes?: string | null;
 }) {
-  const locale = getLocale(prospect.country);
-  const signupUrl = buildSignupUrl(prospect.id, prospect.country);
+  const locale        = getLocale(prospect.country);
+  const signupUrl     = buildSignupUrl(prospect.id, prospect.country);
   const unsubscribeUrl = buildUnsubscribeUrl(prospect.id, prospect.country);
 
-  // Hardcoded personalised opening line — no AI needed
   const contactFirst = prospect.contact_name ? prospect.contact_name.split(" ")[0] : null;
-  const openingLine = locale === "es"
+  const openingLine  = locale === "es"
     ? `<p>${contactFirst ? `Hola ${contactFirst},` : ""} ¿le gustaría que ${prospect.company_name} atrajera más clientes de alquiler de coches${prospect.city ? ` en ${prospect.city}` : ""}?</p>`
     : `<p>${contactFirst ? `Hi ${contactFirst},` : ""} would you like ${prospect.company_name} to attract more customers searching for car hire${prospect.city ? ` in ${prospect.city}` : ""}?</p>`;
 
@@ -212,7 +212,7 @@ async function generateEmail(prospect: {
     ${greeting}
     ${openingLine}
     <p>We're launching Camel Global — a meet &amp; greet car rental platform built specifically for independent car hire companies — and we'd like to invite ${prospect.company_name} to join as a founding partner.</p>
-    <p>How it works: Customers request a vehicle online, you send a quote, the customer pays and your driver delivers it directly to the airport, hotel, or wherever the customer needs it. It works alongside your existing business as an additional booking channel—nothing changes in how you operate.</p>
+    <p>How it works: Customers request a vehicle online, you send a quote, the customer pays and your driver delivers it directly to the airport, hotel, or wherever the customer needs it. It works alongside your existing business as an additional booking channel — nothing changes in how you operate.</p>
     <p><strong>Founding partner positions are limited per destination.</strong> Early partners receive priority visibility when we launch in Spain and expand internationally.</p>
     <p>Joining is completely free. No sign-up fees, no subscription, no monthly costs. Registration takes approximately five minutes.</p>
     ${ctaEn}
