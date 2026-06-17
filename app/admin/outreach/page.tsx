@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
-const DAILY_LIMIT = 50;
+const DAILY_LIMIT = 50; // Single source of truth is in send/route.ts — keep in sync if changing
 
 const COUNTRIES = ["All Countries", "Spain", "France", "Italy", "Portugal", "Germany", "UK", "USA"];
 
@@ -37,6 +37,30 @@ function fmt(v?: string | null) {
   try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; }
 }
 
+// Parse CSV — expects headers: company_name, contact_name, email, city, country, notes
+// Headers are case-insensitive and order-independent
+function parseCSV(text: string): Array<Record<string, string>> {
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/^"|"$/g, ""));
+  return lines.slice(1).map(line => {
+    // Handle quoted fields with commas inside
+    const fields: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuotes = !inQuotes; continue; }
+      if (ch === "," && !inQuotes) { fields.push(current.trim()); current = ""; continue; }
+      current += ch;
+    }
+    fields.push(current.trim());
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => { row[h] = fields[i] || ""; });
+    return row;
+  }).filter(row => row.email && row.company_name);
+}
+
 export default function OutreachPage() {
   const [prospects, setProspects]     = useState<Prospect[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -52,6 +76,9 @@ export default function OutreachPage() {
   const [sentToday, setSentToday]     = useState(0);
   const [testSending, setTestSending] = useState(false);
   const [totalCount, setTotalCount]   = useState(0);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvResult, setCsvResult]     = useState<string | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     company_name: "", contact_name: "", email: "", city: "", country: "Spain", notes: "",
@@ -147,7 +174,7 @@ export default function OutreachPage() {
     if (pending.length === 0) { alert("No pending prospects to send to."); return; }
     const toSend = pending.slice(0, remaining);
     const countryNote = countryFilter !== "All Countries" ? ` in ${countryFilter}` : "";
-    if (!confirm(`Send emails to ${toSend.length} prospect(s)${countryNote} today?\n\nDaily limit: ${DAILY_LIMIT} | Already sent today: ${sentToday} | Sending now: ${toSend.length}\n\nClaude will write a personalised email for each company in their local language.`)) return;
+    if (!confirm(`Send emails to ${toSend.length} prospect(s)${countryNote} today?\n\nDaily limit: ${DAILY_LIMIT} | Already sent today: ${sentToday} | Sending now: ${toSend.length}\n\nA personalised email will be sent to each company in their local language.`)) return;
 
     setBatchSending(true);
     setBatchProgress({ done: 0, total: toSend.length });
@@ -208,6 +235,66 @@ export default function OutreachPage() {
     }
   }
 
+  async function handleCSVImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvImporting(true);
+    setCsvResult(null);
+
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+
+      if (rows.length === 0) {
+        setCsvResult("❌ No valid rows found. CSV must have headers: company_name, email (required), contact_name, city, country, notes (optional).");
+        return;
+      }
+
+      let added = 0;
+      let skipped = 0;
+      const newProspects: Prospect[] = [];
+
+      for (const row of rows) {
+        const payload = {
+          company_name: row.company_name || row["company name"] || "",
+          contact_name: row.contact_name || row["contact name"] || "",
+          email:        row.email || "",
+          city:         row.city || "",
+          country:      row.country || "Spain",
+          notes:        row.notes || "",
+        };
+        if (!payload.company_name || !payload.email) { skipped++; continue; }
+
+        try {
+          const res = await fetch("/api/admin/outreach/prospects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const json = await res.json();
+          if (res.ok && json.prospect) {
+            newProspects.push(json.prospect);
+            added++;
+          } else {
+            skipped++;
+          }
+        } catch {
+          skipped++;
+        }
+      }
+
+      setProspects(p => [...newProspects, ...p]);
+      setTotalCount(c => c + added);
+      setCsvResult(`✅ Imported ${added} prospect${added !== 1 ? "s" : ""}${skipped > 0 ? ` · ${skipped} skipped (duplicate email or missing fields)` : ""}.`);
+    } catch (e: any) {
+      setCsvResult(`❌ Failed to parse CSV: ${e?.message}`);
+    } finally {
+      setCsvImporting(false);
+      // Reset file input so same file can be re-imported if needed
+      if (csvInputRef.current) csvInputRef.current.value = "";
+    }
+  }
+
   const filtered = prospects
     .filter(p => statusFilter === "all" || p.status === statusFilter)
     .filter(p => countryFilter === "All Countries" || (p.country || "").toLowerCase() === countryFilter.toLowerCase());
@@ -217,9 +304,9 @@ export default function OutreachPage() {
     return acc;
   }, {} as Record<string, number>);
 
-  const remaining = Math.max(0, DAILY_LIMIT - sentToday);
+  const remaining    = Math.max(0, DAILY_LIMIT - sentToday);
   const pendingInView = filtered.filter(p => p.status === "pending" && !p.unsubscribed).length;
-  const batchSize = Math.min(remaining, pendingInView);
+  const batchSize    = Math.min(remaining, pendingInView);
 
   return (
     <div className="space-y-6">
@@ -229,7 +316,7 @@ export default function OutreachPage() {
         <div>
           <h1 className="text-2xl font-black text-black">Partner Outreach</h1>
           <p className="mt-1 text-sm font-semibold text-black/50">
-            AI-powered email outreach · {totalCount.toLocaleString()} total prospects
+            Email outreach · {totalCount.toLocaleString()} total prospects
           </p>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
@@ -265,6 +352,21 @@ export default function OutreachPage() {
           >
             {testSending ? "Sending test…" : "Send Test Email"}
           </button>
+          {/* CSV Import */}
+          <label className={[
+            "cursor-pointer bg-white border border-black px-4 py-2 text-sm font-black text-black hover:bg-black hover:text-white transition-all whitespace-nowrap",
+            csvImporting ? "opacity-40 pointer-events-none" : "",
+          ].join(" ")}>
+            {csvImporting ? "Importing…" : "Import CSV"}
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleCSVImport}
+              disabled={csvImporting}
+            />
+          </label>
           <button
             onClick={() => setShowAdd(s => !s)}
             className="bg-black px-4 py-2 text-sm font-black text-white hover:opacity-80 transition-opacity"
@@ -273,6 +375,19 @@ export default function OutreachPage() {
           </button>
         </div>
       </div>
+
+      {/* CSV result message */}
+      {csvResult && (
+        <div className={[
+          "border px-4 py-3 text-sm font-semibold",
+          csvResult.startsWith("✅") ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700",
+        ].join(" ")}>
+          {csvResult}
+          <p className="mt-1 text-xs font-normal opacity-70">
+            CSV format: company_name, contact_name, email, city, country, notes — first row must be headers. Rows with duplicate emails are skipped automatically.
+          </p>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -393,7 +508,7 @@ export default function OutreachPage() {
             <p className="mt-2 text-xs font-semibold text-black/30">
               {statusFilter !== "all" || countryFilter !== "All Countries"
                 ? "Try adjusting your filters."
-                : "Add your first prospect using the button above."}
+                : "Add your first prospect using the button above, or import a CSV file."}
             </p>
           </div>
         ) : (
@@ -436,7 +551,6 @@ export default function OutreachPage() {
                     <td className="px-4 py-3 text-xs font-semibold text-black/50 max-w-[160px] truncate" title={p.notes || ""}>{p.notes || "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 items-center flex-wrap">
-                        {/* Send — pending only */}
                         {p.status === "pending" && !p.unsubscribed && (
                           <button
                             onClick={() => handleSend(p.id)}
@@ -446,7 +560,6 @@ export default function OutreachPage() {
                             {sending === p.id ? "Sending…" : "Send"}
                           </button>
                         )}
-                        {/* Send Again — all rows except unsubscribed */}
                         {!p.unsubscribed && (
                           <button
                             onClick={() => handleSend(p.id, true)}
@@ -456,7 +569,7 @@ export default function OutreachPage() {
                             {sending === p.id ? "Sending…" : "Send Again"}
                           </button>
                         )}
-                        {sendResult[p.id] === "ok" && <span className="text-xs font-black text-green-600">✓</span>}
+                        {sendResult[p.id] === "ok"    && <span className="text-xs font-black text-green-600">✓</span>}
                         {sendResult[p.id] === "error" && <span className="text-xs font-black text-red-600">✗</span>}
                         <button
                           onClick={() => handleDelete(p.id, p.company_name)}
