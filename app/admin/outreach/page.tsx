@@ -469,9 +469,9 @@ export default function OutreachPage() {
             <p className="mt-2 text-xs font-semibold text-black/30">{statusFilter !== "all" || countryFilter !== "All Countries" ? "Try adjusting your filters." : "Add your first prospect using the button above, or import a CSV file."}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[60vh]">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <tr className="border-b border-black/10 bg-[#f0f0f0]">
                   <th className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-black/50">Company</th>
                   <th className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-black/50">Contact</th>
