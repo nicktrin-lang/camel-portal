@@ -7,6 +7,7 @@ const DAILY_LIMIT = 50;
 const COUNTRIES = ["All Countries", "Spain", "France", "Italy", "Portugal", "Germany", "UK", "USA"];
 
 type Status = "pending" | "sent" | "bounced" | "replied" | "onboarded";
+type EngagementFilter = "all" | "sent" | "opened" | "clicked";
 
 type Prospect = {
   id: string;
@@ -61,22 +62,23 @@ function parseCSV(text: string): Array<Record<string, string>> {
 }
 
 export default function OutreachPage() {
-  const [prospects, setProspects]     = useState<Prospect[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState<string | null>(null);
-  const [sending, setSending]         = useState<string | null>(null);
-  const [sendResult, setSendResult]   = useState<Record<string, "ok" | "error">>({});
-  const [deleting, setDeleting]       = useState<string | null>(null);
-  const [showAdd, setShowAdd]         = useState(false);
+  const [prospects, setProspects]       = useState<Prospect[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState<string | null>(null);
+  const [sending, setSending]           = useState<string | null>(null);
+  const [sendResult, setSendResult]     = useState<Record<string, "ok" | "error">>({});
+  const [deleting, setDeleting]         = useState<string | null>(null);
+  const [showAdd, setShowAdd]           = useState(false);
   const [batchSending, setBatchSending] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
+  const [engagementFilter, setEngagementFilter] = useState<EngagementFilter>("all");
   const [countryFilter, setCountryFilter] = useState<string>("All Countries");
-  const [sentToday, setSentToday]     = useState(0);
-  const [testSending, setTestSending] = useState(false);
-  const [totalCount, setTotalCount]   = useState(0);
+  const [sentToday, setSentToday]       = useState(0);
+  const [testSending, setTestSending]   = useState(false);
+  const [totalCount, setTotalCount]     = useState(0);
   const [csvImporting, setCsvImporting] = useState(false);
-  const [csvResult, setCsvResult]     = useState<string | null>(null);
+  const [csvResult, setCsvResult]       = useState<string | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -280,7 +282,29 @@ export default function OutreachPage() {
     }
   }
 
+  // Engagement stats
+  const sentCount  = prospects.filter(p => p.sent_at).length;
+  const openCount  = prospects.filter(p => p.opened_at).length;
+  const clickCount = prospects.filter(p => p.clicked_at).length;
+
+  // Toggle engagement filter — clicking same card clears it
+  function toggleEngagementFilter(f: EngagementFilter) {
+    setEngagementFilter(prev => prev === f ? "all" : f);
+    setStatusFilter("all"); // clear status filter when engagement filter set
+  }
+
+  function toggleStatusFilter(s: Status | "all") {
+    setStatusFilter(prev => prev === s ? "all" : s);
+    setEngagementFilter("all"); // clear engagement filter when status filter set
+  }
+
   const filtered = prospects
+    .filter(p => {
+      if (engagementFilter === "sent")    return !!p.sent_at;
+      if (engagementFilter === "opened")  return !!p.opened_at;
+      if (engagementFilter === "clicked") return !!p.clicked_at;
+      return true;
+    })
     .filter(p => statusFilter === "all" || p.status === statusFilter)
     .filter(p => countryFilter === "All Countries" || (p.country || "").toLowerCase() === countryFilter.toLowerCase());
 
@@ -289,14 +313,9 @@ export default function OutreachPage() {
     return acc;
   }, {} as Record<string, number>);
 
-  // Engagement stats
-  const openCount    = prospects.filter(p => p.opened_at).length;
-  const clickCount   = prospects.filter(p => p.clicked_at).length;
-  const sentCount    = prospects.filter(p => p.sent_at).length;
-
-  const remaining    = Math.max(0, DAILY_LIMIT - sentToday);
+  const remaining     = Math.max(0, DAILY_LIMIT - sentToday);
   const pendingInView = filtered.filter(p => p.status === "pending" && !p.unsubscribed).length;
-  const batchSize    = Math.min(remaining, pendingInView);
+  const batchSize     = Math.min(remaining, pendingInView);
 
   return (
     <div className="space-y-6">
@@ -316,10 +335,7 @@ export default function OutreachPage() {
               <span>{sentToday} / {DAILY_LIMIT}</span>
             </div>
             <div className="h-2 bg-black/10 w-full">
-              <div
-                className="h-2 bg-[#ff7a00] transition-all"
-                style={{ width: `${Math.min(100, (sentToday / DAILY_LIMIT) * 100)}%` }}
-              />
+              <div className="h-2 bg-[#ff7a00] transition-all" style={{ width: `${Math.min(100, (sentToday / DAILY_LIMIT) * 100)}%` }} />
             </div>
           </div>
           <button
@@ -332,21 +348,14 @@ export default function OutreachPage() {
               : remaining === 0 ? "Limit reached today"
               : `Send Today's Batch (${batchSize})`}
           </button>
-          <button
-            onClick={handleTestEmail}
-            disabled={testSending}
-            className="bg-white border border-black px-4 py-2 text-sm font-black text-black hover:bg-black hover:text-white disabled:opacity-40 transition-all"
-          >
+          <button onClick={handleTestEmail} disabled={testSending} className="bg-white border border-black px-4 py-2 text-sm font-black text-black hover:bg-black hover:text-white disabled:opacity-40 transition-all">
             {testSending ? "Sending test…" : "Send Test Email"}
           </button>
           <label className={["cursor-pointer bg-white border border-black px-4 py-2 text-sm font-black text-black hover:bg-black hover:text-white transition-all whitespace-nowrap", csvImporting ? "opacity-40 pointer-events-none" : ""].join(" ")}>
             {csvImporting ? "Importing…" : "Import CSV"}
             <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCSVImport} disabled={csvImporting} />
           </label>
-          <button
-            onClick={() => setShowAdd(s => !s)}
-            className="bg-black px-4 py-2 text-sm font-black text-white hover:opacity-80 transition-opacity"
-          >
+          <button onClick={() => setShowAdd(s => !s)} className="bg-black px-4 py-2 text-sm font-black text-white hover:opacity-80 transition-opacity">
             {showAdd ? "Cancel" : "+ Add Prospect"}
           </button>
         </div>
@@ -359,40 +368,59 @@ export default function OutreachPage() {
         </div>
       )}
 
-      {/* Engagement stats */}
+      {/* Engagement stats — clickable filters */}
       {sentCount > 0 && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="border border-black/10 bg-white p-4">
+          {/* Sent */}
+          <button
+            onClick={() => toggleEngagementFilter("sent")}
+            className={["border p-4 text-left transition-all", engagementFilter === "sent" ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+          >
             <p className="text-xs font-black uppercase tracking-widest text-black/40">Sent</p>
             <p className="mt-1 text-2xl font-black text-black">{sentCount}</p>
-          </div>
-          <div className="border border-black/10 bg-white p-4">
+            <p className="mt-1 text-xs font-semibold text-black/30">click to filter</p>
+          </button>
+          {/* Opened */}
+          <button
+            onClick={() => toggleEngagementFilter("opened")}
+            className={["border p-4 text-left transition-all", engagementFilter === "opened" ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+          >
             <p className="text-xs font-black uppercase tracking-widest text-black/40">Opened</p>
             <p className="mt-1 text-2xl font-black text-black">
               {openCount}
-              <span className="ml-2 text-sm font-bold text-black/40">
-                {sentCount > 0 ? `${Math.round((openCount / sentCount) * 100)}%` : ""}
-              </span>
+              <span className="ml-2 text-sm font-bold text-black/40">{sentCount > 0 ? `${Math.round((openCount / sentCount) * 100)}%` : ""}</span>
             </p>
-          </div>
-          <div className="border border-black/10 bg-white p-4">
+            <p className="mt-1 text-xs font-semibold text-black/30">click to filter</p>
+          </button>
+          {/* Clicked */}
+          <button
+            onClick={() => toggleEngagementFilter("clicked")}
+            className={["border p-4 text-left transition-all", engagementFilter === "clicked" ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+          >
             <p className="text-xs font-black uppercase tracking-widest text-black/40">Clicked</p>
             <p className="mt-1 text-2xl font-black text-black">
               {clickCount}
-              <span className="ml-2 text-sm font-bold text-black/40">
-                {sentCount > 0 ? `${Math.round((clickCount / sentCount) * 100)}%` : ""}
-              </span>
+              <span className="ml-2 text-sm font-bold text-black/40">{sentCount > 0 ? `${Math.round((clickCount / sentCount) * 100)}%` : ""}</span>
             </p>
-          </div>
+            <p className="mt-1 text-xs font-semibold text-black/30">click to filter</p>
+          </button>
         </div>
       )}
 
-      {/* Status stats */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      {/* Status stats — with All card */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+        {/* All */}
+        <button
+          onClick={() => toggleStatusFilter("all")}
+          className={["border p-3 text-left transition-all", statusFilter === "all" && engagementFilter === "all" ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+        >
+          <p className="text-xs font-black uppercase tracking-widest text-black/40">All</p>
+          <p className="mt-1 text-2xl font-black text-black">{prospects.length}</p>
+        </button>
         {STATUS_OPTIONS.map(s => (
           <button
             key={s}
-            onClick={() => setStatusFilter(prev => prev === s ? "all" : s)}
+            onClick={() => toggleStatusFilter(s)}
             className={["border p-3 text-left transition-all", statusFilter === s ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
           >
             <p className="text-xs font-black uppercase tracking-widest text-black/40">{s}</p>
@@ -416,6 +444,21 @@ export default function OutreachPage() {
           ))}
         </div>
       </div>
+
+      {/* Active filter indicator */}
+      {(engagementFilter !== "all" || statusFilter !== "all") && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-black/50">
+            Showing: {engagementFilter !== "all" ? engagementFilter : statusFilter} ({filtered.length})
+          </span>
+          <button
+            onClick={() => { setEngagementFilter("all"); setStatusFilter("all"); }}
+            className="text-xs font-black text-[#ff7a00] hover:underline"
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
 
       {/* Add Prospect Form */}
       {showAdd && (
@@ -466,7 +509,7 @@ export default function OutreachPage() {
         ) : filtered.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-sm font-black text-black/40 uppercase tracking-widest">No prospects found</p>
-            <p className="mt-2 text-xs font-semibold text-black/30">{statusFilter !== "all" || countryFilter !== "All Countries" ? "Try adjusting your filters." : "Add your first prospect using the button above, or import a CSV file."}</p>
+            <p className="mt-2 text-xs font-semibold text-black/30">{statusFilter !== "all" || countryFilter !== "All Countries" || engagementFilter !== "all" ? "Try adjusting your filters." : "Add your first prospect using the button above, or import a CSV file."}</p>
           </div>
         ) : (
           <div className="overflow-auto max-h-[60vh]">
@@ -502,14 +545,10 @@ export default function OutreachPage() {
                     </td>
                     <td className="px-4 py-3 text-xs font-semibold text-black/50">{fmt(p.sent_at)}</td>
                     <td className="px-4 py-3 text-xs font-semibold">
-                      {p.opened_at
-                        ? <span className="text-green-700">✓ {fmt(p.opened_at)}</span>
-                        : <span className="text-black/30">—</span>}
+                      {p.opened_at ? <span className="text-green-700">✓ {fmt(p.opened_at)}</span> : <span className="text-black/30">—</span>}
                     </td>
                     <td className="px-4 py-3 text-xs font-semibold">
-                      {p.clicked_at
-                        ? <span className="text-[#ff7a00] font-black">✓ {fmt(p.clicked_at)}</span>
-                        : <span className="text-black/30">—</span>}
+                      {p.clicked_at ? <span className="text-[#ff7a00] font-black">✓ {fmt(p.clicked_at)}</span> : <span className="text-black/30">—</span>}
                     </td>
                     <td className="px-4 py-3 text-xs font-semibold text-black/50 max-w-[120px] truncate" title={p.notes || ""}>{p.notes || "—"}</td>
                     <td className="px-4 py-3">

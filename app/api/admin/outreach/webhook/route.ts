@@ -1,66 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 
-// Verify the request is genuinely from Resend using their webhook signing secret
-async function verifyResendSignature(req: NextRequest, body: string): Promise<boolean> {
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secret) {
-    console.warn("outreach-webhook: RESEND_WEBHOOK_SECRET not set — skipping verification");
-    return true; // Allow through if secret not configured yet
-  }
-
-  const svixId        = req.headers.get("svix-id");
-  const svixTimestamp = req.headers.get("svix-timestamp");
-  const svixSignature = req.headers.get("svix-signature");
-
-  if (!svixId || !svixTimestamp || !svixSignature) {
-    console.warn("outreach-webhook: missing svix headers");
-    return false;
-  }
-
-  try {
-    // Resend uses svix for webhook signing
-    // Signed payload = svix-id + "." + svix-timestamp + "." + body
-    const signedPayload = `${svixId}.${svixTimestamp}.${body}`;
-
-    // Decode the base64 secret
-    const secretBytes = Uint8Array.from(
-      atob(secret.replace("whsec_", "")),
-      c => c.charCodeAt(0)
-    );
-
-    // Import key for HMAC-SHA256
-    const key = await crypto.subtle.importKey(
-      "raw", secretBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-    );
-
-    // Sign the payload
-    const signatureBytes = await crypto.subtle.sign(
-      "HMAC", key, new TextEncoder().encode(signedPayload)
-    );
-
-    // Convert to base64
-    const computedSignature = btoa(String.fromCharCode(...new Uint8Array(signatureBytes)));
-
-    // svix-signature header can contain multiple signatures (e.g. "v1,abc123 v1,def456")
-    const signatures = svixSignature.split(" ").map(s => s.replace(/^v\d+,/, ""));
-    const valid = signatures.some(sig => sig === computedSignature);
-
-    if (!valid) {
-      console.warn("outreach-webhook: signature mismatch");
-    }
-    return valid;
-  } catch (e: any) {
-    console.error("outreach-webhook: signature verification error", e?.message);
-    return false;
-  }
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.text();
 
-    // Verify signature
     // Signature verification disabled — Resend svix format mismatch
     // TODO: re-enable once svix library is added
 
@@ -68,7 +12,7 @@ export async function POST(req: NextRequest) {
     const { type, data } = payload;
 
     // Only handle the events we care about
-    if (!["email.opened", "email.clicked", "email.complained"].includes(type)) {
+    if (!["email.opened", "email.clicked", "email.complained", "email.bounced"].includes(type)) {
       return NextResponse.json({ ok: true, ignored: true });
     }
 
@@ -86,7 +30,7 @@ export async function POST(req: NextRequest) {
     // Find the prospect by email
     const { data: prospect } = await db
       .from("outreach_prospects")
-      .select("id, opened_at, clicked_at, unsubscribed")
+      .select("id, opened_at, clicked_at, unsubscribed, status")
       .eq("email", toAddress.toLowerCase().trim())
       .maybeSingle();
 
@@ -112,6 +56,12 @@ export async function POST(req: NextRequest) {
       // Spam complaint — unsubscribe immediately
       updates.unsubscribed = true;
       console.log(`outreach-webhook: spam complaint from ${toAddress} — unsubscribing`);
+    }
+
+    if (type === "email.bounced") {
+      // Hard bounce — mark as bounced so we don't keep trying
+      updates.status = "bounced";
+      console.log(`outreach-webhook: bounce from ${toAddress} — marking bounced`);
     }
 
     if (Object.keys(updates).length > 0) {
