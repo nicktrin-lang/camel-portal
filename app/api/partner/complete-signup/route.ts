@@ -77,6 +77,8 @@ export async function POST(req: Request) {
     const baseCountry  = String(body?.baseCountry  || "").trim();
     const baseLat      = parseCoordinate(body?.baseLat, "lat");
     const baseLng      = parseCoordinate(body?.baseLng, "lng");
+    const addressLat   = parseCoordinate(body?.addressLat, "lat");
+    const addressLng   = parseCoordinate(body?.addressLng, "lng");
 
     // Build combined address strings
     const fullBusinessAddress = [address1, address2, city, province, postcode, country].filter(Boolean).join(", ");
@@ -157,8 +159,8 @@ export async function POST(req: Request) {
       base_province:     baseProvince || null,
       base_postcode:     basePostcode || null,
       base_country:      baseCountry  || null,
-      base_lat:          baseLat,
-      base_lng:          baseLng,
+      base_lat:          baseLat ?? addressLat,
+      base_lng:          baseLng ?? addressLng,
       role:              "partner",
     }, { onConflict: "user_id" });
 
