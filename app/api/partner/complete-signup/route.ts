@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
-import { sendApplicationReceivedEmail } from "@/lib/email";
+import { sendApplicationReceivedEmail, sendEmail } from "@/lib/email";
 
 const TERMS_VERSION = "2026-04";
 
@@ -169,6 +169,34 @@ export async function POST(req: Request) {
     }
 
     await sendApplicationReceivedEmail(email, signupLocale);
+
+    // Notify admin(s) of new partner application
+    const adminEmails = String(process.env.CAMEL_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean);
+    for (const adminEmail of adminEmails) {
+      await sendEmail({
+        to: adminEmail,
+        subject: `[New Application] ${companyName} — ${country}`,
+        html: `
+          <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
+            <div style="background:#000;padding:24px 32px;">
+              <h2 style="color:#fff;margin:0;">New Partner Application</h2>
+            </div>
+            <div style="background:#f8f8f8;padding:24px 32px;border:1px solid #e5e5e5;">
+              <p><strong>Company:</strong> ${companyName}</p>
+              <p><strong>Contact:</strong> ${contactName}</p>
+              <p><strong>Email:</strong> ${email}</p>
+              <p><strong>Phone:</strong> ${phone}</p>
+              <p><strong>Country:</strong> ${country}</p>
+              <p><strong>Address:</strong> ${fullBusinessAddress}</p>
+              <p style="margin-top:24px;">
+                <a href="${process.env.PORTAL_BASE_URL || "https://portal.camel-global.com"}/admin/approvals" style="background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;display:inline-block;">View in Admin</a>
+              </p>
+            </div>
+          </div>
+        `,
+      }).catch(e => console.error("Admin new application email failed:", e?.message));
+    }
+
     return NextResponse.json({ ok: true, user_id: userId, email_sent: true }, { status: 200 });
 
   } catch (e: any) {
