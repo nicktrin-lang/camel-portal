@@ -117,7 +117,7 @@ export default function AdminApprovalsPage() {
   // Map partners: approved rows that have lat/lng, respecting current filters
   const mapPartners = useMemo<MapPartner[]>(() =>
     filteredRows
-      .filter(r => normalizeText(r.status) === "approved" && r.base_lat != null && r.base_lng != null)
+      .filter(r => (normalizeText(r.status) === "approved" || normalizeText(r.status) === "pending") && r.base_lat != null && r.base_lng != null)
       .map(r => ({
         id:           r.id,
         company_name: r.company_name,
