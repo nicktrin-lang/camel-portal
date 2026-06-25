@@ -479,6 +479,18 @@ export default function PartnerSignupPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const [step, setStep]               = useState(1);
+
+  useEffect(() => { trackSignupStep(1, "company_details"); }, []);
+
+  function trackSignupStep(stepNum: number, stepName: string) {
+    if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
+      (window as any).gtag("event", "signup_step", {
+        event_category: "partner_signup",
+        step_number: stepNum,
+        step_name: stepName,
+      });
+    }
+  }
   const [data, setData]               = useState<FormData>(EMPTY);
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState("");
@@ -552,10 +564,10 @@ export default function PartnerSignupPage() {
         <div className="mx-auto max-w-2xl">
           <div className="bg-white p-4 sm:p-8">
             <ProgressBar step={step} stepLabels={stepLabels} />
-            {step === 1 && <Step1 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(2); }} error={error} />}
-            {step === 2 && <Step2 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(3); }} onBack={() => setStep(1)} />}
-            {step === 3 && <Step3 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(4); }} onBack={() => setStep(2)} />}
-            {step === 4 && <Step4 data={data} onChange={(k, v) => setField(k, v as string)} onNext={() => { setError(""); setStep(5); }} onBack={() => setStep(3)} />}
+            {step === 1 && <Step1 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(2); trackSignupStep(2, "business_address"); }} error={error} />}
+            {step === 2 && <Step2 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(3); trackSignupStep(3, "fleet_address"); }} onBack={() => setStep(1)} />}
+            {step === 3 && <Step3 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(4); trackSignupStep(4, "password"); }} onBack={() => setStep(2)} />}
+            {step === 4 && <Step4 data={data} onChange={(k, v) => setField(k, v as string)} onNext={() => { setError(""); setStep(5); trackSignupStep(5, "terms"); }} onBack={() => setStep(3)} />}
             {step === 5 && <Step5 data={data} onChange={(k, v) => setField(k, v as boolean)} onBack={() => setStep(4)} onSubmit={submit} submitting={submitting} error={error} onCaptchaVerify={handleCaptcha} captchaKey={captchaKey} />}
           </div>
           <p className="mt-6 text-center text-sm font-semibold text-black/50">

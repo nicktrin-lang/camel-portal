@@ -787,6 +787,15 @@ export default function PartnerOnboardingPage() {
   const router   = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep]           = useState<Step>("location");
+
+  function trackOnboardingStep(stepName: string) {
+    if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
+      (window as any).gtag("event", "onboarding_step", {
+        event_category: "partner_onboarding",
+        step_name: stepName,
+      });
+    }
+  }
   const [completed, setCompleted] = useState<Set<Step>>(new Set());
   const [profile, setProfile]     = useState<Profile | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -831,7 +840,7 @@ export default function PartnerOnboardingPage() {
 
   function complete(s: Step, next: Step) {
     setCompleted(prev => new Set([...prev, s]));
-    setStep(next); window.scrollTo({ top: 0, behavior: "smooth" });
+    setStep(next); trackOnboardingStep(next); window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   if (loading) return (
