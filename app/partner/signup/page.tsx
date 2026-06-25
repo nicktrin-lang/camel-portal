@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import HCaptcha from "@/app/components/HCaptcha";
 import { CITIES, citiesByCountry, type CityEntry } from "@/lib/cities";
