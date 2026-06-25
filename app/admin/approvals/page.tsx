@@ -125,7 +125,8 @@ export default function AdminApprovalsPage() {
         lat:          Number(r.base_lat),
         lng:          Number(r.base_lng),
         is_live:      liveValue(r),
-      })),
+      }))
+      .sort((a, b) => (a.is_live === b.is_live ? 0 : a.is_live ? 1 : -1)),
     [filteredRows]
   );
 
