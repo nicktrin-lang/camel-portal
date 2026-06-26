@@ -100,6 +100,7 @@ export async function POST(req: Request) {
       try {
         const locale = await getPartnerLocale(db, userId);
         await sendApprovalEmail(toEmail, locale, current?.company_name || "");
+        await db.from("partner_applications").update({ approval_email_last_sent_at: new Date().toISOString() }).eq("id", id);
       } catch (emailErr: any) {
         return NextResponse.json(
           {

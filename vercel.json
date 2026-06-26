@@ -8,5 +8,9 @@
       "path": "/api/cron/monthly-payout",
       "schedule": "0 8 1 * *"
     }
+    ,{
+      "path": "/api/cron/onboarding-reminder",
+      "schedule": "0 9 * * *"
+    }
   ]
 }
