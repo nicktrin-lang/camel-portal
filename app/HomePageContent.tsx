@@ -9,27 +9,36 @@ import LanguageToggle from "@/lib/i18n/LanguageToggle";
 
 function CompactLanguageToggle() {
   const { locale, setLocale } = useLanguage();
+  const [open, setOpen] = useState(false);
   const options: { code: Locale; label: string }[] = [
-    { code: "en", label: "EN" },
-    { code: "es", label: "ES" },
-    { code: "fr", label: "FR" },
-    { code: "it", label: "IT" },
-    { code: "pt", label: "PT" },
-    { code: "de", label: "DE" },
+    { code: "en", label: "EN" }, { code: "es", label: "ES" }, { code: "fr", label: "FR" },
+    { code: "it", label: "IT" }, { code: "pt", label: "PT" }, { code: "de", label: "DE" },
   ];
+  const current = options.find(o => o.code === locale) ?? options[0];
   return (
-    <div className="flex items-center border border-white/20 overflow-hidden">
-      {options.map(({ code, label }, i) => (
-        <button key={code} type="button" onClick={() => setLocale(code)}
-          className={[
-            "px-2 py-1.5 text-xs font-black transition-colors",
-            i < options.length - 1 ? "border-r border-white/20" : "",
-            locale === code ? "bg-[#ff7a00] text-white" : "text-white/60 hover:bg-white/10 hover:text-white",
-          ].join(" ")}
-          aria-label={`Switch to ${label}`}>
-          {label}
-        </button>
-      ))}
+    <div className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 border border-white/20 px-3 py-1.5 text-xs font-black text-white hover:bg-white/10 transition-colors"
+        aria-label="Change language" aria-expanded={open}>
+        {current.label}
+        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <>
+          <button type="button" aria-hidden tabIndex={-1} onClick={() => setOpen(false)} className="fixed inset-0 z-40 cursor-default" />
+          <div className="absolute right-0 top-full mt-1 z-50 min-w-[72px] border border-white/20 bg-black shadow-xl">
+            {options.map(({ code, label }) => (
+              <button key={code} type="button" onClick={() => { setLocale(code); setOpen(false); }}
+                className={[
+                  "block w-full px-3 py-2 text-left text-xs font-black transition-colors",
+                  locale === code ? "bg-[#ff7a00] text-white" : "text-white/70 hover:bg-white/10 hover:text-white",
+                ].join(" ")}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

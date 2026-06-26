@@ -34,7 +34,9 @@ export async function POST(req: Request) {
     const db = createServiceRoleSupabaseClient();
     const isAdmin = isAdminRole(role);
     const userLabel = isAdmin ? "ADMIN" : "PARTNER";
-    const locale = body?.locale === "es" ? "es" : "en";
+    const LANG_NAMES: Record<string, string> = { en: "English", es: "Spanish", fr: "French", it: "Italian", pt: "Portuguese", de: "German" };
+    const locale = LANG_NAMES[body?.locale] ? body.locale : "en";
+    const langName = LANG_NAMES[locale];
 
     // Fetch bookings — admin sees all recent, partner sees their own
     let bookingQuery = db
@@ -114,7 +116,7 @@ Service radius: ${partnerProfile.service_radius_km || "not set"} km
 Base city: ${partnerProfile.base_city || "not set"}
 ` : "";
 
-    const systemPrompt = `CRITICAL: You must respond ONLY in ${locale === "es" ? "Spanish" : "English"}. This is mandatory and overrides everything else.
+    const systemPrompt = `CRITICAL: You must respond ONLY in ${langName}. This is mandatory and overrides everything else.
 
 You are Camel Help, the AI assistant for Camel Global — a meet & greet car hire platform.
 
@@ -147,7 +149,7 @@ ${bookingContext}
 
 Be concise and professional. Only share data from the booking data above — never invent figures.
 
-CRITICAL INSTRUCTION: You MUST reply ONLY in ${locale === "es" ? "Spanish (Español)" : "English"}. Never switch languages regardless of what language the user writes in.`;
+CRITICAL INSTRUCTION: You MUST reply ONLY in ${langName}. Never switch languages regardless of what language the user writes in.`;
 
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
