@@ -416,7 +416,7 @@ export const PARTNER_TERMS_ES: TermsSection[] = [
 // ---------------------------------------------------------------------------
 export const PARTNER_TERMS_FR: TermsSection[] = [
   {
-    title: "1. Definitions",
+    title: "1. Définitions",
     clauses: [
       "\"Accord\" désigne les présentes Conditions Générales Partenaire ainsi que les Règles Opérationnelles Partenaire, qui sont incorporées par référence et font partie intégrante du présent Accord.",
       "\"Camel Global\", \"nous\", \"notre\" ou \"nos\" désigne NTUK Ltd, une société immatriculée en Angleterre et au Pays de Galles (company number 08765474), exerçant son activité sous le nom commercial Camel Global. Notre adresse de siège social est Office 7, 35-37 Ludgate Hill, London, England, EC4M 7JN.",
@@ -445,7 +445,7 @@ export const PARTNER_TERMS_FR: TermsSection[] = [
     ],
   },
   {
-    title: "3. Registration and Account",
+    title: "3. Inscription et Compte",
     clauses: [
       "Pour utiliser la Plateforme, le Partenaire doit compléter le processus d'inscription, fournir des informations exactes et complètes, et obtenir l'approbation de Camel Global.",
       "Le Partenaire garantit que toutes les informations fournies lors de l'inscription et à tout moment par la suite sont vraies, exactes, actuelles et complètes.",
@@ -470,7 +470,7 @@ export const PARTNER_TERMS_FR: TermsSection[] = [
     ],
   },
   {
-    title: "5. Camel Global Obligations",
+    title: "5. Obligations de Camel Global",
     clauses: [
       "Camel Global mettra en œuvre des efforts raisonnables pour rendre la Plateforme disponible 24 heures sur 24, 7 jours sur 7, sous réserve de maintenances planifiées et d'événements indépendants de notre volonté.",
       "Camel Global traitera les Réservations, les paiements et les notifications conformément aux fonctionnalités décrites dans la Plateforme.",
@@ -509,7 +509,7 @@ export const PARTNER_TERMS_FR: TermsSection[] = [
     ],
   },
   {
-    title: "7b. Stripe Processing Fees and Currency",
+    title: "7b. Frais de Traitement Stripe et Devises",
     clauses: [
       "Tous les paiements effectués par les Clients via la Plateforme sont traités par Stripe. Stripe facture des frais de traitement sur chaque transaction. Camel Global absorbe intégralement ces frais — les Frais de Traitement Stripe ne sont jamais déduits du versement du Partenaire.",
       "Le versement net du Partenaire correspond au Prix de Location moins la Commission Camel, plus les Frais de Carburant. Aucun frais Stripe n'est déduit de ce montant.",
@@ -533,7 +533,7 @@ export const PARTNER_TERMS_FR: TermsSection[] = [
     ],
   },
   {
-    title: "9. VAT, Tax and Invoicing",
+    title: "9. TVA, Fiscalité et Facturation",
     clauses: [
       "Le Partenaire est le fournisseur de services de location de voiture au Client. Le contrat juridique pour la prestation de ces services est conclu entre le Partenaire et le Client. Camel Global est uniquement un intermédiaire de place de marché.",
       "Le reçu de confirmation de réservation émis par Camel Global aux Clients confirme le paiement reçu par NTUK Ltd en tant qu'intermédiaire de plateforme. Il ne constitue pas une facture de TVA pour les services de location de voiture et ne satisfait pas aux obligations de facturation du Partenaire envers les Clients.",
@@ -545,7 +545,7 @@ export const PARTNER_TERMS_FR: TermsSection[] = [
     ],
   },
   {
-    title: "10. Insurance",
+    title: "10. Assurance",
     clauses: [
       "Le Partenaire est seul responsable de s'assurer que tous les véhicules sont couverts par une assurance tous risques à tout moment.",
       "Le Partenaire doit maintenir une assurance responsabilité civile avec une couverture minimale de €5,000,000.",
@@ -556,7 +556,7 @@ export const PARTNER_TERMS_FR: TermsSection[] = [
     ],
   },
   {
-    title: "11. Intellectual Property",
+    title: "11. Propriété Intellectuelle",
     clauses: [
       "Camel Global conserve tous les droits de propriété intellectuelle sur la Plateforme.",
       "Le Partenaire se voit accorder une licence limitée, non exclusive et non transférable pour utiliser la Plateforme uniquement aux fins de l'exécution des Réservations.",
@@ -565,7 +565,7 @@ export const PARTNER_TERMS_FR: TermsSection[] = [
     ],
   },
   {
-    title: "12. Protection des données et RGPD",
+    title: "12. Protection des Données et RGPD",
     clauses: [
       "Chaque partie doit se conformer à toute la législation applicable en matière de protection des données, y compris le UK RGPD et l'EU RGPD.",
       "Les données personnelles des clients ne peuvent être traitées par le Partenaire qu'aux fins de l'exécution de la Réservation spécifique pour laquelle elles ont été partagées.",
@@ -595,7 +595,7 @@ export const PARTNER_TERMS_FR: TermsSection[] = [
     ],
   },
   {
-    title: "15. Amendments",
+    title: "15. Modifications",
     clauses: [
       "Camel Global se réserve le droit de modifier les présentes Conditions à tout moment.",
       "Les Partenaires seront informés de toute modification substantielle par e-mail avec un préavis d'au moins 14 jours.",
@@ -604,7 +604,7 @@ export const PARTNER_TERMS_FR: TermsSection[] = [
     ],
   },
   {
-    title: "16. General",
+    title: "16. Général",
     clauses: [
       "Le présent Accord constitue l'intégralité de l'accord entre les parties concernant son objet.",
       "Si une disposition est jugée invalide ou inapplicable, les dispositions restantes continuent de s'appliquer pleinement.",
@@ -616,7 +616,7 @@ export const PARTNER_TERMS_FR: TermsSection[] = [
 
 export const PARTNER_TERMS_IT: TermsSection[] = [
   {
-    title: "1. Definitions",
+    title: "1. Definizioni",
     clauses: [
       "\"Accordo\" indica i presenti Termini e Condizioni per i Partner unitamente alle Regole Operative per i Partner, che sono incorporate per riferimento e costituiscono parte integrante del presente Accordo.",
       "\"Camel Global\", \"noi\", \"ci\" o \"nostro\" indica NTUK Ltd, una società registrata in Inghilterra e Galles (numero di società 08765474), che opera con il nome commerciale Camel Global. Il nostro indirizzo registrato è Office 7, 35-37 Ludgate Hill, London, England, EC4M 7JN.",
@@ -634,7 +634,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "2. Nature of the Relationship — Camel as Intermediary",
+    title: "2. Natura del Rapporto — Camel Global come Intermediario",
     clauses: [
       "Camel Global opera come intermediario di marketplace e piattaforma tecnologica. Camel Global non è un operatore di autonoleggio, non possiede né gestisce veicoli e non assume conducenti.",
       "Il contratto legale per la fornitura dei servizi di autonoleggio si costituisce direttamente tra il Partner e il Cliente. Camel Global non è parte di tale contratto e non accetta alcuna responsabilità per la sua esecuzione.",
@@ -645,7 +645,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "3. Registration and Account",
+    title: "3. Registrazione e Account",
     clauses: [
       "Per utilizzare la Piattaforma, il Partner deve completare il processo di registrazione, fornire informazioni accurate e complete, e ricevere l'approvazione da Camel Global.",
       "Il Partner garantisce che tutte le informazioni fornite durante la registrazione e in qualsiasi momento successivo siano veritiere, accurate, aggiornate e complete.",
@@ -670,7 +670,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "5. Camel Global Obligations",
+    title: "5. Obblighi di Camel Global",
     clauses: [
       "Camel Global utilizzerà ragionevoli sforzi per rendere la Piattaforma disponibile 24 ore su 24, 7 giorni su 7, salvo manutenzioni programmate ed eventi al di fuori del nostro controllo.",
       "Camel Global elaborerà Prenotazioni, pagamenti e notifiche in conformità con le funzionalità descritte nella Piattaforma.",
@@ -681,7 +681,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "6. Bookings and Pricing",
+    title: "6. Prenotazioni e Prezzi",
     clauses: [
       "I Partner possono fare offerte su qualsiasi richiesta del cliente che rientri nel loro raggio di servizio registrato.",
       "Tutti i prezzi presentati dai Partner devono essere comprensivi di tutti i costi. Nessun costo aggiuntivo può essere addebitato al Cliente dopo che un'offerta è stata accettata.",
@@ -694,7 +694,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "7. Commission and Payments",
+    title: "7. Commissioni e Pagamenti",
     clauses: [
       "Camel Global applica una commissione sul Prezzo di Noleggio per ogni Prenotazione completata. La commissione standard è pari al 20% del Prezzo di Noleggio, soggetta a una commissione minima di €10 (o equivalente in valuta) per Prenotazione. Le commissioni possono essere ridotte per singoli Partner previo accordo con Camel Global — la tariffa applicabile al proprio account è indicata nella pagina di invio dell'offerta e nell'account.",
       "Le Spese per il Carburante vengono trasferite integralmente al Partner. Camel Global non applica commissioni sulle Spese per il Carburante.",
@@ -709,7 +709,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "7b. Stripe Processing Fees and Currency",
+    title: "7b. Commissioni di Elaborazione Stripe e Valuta",
     clauses: [
       "Tutti i pagamenti effettuati dai Clienti tramite la Piattaforma sono elaborati da Stripe. Stripe addebita una commissione di elaborazione su ogni transazione. Camel Global si fa carico integralmente di tale commissione — la Commissione di Elaborazione Stripe non viene mai detratta dal pagamento spettante al Partner.",
       "Il pagamento netto del Partner corrisponde al Prezzo di Noleggio meno la Commissione Camel, più il Costo del Carburante. Nessuna commissione Stripe viene detratta da tale importo.",
@@ -733,7 +733,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "9. VAT, Tax and Invoicing",
+    title: "9. IVA, Imposte e Fatturazione",
     clauses: [
       "Il Partner è il fornitore dei servizi di autonoleggio al Cliente. Il contratto legale per la fornitura di tali servizi è stipulato tra il Partner e il Cliente. Camel Global è esclusivamente un intermediario di marketplace.",
       "La ricevuta di conferma della prenotazione emessa da Camel Global ai Clienti conferma il pagamento ricevuto da NTUK Ltd in qualità di intermediario di piattaforma. Non costituisce una fattura IVA per i servizi di autonoleggio e non adempie agli obblighi di fatturazione del Partner nei confronti dei Clienti.",
@@ -745,7 +745,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "10. Insurance",
+    title: "10. Assicurazione",
     clauses: [
       "Il Partner è l'unico responsabile di garantire che tutti i veicoli siano coperti da assicurazione completa in ogni momento.",
       "Il Partner deve mantenere un'assicurazione di responsabilità civile generale con una copertura minima di €5.000.000.",
@@ -756,7 +756,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "11. Intellectual Property",
+    title: "11. Proprietà Intellettuale",
     clauses: [
       "Camel Global conserva tutti i diritti di proprietà intellettuale sulla Piattaforma.",
       "Al Partner viene concessa una licenza limitata, non esclusiva e non trasferibile per utilizzare la Piattaforma esclusivamente ai fini dell'evasione delle Prenotazioni.",
@@ -776,7 +776,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "13. Liability",
+    title: "13. Responsabilità",
     clauses: [
       "Nessuna disposizione del presente Accordo limita la responsabilità per morte o lesioni personali causate da negligenza o frode.",
       "La responsabilità aggregata totale di Camel Global non supererà la commissione totale pagata dal Partner nei 3 mesi precedenti alla richiesta di risarcimento.",
@@ -795,7 +795,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "15. Amendments",
+    title: "15. Modifiche",
     clauses: [
       "Camel Global si riserva il diritto di modificare i presenti Termini in qualsiasi momento.",
       "I Partner saranno informati delle modifiche sostanziali tramite e-mail con un preavviso di almeno 14 giorni.",
@@ -804,7 +804,7 @@ export const PARTNER_TERMS_IT: TermsSection[] = [
     ],
   },
   {
-    title: "16. General",
+    title: "16. Generale",
     clauses: [
       "Il presente Accordo costituisce l'intero accordo tra le parti in relazione al suo oggetto.",
       "Qualora una disposizione risulti invalida o inapplicabile, le disposizioni rimanenti continuano ad avere piena efficacia.",
@@ -834,7 +834,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "2. Nature of the Relationship — Camel as Intermediary",
+    title: "2. Natureza da Relação — Camel Global como Intermediário",
     clauses: [
       "A Camel Global opera como intermediária de mercado e plataforma tecnológica. A Camel Global não é uma operadora de aluguer de automóveis, não possui nem opera quaisquer veículos e não emprega quaisquer motoristas.",
       "O contrato legal para a prestação de serviços de aluguer de automóveis é celebrado diretamente entre o Parceiro e o Cliente. A Camel Global não é parte desse contrato e não aceita qualquer responsabilidade pelo seu cumprimento.",
@@ -845,7 +845,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "3. Registration and Account",
+    title: "3. Registo e Conta",
     clauses: [
       "Para utilizar a Plataforma, o Parceiro deve concluir o processo de registo, fornecer informações precisas e completas, e obter aprovação da Camel Global.",
       "O Parceiro garante que todas as informações fornecidas durante o registo e em qualquer momento posterior são verdadeiras, precisas, atuais e completas.",
@@ -870,7 +870,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "5. Camel Global Obligations",
+    title: "5. Obrigações da Camel Global",
     clauses: [
       "A Camel Global envidará esforços razoáveis para disponibilizar a Plataforma 24 horas por dia, 7 dias por semana, sujeito a manutenções programadas e a eventos fora do nosso controlo.",
       "A Camel Global processará Reservas, pagamentos e notificações em conformidade com as funcionalidades descritas na Plataforma.",
@@ -881,7 +881,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "6. Bookings and Pricing",
+    title: "6. Reservas e Preços",
     clauses: [
       "Os Parceiros podem fazer licitações em qualquer pedido de cliente que se enquadre no seu raio de serviço registado.",
       "Todos os preços submetidos pelos Parceiros devem ser totalmente inclusivos de todos os custos. Nenhuma cobrança adicional pode ser adicionada ao Cliente após a aceitação de uma licitação.",
@@ -894,7 +894,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "7. Commission and Payments",
+    title: "7. Comissão e Pagamentos",
     clauses: [
       "A Camel Global cobra uma comissão sobre o Preço de Aluguer de cada Reserva concluída. A taxa de comissão padrão é de 20% do Preço de Aluguer, sujeita a uma comissão mínima de €10 (ou equivalente em moeda) por Reserva. As taxas de comissão poderão ser reduzidas para Parceiros individuais mediante acordo com a Camel Global — a taxa aplicável à sua conta é apresentada na sua página de submissão de proposta e na sua conta.",
       "Os Encargos de Combustível são integralmente repercutidos no Parceiro. A Camel Global não cobra comissão sobre os Encargos de Combustível.",
@@ -909,7 +909,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "7b. Stripe Processing Fees and Currency",
+    title: "7b. Taxas de Processamento e Moeda do Stripe",
     clauses: [
       "Todos os pagamentos efetuados pelos Clientes através da Plataforma são processados pela Stripe. A Stripe cobra uma taxa de processamento sobre cada transação. A Camel Global absorve esta taxa na totalidade — a Taxa de Processamento da Stripe nunca é deduzida do pagamento ao Parceiro.",
       "O pagamento líquido ao Parceiro corresponde ao Preço de Aluguer menos a Comissão Camel, acrescido do Encargo de Combustível. Nenhuma taxa da Stripe é deduzida deste valor.",
@@ -933,7 +933,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "9. VAT, Tax and Invoicing",
+    title: "9. IVA, Impostos e Faturação",
     clauses: [
       "O Parceiro é o fornecedor de serviços de aluguer de automóveis ao Cliente. O contrato legal para a prestação desses serviços é celebrado entre o Parceiro e o Cliente. A Camel Global é apenas um intermediário de marketplace.",
       "O recibo de confirmação de reserva emitido pela Camel Global aos Clientes confirma o pagamento recebido pela NTUK Ltd na qualidade de intermediário da plataforma. Não constitui uma fatura de IVA para serviços de aluguer de automóveis e não cumpre as obrigações de faturação do Parceiro perante os Clientes.",
@@ -945,7 +945,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "10. Insurance",
+    title: "10. Seguro",
     clauses: [
       "O Parceiro é o único responsável por garantir que todos os veículos estão sempre cobertos por um seguro completo.",
       "O Parceiro deve manter um seguro de responsabilidade civil com uma cobertura mínima de €5.000.000.",
@@ -956,7 +956,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "11. Intellectual Property",
+    title: "11. Propriedade Intelectual",
     clauses: [
       "Camel Global retém todos os direitos de propriedade intelectual sobre a Plataforma.",
       "É concedida ao Parceiro uma licença limitada, não exclusiva e intransferível para utilizar a Plataforma exclusivamente para o cumprimento de Reservas.",
@@ -985,7 +985,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "14. Suspension and Termination",
+    title: "14. Suspensão e Rescisão",
     clauses: [
       "A Camel Global pode suspender imediatamente uma conta de Parceiro por reclamação grave de cliente, violação de normas, incumprimento de uma Reserva ou representação falsa.",
       "Após a suspensão, o Parceiro será notificado por correio eletrónico e terá 5 dias úteis para responder.",
@@ -1004,7 +1004,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
     ],
   },
   {
-    title: "16. General",
+    title: "16. Disposições Gerais",
     clauses: [
       "Este Acordo constitui o acordo integral entre as partes em relação ao seu objeto.",
       "Se qualquer disposição for considerada inválida ou inexequível, as disposições restantes continuam em pleno vigor.",
@@ -1016,7 +1016,7 @@ export const PARTNER_TERMS_PT: TermsSection[] = [
 
 export const PARTNER_TERMS_DE: TermsSection[] = [
   {
-    title: "1. Definitions",
+    title: "1. Definitionen",
     clauses: [
       "\"Vereinbarung\" bezeichnet diese Partnerbedingungen und -konditionen zusammen mit den Partner-Betriebsregeln, die durch Verweis einbezogen werden und Bestandteil dieser Vereinbarung sind.",
       "\"Camel Global\", \"wir\", \"uns\" oder \"unser\" bezeichnet NTUK Ltd, ein in England und Wales eingetragenes Unternehmen (company number 08765474), das unter dem Namen Camel Global tätig ist. Unsere eingetragene Adresse lautet Office 7, 35-37 Ludgate Hill, London, England, EC4M 7JN.",
@@ -1034,7 +1034,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "2. Nature of the Relationship — Camel as Intermediary",
+    title: "2. Art der Beziehung — Camel Global als Vermittler",
     clauses: [
       "Camel Global agiert als Marktplatz-Vermittler und Technologieplattform. Camel Global ist kein Mietwagenunternehmen, besitzt oder betreibt keine Fahrzeuge und beschäftigt keine Fahrer.",
       "Der rechtliche Vertrag über die Erbringung von Mietwagendienstleistungen kommt direkt zwischen dem Partner und dem Kunden zustande. Camel Global ist keine Vertragspartei dieses Vertrags und übernimmt keine Haftung für dessen Erfüllung.",
@@ -1045,7 +1045,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "3. Registration and Account",
+    title: "3. Registrierung und Konto",
     clauses: [
       "Um die Plattform nutzen zu können, muss der Partner den Registrierungsprozess abschließen, genaue und vollständige Angaben machen und eine Genehmigung von Camel Global erhalten.",
       "Der Partner versichert, dass alle während der Registrierung und zu jedem späteren Zeitpunkt gemachten Angaben wahrheitsgemäß, korrekt, aktuell und vollständig sind.",
@@ -1057,7 +1057,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "4. Partnerpflichten",
+    title: "4. Pflichten des Partners",
     clauses: [
       "Der Partner muss die Partner-Betriebsregeln jederzeit einhalten. Die Betriebsregeln sind Bestandteil dieser Vereinbarung und haben dieselbe Rechtskraft.",
       "Der Partner muss alle Lizenzen, Genehmigungen, Registrierungen und Versicherungspolicen besitzen und aufrechterhalten, die nach geltendem Recht für den Betrieb eines Mietwagenunternehmens in seiner Jurisdiktion erforderlich sind.",
@@ -1070,7 +1070,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "5. Camel Global Obligations",
+    title: "5. Pflichten von Camel Global",
     clauses: [
       "Camel Global wird angemessene Bemühungen unternehmen, die Plattform 24 Stunden am Tag, 7 Tage die Woche verfügbar zu machen, vorbehaltlich geplanter Wartungsarbeiten und Ereignisse, die außerhalb unserer Kontrolle liegen.",
       "Camel Global wird Buchungen, Zahlungen und Benachrichtigungen gemäß den in der Plattform beschriebenen Funktionen verarbeiten.",
@@ -1094,7 +1094,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "7. Commission and Payments",
+    title: "7. Provision und Zahlungen",
     clauses: [
       "Camel Global erhebt eine Provision auf den Mietpreis jeder abgeschlossenen Buchung. Der Standardprovisionssatz beträgt 20 % des Mietpreises, vorbehaltlich einer Mindestprovision von €10 (oder dem Gegenwert in der jeweiligen Währung) pro Buchung. Provisionssätze können für einzelne Partner durch Vereinbarung mit Camel Global reduziert werden — der für Ihr Konto geltende Satz wird auf Ihrer Angebotseinreichungsseite und in Ihrem Konto angezeigt.",
       "Kraftstoffkosten werden vollständig an den Partner weitergegeben. Camel Global erhebt keine Provision auf Kraftstoffkosten.",
@@ -1109,7 +1109,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "7b. Stripe Processing Fees and Currency",
+    title: "7b. Stripe Bearbeitungsgebühren und Währung",
     clauses: [
       "Alle Zahlungen, die von Kunden über die Plattform geleistet werden, werden von Stripe verarbeitet. Stripe erhebt eine Bearbeitungsgebühr für jede Transaktion. Camel Global übernimmt diese Gebühr vollständig — die Stripe Processing Fee wird niemals vom Auszahlungsbetrag des Partners abgezogen.",
       "Die Nettoauszahlung des Partners entspricht dem Mietpreis abzüglich der Camel-Provision, zuzüglich der Kraftstoffgebühr. Von diesem Betrag wird keine Stripe-Gebühr abgezogen.",
@@ -1133,7 +1133,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "9. VAT, Tax and Invoicing",
+    title: "9. Mehrwertsteuer, Steuern und Rechnungsstellung",
     clauses: [
       "Der Partner ist der Anbieter von Mietwagendienstleistungen gegenüber dem Kunden. Der rechtliche Vertrag über die Erbringung dieser Dienstleistungen besteht zwischen dem Partner und dem Kunden. Camel Global ist ausschließlich ein Marktplatzvermittler.",
       "Die von Camel Global an Kunden ausgestellte Buchungsbestätigungsquittung bestätigt den von NTUK Ltd als Plattformvermittler empfangenen Zahlungseingang. Sie stellt keine Umsatzsteuerrechnung für Mietwagendienstleistungen dar und erfüllt nicht die Rechnungsstellungspflichten des Partners gegenüber Kunden.",
@@ -1145,7 +1145,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "10. Insurance",
+    title: "10. Versicherung",
     clauses: [
       "Der Partner ist allein dafür verantwortlich, dass alle Fahrzeuge jederzeit vollständig versichert sind.",
       "Der Partner muss eine Betriebshaftpflichtversicherung mit einer Mindestdeckung von €5.000.000 unterhalten.",
@@ -1156,7 +1156,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "11. Intellectual Property",
+    title: "11. Geistiges Eigentum",
     clauses: [
       "Camel Global behält alle Rechte an geistigem Eigentum an der Plattform.",
       "Dem Partner wird eine eingeschränkte, nicht-exklusive, nicht übertragbare Lizenz gewährt, die Plattform ausschließlich zur Abwicklung von Buchungen zu nutzen.",
@@ -1176,7 +1176,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "13. Liability",
+    title: "13. Haftung",
     clauses: [
       "Nichts in dieser Vereinbarung schränkt die Haftung für Tod oder Körperverletzung infolge von Fahrlässigkeit oder Betrug ein.",
       "Die gesamte Gesamthaftung von Camel Global darf die Gesamtprovision, die der Partner in den 3 Monaten vor dem Anspruch gezahlt hat, nicht überschreiten.",
@@ -1185,7 +1185,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "14. Aussetzung und Kündigung",
+    title: "14. Sperrung und Kündigung",
     clauses: [
       "Camel Global kann ein Partnerkonto bei einer schwerwiegenden Kundenbeschwerde, einem Verstoß gegen die Standards, der Nichterfüllung einer Buchung oder einer Falschdarstellung mit sofortiger Wirkung aussetzen.",
       "Nach der Aussetzung wird der Partner per E-Mail benachrichtigt und erhält 5 Werktage Zeit, um zu antworten.",
@@ -1204,7 +1204,7 @@ export const PARTNER_TERMS_DE: TermsSection[] = [
     ],
   },
   {
-    title: "16. General",
+    title: "16. Allgemeines",
     clauses: [
       "Diese Vereinbarung stellt die gesamte Übereinkunft zwischen den Parteien in Bezug auf ihren Gegenstand dar.",
       "Sollte eine Bestimmung als ungültig oder nicht durchsetzbar befunden werden, bleiben die übrigen Bestimmungen in vollem Umfang in Kraft.",

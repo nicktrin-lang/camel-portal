@@ -329,7 +329,7 @@ export const OPERATING_RULES_ES = [
 // ---------------------------------------------------------------------------
 export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
   {
-    section: "1. Platform Overview",
+    section: "1. Aperçu de la plateforme",
     rules: [
       "Camel Global est une plateforme de location de voitures avec service d'accueil mettant en relation des clients avec des partenaires indépendants de location de voitures en Espagne et à l'international.",
       "Les partenaires sont des entreprises indépendantes qui acceptent d'opérer au sein de la place de marché Camel Global conformément à ces règles.",
@@ -338,7 +338,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "2. Partner Eligibility & Approval",
+    section: "2. Éligibilité et approbation des partenaires",
     rules: [
       "Toutes les candidatures de partenaires sont soumises à l'examen et à l'approbation de Camel Global avant que toute offre puisse être soumise.",
       "Les partenaires doivent détenir toutes les licences, autorisations et assurances légalement requises pour exploiter une activité de location de véhicules dans leur juridiction.",
@@ -349,7 +349,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "3. Bidding & Pricing",
+    section: "3. Appels d'offres et tarification",
     rules: [
       "Les partenaires peuvent soumettre une offre pour toute demande client entrant dans leur rayon de service.",
       "Tous les prix des offres doivent être soumis dans la devise de facturation désignée du partenaire (EUR, GBP ou USD).",
@@ -362,7 +362,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "3b. Mileage Limits & Security Deposits",
+    section: "3b. Limites de kilométrage et dépôts de garantie",
     rules: [
       "Lorsqu'un partenaire applique une limite de kilométrage à une réservation, celle-ci doit être clairement indiquée dans l'offre au moment de la soumission. Les conditions de kilométrage doivent inclure la limite ainsi que le supplément par kilomètre dépassé, afin que le client puisse prendre une décision éclairée avant d'accepter.",
       "Lorsqu'un partenaire exige un dépôt de garantie, celui-ci doit être clairement indiqué dans l'offre au moment de la soumission, en précisant le montant du dépôt ainsi que les conditions dans lesquelles il sera retenu et restitué.",
@@ -374,7 +374,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "4. Vehicle Standards",
+    section: "4. Normes relatives aux véhicules",
     rules: [
       "Tous les véhicules proposés doivent être en état de marche, légalement immatriculés et entièrement assurés au moment de la location.",
       "Les véhicules doivent être propres, bien entretenus et présentés au client dans un état professionnel.",
@@ -386,7 +386,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "5. Fuel Policy & Charging",
+    section: "5. Politique de carburant et recharge",
     rules: [
       "Camel Global applique une politique de carburant équitable : les clients ne paient que le carburant qu'ils ont utilisé, arrondi au quart de réservoir le plus proche.",
       "Le chauffeur doit enregistrer le niveau de carburant lors de la prise en charge et lors du retour du véhicule en utilisant l'application chauffeur Camel Global.",
@@ -398,7 +398,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "6. Driver Standards",
+    section: "6. Normes applicables aux conducteurs",
     rules: [
       "Tous les chauffeurs envoyés via la plateforme Camel Global doivent être enregistrés dans le portail chauffeurs du partenaire.",
       "Les chauffeurs doivent être titulaires d'un permis de conduire valide adapté à la catégorie de véhicule livré.",
@@ -410,7 +410,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "7. Customer Service",
+    section: "7. Service client",
     rules: [
       "Les partenaires doivent répondre aux demandes des clients concernant les réservations actives dans un délai de 2 heures pendant les heures ouvrables.",
       "Les heures ouvrables sont définies comme étant de 08:00 à 20:00, heure locale, 7 jours sur 7.",
@@ -421,7 +421,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "8. Insurance & Liability",
+    section: "8. Assurance et responsabilité",
     rules: [
       "Les partenaires sont entièrement responsables de l'assurance de tous les véhicules sur la plateforme à tout moment.",
       "Une assurance tous risques complète doit être en place pour chaque véhicule loué via la plateforme.",
@@ -432,7 +432,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "9. Revenue & Payments",
+    section: "9. Revenus et paiements",
     rules: [
       "Camel Global prélève une commission sur le prix de la location de voiture pour chaque réservation complétée, avec une commission minimale de €10 par réservation. Le taux de commission standard est de 20 %, bien que celui-ci puisse être réduit pour des partenaires individuels par accord avec Camel Global.",
       "Votre taux de commission actuel est affiché dans votre compte partenaire et sur la page de soumission d'offre. Si vous bénéficiez d'un taux réduit, celui-ci y sera reflété.",
@@ -445,7 +445,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "9b. Invoicing Obligations",
+    section: "9b. Obligations de facturation",
     rules: [
       "Les partenaires sont le fournisseur de services de location de voitures aux clients. Le contrat pour la fourniture de ces services est directement conclu entre le partenaire et le client. Camel Global est uniquement un intermédiaire de place de marché et n'est pas partie à ce contrat.",
       "Le reçu de confirmation de réservation émis par Camel Global aux clients est un reçu de paiement de plateforme émis par NTUK Ltd. Il ne constitue pas une facture de TVA pour les services de location de voitures et ne remplit pas les obligations de facturation du partenaire envers les clients.",
@@ -456,7 +456,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "10. Data & Privacy",
+    section: "10. Données et confidentialité",
     rules: [
       "Les données clients partagées via la plateforme (nom, téléphone, adresse électronique, adresse de prise en charge/dépose) ne peuvent être utilisées qu'aux fins de l'exécution de la réservation.",
       "Les Partenaires ne doivent pas utiliser les données clients à des fins de marketing, de reciblage publicitaire ou à toute autre fin commerciale.",
@@ -466,7 +466,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "11. Suspension & Termination",
+    section: "11. Suspension et résiliation",
     rules: [
       "Camel Global peut suspendre immédiatement un compte partenaire dans les cas suivants : une plainte grave d'un client, une violation des normes relatives aux véhicules ou aux conducteurs, le non-respect d'une réservation confirmée, ou une présentation inexacte des tarifs ou des services.",
       "Les comptes suspendus seront notifiés par e-mail et auront la possibilité de répondre dans un délai de 5 jours ouvrables.",
@@ -476,7 +476,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "12. Amendments",
+    section: "12. Modifications",
     rules: [
       "Camel Global se réserve le droit de modifier ces règles de fonctionnement à tout moment.",
       "Les partenaires seront informés de toute modification substantielle par e-mail avec un préavis minimum de 14 jours.",
@@ -488,7 +488,7 @@ export const OPERATING_RULES_FR: typeof OPERATING_RULES = [
 
 export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
   {
-    section: "1. Platform Overview",
+    section: "1. Panoramica della Piattaforma",
     rules: [
       "Camel Global è una piattaforma di autonoleggio con servizio di accoglienza che mette in contatto i clienti con partner indipendenti di autonoleggio in Spagna e a livello internazionale.",
       "I partner sono imprese indipendenti che accettano di operare all'interno del marketplace di Camel Global in conformità con le presenti regole.",
@@ -497,7 +497,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "2. Partner Eligibility & Approval",
+    section: "2. Idoneità e Approvazione dei Partner",
     rules: [
       "Tutte le domande di partnership sono soggette a revisione e approvazione da parte di Camel Global prima che possano essere presentate offerte.",
       "I partner devono essere in possesso di tutte le licenze, i permessi e le assicurazioni richiesti dalla legge per esercitare un'attività di noleggio auto nella propria giurisdizione.",
@@ -508,7 +508,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "3. Bidding & Pricing",
+    section: "3. Offerte e Prezzi",
     rules: [
       "I Partner possono fare offerte su qualsiasi richiesta del cliente che rientri nel loro raggio di servizio.",
       "Tutti i prezzi delle offerte devono essere inviati nella valuta di fatturazione designata del Partner (EUR, GBP o USD).",
@@ -521,7 +521,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "3b. Mileage Limits & Security Deposits",
+    section: "3b. Limiti di Chilometraggio e Depositi Cauzionali",
     rules: [
       "Qualora un partner applichi un limite di chilometraggio a una prenotazione, questo deve essere chiaramente indicato nell'offerta al momento della presentazione. Le condizioni relative al chilometraggio devono includere il limite e il costo aggiuntivo per chilometro eccedente, affinché il cliente possa prendere una decisione informata prima di accettare.",
       "Qualora un partner richieda un deposito cauzionale, questo deve essere chiaramente indicato nell'offerta al momento della presentazione, compresi l'importo del deposito e le condizioni in base alle quali sarà trattenuto e svincolato.",
@@ -533,7 +533,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "4. Vehicle Standards",
+    section: "4. Standard dei Veicoli",
     rules: [
       "Tutti i veicoli offerti devono essere idonei alla circolazione, regolarmente immatricolati e completamente assicurati al momento del noleggio.",
       "I veicoli devono essere puliti, ben mantenuti e presentati al cliente in condizioni professionali.",
@@ -545,7 +545,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "5. Fuel Policy & Charging",
+    section: "5. Politica del Carburante e Ricarica",
     rules: [
       "Camel Global applica una politica equa sul carburante: i clienti pagano solo per il carburante effettivamente utilizzato, arrotondato al quarto di serbatoio più vicino.",
       "Il conducente deve registrare il livello del carburante al momento del ritiro e della restituzione tramite l'app per conducenti di Camel Global.",
@@ -557,7 +557,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "6. Driver Standards",
+    section: "6. Standard dei Conducenti",
     rules: [
       "Tutti i conducenti inviati tramite la piattaforma Camel Global devono essere registrati nel portale conducenti del partner.",
       "I conducenti devono essere in possesso di una patente di guida valida e appropriata per la categoria del veicolo da consegnare.",
@@ -569,7 +569,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "7. Customer Service",
+    section: "7. Servizio Clienti",
     rules: [
       "I Partner devono rispondere alle richieste dei clienti relative alle prenotazioni attive entro 2 ore durante l'orario lavorativo.",
       "L'orario lavorativo è definito come 08:00–20:00 ora locale, 7 giorni su 7.",
@@ -580,7 +580,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "8. Insurance & Liability",
+    section: "8. Assicurazione e Responsabilità",
     rules: [
       "I Partner sono pienamente responsabili dell'assicurazione di tutti i veicoli sulla piattaforma in qualsiasi momento.",
       "Per ogni veicolo noleggiato tramite la piattaforma deve essere in vigore una polizza assicurativa completamente a copertura totale.",
@@ -591,7 +591,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "9. Revenue & Payments",
+    section: "9. Ricavi e Pagamenti",
     rules: [
       "Camel Global applica una commissione sul prezzo del noleggio auto per ogni prenotazione completata, con una commissione minima di €10 per prenotazione. Il tasso di commissione standard è del 20%, sebbene questo possa essere ridotto per i singoli partner previo accordo con Camel Global.",
       "Il tasso di commissione attuale è visualizzato nel tuo account partner e nella pagina di invio dell'offerta. Se disponi di un tasso ridotto, sarà indicato in tale sede.",
@@ -604,7 +604,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "9b. Invoicing Obligations",
+    section: "9b. Obblighi di Fatturazione",
     rules: [
       "I partner sono i fornitori dei servizi di noleggio auto ai clienti. Il contratto per la fornitura di tali servizi è direttamente tra il partner e il cliente. Camel Global è esclusivamente un intermediario di marketplace e non è parte di tale contratto.",
       "La ricevuta di conferma della prenotazione emessa da Camel Global ai clienti è una ricevuta di pagamento della piattaforma emessa da NTUK Ltd. Non costituisce una fattura IVA per i servizi di noleggio auto e non adempie agli obblighi di fatturazione del partner nei confronti dei clienti.",
@@ -615,7 +615,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "10. Data & Privacy",
+    section: "10. Dati e Privacy",
     rules: [
       "I dati dei clienti condivisi tramite la piattaforma (nome, telefono, email, indirizzo di partenza/destinazione) possono essere utilizzati esclusivamente ai fini dell'evasione della prenotazione.",
       "I Partner non devono utilizzare i dati dei clienti per attività di marketing, re-targeting o qualsiasi altro scopo commerciale.",
@@ -625,7 +625,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "11. Suspension & Termination",
+    section: "11. Sospensione e Risoluzione",
     rules: [
       "Camel Global può sospendere immediatamente un account partner nei seguenti casi: un grave reclamo da parte di un cliente, violazione degli standard relativi ai veicoli o ai conducenti, mancato adempimento di una prenotazione confermata, o dichiarazione falsa di prezzi o servizi.",
       "Gli account sospesi saranno notificati via e-mail e avranno la possibilità di rispondere entro 5 giorni lavorativi.",
@@ -635,7 +635,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "12. Amendments",
+    section: "12. Modifiche",
     rules: [
       "Camel Global si riserva il diritto di modificare le presenti norme operative in qualsiasi momento.",
       "I partner saranno informati di qualsiasi modifica sostanziale tramite e-mail con un preavviso minimo di 14 giorni.",
@@ -647,7 +647,7 @@ export const OPERATING_RULES_IT: typeof OPERATING_RULES = [
 
 export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
   {
-    section: "1. Platform Overview",
+    section: "1. Visão Geral da Plataforma",
     rules: [
       "Camel Global é uma plataforma de aluguer de automóveis com serviço de receção e entrega que conecta clientes com parceiros independentes de aluguer de automóveis em Espanha e a nível internacional.",
       "Os parceiros são empresas independentes que concordam em operar dentro do mercado Camel Global em conformidade com estas regras.",
@@ -656,7 +656,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "2. Partner Eligibility & Approval",
+    section: "2. Elegibilidade e Aprovação de Parceiros",
     rules: [
       "Todas as candidaturas de parceiros estão sujeitas a revisão e aprovação por parte da Camel Global antes de qualquer proposta poder ser submetida.",
       "Os parceiros devem deter todas as licenças, autorizações e seguros legalmente exigidos para operar um negócio de aluguer de automóveis na sua jurisdição.",
@@ -667,7 +667,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "3. Bidding & Pricing",
+    section: "3. Licitação e Preços",
     rules: [
       "Os parceiros podem fazer licitações em qualquer solicitação de cliente que esteja dentro do seu raio de atendimento.",
       "Todos os preços das licitações devem ser submetidos na moeda de faturação designada do parceiro (EUR, GBP ou USD).",
@@ -680,7 +680,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "3b. Mileage Limits & Security Deposits",
+    section: "3b. Limites de Quilometragem e Depósitos de Segurança",
     rules: [
       "Quando um parceiro aplica um limite de quilometragem a uma reserva, este deve ser claramente indicado na proposta no momento da submissão. Os termos de quilometragem devem incluir o limite e o custo adicional por quilómetro excedido, de modo a que o cliente possa tomar uma decisão informada antes de aceitar.",
       "Quando um parceiro exige um depósito de segurança, este deve ser claramente indicado na proposta no momento da submissão, incluindo o valor do depósito e as condições em que será retido e devolvido.",
@@ -692,7 +692,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "4. Vehicle Standards",
+    section: "4. Padrões de Veículos",
     rules: [
       "Todos os veículos oferecidos devem estar em condições de circulação, legalmente registados e totalmente segurados no momento da contratação.",
       "Os veículos devem estar limpos, bem conservados e apresentados ao cliente em condições profissionais.",
@@ -704,7 +704,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "5. Fuel Policy & Charging",
+    section: "5. Política de Combustível e Carregamento",
     rules: [
       "A Camel Global opera uma política de combustível justa: os clientes pagam apenas pelo combustível que utilizam, arredondado ao quarto de tanque mais próximo.",
       "O motorista deve registar o nível de combustível na recolha e na devolução através da aplicação de motorista da Camel Global.",
@@ -716,7 +716,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "6. Driver Standards",
+    section: "6. Padrões de Condutores",
     rules: [
       "Todos os motoristas despachados através da plataforma Camel Global devem estar registados no portal de motoristas do parceiro.",
       "Os motoristas devem possuir uma carta de condução válida e adequada à categoria de veículo que está a ser entregue.",
@@ -728,7 +728,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "7. Customer Service",
+    section: "7. Atendimento ao Cliente",
     rules: [
       "Os Parceiros devem responder a consultas de clientes relacionadas com reservas ativas no prazo de 2 horas durante o horário de expediente.",
       "O horário de expediente é definido como 08:00–20:00, horário local, 7 dias por semana.",
@@ -739,7 +739,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "8. Insurance & Liability",
+    section: "8. Seguro e Responsabilidade",
     rules: [
       "Os Parceiros são totalmente responsáveis pelo seguro de todos os veículos na plataforma em todos os momentos.",
       "Um seguro totalmente compreensivo deve estar em vigor para cada veículo alugado através da plataforma.",
@@ -750,7 +750,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "9. Revenue & Payments",
+    section: "9. Receitas e Pagamentos",
     rules: [
       "A Camel Global cobra uma comissão sobre o preço do aluguer de automóvel por cada reserva concluída, com uma comissão mínima de €10 por reserva. A taxa de comissão padrão é de 20%, podendo ser reduzida para parceiros individuais mediante acordo com a Camel Global.",
       "A sua taxa de comissão atual é apresentada na sua conta de parceiro e na página de submissão de propostas. Caso disponha de uma taxa reduzida, esta será refletida nesses locais.",
@@ -763,7 +763,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "9b. Invoicing Obligations",
+    section: "9b. Obrigações de Faturação",
     rules: [
       "Os parceiros são os fornecedores de serviços de aluguer de automóveis aos clientes. O contrato para a prestação desses serviços é estabelecido diretamente entre o parceiro e o cliente. A Camel Global é apenas um intermediário de marketplace e não é parte desse contrato.",
       "O recibo de confirmação de reserva emitido pela Camel Global aos clientes é um recibo de pagamento da plataforma emitido pela NTUK Ltd. Não constitui uma fatura de IVA pelos serviços de aluguer de automóveis e não cumpre as obrigações de faturação do parceiro perante os clientes.",
@@ -774,7 +774,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "10. Data & Privacy",
+    section: "10. Dados e Privacidade",
     rules: [
       "Os dados dos clientes partilhados através da plataforma (nome, telefone, email, endereço de recolha/entrega) só podem ser utilizados para fins de cumprimento da reserva.",
       "Os Parceiros não podem utilizar os dados dos clientes para fins de marketing, retargeting ou qualquer outro propósito comercial.",
@@ -784,7 +784,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "11. Suspension & Termination",
+    section: "11. Suspensão e Rescisão",
     rules: [
       "A Camel Global pode suspender uma conta de parceiro imediatamente nos seguintes casos: uma reclamação grave de cliente, violação dos padrões de veículo ou condutor, incumprimento de uma reserva confirmada, ou deturpação de preços ou serviços.",
       "As contas suspensas serão notificadas por e-mail e terão a oportunidade de responder no prazo de 5 dias úteis.",
@@ -794,7 +794,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "12. Amendments",
+    section: "12. Alterações",
     rules: [
       "Camel Global reserva o direito de alterar estas regras operacionais a qualquer momento.",
       "Os parceiros serão notificados de quaisquer alterações materiais por e-mail com um aviso mínimo de 14 dias.",
@@ -806,7 +806,7 @@ export const OPERATING_RULES_PT: typeof OPERATING_RULES = [
 
 export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
   {
-    section: "1. Platform Overview",
+    section: "1. Plattformübersicht",
     rules: [
       "Camel Global ist eine Meet-and-Greet-Mietwagenplattform, die Kunden mit unabhängigen Mietwagenpartnern in Spanien und international zusammenbringt.",
       "Partner sind eigenständige Unternehmen, die sich bereit erklären, im Rahmen dieser Regeln innerhalb des Camel Global Marktplatzes tätig zu sein.",
@@ -815,7 +815,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "2. Partner Eligibility & Approval",
+    section: "2. Partner-Berechtigung & Genehmigung",
     rules: [
       "Alle Partnerbewerbungen unterliegen der Prüfung und Genehmigung durch Camel Global, bevor Angebote eingereicht werden können.",
       "Partner müssen alle gesetzlich vorgeschriebenen Lizenzen, Genehmigungen und Versicherungen besitzen, die für den Betrieb eines Mietwagenunternehmens in ihrer Rechtsordnung erforderlich sind.",
@@ -826,7 +826,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "3. Bidding & Pricing",
+    section: "3. Gebote & Preisgestaltung",
     rules: [
       "Partner können auf jede Kundenanfrage bieten, die in ihren Serviceradius fällt.",
       "Alle Angebotspreise müssen in der vom Partner festgelegten Abrechnungswährung (EUR, GBP oder USD) eingereicht werden.",
@@ -839,7 +839,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "3b. Mileage Limits & Security Deposits",
+    section: "3b. Kilometerbegrenzungen & Sicherheitseinlagen",
     rules: [
       "Wenn ein Partner für eine Buchung ein Kilometerlimit festlegt, muss dies zum Zeitpunkt der Angebotsabgabe klar im Angebot angegeben werden. Die Kilometerbedingungen müssen das Limit sowie den Aufpreis pro Kilometer bei Überschreitung enthalten, damit der Kunde vor der Annahme eine informierte Entscheidung treffen kann.",
       "Wenn ein Partner eine Kaution verlangt, muss dies zum Zeitpunkt der Angebotsabgabe klar im Angebot angegeben werden, einschließlich des Kautionsbetrags sowie der Bedingungen, unter denen diese einbehalten und freigegeben wird.",
@@ -851,7 +851,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "4. Vehicle Standards",
+    section: "4. Fahrzeugstandards",
     rules: [
       "Alle angebotenen Fahrzeuge müssen zum Zeitpunkt der Anmietung verkehrssicher, ordnungsgemäß zugelassen und vollständig versichert sein.",
       "Die Fahrzeuge müssen sauber, gut gepflegt und dem Kunden in einem professionellen Zustand übergeben werden.",
@@ -863,7 +863,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "5. Fuel Policy & Charging",
+    section: "5. Kraftstoffrichtlinie & Abrechnung",
     rules: [
       "Camel Global betreibt eine faire Kraftstoffrichtlinie: Kunden zahlen nur für den verbrauchten Kraftstoff, gerundet auf das nächste Vierteltank.",
       "Der Fahrer muss den Kraftstoffstand bei der Abholung und bei der Rückgabe über die Camel Global Fahrer-App erfassen.",
@@ -875,7 +875,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "6. Driver Standards",
+    section: "6. Fahrerstandards",
     rules: [
       "Alle über die Camel Global Plattform eingesetzten Fahrer müssen im Fahrerportal des Partners registriert sein.",
       "Fahrer müssen einen gültigen Führerschein besitzen, der der jeweiligen Fahrzeugkategorie entspricht.",
@@ -887,7 +887,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "7. Customer Service",
+    section: "7. Kundendienst",
     rules: [
       "Partner müssen auf Kundenanfragen zu aktiven Buchungen innerhalb von 2 Stunden während der Geschäftszeiten antworten.",
       "Die Geschäftszeiten sind definiert als 08:00–20:00 Uhr Ortszeit, 7 Tage die Woche.",
@@ -898,7 +898,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "8. Insurance & Liability",
+    section: "8. Versicherung & Haftung",
     rules: [
       "Partner sind zu jeder Zeit vollständig für die Versicherung aller Fahrzeuge auf der Plattform verantwortlich.",
       "Für jedes über die Plattform vermietete Fahrzeug muss eine vollständige Vollkaskoversicherung bestehen.",
@@ -909,7 +909,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "9. Revenue & Payments",
+    section: "9. Einnahmen & Zahlungen",
     rules: [
       "Camel Global erhebt eine Provision auf den Mietwagenpreis für jede abgeschlossene Buchung, mit einer Mindestprovision von €10 pro Buchung. Der Standardprovisionssatz beträgt 20 %, kann jedoch für einzelne Partner in Absprache mit Camel Global reduziert werden.",
       "Ihr aktueller Provisionssatz wird in Ihrem Partnerkonto und auf der Seite zur Angebotsabgabe angezeigt. Sollten Sie einen reduzierten Satz haben, wird dieser dort entsprechend ausgewiesen.",
@@ -922,7 +922,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "9b. Invoicing Obligations",
+    section: "9b. Rechnungsstellungspflichten",
     rules: [
       "Partner sind der Anbieter von Mietwagenleistungen gegenüber Kunden. Der Vertrag über die Erbringung dieser Leistungen besteht direkt zwischen dem Partner und dem Kunden. Camel Global ist ausschließlich ein Marktplatzvermittler und nicht Vertragspartei dieses Vertrags.",
       "Die von Camel Global an Kunden ausgestellte Buchungsbestätigungsquittung ist eine Plattformzahlungsquittung, die von NTUK Ltd ausgestellt wird. Sie stellt keine Umsatzsteuerrechnung für Mietwagenleistungen dar und erfüllt nicht die Rechnungsstellungspflichten des Partners gegenüber Kunden.",
@@ -933,7 +933,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "10. Data & Privacy",
+    section: "10. Daten & Datenschutz",
     rules: [
       "Kundendaten, die über die Plattform geteilt werden (Name, Telefon, E-Mail, Abholadresse/Zieladresse), dürfen ausschließlich zum Zweck der Buchungsabwicklung verwendet werden.",
       "Partner dürfen Kundendaten nicht für Marketingzwecke, Retargeting oder sonstige kommerzielle Zwecke nutzen.",
@@ -943,7 +943,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "11. Suspension & Termination",
+    section: "11. Sperrung & Kündigung",
     rules: [
       "Camel Global kann ein Partnerkonto bei Folgendem sofort sperren: einer schwerwiegenden Kundenbeschwerde, einem Verstoß gegen Fahrzeug- oder Fahrerstandards, der Nichterfüllung einer bestätigten Buchung oder der falschen Darstellung von Preisen oder Dienstleistungen.",
       "Gesperrte Konten werden per E-Mail benachrichtigt und erhalten die Möglichkeit, innerhalb von 5 Werktagen zu antworten.",
@@ -953,7 +953,7 @@ export const OPERATING_RULES_DE: typeof OPERATING_RULES = [
     ],
   },
   {
-    section: "12. Amendments",
+    section: "12. Änderungen",
     rules: [
       "Camel Global behält sich das Recht vor, diese Betriebsregeln jederzeit zu ändern.",
       "Partner werden über wesentliche Änderungen per E-Mail mit einer Mindestfrist von 14 Tagen informiert.",
