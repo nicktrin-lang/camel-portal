@@ -76,7 +76,7 @@ export async function sendEmail({
 // Shared email wrapper — black header + light body, consistent brand style
 // ---------------------------------------------------------------------------
 function brandEmail(headingEN: string, headingES: string | null, bodyEN: string, bodyES: string | null, locale: "en" | "es"): string {
-  const logoUrl = "https://portal.camel-global.com/camel-invoice-logo.png";
+  const logoUrl = "https://portal.camel-global.com/camel-logo-white-new.png";
   if (locale === "es" && headingES && bodyES) {
     return `
       <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
