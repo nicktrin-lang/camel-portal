@@ -5,8 +5,24 @@ import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-04-22.dahlia" as any });
 
 function stripeCountry(baseCountry: string | null): string {
-  if (baseCountry === "United Kingdom") return "GB";
-  return "ES";
+  const map: Record<string, string> = {
+    "United Kingdom":  "GB",
+    "Spain":           "ES",
+    "Australia":       "AU",
+    "United States":   "US",
+    "Canada":          "CA",
+    "France":          "FR",
+    "Germany":         "DE",
+    "Italy":           "IT",
+    "Netherlands":     "NL",
+    "Portugal":        "PT",
+    "Ireland":         "IE",
+    "New Zealand":     "NZ",
+    "Singapore":       "SG",
+    "United Arab Emirates": "AE",
+  };
+  const key = (baseCountry || "").trim();
+  return map[key] || "ES";
 }
 
 function stripeCurrency(defaultCurrency: string | null): string {
