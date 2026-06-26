@@ -81,7 +81,7 @@ function brandEmail(headingEN: string, headingES: string | null, bodyEN: string,
     return `
       <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
         <div style="background:#000; padding:24px 32px; display:flex; align-items:center; gap:16px;">
-          <img src="${logoUrl}" alt="Camel Global" style="height:40px; width:auto; display:block;" />
+          <img src="${logoUrl}" alt="Camel Global" style="height:70px; width:auto; display:block; margin-right:20px;" />
           <h2 style="color:#fff; margin:0;">${headingES}</h2>
         </div>
         <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
@@ -93,7 +93,7 @@ function brandEmail(headingEN: string, headingES: string | null, bodyEN: string,
   return `
     <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
       <div style="background:#000; padding:24px 32px; display:flex; align-items:center; gap:16px;">
-        <img src="${logoUrl}" alt="Camel Global" style="height:40px; width:auto; display:block;" />
+        <img src="${logoUrl}" alt="Camel Global" style="height:70px; width:auto; display:block; margin-right:20px;" />
         <h2 style="color:#fff; margin:0;">${headingEN}</h2>
       </div>
       <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
