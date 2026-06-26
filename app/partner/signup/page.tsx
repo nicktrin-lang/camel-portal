@@ -48,6 +48,10 @@ function CompactLanguageToggle() {
   const options: { code: Locale; label: string }[] = [
     { code: "en", label: "EN" },
     { code: "es", label: "ES" },
+    { code: "fr", label: "FR" },
+    { code: "it", label: "IT" },
+    { code: "pt", label: "PT" },
+    { code: "de", label: "DE" },
   ];
   return (
     <div className="flex items-center border border-white/20 overflow-hidden">
@@ -484,7 +488,8 @@ export default function PartnerSignupPage() {
 
   function trackSignupStep(stepNum: number, stepName: string) {
     if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
-      (window as any).gtag("event", "signup_step", {
+      // Fire unique event per step so GA4 funnel works without custom dimensions
+      (window as any).gtag("event", `signup_step_${stepNum}_${stepName}`, {
         event_category: "partner_signup",
         step_number: stepNum,
         step_name: stepName,

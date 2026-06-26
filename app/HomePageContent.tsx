@@ -12,6 +12,10 @@ function CompactLanguageToggle() {
   const options: { code: Locale; label: string }[] = [
     { code: "en", label: "EN" },
     { code: "es", label: "ES" },
+    { code: "fr", label: "FR" },
+    { code: "it", label: "IT" },
+    { code: "pt", label: "PT" },
+    { code: "de", label: "DE" },
   ];
   return (
     <div className="flex items-center border border-white/20 overflow-hidden">
