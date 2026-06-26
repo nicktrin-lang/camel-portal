@@ -2,16 +2,16 @@
 
 import { useLanguage, Locale } from "./LanguageContext";
 
-/**
- * Drop this component anywhere in a topbar/header.
- * Renders: EN | ES  — active locale is highlighted.
- */
 export default function LanguageToggle() {
   const { locale, setLocale } = useLanguage();
 
   const options: { code: Locale; label: string }[] = [
     { code: "en", label: "EN" },
     { code: "es", label: "ES" },
+    { code: "fr", label: "FR" },
+    { code: "it", label: "IT" },
+    { code: "pt", label: "PT" },
+    { code: "de", label: "DE" },
   ];
 
   return (

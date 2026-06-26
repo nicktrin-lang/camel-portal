@@ -11,9 +11,14 @@ function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";
 }
 
-function getLocale(country?: string | null): "es" | "en" {
-  const esCountries = ["spain", "españa", "espana"];
-  return esCountries.includes((country || "").toLowerCase().trim()) ? "es" : "en";
+function getLocale(country?: string | null): "en" | "es" | "fr" | "it" | "pt" | "de" {
+  const c = (country || "").toLowerCase().trim();
+  if (["spain", "españa", "espana"].includes(c)) return "es";
+  if (["france"].includes(c)) return "fr";
+  if (["italy", "italia"].includes(c)) return "it";
+  if (["portugal"].includes(c)) return "pt";
+  if (["germany", "deutschland"].includes(c)) return "de";
+  return "en";
 }
 
 function countrySlug(country?: string | null): string {

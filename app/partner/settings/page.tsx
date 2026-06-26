@@ -24,7 +24,7 @@ export default function PartnerSettingsPage() {
   const [deleteError,   setDeleteError]   = useState<string | null>(null);
 
   // Language preference
-  const [commLocale,       setCommLocale]       = useState<"en" | "es">("en");
+  const [commLocale,       setCommLocale]       = useState<"en" | "es" | "fr" | "it" | "pt" | "de">("en");
   const [localeLoading,    setLocaleLoading]    = useState(true);
   const [localeSaving,     setLocaleSaving]     = useState(false);
   const [localeSaved,      setLocaleSaved]      = useState(false);
@@ -54,7 +54,7 @@ export default function PartnerSettingsPage() {
           .eq("user_id", userData.user.id)
           .maybeSingle();
         if (data?.communication_locale) {
-          setCommLocale(data.communication_locale as "en" | "es");
+          setCommLocale(data.communication_locale as "en" | "es" | "fr" | "it" | "pt" | "de");
         }
       } catch {}
       finally { setLocaleLoading(false); }
@@ -62,7 +62,7 @@ export default function PartnerSettingsPage() {
     loadLocale();
   }, [supabase]);
 
-  async function saveLocale(newLocale: "en" | "es") {
+  async function saveLocale(newLocale: "en" | "es" | "fr" | "it" | "pt" | "de") {
     setCommLocale(newLocale);
     setLocaleSaving(true); setLocaleSaved(false); setLocaleError(null);
     try {
@@ -133,17 +133,24 @@ export default function PartnerSettingsPage() {
           <p className="text-sm font-bold text-black/40">{t("common.loading")}</p>
         ) : (
           <div className="space-y-3">
-            <div className="flex gap-3">
-              {(["en", "es"] as const).map(loc => (
-                <button key={loc} type="button"
-                  onClick={() => saveLocale(loc)}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {([
+                { code: "en", label: "🇬🇧 English" },
+                { code: "es", label: "🇪🇸 Español" },
+                { code: "fr", label: "🇫🇷 Français" },
+                { code: "it", label: "🇮🇹 Italiano" },
+                { code: "pt", label: "🇵🇹 Português" },
+                { code: "de", label: "🇩🇪 Deutsch" },
+              ] as const).map(({ code, label }) => (
+                <button key={code} type="button"
+                  onClick={() => saveLocale(code)}
                   disabled={localeSaving}
-                  className={`flex-1 border py-3 text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-50 ${
-                    commLocale === loc
+                  className={`border py-3 text-sm font-black tracking-widest transition-colors disabled:opacity-50 ${
+                    commLocale === code
                       ? "border-[#ff7a00] bg-[#ff7a00] text-white"
                       : "border-black/20 bg-white text-black hover:bg-[#f0f0f0]"
                   }`}>
-                  {loc === "en" ? "🇬🇧 English" : "🇪🇸 Español"}
+                  {label}
                 </button>
               ))}
             </div>

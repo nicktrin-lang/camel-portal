@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 
-export type Locale = "en" | "es";
+export type Locale = "en" | "es" | "fr" | "it" | "pt" | "de";
 
 type LanguageContextType = {
   locale: Locale;
@@ -15,32 +15,30 @@ const LanguageContext = createContext<LanguageContextType>({
 });
 
 function detectLocale(): Locale {
-  // 1. Check localStorage override first
   try {
     const stored = localStorage.getItem("camel_locale");
-    if (stored === "en" || stored === "es") return stored;
+    if (["en","es","fr","it","pt","de"].includes(stored || "")) return stored as Locale;
   } catch {}
 
-  // 2. Browser language detection
   try {
-    const langs = navigator.languages?.length
-      ? navigator.languages
-      : [navigator.language];
+    const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
     for (const lang of langs) {
       const code = lang.toLowerCase();
       if (code.startsWith("es")) return "es";
+      if (code.startsWith("fr")) return "fr";
+      if (code.startsWith("it")) return "it";
+      if (code.startsWith("pt")) return "pt";
+      if (code.startsWith("de")) return "de";
       if (code.startsWith("en")) return "en";
     }
   } catch {}
 
-  // 3. Default to English for any other language
   return "en";
 }
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
 
-  // Detect on mount (client only — avoids SSR mismatch)
   useEffect(() => {
     setLocaleState(detectLocale());
   }, []);
