@@ -1,17 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { OPERATING_RULES, OPERATING_RULES_ES, downloadOperatingRulesPDF } from "@/lib/portal/operatingRules";
+import { OPERATING_RULES, OPERATING_RULES_ES, OPERATING_RULES_FR, OPERATING_RULES_IT, OPERATING_RULES_PT, OPERATING_RULES_DE, downloadOperatingRulesPDF } from "@/lib/portal/operatingRules";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function PartnerOperatingRulesPage() {
   const { t, locale } = useTranslation();
-  const rules = locale === "es" ? OPERATING_RULES_ES : OPERATING_RULES;
+  const RULES_BY_LOCALE: Record<string, typeof OPERATING_RULES> = {
+    en: OPERATING_RULES, es: OPERATING_RULES_ES, fr: OPERATING_RULES_FR,
+    it: OPERATING_RULES_IT, pt: OPERATING_RULES_PT, de: OPERATING_RULES_DE,
+  };
+  const rules = RULES_BY_LOCALE[locale] ?? OPERATING_RULES;
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload() {
     setDownloading(true);
-    try { await downloadOperatingRulesPDF("Partner", locale as "en" | "es"); }
+    try { await downloadOperatingRulesPDF("Partner", locale); }
     finally { setDownloading(false); }
   }
 

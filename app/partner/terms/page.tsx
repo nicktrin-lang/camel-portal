@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { TERMS_VERSION, TERMS_EFFECTIVE, PARTNER_TERMS, PARTNER_TERMS_ES, downloadPartnerTermsPDF } from "@/lib/portal/partnerTerms";
+import { TERMS_VERSION, TERMS_EFFECTIVE, PARTNER_TERMS, PARTNER_TERMS_ES, PARTNER_TERMS_FR, PARTNER_TERMS_IT, PARTNER_TERMS_PT, PARTNER_TERMS_DE, downloadPartnerTermsPDF } from "@/lib/portal/partnerTerms";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function PartnerTermsPage() {
   const { t, locale } = useTranslation();
-  const terms = locale === "es" ? PARTNER_TERMS_ES : PARTNER_TERMS;
+  const TERMS_BY_LOCALE: Record<string, typeof PARTNER_TERMS> = {
+    en: PARTNER_TERMS, es: PARTNER_TERMS_ES, fr: PARTNER_TERMS_FR,
+    it: PARTNER_TERMS_IT, pt: PARTNER_TERMS_PT, de: PARTNER_TERMS_DE,
+  };
+  const terms = TERMS_BY_LOCALE[locale] ?? PARTNER_TERMS;
 
   const SUMMARY_ITEMS = [
     { icon: "🏪", titleKey: "terms.summary.marketplace.title", bodyKey: "terms.summary.marketplace.body" },
@@ -32,7 +36,7 @@ export default function PartnerTermsPage() {
 
         <div className="bg-white p-6">
           <div className="flex justify-end mb-6">
-            <button type="button" onClick={() => downloadPartnerTermsPDF(locale as "en" | "es")}
+            <button type="button" onClick={() => downloadPartnerTermsPDF(locale)}
               className="bg-black px-5 py-3 text-sm font-black text-white hover:opacity-80 transition-opacity">
               {t("terms.downloadPdf")}
             </button>

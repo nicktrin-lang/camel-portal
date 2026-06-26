@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import { OPERATING_RULES, OPERATING_RULES_ES, downloadOperatingRulesPDF } from "@/lib/portal/operatingRules";
+import { OPERATING_RULES, OPERATING_RULES_ES, OPERATING_RULES_FR, OPERATING_RULES_IT, OPERATING_RULES_PT, OPERATING_RULES_DE, downloadOperatingRulesPDF } from "@/lib/portal/operatingRules";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 type AccountProfile = {
@@ -98,7 +98,11 @@ export default function PartnerAccountPage() {
   const [email,       setEmail]       = useState<string>("");
   const [liveStatus,  setLiveStatus]  = useState<LiveStatus | null>(null);
 
-  const rules = locale === "es" ? OPERATING_RULES_ES : OPERATING_RULES;
+  const RULES_BY_LOCALE: Record<string, typeof OPERATING_RULES> = {
+    en: OPERATING_RULES, es: OPERATING_RULES_ES, fr: OPERATING_RULES_FR,
+    it: OPERATING_RULES_IT, pt: OPERATING_RULES_PT, de: OPERATING_RULES_DE,
+  };
+  const rules = RULES_BY_LOCALE[locale] ?? OPERATING_RULES;
 
   const MISSING_LABELS: Record<string, { label: string; href: string }> = {
     service_radius_km: { label: t("account.missing.service_radius_km"), href: "/partner/profile" },
@@ -421,7 +425,7 @@ export default function PartnerAccountPage() {
             <h2 className="text-2xl font-black text-black">{t("account.rules.title")}</h2>
             <p className="mt-1 text-xs font-bold text-black/40">{t("account.rules.subtitle")}</p>
           </div>
-          <button type="button" onClick={() => downloadOperatingRulesPDF(profile?.company_name || "Partner", locale as "en" | "es")}
+          <button type="button" onClick={() => downloadOperatingRulesPDF(profile?.company_name || "Partner", locale)}
             className="shrink-0 bg-black px-5 py-2.5 text-sm font-black text-white hover:opacity-80 transition-opacity">
             {t("account.rules.downloadPdf")}
           </button>
