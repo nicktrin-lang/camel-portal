@@ -68,7 +68,7 @@ export async function POST(req: Request) {
 
     const { data: current, error: currentErr } = await db
       .from("partner_applications")
-      .select("id,email,status,user_id")
+      .select("id,email,status,user_id,company_name")
       .eq("id", id)
       .single();
 
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     if (becameApproved && toEmail) {
       try {
         const locale = await getPartnerLocale(db, userId);
-        await sendApprovalEmail(toEmail, locale);
+        await sendApprovalEmail(toEmail, locale, current?.company_name || "");
       } catch (emailErr: any) {
         return NextResponse.json(
           {

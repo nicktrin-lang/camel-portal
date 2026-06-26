@@ -76,26 +76,29 @@ export async function sendEmail({
 // Shared email wrapper — black header + light body, consistent brand style
 // ---------------------------------------------------------------------------
 function brandEmail(headingEN: string, headingES: string | null, bodyEN: string, bodyES: string | null, locale: "en" | "es"): string {
+  const logoUrl = "https://portal.camel-global.com/camel-invoice-logo.png";
   if (locale === "es" && headingES && bodyES) {
     return `
       <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
-        <div style="background:#000; padding:24px 32px;">
+        <div style="background:#000; padding:24px 32px; display:flex; align-items:center; gap:16px;">
+          <img src="${logoUrl}" alt="Camel Global" style="height:40px; width:auto; display:block;" />
           <h2 style="color:#fff; margin:0;">${headingES}</h2>
         </div>
         <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
           ${bodyES}
-          <p style="margin-top:32px; color:#888; font-size:14px;">Saludos,<br/><strong style="color:#222;">El equipo de Camel Global</strong></p>
+          <p style="margin-top:32px; color:#888; font-size:14px;">Saludos,<br/><strong style="color:#222;">El equipo de Camel Global</strong><br/><span style="color:#aaa;">Meet &amp; Greet Car Hire</span></p>
         </div>
       </div>`;
   }
   return `
     <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
-      <div style="background:#000; padding:24px 32px;">
+      <div style="background:#000; padding:24px 32px; display:flex; align-items:center; gap:16px;">
+        <img src="${logoUrl}" alt="Camel Global" style="height:40px; width:auto; display:block;" />
         <h2 style="color:#fff; margin:0;">${headingEN}</h2>
       </div>
       <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
         ${bodyEN}
-        <p style="margin-top:32px; color:#888; font-size:14px;">Best regards,<br/><strong style="color:#222;">The Camel Global Team</strong></p>
+        <p style="margin-top:32px; color:#888; font-size:14px;">Best regards,<br/><strong style="color:#222;">The Camel Global Team</strong><br/><span style="color:#aaa;">Meet &amp; Greet Car Hire</span></p>
       </div>
     </div>`;
 }
@@ -129,38 +132,55 @@ export async function sendApplicationReceivedEmail(to: string, locale: "en" | "e
   });
 }
 
-export async function sendApprovalEmail(to: string, locale: "en" | "es" = "en") {
+export async function sendApprovalEmail(to: string, locale: "en" | "es" = "en", partnerName: string = "") {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
+  const loginUrl = `${baseUrl}/partner/login`;
+  const greeting = partnerName ? (locale === "es" ? `Estimado/a ${partnerName},` : `Dear ${partnerName},`) : (locale === "es" ? "Estimado/a socio/a," : "Dear Partner,");
 
   const subjectEN = "Your Camel Global account has been approved ✅";
   const subjectES = "Tu cuenta de Camel Global ha sido aprobada ✅";
 
   const bodyEN = `
-    <p>Your partner account has been approved.</p>
-    <p><strong>You are not live yet.</strong></p>
-    <p>Please log in and complete the following before going live:</p>
-    <ul>
-      <li>Add your fleet</li>
-      <li>Confirm your fleet base address</li>
-      <li>Check your service radius</li>
-    </ul>
-    <p><a href="${baseUrl}/partner/login">Log in here</a></p>`;
+    <p>${greeting}</p>
+    <p>Great news — your Camel Global partner account has been approved.</p>
+    <p>You are <strong>not live yet</strong>. To start receiving bookings, please log in and complete your onboarding:</p>
+    <table style="width:100%; border-collapse:collapse; margin:20px 0;">
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Step 1</strong> — Set your location &amp; service radius</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Step 2</strong> — Set your billing currency</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Step 3</strong> — Add your billing details</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Step 4</strong> — Add your fleet vehicles</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Step 5</strong> — Add your drivers</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Step 6</strong> — Connect your Stripe payout account</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Step 7</strong> — Go live!</td></tr>
+    </table>
+    <p>Once all steps are complete your account will go live automatically and you will receive a confirmation email.</p>
+    <p style="margin-top:24px;">
+      <a href="${loginUrl}" style="background:#ff7a00; color:#fff; text-decoration:none; padding:14px 28px; font-weight:700; display:inline-block;">Log in to your account →</a>
+    </p>`;
 
   const bodyES = `
-    <p>Tu cuenta de socio ha sido aprobada.</p>
-    <p><strong>Tu cuenta aún no está activa.</strong></p>
-    <p>Por favor, inicia sesión y completa los siguientes pasos antes de activarla:</p>
-    <ul>
-      <li>Añade tu flota</li>
-      <li>Confirma la dirección base de tu flota</li>
-      <li>Comprueba tu radio de servicio</li>
-    </ul>
-    <p><a href="${baseUrl}/partner/login">Acceder aquí</a></p>`;
+    <p>${greeting}</p>
+    <p>¡Buenas noticias! Tu cuenta de socio en Camel Global ha sido aprobada.</p>
+    <p>Tu cuenta <strong>aún no está activa</strong>. Para empezar a recibir reservas, inicia sesión y completa el proceso de incorporación:</p>
+    <table style="width:100%; border-collapse:collapse; margin:20px 0;">
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Paso 1</strong> — Establece tu ubicación y radio de servicio</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Paso 2</strong> — Selecciona tu moneda de facturación</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Paso 3</strong> — Añade tus datos de facturación</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Paso 4</strong> — Añade tus vehículos</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Paso 5</strong> — Añade tus conductores</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Paso 6</strong> — Conecta tu cuenta de pagos Stripe</td></tr>
+      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Paso 7</strong> — ¡Actívate!</td></tr>
+    </table>
+    <p>Una vez completados todos los pasos, tu cuenta se activará automáticamente y recibirás un email de confirmación.</p>
+    <p style="margin-top:24px;">
+      <a href="${loginUrl}" style="background:#ff7a00; color:#fff; text-decoration:none; padding:14px 28px; font-weight:700; display:inline-block;">Acceder a tu cuenta →</a>
+    </p>`;
 
   return sendEmail({
     to,
+    from: "Camel Global <noreply@camel-global.com>",
     subject: locale === "es" ? subjectES : subjectEN,
-    html: brandEmail("You're approved ✅", "¡Cuenta aprobada! ✅", bodyEN, bodyES, locale),
+    html: brandEmail("Your account has been approved ✅", "¡Tu cuenta ha sido aprobada! ✅", bodyEN, bodyES, locale),
   });
 }
 
