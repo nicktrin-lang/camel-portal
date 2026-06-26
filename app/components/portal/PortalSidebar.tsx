@@ -55,6 +55,10 @@ export default function PortalSidebar({ role, open, onClose }: Props) {
   const langOptions: { code: Locale; label: string }[] = [
     { code: "en", label: "EN" },
     { code: "es", label: "ES" },
+    { code: "fr", label: "FR" },
+    { code: "it", label: "IT" },
+    { code: "pt", label: "PT" },
+    { code: "de", label: "DE" },
   ];
 
   return (
