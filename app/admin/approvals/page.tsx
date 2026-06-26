@@ -66,6 +66,8 @@ export default function AdminApprovalsPage() {
   const [liveFilter,    setLiveFilter]    = useState("all");
   const [countryFilter, setCountryFilter] = useState("all");
   const [visibleCount,  setVisibleCount]  = useState(PAGE_SIZE);
+  const [resendingId,   setResendingId]   = useState<string | null>(null);
+  const [resendNotice,  setResendNotice]  = useState<string | null>(null);
 
   async function load() {
     setLoading(true); setError(null);
@@ -138,9 +140,30 @@ export default function AdminApprovalsPage() {
   const totalApproved = filteredRows.filter(r => normalizeText(r.status) === "approved").length;
   const totalLive     = filteredRows.filter(r => liveValue(r)).length;
 
+  async function resendApprovalEmail(applicationId: string) {
+    setResendingId(applicationId);
+    setResendNotice(null);
+    try {
+      const res  = await fetch("/api/admin/applications/resend-approval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ applicationId }),
+      });
+      const json = await safeJson(res);
+      if (!res.ok) throw new Error(json?.error || "Failed to resend email.");
+      setResendNotice(json?.message || "Approval email resent.");
+    } catch (e: any) {
+      setResendNotice(`Error: ${e?.message || "Failed to resend email."}`);
+    } finally {
+      setResendingId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      {error && <div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
+      {error       && <div className="border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
+      {resendNotice && <div className="border border-black/10 bg-[#f0f0f0] p-4 text-sm font-bold text-black">{resendNotice}</div>}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -278,10 +301,21 @@ export default function AdminApprovalsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <Link href={`/admin/approvals/${row.id}`}
-                      className="inline-flex bg-[#ff7a00] px-4 py-2 text-xs font-black text-white hover:opacity-90 transition-opacity">
-                      View
-                    </Link>
+                    <div className="flex flex-col gap-2">
+                      <Link href={`/admin/approvals/${row.id}`}
+                        className="inline-flex bg-[#ff7a00] px-4 py-2 text-xs font-black text-white hover:opacity-90 transition-opacity">
+                        View
+                      </Link>
+                      {normalizeText(row.status) === "approved" && !liveValue(row) && (
+                        <button
+                          type="button"
+                          disabled={resendingId === row.id}
+                          onClick={() => resendApprovalEmail(row.id)}
+                          className="inline-flex border border-black/20 bg-white px-4 py-2 text-xs font-black text-black hover:bg-black/5 disabled:opacity-60 transition-colors whitespace-nowrap">
+                          {resendingId === row.id ? "Sending…" : "Resend Approval Email"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
