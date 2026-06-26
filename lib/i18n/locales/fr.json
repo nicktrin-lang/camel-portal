@@ -1763,5 +1763,10 @@
   "bookings.detail.payment.postCompletionNet": "Montant net final (après ajustements)",
   "bookings.detail.payment.postCompletionNote": "Ces ajustements post-complétion ont été émis par Camel Global. Contactez-nous à info@camel-global.com si vous avez des questions.",
   "bookings.detail.payment.postCompletionBannerTitle": "Remboursement(s) post-complétion émis sur cette réservation",
-  "bookings.detail.payment.postCompletionBannerBody": "Total remboursé au client : {{amount}} — voir la ventilation des paiements et frais ci-dessous"
+  "bookings.detail.payment.postCompletionBannerBody": "Total remboursé au client : {{amount}} — voir la ventilation des paiements et frais ci-dessous",
+  "bookings.detail.invoiceData.btn": "↓ Données de facturation",
+  "bookings.detail.invoiceData.generating": "Génération...",
+  "bookings.detail.customer.billingAddress": "Adresse de facturation",
+  "bookings.detail.customer.taxId": "N° TVA / Fiscal",
+  "bookings.detail.customer.taxIdHint": "Fourni par le client à des fins de facturation TVA. Utilisez le bouton ↓ Données de facturation pour télécharger la fiche complète."
 }

@@ -744,7 +744,7 @@ export default function PartnerBookingDetailPage() {
             disabled={downloadingPdf}
             className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors disabled:opacity-50"
           >
-            {downloadingPdf ? "Generating..." : "↓ Invoice Data"}
+            {downloadingPdf ? t("bookings.detail.invoiceData.generating") : t("bookings.detail.invoiceData.btn")}
           </button>
           <Link href="/partner/bookings" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">{t("bookings.detail.backBtn")}</Link>
         </div>
@@ -825,15 +825,15 @@ export default function PartnerBookingDetailPage() {
               <div className="mt-4 border-t border-black/10 pt-4 space-y-3">
                 <p className="text-xs font-black uppercase tracking-widest text-black/30">Customer Invoice Details</p>
                 {req?.customer_billing_address && (
-                  <Field label="Billing Address">
+                  <Field label={t("bookings.detail.customer.billingAddress")}>
                     <span className="whitespace-pre-line">{req.customer_billing_address}</span>
                   </Field>
                 )}
                 {req?.customer_tax_id && (
-                  <Field label="Tax ID / VAT No.">{req.customer_tax_id}</Field>
+                  <Field label={t("bookings.detail.customer.taxId")}>{req.customer_tax_id}</Field>
                 )}
                 <p className="text-xs font-bold text-black/30">
-                  Provided by customer for VAT invoice purposes. Use the ↓ Invoice Data button to download a full data sheet.
+                  {t("bookings.detail.customer.taxIdHint")}
                 </p>
               </div>
             )}

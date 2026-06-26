@@ -1763,5 +1763,10 @@
   "bookings.detail.payment.postCompletionNote": "Diese nachträglichen Anpassungen wurden von Camel Global vorgenommen. Kontaktieren Sie uns unter info@camel-global.com bei Fragen.",
   "bookings.detail.payment.postCompletionBannerTitle": "Nachträgliche Erstattung(en) für diese Buchung",
   "bookings.detail.payment.postCompletionBannerBody": "Gesamterstattung an Kunden: {{amount}} — siehe Zahlungs- und Gebührenübersicht unten",
-  "onboarding.payouts.reviewing": "Stripe überprüft Ihre Daten. Dies dauert in der Regel einige Minuten. Klicken Sie auf die Schaltfläche unten, um Ihren Status zu überprüfen."
+  "onboarding.payouts.reviewing": "Stripe überprüft Ihre Daten. Dies dauert in der Regel einige Minuten. Klicken Sie auf die Schaltfläche unten, um Ihren Status zu überprüfen.",
+  "bookings.detail.invoiceData.btn": "↓ Rechnungsdaten",
+  "bookings.detail.invoiceData.generating": "Wird erstellt...",
+  "bookings.detail.customer.billingAddress": "Rechnungsadresse",
+  "bookings.detail.customer.taxId": "Steuer-ID / USt-IdNr.",
+  "bookings.detail.customer.taxIdHint": "Vom Kunden für Umsatzsteuerzwecke angegeben. Verwenden Sie die Schaltfläche ↓ Rechnungsdaten zum Herunterladen der vollständigen Datenmappe."
 }

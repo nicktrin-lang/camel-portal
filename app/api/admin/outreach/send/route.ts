@@ -180,16 +180,28 @@ async function generateEmail(prospect: {
   const unsubscribeUrl = buildUnsubscribeUrl(prospect.id, prospect.country);
 
   const contactFirst = prospect.contact_name ? prospect.contact_name.split(" ")[0] : null;
-  const openingLine  = locale === "es"
-    ? `<p>${contactFirst ? `Hola ${contactFirst},` : ""} ¿le gustaría que ${prospect.company_name} atrajera más clientes de alquiler de coches${prospect.city ? ` en ${prospect.city}` : ""}?</p>`
+  const openingLine =
+    locale === "es" ? `<p>${contactFirst ? `Hola ${contactFirst},` : ""} ¿le gustaría que ${prospect.company_name} atrajera más clientes de alquiler de coches${prospect.city ? ` en ${prospect.city}` : ""}?</p>`
+    : locale === "fr" ? `<p>${contactFirst ? `Bonjour ${contactFirst},` : ""} souhaiteriez-vous que ${prospect.company_name} attire plus de clients recherchant une location de voiture${prospect.city ? ` à ${prospect.city}` : ""} ?</p>`
+    : locale === "it" ? `<p>${contactFirst ? `Buongiorno ${contactFirst},` : ""} vorrebbe che ${prospect.company_name} attirasse più clienti in cerca di autonoleggio${prospect.city ? ` a ${prospect.city}` : ""}?</p>`
+    : locale === "pt" ? `<p>${contactFirst ? `Olá ${contactFirst},` : ""} gostaria que ${prospect.company_name} atraísse mais clientes à procura de aluguer de automóveis${prospect.city ? ` em ${prospect.city}` : ""}?</p>`
+    : locale === "de" ? `<p>${contactFirst ? `Guten Tag ${contactFirst},` : ""} möchten Sie, dass ${prospect.company_name} mehr Kunden gewinnt, die nach einem Mietwagen suchen${prospect.city ? ` in ${prospect.city}` : ""}?</p>`
     : `<p>${contactFirst ? `Hi ${contactFirst},` : ""} would you like ${prospect.company_name} to attract more customers searching for car hire${prospect.city ? ` in ${prospect.city}` : ""}?</p>`;
 
-  const greeting = prospect.contact_name
-    ? (locale === "es" ? `<p>Estimado/a ${prospect.contact_name},</p>` : `<p>Dear ${prospect.contact_name},</p>`)
-    : (locale === "es" ? `<p>Estimado equipo,</p>` : `<p>Dear team,</p>`);
+  const greeting =
+    locale === "es" ? (prospect.contact_name ? `<p>Estimado/a ${prospect.contact_name},</p>` : `<p>Estimado equipo,</p>`)
+    : locale === "fr" ? (prospect.contact_name ? `<p>Cher/Chère ${prospect.contact_name},</p>` : `<p>Chère équipe,</p>`)
+    : locale === "it" ? (prospect.contact_name ? `<p>Gentile ${prospect.contact_name},</p>` : `<p>Gentile team,</p>`)
+    : locale === "pt" ? (prospect.contact_name ? `<p>Caro/a ${prospect.contact_name},</p>` : `<p>Caro/a equipa,</p>`)
+    : locale === "de" ? (prospect.contact_name ? `<p>Sehr geehrte/r ${prospect.contact_name},</p>` : `<p>Sehr geehrtes Team,</p>`)
+    : (prospect.contact_name ? `<p>Dear ${prospect.contact_name},</p>` : `<p>Dear team,</p>`);
 
-  const subject = locale === "es"
-    ? `Camel Global - Meet & Greet Alquiler de Coches - Invitación a Socio Fundador`
+  const subject =
+    locale === "es" ? `Camel Global - Meet & Greet Alquiler de Coches - Invitación a Socio Fundador`
+    : locale === "fr" ? `Camel Global - Location de Voiture Meet & Greet - Invitation Partenaire Fondateur`
+    : locale === "it" ? `Camel Global - Noleggio Auto Meet & Greet - Invito Partner Fondatore`
+    : locale === "pt" ? `Camel Global - Aluguer de Automóveis Meet & Greet - Convite Parceiro Fundador`
+    : locale === "de" ? `Camel Global - Mietwagen Meet & Greet - Einladung Gründungspartner`
     : `Camel Global - Meet & Greet Car Hire - Founding Partner Invitation`;
 
   const ctaEs = `
@@ -224,11 +236,81 @@ async function generateEmail(prospect: {
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Founder — Camel Global</p>
   `;
 
-  const htmlBody = locale === "es" ? bodyEs : bodyEn;
+  const bodyFr = `
+    ${greeting}
+    ${openingLine}
+    <p>Nous lançons Camel Global — une plateforme de location de voiture meet &amp; greet conçue spécifiquement pour les entreprises de location indépendantes — et nous aimerions inviter ${prospect.company_name} à rejoindre en tant que partenaire fondateur.</p>
+    <p>Comment ça marche : les clients demandent un véhicule en ligne, vous envoyez un devis, le client paie et votre conducteur le livre directement à l'aéroport, à l'hôtel ou où le client en a besoin. Cela fonctionne en parallèle de votre activité existante comme un canal de réservation supplémentaire.</p>
+    <p><strong>Les places de partenaire fondateur sont limitées par destination.</strong> Les premiers partenaires obtiennent une visibilité prioritaire lors de notre lancement en Espagne et de notre expansion internationale.</p>
+    <p>L'adhésion est entièrement gratuite. Pas de frais d'inscription, pas d'abonnement, pas de coûts mensuels. L'inscription prend environ cinq minutes.</p>
+    <p style="text-align:left;margin:32px 0;"><a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">S'INSCRIRE MAINTENANT</a></p>
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fondateur — Camel Global</p>
+  `;
+
+  const bodyIt = `
+    ${greeting}
+    ${openingLine}
+    <p>Stiamo lanciando Camel Global — una piattaforma di autonoleggio meet &amp; greet creata specificamente per le aziende di noleggio indipendenti — e vorremmo invitare ${prospect.company_name} a unirsi come partner fondatore.</p>
+    <p>Come funziona: i clienti richiedono un veicolo online, voi inviate un preventivo, il cliente paga e il vostro autista lo consegna direttamente all'aeroporto, in hotel o dove il cliente ne ha bisogno. Funziona insieme alla vostra attività esistente come canale di prenotazione aggiuntivo.</p>
+    <p><strong>I posti da partner fondatore sono limitati per destinazione.</strong> I primi partner ricevono visibilità prioritaria quando lanciamo in Spagna e ci espandiamo internazionalmente.</p>
+    <p>Aderire è completamente gratuito. Nessuna quota di iscrizione, nessun abbonamento, nessun costo mensile. La registrazione richiede circa cinque minuti.</p>
+    <p style="text-align:left;margin:32px 0;"><a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">ISCRIVITI ORA</a></p>
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fondatore — Camel Global</p>
+  `;
+
+  const bodyPt = `
+    ${greeting}
+    ${openingLine}
+    <p>Estamos a lançar a Camel Global — uma plataforma de aluguer de automóveis meet &amp; greet criada especificamente para empresas de aluguer independentes — e gostaríamos de convidar ${prospect.company_name} a juntar-se como parceiro fundador.</p>
+    <p>Como funciona: os clientes pedem um veículo online, você envia um orçamento, o cliente paga e o seu motorista entrega-o diretamente no aeroporto, hotel ou onde o cliente precisar. Funciona em paralelo com o seu negócio existente como um canal de reservas adicional.</p>
+    <p><strong>As vagas de parceiro fundador são limitadas por destino.</strong> Os primeiros parceiros recebem visibilidade prioritária quando lançarmos em Espanha e expandirmos internacionalmente.</p>
+    <p>Aderir é completamente gratuito. Sem taxas de inscrição, sem subscrição, sem custos mensais. O registo demora aproximadamente cinco minutos.</p>
+    <p style="text-align:left;margin:32px 0;"><a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">REGISTAR AGORA</a></p>
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador — Camel Global</p>
+  `;
+
+  const bodyDe = `
+    ${greeting}
+    ${openingLine}
+    <p>Wir starten Camel Global — eine Meet &amp; Greet Mietwagen-Plattform, die speziell für unabhängige Mietwagenunternehmen entwickelt wurde — und möchten ${prospect.company_name} einladen, als Gründungspartner beizutreten.</p>
+    <p>So funktioniert es: Kunden fordern online ein Fahrzeug an, Sie senden ein Angebot, der Kunde zahlt und Ihr Fahrer liefert es direkt zum Flughafen, Hotel oder wohin der Kunde es benötigt. Es funktioniert parallel zu Ihrem bestehenden Geschäft als zusätzlicher Buchungskanal.</p>
+    <p><strong>Die Gründungspartner-Plätze sind pro Zielort begrenzt.</strong> Frühe Partner erhalten vorrangige Sichtbarkeit, wenn wir in Spanien starten und international expandieren.</p>
+    <p>Der Beitritt ist völlig kostenlos. Keine Anmeldegebühren, kein Abonnement, keine monatlichen Kosten. Die Registrierung dauert etwa fünf Minuten.</p>
+    <p style="text-align:left;margin:32px 0;"><a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">JETZT ANMELDEN</a></p>
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Gründer — Camel Global</p>
+  `;
+
+  const htmlBody =
+    locale === "es" ? bodyEs
+    : locale === "fr" ? bodyFr
+    : locale === "it" ? bodyIt
+    : locale === "pt" ? bodyPt
+    : locale === "de" ? bodyDe
+    : bodyEn;
 
   const footerEs = `
     Recibes este email porque tu empresa fue identificada como posible socio en tu área.<br/>
     <a href="${unsubscribeUrl}" style="color:#bbb;">Cancelar suscripción</a>
+  `;
+
+  const footerFr = `
+    Vous recevez cet e-mail parce que votre entreprise a été identifiée comme partenaire potentiel dans votre zone.<br/>
+    <a href="${unsubscribeUrl}" style="color:#bbb;">Se désabonner</a>
+  `;
+
+  const footerIt = `
+    Stai ricevendo questa e-mail perché la tua azienda è stata identificata come potenziale partner nella tua area.<br/>
+    <a href="${unsubscribeUrl}" style="color:#bbb;">Annulla iscrizione</a>
+  `;
+
+  const footerPt = `
+    Está a receber este e-mail porque a sua empresa foi identificada como parceiro potencial na sua área.<br/>
+    <a href="${unsubscribeUrl}" style="color:#bbb;">Cancelar subscrição</a>
+  `;
+
+  const footerDe = `
+    Sie erhalten diese E-Mail, weil Ihr Unternehmen als potenzieller Partner in Ihrer Region identifiziert wurde.<br/>
+    <a href="${unsubscribeUrl}" style="color:#bbb;">Abbestellen</a>
   `;
 
   const footerEn = `
@@ -245,7 +327,7 @@ async function generateEmail(prospect: {
         ${htmlBody}
       </div>
       <div style="padding:16px 28px;background:#f8f8f8;border:1px solid #eee;border-top:none;font-size:12px;color:#999;line-height:1.8;">
-        ${locale === "es" ? footerEs : footerEn}
+        ${locale === "es" ? footerEs : locale === "fr" ? footerFr : locale === "it" ? footerIt : locale === "pt" ? footerPt : locale === "de" ? footerDe : footerEn}
       </div>
     </div>
   `;
