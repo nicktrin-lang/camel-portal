@@ -73,32 +73,61 @@ export async function sendEmail({
 }
 
 // ---------------------------------------------------------------------------
-// Shared email wrapper — black header + light body, consistent brand style
+// Locale handling — notification emails are localized to all 6 supported
+// languages. PDF attachments are generated elsewhere and stay English (NTUK
+// legal requirement). Any unknown/missing locale falls back to English.
 // ---------------------------------------------------------------------------
-function brandEmail(headingEN: string, headingES: string | null, bodyEN: string, bodyES: string | null, locale: "en" | "es"): string {
+export type EmailLocale = "en" | "es" | "fr" | "it" | "pt" | "de";
+
+const EMAIL_LOCALES: EmailLocale[] = ["en", "es", "fr", "it", "pt", "de"];
+
+export function coerceEmailLocale(v: unknown): EmailLocale {
+  return typeof v === "string" && (EMAIL_LOCALES as string[]).includes(v)
+    ? (v as EmailLocale)
+    : "en";
+}
+
+function pick<T>(map: Record<EmailLocale, T>, locale: EmailLocale): T {
+  return map[locale] ?? map.en;
+}
+
+// ---------------------------------------------------------------------------
+// Shared email wrapper — black header + light body, consistent brand style.
+// Heading and body are already-localized strings; the wrapper supplies the
+// localized sign-off. The "Meet & Greet Car Hire" tagline stays English as a
+// brand descriptor (matches prior ES behaviour).
+// ---------------------------------------------------------------------------
+const SIGNOFF: Record<EmailLocale, string> = {
+  en: "Best regards,",
+  es: "Saludos,",
+  fr: "Cordialement,",
+  it: "Cordiali saluti,",
+  pt: "Atenciosamente,",
+  de: "Mit freundlichen Grüßen,",
+};
+
+const TEAM: Record<EmailLocale, string> = {
+  en: "The Camel Global Team",
+  es: "El equipo de Camel Global",
+  fr: "L'équipe Camel Global",
+  it: "Il team di Camel Global",
+  pt: "A equipa da Camel Global",
+  de: "Das Camel Global Team",
+};
+
+function brandEmail(heading: string, body: string, locale: EmailLocale): string {
   const logoUrl = "https://portal.camel-global.com/camel-logo-white-new.png";
-  if (locale === "es" && headingES && bodyES) {
-    return `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
-        <div style="background:#000; padding:24px 32px; display:flex; align-items:center; gap:16px;">
-          <img src="${logoUrl}" alt="Camel Global" style="height:70px; width:auto; display:block; margin-right:20px;" />
-          <h2 style="color:#fff; margin:0;">${headingES}</h2>
-        </div>
-        <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
-          ${bodyES}
-          <p style="margin-top:32px; color:#888; font-size:14px;">Saludos,<br/><strong style="color:#222;">El equipo de Camel Global</strong><br/><span style="color:#aaa;">Meet &amp; Greet Car Hire</span></p>
-        </div>
-      </div>`;
-  }
+  const signoff = pick(SIGNOFF, locale);
+  const team    = pick(TEAM, locale);
   return `
     <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#222; line-height:1.6; max-width:600px;">
       <div style="background:#000; padding:24px 32px; display:flex; align-items:center; gap:16px;">
         <img src="${logoUrl}" alt="Camel Global" style="height:70px; width:auto; display:block; margin-right:20px;" />
-        <h2 style="color:#fff; margin:0;">${headingEN}</h2>
+        <h2 style="color:#fff; margin:0;">${heading}</h2>
       </div>
       <div style="background:#f8f8f8; padding:24px 32px; border:1px solid #e5e5e5;">
-        ${bodyEN}
-        <p style="margin-top:32px; color:#888; font-size:14px;">Best regards,<br/><strong style="color:#222;">The Camel Global Team</strong><br/><span style="color:#aaa;">Meet &amp; Greet Car Hire</span></p>
+        ${body}
+        <p style="margin-top:32px; color:#888; font-size:14px;">${signoff}<br/><strong style="color:#222;">${team}</strong><br/><span style="color:#aaa;">Meet &amp; Greet Car Hire</span></p>
       </div>
     </div>`;
 }
@@ -107,111 +136,298 @@ function brandEmail(headingEN: string, headingES: string | null, bodyEN: string,
 // Partner emails — all accept optional locale (default "en")
 // ---------------------------------------------------------------------------
 
-export async function sendApplicationReceivedEmail(to: string, locale: "en" | "es" = "en") {
+export async function sendApplicationReceivedEmail(to: string, locale: EmailLocale = "en") {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
 
-  const subjectEN = "Your Camel Global partner application has been received";
-  const subjectES = "Tu solicitud de socio en Camel Global ha sido recibida";
+  const subject: Record<EmailLocale, string> = {
+    en: "Your Camel Global partner application has been received",
+    es: "Tu solicitud de socio en Camel Global ha sido recibida",
+    fr: "Votre candidature de partenaire Camel Global a bien été reçue",
+    it: "La tua candidatura come partner Camel Global è stata ricevuta",
+    pt: "A sua candidatura a parceiro Camel Global foi recebida",
+    de: "Ihre Camel Global Partnerbewerbung ist eingegangen",
+  };
 
-  const bodyEN = `
+  const heading: Record<EmailLocale, string> = {
+    en: "Application received",
+    es: "Solicitud recibida",
+    fr: "Candidature reçue",
+    it: "Candidatura ricevuta",
+    pt: "Candidatura recebida",
+    de: "Bewerbung eingegangen",
+  };
+
+  const body: Record<EmailLocale, string> = {
+    en: `
     <p>Thanks for applying to become a Camel Global partner.</p>
     <p>We have received your application and our team will review it shortly.</p>
     <p>No action is required at this stage.</p>
-    <p><a href="${baseUrl}/partner/login">Partner login</a></p>`;
-
-  const bodyES = `
+    <p><a href="${baseUrl}/partner/login">Partner login</a></p>`,
+    es: `
     <p>Gracias por solicitar convertirte en socio de Camel Global.</p>
     <p>Hemos recibido tu solicitud y nuestro equipo la revisará en breve.</p>
     <p>No es necesario que hagas nada en este momento.</p>
-    <p><a href="${baseUrl}/partner/login">Acceso para socios</a></p>`;
+    <p><a href="${baseUrl}/partner/login">Acceso para socios</a></p>`,
+    fr: `
+    <p>Merci d'avoir postulé pour devenir partenaire Camel Global.</p>
+    <p>Nous avons bien reçu votre candidature et notre équipe l'examinera sous peu.</p>
+    <p>Aucune action n'est requise à ce stade.</p>
+    <p><a href="${baseUrl}/partner/login">Connexion partenaire</a></p>`,
+    it: `
+    <p>Grazie per aver richiesto di diventare partner di Camel Global.</p>
+    <p>Abbiamo ricevuto la tua candidatura e il nostro team la esaminerà a breve.</p>
+    <p>Al momento non è richiesta alcuna azione.</p>
+    <p><a href="${baseUrl}/partner/login">Accesso partner</a></p>`,
+    pt: `
+    <p>Obrigado por se candidatar a parceiro da Camel Global.</p>
+    <p>Recebemos a sua candidatura e a nossa equipa irá analisá-la em breve.</p>
+    <p>Não é necessária qualquer ação nesta fase.</p>
+    <p><a href="${baseUrl}/partner/login">Acesso de parceiro</a></p>`,
+    de: `
+    <p>Vielen Dank für Ihre Bewerbung als Camel Global Partner.</p>
+    <p>Wir haben Ihre Bewerbung erhalten und unser Team wird sie in Kürze prüfen.</p>
+    <p>Zu diesem Zeitpunkt ist keine Aktion erforderlich.</p>
+    <p><a href="${baseUrl}/partner/login">Partner-Login</a></p>`,
+  };
 
   return sendEmail({
     to,
-    subject: locale === "es" ? subjectES : subjectEN,
-    html: brandEmail("Application received", "Solicitud recibida", bodyEN, bodyES, locale),
+    subject: pick(subject, locale),
+    html: brandEmail(pick(heading, locale), pick(body, locale), locale),
   });
 }
 
-export async function sendApprovalEmail(to: string, locale: "en" | "es" = "en", partnerName: string = "") {
+export async function sendApprovalEmail(to: string, locale: EmailLocale = "en", partnerName: string = "") {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
   const loginUrl = `${baseUrl}/partner/login`;
-  const greeting = partnerName ? (locale === "es" ? `Estimado/a ${partnerName},` : `Dear ${partnerName},`) : (locale === "es" ? "Estimado/a socio/a," : "Dear Partner,");
 
-  const subjectEN = "Your Camel Global account has been approved ✅";
-  const subjectES = "Tu cuenta de Camel Global ha sido aprobada ✅";
+  const greeting: Record<EmailLocale, string> = {
+    en: partnerName ? `Dear ${partnerName},`            : "Dear Partner,",
+    es: partnerName ? `Estimado/a ${partnerName},`      : "Estimado/a socio/a,",
+    fr: partnerName ? `Cher/Chère ${partnerName},`      : "Cher partenaire,",
+    it: partnerName ? `Gentile ${partnerName},`         : "Gentile partner,",
+    pt: partnerName ? `Caro(a) ${partnerName},`         : "Caro parceiro,",
+    de: partnerName ? `Sehr geehrte(r) ${partnerName},` : "Sehr geehrter Partner,",
+  };
 
-  const bodyEN = `
-    <p>${greeting}</p>
-    <p>Great news — your Camel Global partner account has been approved.</p>
-    <p>You are <strong>not live yet</strong>. To start receiving bookings, please log in and complete your onboarding:</p>
+  const stepWord: Record<EmailLocale, string> = {
+    en: "Step", es: "Paso", fr: "Étape", it: "Passaggio", pt: "Passo", de: "Schritt",
+  };
+
+  const steps: Record<EmailLocale, string[]> = {
+    en: [
+      "Set your location &amp; service radius",
+      "Set your billing currency",
+      "Add your billing details",
+      "Add your fleet vehicles",
+      "Add your drivers",
+      "Connect your Stripe payout account",
+      "Go live!",
+    ],
+    es: [
+      "Establece tu ubicación y radio de servicio",
+      "Selecciona tu moneda de facturación",
+      "Añade tus datos de facturación",
+      "Añade tus vehículos",
+      "Añade tus conductores",
+      "Conecta tu cuenta de pagos Stripe",
+      "¡Actívate!",
+    ],
+    fr: [
+      "Définissez votre emplacement et votre rayon de service",
+      "Choisissez votre devise de facturation",
+      "Ajoutez vos informations de facturation",
+      "Ajoutez les véhicules de votre flotte",
+      "Ajoutez vos chauffeurs",
+      "Connectez votre compte de versement Stripe",
+      "Activez votre compte !",
+    ],
+    it: [
+      "Imposta la tua posizione e il raggio di servizio",
+      "Imposta la tua valuta di fatturazione",
+      "Aggiungi i tuoi dati di fatturazione",
+      "Aggiungi i veicoli della tua flotta",
+      "Aggiungi i tuoi conducenti",
+      "Collega il tuo account di pagamento Stripe",
+      "Attivati!",
+    ],
+    pt: [
+      "Defina a sua localização e raio de serviço",
+      "Defina a sua moeda de faturação",
+      "Adicione os seus dados de faturação",
+      "Adicione os veículos da sua frota",
+      "Adicione os seus condutores",
+      "Ligue a sua conta de pagamentos Stripe",
+      "Fique ativo!",
+    ],
+    de: [
+      "Legen Sie Ihren Standort und Servicebereich fest",
+      "Legen Sie Ihre Abrechnungswährung fest",
+      "Fügen Sie Ihre Rechnungsdaten hinzu",
+      "Fügen Sie Ihre Flottenfahrzeuge hinzu",
+      "Fügen Sie Ihre Fahrer hinzu",
+      "Verbinden Sie Ihr Stripe-Auszahlungskonto",
+      "Gehen Sie live!",
+    ],
+  };
+
+  const intro: Record<EmailLocale, string> = {
+    en: "Great news — your Camel Global partner account has been approved.",
+    es: "¡Buenas noticias! Tu cuenta de socio en Camel Global ha sido aprobada.",
+    fr: "Bonne nouvelle — votre compte partenaire Camel Global a été approuvé.",
+    it: "Ottime notizie — il tuo account partner Camel Global è stato approvato.",
+    pt: "Ótimas notícias — a sua conta de parceiro Camel Global foi aprovada.",
+    de: "Großartige Neuigkeiten — Ihr Camel Global Partnerkonto wurde genehmigt.",
+  };
+
+  const notLive: Record<EmailLocale, string> = {
+    en: "You are <strong>not live yet</strong>. To start receiving bookings, please log in and complete your onboarding:",
+    es: "Tu cuenta <strong>aún no está activa</strong>. Para empezar a recibir reservas, inicia sesión y completa el proceso de incorporación:",
+    fr: "Votre compte <strong>n'est pas encore actif</strong>. Pour commencer à recevoir des réservations, veuillez vous connecter et compléter votre intégration :",
+    it: "Il tuo account <strong>non è ancora attivo</strong>. Per iniziare a ricevere prenotazioni, accedi e completa la procedura di attivazione:",
+    pt: "A sua conta <strong>ainda não está ativa</strong>. Para começar a receber reservas, inicie sessão e conclua a sua integração:",
+    de: "Ihr Konto ist <strong>noch nicht aktiv</strong>. Um Buchungen zu erhalten, melden Sie sich bitte an und schließen Sie Ihr Onboarding ab:",
+  };
+
+  const closing: Record<EmailLocale, string> = {
+    en: "Once all steps are complete your account will go live automatically and you will receive a confirmation email.",
+    es: "Una vez completados todos los pasos, tu cuenta se activará automáticamente y recibirás un email de confirmación.",
+    fr: "Une fois toutes les étapes terminées, votre compte sera activé automatiquement et vous recevrez un email de confirmation.",
+    it: "Una volta completati tutti i passaggi, il tuo account verrà attivato automaticamente e riceverai un'email di conferma.",
+    pt: "Assim que todos os passos estiverem concluídos, a sua conta ficará ativa automaticamente e receberá um email de confirmação.",
+    de: "Sobald alle Schritte abgeschlossen sind, wird Ihr Konto automatisch aktiviert und Sie erhalten eine Bestätigungs-E-Mail.",
+  };
+
+  const cta: Record<EmailLocale, string> = {
+    en: "Log in to your account →",
+    es: "Acceder a tu cuenta →",
+    fr: "Connectez-vous à votre compte →",
+    it: "Accedi al tuo account →",
+    pt: "Inicie sessão na sua conta →",
+    de: "Bei Ihrem Konto anmelden →",
+  };
+
+  const subject: Record<EmailLocale, string> = {
+    en: "Your Camel Global account has been approved ✅",
+    es: "Tu cuenta de Camel Global ha sido aprobada ✅",
+    fr: "Votre compte Camel Global a été approuvé ✅",
+    it: "Il tuo account Camel Global è stato approvato ✅",
+    pt: "A sua conta Camel Global foi aprovada ✅",
+    de: "Ihr Camel Global Konto wurde genehmigt ✅",
+  };
+
+  const heading: Record<EmailLocale, string> = {
+    en: "Your account has been approved ✅",
+    es: "¡Tu cuenta ha sido aprobada! ✅",
+    fr: "Votre compte a été approuvé ✅",
+    it: "Il tuo account è stato approvato ✅",
+    pt: "A sua conta foi aprovada ✅",
+    de: "Ihr Konto wurde genehmigt ✅",
+  };
+
+  const stepRows = pick(steps, locale)
+    .map((s, i) => {
+      const bg = i % 2 === 0 ? "#fff" : "#f8f8f8";
+      return `      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:${bg};"><strong>${pick(stepWord, locale)} ${i + 1}</strong> — ${s}</td></tr>`;
+    })
+    .join("\n");
+
+  const body = `
+    <p>${pick(greeting, locale)}</p>
+    <p>${pick(intro, locale)}</p>
+    <p>${pick(notLive, locale)}</p>
     <table style="width:100%; border-collapse:collapse; margin:20px 0;">
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Step 1</strong> — Set your location &amp; service radius</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Step 2</strong> — Set your billing currency</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Step 3</strong> — Add your billing details</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Step 4</strong> — Add your fleet vehicles</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Step 5</strong> — Add your drivers</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Step 6</strong> — Connect your Stripe payout account</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Step 7</strong> — Go live!</td></tr>
+${stepRows}
     </table>
-    <p>Once all steps are complete your account will go live automatically and you will receive a confirmation email.</p>
+    <p>${pick(closing, locale)}</p>
     <p style="margin-top:24px;">
-      <a href="${loginUrl}" style="background:#ff7a00; color:#fff; text-decoration:none; padding:14px 28px; font-weight:700; display:inline-block;">Log in to your account →</a>
-    </p>`;
-
-  const bodyES = `
-    <p>${greeting}</p>
-    <p>¡Buenas noticias! Tu cuenta de socio en Camel Global ha sido aprobada.</p>
-    <p>Tu cuenta <strong>aún no está activa</strong>. Para empezar a recibir reservas, inicia sesión y completa el proceso de incorporación:</p>
-    <table style="width:100%; border-collapse:collapse; margin:20px 0;">
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Paso 1</strong> — Establece tu ubicación y radio de servicio</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Paso 2</strong> — Selecciona tu moneda de facturación</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Paso 3</strong> — Añade tus datos de facturación</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Paso 4</strong> — Añade tus vehículos</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Paso 5</strong> — Añade tus conductores</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#f8f8f8;"><strong>Paso 6</strong> — Conecta tu cuenta de pagos Stripe</td></tr>
-      <tr><td style="padding:10px 12px; border:1px solid #e5e5e5; background:#fff;"><strong>Paso 7</strong> — ¡Actívate!</td></tr>
-    </table>
-    <p>Una vez completados todos los pasos, tu cuenta se activará automáticamente y recibirás un email de confirmación.</p>
-    <p style="margin-top:24px;">
-      <a href="${loginUrl}" style="background:#ff7a00; color:#fff; text-decoration:none; padding:14px 28px; font-weight:700; display:inline-block;">Acceder a tu cuenta →</a>
+      <a href="${loginUrl}" style="background:#ff7a00; color:#fff; text-decoration:none; padding:14px 28px; font-weight:700; display:inline-block;">${pick(cta, locale)}</a>
     </p>`;
 
   return sendEmail({
     to,
     from: "Camel Global <noreply@camel-global.com>",
-    subject: locale === "es" ? subjectES : subjectEN,
-    html: brandEmail("Your account has been approved ✅", "¡Tu cuenta ha sido aprobada! ✅", bodyEN, bodyES, locale),
+    subject: pick(subject, locale),
+    html: brandEmail(pick(heading, locale), body, locale),
   });
 }
 
-export async function sendRejectionEmail(to: string, locale: "en" | "es" = "en") {
-  const subjectEN = "Your Camel Global partner application was not approved";
-  const subjectES = "Tu solicitud de socio en Camel Global no ha sido aprobada";
+export async function sendRejectionEmail(to: string, locale: EmailLocale = "en") {
+  const subject: Record<EmailLocale, string> = {
+    en: "Your Camel Global partner application was not approved",
+    es: "Tu solicitud de socio en Camel Global no ha sido aprobada",
+    fr: "Votre candidature de partenaire Camel Global n'a pas été approuvée",
+    it: "La tua candidatura come partner Camel Global non è stata approvata",
+    pt: "A sua candidatura a parceiro Camel Global não foi aprovada",
+    de: "Ihre Camel Global Partnerbewerbung wurde nicht genehmigt",
+  };
 
-  const bodyEN = `
+  const heading: Record<EmailLocale, string> = {
+    en: "Application update",
+    es: "Actualización de tu solicitud",
+    fr: "Mise à jour de votre candidature",
+    it: "Aggiornamento sulla tua candidatura",
+    pt: "Atualização da sua candidatura",
+    de: "Aktualisierung Ihrer Bewerbung",
+  };
+
+  const body: Record<EmailLocale, string> = {
+    en: `
     <p>Thank you for your interest in becoming a Camel Global partner.</p>
     <p>After review, we are unable to approve your application at this time.</p>
-    <p>If you believe this was a mistake or would like to discuss your application, please contact our team.</p>`;
-
-  const bodyES = `
+    <p>If you believe this was a mistake or would like to discuss your application, please contact our team.</p>`,
+    es: `
     <p>Gracias por tu interés en convertirte en socio de Camel Global.</p>
     <p>Tras la revisión, en este momento no podemos aprobar tu solicitud.</p>
-    <p>Si crees que se trata de un error o deseas hablar sobre tu solicitud, por favor contacta con nuestro equipo.</p>`;
+    <p>Si crees que se trata de un error o deseas hablar sobre tu solicitud, por favor contacta con nuestro equipo.</p>`,
+    fr: `
+    <p>Merci de l'intérêt que vous portez à devenir partenaire Camel Global.</p>
+    <p>Après examen, nous ne sommes pas en mesure d'approuver votre candidature pour le moment.</p>
+    <p>Si vous pensez qu'il s'agit d'une erreur ou si vous souhaitez discuter de votre candidature, veuillez contacter notre équipe.</p>`,
+    it: `
+    <p>Grazie per il tuo interesse a diventare partner di Camel Global.</p>
+    <p>Dopo un'attenta valutazione, al momento non possiamo approvare la tua candidatura.</p>
+    <p>Se ritieni che si tratti di un errore o desideri parlare della tua candidatura, contatta il nostro team.</p>`,
+    pt: `
+    <p>Obrigado pelo seu interesse em tornar-se parceiro da Camel Global.</p>
+    <p>Após análise, não nos é possível aprovar a sua candidatura neste momento.</p>
+    <p>Se considera que se trata de um erro ou pretende falar sobre a sua candidatura, contacte a nossa equipa.</p>`,
+    de: `
+    <p>Vielen Dank für Ihr Interesse, Camel Global Partner zu werden.</p>
+    <p>Nach Prüfung können wir Ihre Bewerbung derzeit leider nicht genehmigen.</p>
+    <p>Falls Sie der Meinung sind, dass dies ein Fehler ist, oder Ihre Bewerbung besprechen möchten, wenden Sie sich bitte an unser Team.</p>`,
+  };
 
   return sendEmail({
     to,
-    subject: locale === "es" ? subjectES : subjectEN,
-    html: brandEmail("Application update", "Actualización de tu solicitud", bodyEN, bodyES, locale),
+    subject: pick(subject, locale),
+    html: brandEmail(pick(heading, locale), pick(body, locale), locale),
   });
 }
 
-export async function sendAccountLiveEmail(to: string, locale: "en" | "es" = "en") {
+export async function sendAccountLiveEmail(to: string, locale: EmailLocale = "en") {
   const baseUrl = process.env.PORTAL_BASE_URL || "http://localhost:3000";
 
-  const subjectEN = "Your Camel Global account is now live 🚀";
-  const subjectES = "Tu cuenta de Camel Global ya está activa 🚀";
+  const subject: Record<EmailLocale, string> = {
+    en: "Your Camel Global account is now live 🚀",
+    es: "Tu cuenta de Camel Global ya está activa 🚀",
+    fr: "Votre compte Camel Global est désormais actif 🚀",
+    it: "Il tuo account Camel Global è ora attivo 🚀",
+    pt: "A sua conta Camel Global está agora ativa 🚀",
+    de: "Ihr Camel Global Konto ist jetzt aktiv 🚀",
+  };
 
-  const bodyEN = `
+  const heading: Record<EmailLocale, string> = {
+    en: "Your account is now live 🚀",
+    es: "Tu cuenta ya está activa 🚀",
+    fr: "Votre compte est désormais actif 🚀",
+    it: "Il tuo account è ora attivo 🚀",
+    pt: "A sua conta está agora ativa 🚀",
+    de: "Ihr Konto ist jetzt aktiv 🚀",
+  };
+
+  const body: Record<EmailLocale, string> = {
+    en: `
     <p>Your partner account is now live and ready to receive bookings.</p>
     <p>Please make sure:</p>
     <ul>
@@ -219,9 +435,8 @@ export async function sendAccountLiveEmail(to: string, locale: "en" | "es" = "en
       <li>Your service radius is correct</li>
       <li>Your contact details are current</li>
     </ul>
-    <p><a href="${baseUrl}/partner/dashboard">Go to dashboard</a></p>`;
-
-  const bodyES = `
+    <p><a href="${baseUrl}/partner/dashboard">Go to dashboard</a></p>`,
+    es: `
     <p>Tu cuenta de socio ya está activa y lista para recibir reservas.</p>
     <p>Por favor, asegúrate de que:</p>
     <ul>
@@ -229,12 +444,49 @@ export async function sendAccountLiveEmail(to: string, locale: "en" | "es" = "en
       <li>Tu radio de servicio es correcto</li>
       <li>Tus datos de contacto están al día</li>
     </ul>
-    <p><a href="${baseUrl}/partner/dashboard">Ir al panel de control</a></p>`;
+    <p><a href="${baseUrl}/partner/dashboard">Ir al panel de control</a></p>`,
+    fr: `
+    <p>Votre compte partenaire est désormais actif et prêt à recevoir des réservations.</p>
+    <p>Veuillez vous assurer que :</p>
+    <ul>
+      <li>Votre flotte est à jour</li>
+      <li>Votre rayon de service est correct</li>
+      <li>Vos coordonnées sont à jour</li>
+    </ul>
+    <p><a href="${baseUrl}/partner/dashboard">Accéder au tableau de bord</a></p>`,
+    it: `
+    <p>Il tuo account partner è ora attivo e pronto a ricevere prenotazioni.</p>
+    <p>Assicurati che:</p>
+    <ul>
+      <li>La tua flotta sia aggiornata</li>
+      <li>Il tuo raggio di servizio sia corretto</li>
+      <li>I tuoi dati di contatto siano aggiornati</li>
+    </ul>
+    <p><a href="${baseUrl}/partner/dashboard">Vai alla dashboard</a></p>`,
+    pt: `
+    <p>A sua conta de parceiro está agora ativa e pronta a receber reservas.</p>
+    <p>Certifique-se de que:</p>
+    <ul>
+      <li>A sua frota está atualizada</li>
+      <li>O seu raio de serviço está correto</li>
+      <li>Os seus dados de contacto estão atualizados</li>
+    </ul>
+    <p><a href="${baseUrl}/partner/dashboard">Ir para o painel</a></p>`,
+    de: `
+    <p>Ihr Partnerkonto ist jetzt aktiv und bereit, Buchungen zu empfangen.</p>
+    <p>Bitte stellen Sie sicher, dass:</p>
+    <ul>
+      <li>Ihre Flotte aktuell ist</li>
+      <li>Ihr Servicebereich korrekt ist</li>
+      <li>Ihre Kontaktdaten aktuell sind</li>
+    </ul>
+    <p><a href="${baseUrl}/partner/dashboard">Zum Dashboard</a></p>`,
+  };
 
   return sendEmail({
     to,
-    subject: locale === "es" ? subjectES : subjectEN,
-    html: brandEmail("Your account is now live 🚀", "Tu cuenta ya está activa 🚀", bodyEN, bodyES, locale),
+    subject: pick(subject, locale),
+    html: brandEmail(pick(heading, locale), pick(body, locale), locale),
   });
 }
 
@@ -245,38 +497,75 @@ export async function sendAccountLiveEmail(to: string, locale: "en" | "es" = "en
 export async function sendCustomerBidReceivedEmail(
   to: string,
   jobNumber?: number | null,
-  locale: "en" | "es" = "en"
+  locale: EmailLocale = "en"
 ) {
   const customerUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
   const bookingUrl  = `${customerUrl}/bookings`;
+  const jobFrag = jobNumber ? ` <strong>#${jobNumber}</strong>` : "";
 
-  const subjectEN = `A new partner bid has been received${jobNumber ? ` for booking #${jobNumber}` : ""}`;
-  const subjectES = `Nueva oferta recibida${jobNumber ? ` para la reserva #${jobNumber}` : ""}`;
+  const subject: Record<EmailLocale, string> = {
+    en: `A new partner bid has been received${jobNumber ? ` for booking #${jobNumber}` : ""}`,
+    es: `Nueva oferta recibida${jobNumber ? ` para la reserva #${jobNumber}` : ""}`,
+    fr: `Une nouvelle offre de partenaire a été reçue${jobNumber ? ` pour la réservation #${jobNumber}` : ""}`,
+    it: `È stata ricevuta una nuova offerta${jobNumber ? ` per la prenotazione #${jobNumber}` : ""}`,
+    pt: `Foi recebida uma nova proposta${jobNumber ? ` para a reserva #${jobNumber}` : ""}`,
+    de: `Ein neues Partnerangebot ist eingegangen${jobNumber ? ` für Buchung #${jobNumber}` : ""}`,
+  };
 
-  const bodyEN = `
-    <p>Hi,</p>
-    <p>A car hire company has submitted a bid for your booking request${jobNumber ? ` <strong>#${jobNumber}</strong>` : ""}.</p>
-    <p>Log in to view the full price breakdown and accept the offer that suits you best.</p>
+  const heading: Record<EmailLocale, string> = {
+    en: "You have a new bid ⭐",
+    es: "Tienes una nueva oferta ⭐",
+    fr: "Vous avez une nouvelle offre ⭐",
+    it: "Hai una nuova offerta ⭐",
+    pt: "Tem uma nova proposta ⭐",
+    de: "Sie haben ein neues Angebot ⭐",
+  };
+
+  const greet: Record<EmailLocale, string> = {
+    en: "Hi,", es: "Hola,", fr: "Bonjour,", it: "Ciao,", pt: "Olá,", de: "Hallo,",
+  };
+
+  const line1: Record<EmailLocale, string> = {
+    en: `A car hire company has submitted a bid for your booking request${jobFrag}.`,
+    es: `Una empresa de alquiler ha enviado una oferta para tu solicitud${jobFrag}.`,
+    fr: `Une société de location de voitures a soumis une offre pour votre demande de réservation${jobFrag}.`,
+    it: `Una società di autonoleggio ha inviato un'offerta per la tua richiesta di prenotazione${jobFrag}.`,
+    pt: `Uma empresa de aluguer de automóveis enviou uma proposta para o seu pedido de reserva${jobFrag}.`,
+    de: `Ein Autovermietungsunternehmen hat ein Angebot für Ihre Buchungsanfrage${jobFrag} abgegeben.`,
+  };
+
+  const line2: Record<EmailLocale, string> = {
+    en: "Log in to view the full price breakdown and accept the offer that suits you best.",
+    es: "Inicia sesión para ver el desglose completo del precio y aceptar la oferta que mejor te convenga.",
+    fr: "Connectez-vous pour voir le détail complet du prix et accepter l'offre qui vous convient le mieux.",
+    it: "Accedi per visualizzare il dettaglio completo del prezzo e accettare l'offerta più adatta a te.",
+    pt: "Inicie sessão para ver o detalhe completo do preço e aceitar a proposta que melhor lhe convém.",
+    de: "Melden Sie sich an, um die vollständige Preisaufschlüsselung zu sehen und das für Sie passende Angebot anzunehmen.",
+  };
+
+  const cta: Record<EmailLocale, string> = {
+    en: "View Bid →",
+    es: "Ver oferta →",
+    fr: "Voir l'offre →",
+    it: "Vedi l'offerta →",
+    pt: "Ver proposta →",
+    de: "Angebot ansehen →",
+  };
+
+  const body = `
+    <p>${pick(greet, locale)}</p>
+    <p>${pick(line1, locale)}</p>
+    <p>${pick(line2, locale)}</p>
     <p style="margin:24px 0;">
       <a href="${bookingUrl}" style="background:#ff7a00; color:#fff; padding:12px 28px; text-decoration:none; font-weight:700; display:inline-block;">
-        View Bid →
-      </a>
-    </p>`;
-
-  const bodyES = `
-    <p>Hola,</p>
-    <p>Una empresa de alquiler ha enviado una oferta para tu solicitud${jobNumber ? ` <strong>#${jobNumber}</strong>` : ""}.</p>
-    <p>Inicia sesión para ver el desglose completo del precio y aceptar la oferta que mejor te convenga.</p>
-    <p style="margin:24px 0;">
-      <a href="${bookingUrl}" style="background:#ff7a00; color:#fff; padding:12px 28px; text-decoration:none; font-weight:700; display:inline-block;">
-        Ver oferta →
+        ${pick(cta, locale)}
       </a>
     </p>`;
 
   return sendEmail({
     to,
-    subject: locale === "es" ? subjectES : subjectEN,
-    html: brandEmail("You have a new bid ⭐", "Tienes una nueva oferta ⭐", bodyEN, bodyES, locale),
+    subject: pick(subject, locale),
+    html: brandEmail(pick(heading, locale), body, locale),
   });
 }
 
@@ -303,49 +592,87 @@ export async function sendReviewReminderEmail(
   to: string,
   jobNumber?: number | null,
   requestId?: string | null,
-  locale: "en" | "es" = "en"
+  locale: EmailLocale = "en"
 ) {
   const customerUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
   const reviewUrl   = requestId
     ? `${customerUrl}/bookings/${requestId}#review`
     : `${customerUrl}/bookings`;
+  const jobFrag = jobNumber ? ` <strong>#${jobNumber}</strong>` : "";
 
-  const subjectEN = `How was your car hire experience?${jobNumber ? ` (Booking #${jobNumber})` : ""}`;
-  const subjectES = `¿Qué tal fue tu experiencia de alquiler?${jobNumber ? ` (Reserva #${jobNumber})` : ""}`;
+  const subject: Record<EmailLocale, string> = {
+    en: `How was your car hire experience?${jobNumber ? ` (Booking #${jobNumber})` : ""}`,
+    es: `¿Qué tal fue tu experiencia de alquiler?${jobNumber ? ` (Reserva #${jobNumber})` : ""}`,
+    fr: `Comment s'est passée votre location de voiture ?${jobNumber ? ` (Réservation #${jobNumber})` : ""}`,
+    it: `Com'è andata la tua esperienza di noleggio?${jobNumber ? ` (Prenotazione #${jobNumber})` : ""}`,
+    pt: `Como foi a sua experiência de aluguer?${jobNumber ? ` (Reserva #${jobNumber})` : ""}`,
+    de: `Wie war Ihre Mietwagen-Erfahrung?${jobNumber ? ` (Buchung #${jobNumber})` : ""}`,
+  };
 
-  const bodyEN = `
-          <p>Hi,</p>
-          <p>Your Camel Global car hire booking${jobNumber ? ` <strong>#${jobNumber}</strong>` : ""} is now complete. We'd love to hear how it went.</p>
-          <p>Your review helps other customers choose the right car hire company for their trip.</p>
+  const heading: Record<EmailLocale, string> = {
+    en: "How was your car hire experience? ⭐",
+    es: "¿Qué tal fue tu experiencia de alquiler? ⭐",
+    fr: "Comment s'est passée votre location de voiture ? ⭐",
+    it: "Com'è andata la tua esperienza di noleggio? ⭐",
+    pt: "Como foi a sua experiência de aluguer? ⭐",
+    de: "Wie war Ihre Mietwagen-Erfahrung? ⭐",
+  };
+
+  const greet: Record<EmailLocale, string> = {
+    en: "Hi,", es: "Hola,", fr: "Bonjour,", it: "Ciao,", pt: "Olá,", de: "Hallo,",
+  };
+
+  const line1: Record<EmailLocale, string> = {
+    en: `Your Camel Global car hire booking${jobFrag} is now complete. We'd love to hear how it went.`,
+    es: `Tu reserva de alquiler de coches con Camel Global${jobFrag} ha finalizado. Nos encantaría saber cómo fue.`,
+    fr: `Votre réservation de location de voiture Camel Global${jobFrag} est terminée. Nous aimerions savoir comment cela s'est passé.`,
+    it: `La tua prenotazione di autonoleggio Camel Global${jobFrag} è ora completata. Ci piacerebbe sapere com'è andata.`,
+    pt: `A sua reserva de aluguer de automóvel Camel Global${jobFrag} está agora concluída. Gostaríamos de saber como correu.`,
+    de: `Ihre Camel Global Mietwagenbuchung${jobFrag} ist jetzt abgeschlossen. Wir würden gerne erfahren, wie es gelaufen ist.`,
+  };
+
+  const line2: Record<EmailLocale, string> = {
+    en: "Your review helps other customers choose the right car hire company for their trip.",
+    es: "Tu reseña ayuda a otros clientes a elegir la empresa de alquiler adecuada para su viaje.",
+    fr: "Votre avis aide d'autres clients à choisir la bonne société de location pour leur voyage.",
+    it: "La tua recensione aiuta altri clienti a scegliere la società di noleggio giusta per il loro viaggio.",
+    pt: "A sua avaliação ajuda outros clientes a escolher a empresa de aluguer certa para a sua viagem.",
+    de: "Ihre Bewertung hilft anderen Kunden, die richtige Autovermietung für ihre Reise zu wählen.",
+  };
+
+  const cta: Record<EmailLocale, string> = {
+    en: "Leave a Review →",
+    es: "Dejar una reseña →",
+    fr: "Laisser un avis →",
+    it: "Lascia una recensione →",
+    pt: "Deixar uma avaliação →",
+    de: "Bewertung abgeben →",
+  };
+
+  const footer: Record<EmailLocale, string> = {
+    en: "It only takes 30 seconds.",
+    es: "Solo lleva 30 segundos.",
+    fr: "Cela ne prend que 30 secondes.",
+    it: "Bastano solo 30 secondi.",
+    pt: "Demora apenas 30 segundos.",
+    de: "Es dauert nur 30 Sekunden.",
+  };
+
+  const body = `
+          <p>${pick(greet, locale)}</p>
+          <p>${pick(line1, locale)}</p>
+          <p>${pick(line2, locale)}</p>
           <p style="margin:24px 0;">
             <a href="${reviewUrl}"
               style="background:#ff7a00; color:#fff; padding:12px 28px; text-decoration:none; font-weight:700; display:inline-block; font-family: system-ui, Arial, sans-serif;">
-              Leave a Review →
+              ${pick(cta, locale)}
             </a>
           </p>
-          <p style="color:#888; font-size:14px;">It only takes 30 seconds.</p>`;
-
-  const bodyES = `
-          <p>Hola,</p>
-          <p>Tu reserva de alquiler de coches con Camel Global${jobNumber ? ` <strong>#${jobNumber}</strong>` : ""} ha finalizado. Nos encantaría saber cómo fue.</p>
-          <p>Tu reseña ayuda a otros clientes a elegir la empresa de alquiler adecuada para su viaje.</p>
-          <p style="margin:24px 0;">
-            <a href="${reviewUrl}"
-              style="background:#ff7a00; color:#fff; padding:12px 28px; text-decoration:none; font-weight:700; display:inline-block; font-family: system-ui, Arial, sans-serif;">
-              Dejar una reseña →
-            </a>
-          </p>
-          <p style="color:#888; font-size:14px;">Solo lleva 30 segundos.</p>`;
+          <p style="color:#888; font-size:14px;">${pick(footer, locale)}</p>`;
 
   return sendEmail({
     to,
-    subject: locale === "es" ? subjectES : subjectEN,
-    html: brandEmail(
-      "How was your car hire experience? ⭐",
-      "¿Qué tal fue tu experiencia de alquiler? ⭐",
-      bodyEN,
-      bodyES,
-      locale
-    ),
+    subject: pick(subject, locale),
+    html: brandEmail(pick(heading, locale), body, locale),
   });
 }

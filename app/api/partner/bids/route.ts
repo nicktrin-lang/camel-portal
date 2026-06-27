@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
-import { sendCustomerBidReceivedEmail } from "@/lib/email";
+import { sendCustomerBidReceivedEmail, coerceEmailLocale, type EmailLocale } from "@/lib/email";
 
-async function getCustomerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, customerUserId: string): Promise<"en" | "es"> {
+async function getCustomerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, customerUserId: string): Promise<EmailLocale> {
   try {
     console.log("🌍 getCustomerLocale: looking up user_id:", customerUserId);
     const { data: profile, error } = await db
@@ -12,7 +12,7 @@ async function getCustomerLocale(db: ReturnType<typeof createServiceRoleSupabase
       .eq("user_id", customerUserId)
       .maybeSingle();
     console.log("🌍 getCustomerLocale: profile result:", JSON.stringify(profile), "error:", error?.message);
-    return (profile?.communication_locale === "es") ? "es" : "en";
+    return coerceEmailLocale(profile?.communication_locale);
   } catch (e: any) {
     console.error("🌍 getCustomerLocale: exception:", e?.message);
     return "en";
