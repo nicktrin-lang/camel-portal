@@ -7,7 +7,7 @@ import {
   StatementData,
   PostCompletionRefund,
 } from "@/lib/portal/completeBooking";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, coerceEmailLocale, type EmailLocale } from "@/lib/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-04-22.dahlia" as any,
@@ -26,6 +26,21 @@ async function fetchCustomerRequest(requestId: string) {
   } catch {
     return null;
   }
+}
+
+const SIG_REGARDS: Record<EmailLocale, string> = {
+  en: "Best Regards,", es: "Saludos,", fr: "Cordialement,", it: "Cordiali saluti,", pt: "Com os melhores cumprimentos,", de: "Mit freundlichen Grüßen,",
+};
+const SIG_TEAM: Record<EmailLocale, string> = {
+  en: "The Camel Global Team", es: "El equipo de Camel Global", fr: "L'équipe Camel Global", it: "Il team di Camel Global", pt: "A equipa Camel Global", de: "Das Camel Global Team",
+};
+const HELLO: Record<EmailLocale, string> = { en: "Hi", es: "Hola", fr: "Bonjour", it: "Salve", pt: "Olá", de: "Hallo" };
+function pickL<T>(m: Record<EmailLocale, T>, l: EmailLocale): T { return m[l] ?? m.en; }
+function greetLine(name: string | null | undefined, locale: EmailLocale): string {
+  const hello = pickL(HELLO, locale);
+  const n = (name || "").trim();
+  if (n) return `${hello} ${n},`;
+  return locale === "en" ? `${hello} there,` : `${hello},`;
 }
 
 export async function POST(
@@ -234,7 +249,7 @@ export async function POST(
     const siteUrl     = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
 
     // ── Customer locale ───────────────────────────────────────────────────
-    let customerLocale: "en" | "es" = "en";
+    let customerLocale: EmailLocale = "en";
     try {
       if (request?.customer_user_id) {
         const { data: custProfile } = await db
@@ -242,7 +257,7 @@ export async function POST(
           .select("communication_locale")
           .eq("user_id", request.customer_user_id)
           .maybeSingle();
-        if (custProfile?.communication_locale === "es") customerLocale = "es";
+        customerLocale = coerceEmailLocale(custProfile?.communication_locale);
       }
     } catch { /* fallback to en */ }
 
@@ -295,60 +310,85 @@ export async function POST(
     const totalRefunded = postCompletionRefunds.reduce((s, r) => s + r.amount, 0);
     const netFinal = finalAmount - totalRefunded;
 
-    // ── Email customer ────────────────────────────────────────────────────
+    // ── Email customer (localized; PDF stays English) ─────────────────────
     if (request?.customer_email) {
-      const custSubject = customerLocale === "es"
-        ? `Resumen de reserva actualizado — reembolso emitido — ${jobNo}`
-        : `Updated booking statement — refund issued — ${jobNo}`;
+      const L = customerLocale;
+
+      const custSubjectMap: Record<EmailLocale, string> = {
+        en: `Updated booking statement — refund issued — ${jobNo}`,
+        es: `Resumen de reserva actualizado — reembolso emitido — ${jobNo}`,
+        fr: `Relevé de réservation mis à jour — remboursement émis — ${jobNo}`,
+        it: `Riepilogo prenotazione aggiornato — rimborso emesso — ${jobNo}`,
+        pt: `Resumo da reserva atualizado — reembolso emitido — ${jobNo}`,
+        de: `Aktualisierte Buchungsübersicht — Erstattung veranlasst — ${jobNo}`,
+      };
+      const custSubject = pickL(custSubjectMap, L);
+
+      const heading: Record<EmailLocale, string> = {
+        en: "Updated booking statement", es: "Resumen de reserva actualizado", fr: "Relevé de réservation mis à jour", it: "Riepilogo prenotazione aggiornato", pt: "Resumo da reserva atualizado", de: "Aktualisierte Buchungsübersicht",
+      };
+      const subLabel: Record<EmailLocale, string> = { en: "Booking", es: "Reserva", fr: "Réservation", it: "Prenotazione", pt: "Reserva", de: "Buchung" };
+      const intro: Record<EmailLocale, string> = {
+        en: `We have issued a refund on your booking ${jobNo} with <strong>${companyName}</strong>. Please find your updated completion statement attached.`,
+        es: `Hemos emitido un reembolso para tu reserva ${jobNo} con <strong>${companyName}</strong>. Por favor encuentra el resumen actualizado adjunto.`,
+        fr: `Nous avons émis un remboursement pour votre réservation ${jobNo} avec <strong>${companyName}</strong>. Veuillez trouver ci-joint votre relevé de finalisation mis à jour.`,
+        it: `Abbiamo emesso un rimborso per la tua prenotazione ${jobNo} con <strong>${companyName}</strong>. In allegato trovi il riepilogo aggiornato.`,
+        pt: `Emitimos um reembolso para a sua reserva ${jobNo} com <strong>${companyName}</strong>. Em anexo encontra o seu resumo de conclusão atualizado.`,
+        de: `Wir haben eine Erstattung für Ihre Buchung ${jobNo} mit <strong>${companyName}</strong> veranlasst. Im Anhang finden Sie Ihre aktualisierte Abschlussübersicht.`,
+      };
+      const adjTitle: Record<EmailLocale, string> = {
+        en: "Post-completion adjustments", es: "Ajustes posteriores a la finalización", fr: "Ajustements après finalisation", it: "Rettifiche post-completamento", pt: "Ajustes pós-conclusão", de: "Anpassungen nach Abschluss",
+      };
+      const origFinal: Record<EmailLocale, string> = {
+        en: "Original final amount", es: "Importe final original", fr: "Montant final initial", it: "Importo finale originale", pt: "Montante final original", de: "Ursprünglicher Endbetrag",
+      };
+      const netFinalLbl: Record<EmailLocale, string> = {
+        en: "Net final amount", es: "Importe neto final", fr: "Montant net final", it: "Importo netto finale", pt: "Montante líquido final", de: "Netto-Endbetrag",
+      };
+      const lblRefund: Record<EmailLocale, string> = { en: "Refund", es: "Reembolso", fr: "Remboursement", it: "Rimborso", pt: "Reembolso", de: "Erstattung" };
+      const refundIssued: Record<EmailLocale, string> = {
+        en: `A refund of <strong>${fmt(amount)}</strong> has been issued to your original payment method. Please allow 5–10 business days for it to appear.`,
+        es: `Se ha emitido un reembolso de <strong>${fmt(amount)}</strong> en tu método de pago original. Por favor permite 5–10 días laborables para que aparezca.`,
+        fr: `Un remboursement de <strong>${fmt(amount)}</strong> a été émis sur votre moyen de paiement d'origine. Veuillez compter 5–10 jours ouvrés pour qu'il apparaisse.`,
+        it: `Un rimborso di <strong>${fmt(amount)}</strong> è stato emesso sul tuo metodo di pagamento originale. Attendi 5–10 giorni lavorativi affinché venga visualizzato.`,
+        pt: `Foi emitido um reembolso de <strong>${fmt(amount)}</strong> para o seu método de pagamento original. Aguarde 5–10 dias úteis até que apareça.`,
+        de: `Eine Erstattung von <strong>${fmt(amount)}</strong> wurde auf Ihr ursprüngliches Zahlungsmittel veranlasst. Bitte rechnen Sie mit 5–10 Werktagen, bis sie erscheint.`,
+      };
+      const contact: Record<EmailLocale, string> = {
+        en: `If you have any questions please contact us at <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+        es: `Si tienes alguna pregunta, contáctanos en <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+        fr: `Pour toute question, contactez-nous à <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+        it: `Per qualsiasi domanda contattaci a <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+        pt: `Para qualquer questão contacte-nos em <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+        de: `Bei Fragen erreichen Sie uns unter <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+      };
+      const cta: Record<EmailLocale, string> = { en: "View my booking", es: "Ver mi reserva", fr: "Voir ma réservation", it: "Visualizza la mia prenotazione", pt: "Ver a minha reserva", de: "Meine Buchung ansehen" };
 
       const refundListHtml = postCompletionRefunds.map((r, i) =>
-        `<tr><td style="padding:4px 0;color:#666;">Refund ${i + 1}${r.reason ? ` — ${r.reason}` : ""}</td><td style="text-align:right;color:#cc5500;font-weight:700;">− ${fmt(r.amount)}</td></tr>`
+        `<tr><td style="padding:4px 0;color:#666;">${pickL(lblRefund, L)} ${i + 1}${r.reason ? ` — ${r.reason}` : ""}</td><td style="text-align:right;color:#cc5500;font-weight:700;">− ${fmt(r.amount)}</td></tr>`
       ).join("");
 
-      const custHtml = customerLocale === "es" ? `
+      const custHtml = `
         <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
           <div style="background:#000;padding:20px 28px;">
-            <h2 style="color:#fff;margin:0;">Resumen de reserva actualizado</h2>
-            <p style="color:#999;margin:4px 0 0;font-size:13px;">Reserva ${jobNo}</p>
+            <h2 style="color:#fff;margin:0;">${pickL(heading, L)}</h2>
+            <p style="color:#999;margin:4px 0 0;font-size:13px;">${pickL(subLabel, L)} ${jobNo}</p>
           </div>
           <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-            <p>Hola ${request.customer_name || ""},</p>
-            <p>Hemos emitido un reembolso para tu reserva ${jobNo} con <strong>${companyName}</strong>. Por favor encuentra el resumen actualizado adjunto.</p>
+            <p>${greetLine(request.customer_name, L)}</p>
+            <p>${pickL(intro, L)}</p>
             <div style="background:#fff3e0;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
-              <p style="margin:0 0 8px;font-weight:700;">Ajustes posteriores a la finalización</p>
+              <p style="margin:0 0 8px;font-weight:700;">${pickL(adjTitle, L)}</p>
               <table style="width:100%;font-size:14px;border-collapse:collapse;">
-                <tr><td style="padding:4px 0;color:#666;">Importe final original</td><td style="text-align:right;">${fmt(finalAmount)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">${pickL(origFinal, L)}</td><td style="text-align:right;">${fmt(finalAmount)}</td></tr>
                 ${refundListHtml}
-                <tr style="border-top:2px solid #ff7a00;"><td style="padding:8px 0 4px;font-weight:700;">Importe neto final</td><td style="text-align:right;font-weight:700;">${fmt(netFinal)}</td></tr>
+                <tr style="border-top:2px solid #ff7a00;"><td style="padding:8px 0 4px;font-weight:700;">${pickL(netFinalLbl, L)}</td><td style="text-align:right;font-weight:700;">${fmt(netFinal)}</td></tr>
               </table>
-              <p style="margin:8px 0 0;font-size:13px;color:#cc5500;">Se ha emitido un reembolso de <strong>${fmt(amount)}</strong> en tu método de pago original. Por favor permite 5–10 días laborables para que aparezca.</p>
+              <p style="margin:8px 0 0;font-size:13px;color:#cc5500;">${pickL(refundIssued, L)}</p>
             </div>
-            <p style="font-size:13px;color:#666;">Si tienes alguna pregunta, contáctanos en <a href="mailto:info@camel-global.com">info@camel-global.com</a>.</p>
-            <a href="${siteUrl}/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">Ver mi reserva</a>
-            <p style="margin-top:24px;color:#999;font-size:13px;">Saludos,<br/>El equipo de Camel Global</p>
-          </div>
-        </div>
-      ` : `
-        <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
-          <div style="background:#000;padding:20px 28px;">
-            <h2 style="color:#fff;margin:0;">Updated booking statement</h2>
-            <p style="color:#999;margin:4px 0 0;font-size:13px;">Booking ${jobNo}</p>
-          </div>
-          <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-            <p>Hi ${request.customer_name || "there"},</p>
-            <p>We have issued a refund on your booking ${jobNo} with <strong>${companyName}</strong>. Please find your updated completion statement attached.</p>
-            <div style="background:#fff3e0;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
-              <p style="margin:0 0 8px;font-weight:700;">Post-completion adjustments</p>
-              <table style="width:100%;font-size:14px;border-collapse:collapse;">
-                <tr><td style="padding:4px 0;color:#666;">Original final amount</td><td style="text-align:right;">${fmt(finalAmount)}</td></tr>
-                ${refundListHtml}
-                <tr style="border-top:2px solid #ff7a00;"><td style="padding:8px 0 4px;font-weight:700;">Net final amount</td><td style="text-align:right;font-weight:700;">${fmt(netFinal)}</td></tr>
-              </table>
-              <p style="margin:8px 0 0;font-size:13px;color:#cc5500;">A refund of <strong>${fmt(amount)}</strong> has been issued to your original payment method. Please allow 5–10 business days for it to appear.</p>
-            </div>
-            <p style="font-size:13px;color:#666;">If you have any questions please contact us at <a href="mailto:info@camel-global.com">info@camel-global.com</a>.</p>
-            <a href="${siteUrl}/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">View my booking</a>
-            <p style="margin-top:24px;color:#999;font-size:13px;">Best Regards,<br/>The Camel Global Team</p>
+            <p style="font-size:13px;color:#666;">${pickL(contact, L)}</p>
+            <a href="${siteUrl}/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">${pickL(cta, L)}</a>
+            <p style="margin-top:24px;color:#999;font-size:13px;">${pickL(SIG_REGARDS, L)}<br/>${pickL(SIG_TEAM, L)}</p>
           </div>
         </div>
       `;

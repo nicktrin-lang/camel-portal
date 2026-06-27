@@ -7,7 +7,7 @@ import {
   StatementData,
   PostCompletionRefund,
 } from "@/lib/portal/completeBooking";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, coerceEmailLocale, type EmailLocale } from "@/lib/email";
 
 async function fetchCustomerRequest(requestId: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -22,6 +22,21 @@ async function fetchCustomerRequest(requestId: string) {
   } catch {
     return null;
   }
+}
+
+const SIG_REGARDS: Record<EmailLocale, string> = {
+  en: "Best Regards,", es: "Saludos,", fr: "Cordialement,", it: "Cordiali saluti,", pt: "Com os melhores cumprimentos,", de: "Mit freundlichen Grüßen,",
+};
+const SIG_TEAM: Record<EmailLocale, string> = {
+  en: "The Camel Global Team", es: "El equipo de Camel Global", fr: "L'équipe Camel Global", it: "Il team di Camel Global", pt: "A equipa Camel Global", de: "Das Camel Global Team",
+};
+const HELLO: Record<EmailLocale, string> = { en: "Hi", es: "Hola", fr: "Bonjour", it: "Salve", pt: "Olá", de: "Hallo" };
+function pickL<T>(m: Record<EmailLocale, T>, l: EmailLocale): T { return m[l] ?? m.en; }
+function greetLine(name: string | null | undefined, locale: EmailLocale): string {
+  const hello = pickL(HELLO, locale);
+  const n = (name || "").trim();
+  if (n) return `${hello} ${n},`;
+  return locale === "en" ? `${hello} there,` : `${hello},`;
 }
 
 export async function POST(
@@ -102,7 +117,7 @@ export async function POST(
     const jobNo       = booking.job_number ? `#${booking.job_number}` : bookingId.slice(0, 8);
 
     // ── Customer locale ───────────────────────────────────────────────────
-    let customerLocale: "en" | "es" = "en";
+    let customerLocale: EmailLocale = "en";
     try {
       if (request?.customer_user_id) {
         const { data: custProfile } = await db
@@ -110,7 +125,7 @@ export async function POST(
           .select("communication_locale")
           .eq("user_id", request.customer_user_id)
           .maybeSingle();
-        if (custProfile?.communication_locale === "es") customerLocale = "es";
+        customerLocale = coerceEmailLocale(custProfile?.communication_locale);
       }
     } catch { /* fallback to en */ }
 
@@ -170,69 +185,97 @@ export async function POST(
       return NextResponse.json({ error: `PDF generation failed: ${pdfErr?.message}` }, { status: 500 });
     }
 
-    // ── Build email body ──────────────────────────────────────────────────
+    // ── Build email body (localized; PDF stays English) ───────────────────
+    const L = customerLocale;
+
+    const lblRefund: Record<EmailLocale, string> = { en: "Refund", es: "Reembolso", fr: "Remboursement", it: "Rimborso", pt: "Reembolso", de: "Erstattung" };
     const refundListHtml = postCompletionRefunds.map((r, i) =>
-      `<tr><td style="padding:4px 0;color:#666;">Refund ${i + 1}${r.reason ? ` — ${r.reason}` : ""}</td><td style="text-align:right;color:#cc5500;font-weight:700;">− ${fmt(r.amount)}</td></tr>`
+      `<tr><td style="padding:4px 0;color:#666;">${pickL(lblRefund, L)} ${i + 1}${r.reason ? ` — ${r.reason}` : ""}</td><td style="text-align:right;color:#cc5500;font-weight:700;">− ${fmt(r.amount)}</td></tr>`
     ).join("");
 
-    const adjustmentBlock = isAmended ? (customerLocale === "es" ? `
+    const adjTitle: Record<EmailLocale, string> = {
+      en: "Post-completion adjustments", es: "Ajustes posteriores a la finalización", fr: "Ajustements après finalisation", it: "Rettifiche post-completamento", pt: "Ajustes pós-conclusão", de: "Anpassungen nach Abschluss",
+    };
+    const origFinal: Record<EmailLocale, string> = {
+      en: "Original final amount", es: "Importe final original", fr: "Montant final initial", it: "Importo finale originale", pt: "Montante final original", de: "Ursprünglicher Endbetrag",
+    };
+    const netFinalLbl: Record<EmailLocale, string> = {
+      en: "Net final amount", es: "Importe neto final", fr: "Montant net final", it: "Importo netto finale", pt: "Montante líquido final", de: "Netto-Endbetrag",
+    };
+    const adjustmentBlock = isAmended ? `
       <div style="background:#fff3e0;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
-        <p style="margin:0 0 8px;font-weight:700;">Ajustes posteriores a la finalización</p>
+        <p style="margin:0 0 8px;font-weight:700;">${pickL(adjTitle, L)}</p>
         <table style="width:100%;font-size:14px;border-collapse:collapse;">
-          <tr><td style="padding:4px 0;color:#666;">Importe final original</td><td style="text-align:right;">${fmt(finalAmount)}</td></tr>
+          <tr><td style="padding:4px 0;color:#666;">${pickL(origFinal, L)}</td><td style="text-align:right;">${fmt(finalAmount)}</td></tr>
           ${refundListHtml}
-          <tr style="border-top:2px solid #ff7a00;"><td style="padding:8px 0 4px;font-weight:700;">Importe neto final</td><td style="text-align:right;font-weight:700;">${fmt(netFinal)}</td></tr>
+          <tr style="border-top:2px solid #ff7a00;"><td style="padding:8px 0 4px;font-weight:700;">${pickL(netFinalLbl, L)}</td><td style="text-align:right;font-weight:700;">${fmt(netFinal)}</td></tr>
         </table>
       </div>
-    ` : `
-      <div style="background:#fff3e0;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
-        <p style="margin:0 0 8px;font-weight:700;">Post-completion adjustments</p>
-        <table style="width:100%;font-size:14px;border-collapse:collapse;">
-          <tr><td style="padding:4px 0;color:#666;">Original final amount</td><td style="text-align:right;">${fmt(finalAmount)}</td></tr>
-          ${refundListHtml}
-          <tr style="border-top:2px solid #ff7a00;"><td style="padding:8px 0 4px;font-weight:700;">Net final amount</td><td style="text-align:right;font-weight:700;">${fmt(netFinal)}</td></tr>
-        </table>
-      </div>
-    `) : "";
+    ` : "";
 
-    const subject = customerLocale === "es"
-      ? `Tu resumen de finalización de reserva — ${jobNo}${isAmended ? " (enmendado)" : ""}`
-      : `Your booking completion statement — ${jobNo}${isAmended ? " (amended)" : ""}`;
+    const subjNormal: Record<EmailLocale, string> = {
+      en: `Your booking completion statement — ${jobNo}`,
+      es: `Tu resumen de finalización de reserva — ${jobNo}`,
+      fr: `Votre relevé de finalisation de réservation — ${jobNo}`,
+      it: `Il tuo riepilogo di completamento della prenotazione — ${jobNo}`,
+      pt: `O seu resumo de conclusão da reserva — ${jobNo}`,
+      de: `Ihre Buchungsabschlussübersicht — ${jobNo}`,
+    };
+    const amendedSuffix: Record<EmailLocale, string> = {
+      en: " (amended)", es: " (enmendado)", fr: " (modifié)", it: " (rettificato)", pt: " (corrigido)", de: " (geändert)",
+    };
+    const subject = pickL(subjNormal, L) + (isAmended ? pickL(amendedSuffix, L) : "");
 
-    const html = customerLocale === "es" ? `
+    const headNormal: Record<EmailLocale, string> = {
+      en: "Booking completion statement", es: "Resumen de finalización de reserva", fr: "Relevé de finalisation de réservation", it: "Riepilogo di completamento della prenotazione", pt: "Resumo de conclusão da reserva", de: "Buchungsabschlussübersicht",
+    };
+    const headAmended: Record<EmailLocale, string> = {
+      en: "Amended booking completion statement", es: "Resumen de reserva enmendado", fr: "Relevé de finalisation de réservation modifié", it: "Riepilogo di completamento della prenotazione rettificato", pt: "Resumo de conclusão da reserva corrigido", de: "Geänderte Buchungsabschlussübersicht",
+    };
+    const subLabel: Record<EmailLocale, string> = { en: "Booking", es: "Reserva", fr: "Réservation", it: "Prenotazione", pt: "Reserva", de: "Buchung" };
+
+    const introNormal: Record<EmailLocale, string> = {
+      en: `Please find attached your completion statement for booking ${jobNo} with <strong>${companyName}</strong>.`,
+      es: `Adjunto encontrarás el resumen de finalización para tu reserva ${jobNo} con <strong>${companyName}</strong>.`,
+      fr: `Veuillez trouver ci-joint votre relevé de finalisation pour la réservation ${jobNo} avec <strong>${companyName}</strong>.`,
+      it: `In allegato trovi il riepilogo di completamento per la prenotazione ${jobNo} con <strong>${companyName}</strong>.`,
+      pt: `Em anexo encontra o seu resumo de conclusão para a reserva ${jobNo} com <strong>${companyName}</strong>.`,
+      de: `Im Anhang finden Sie Ihre Abschlussübersicht für Buchung ${jobNo} mit <strong>${companyName}</strong>.`,
+    };
+    const introAmended: Record<EmailLocale, string> = {
+      en: `Please find attached the amended completion statement for your booking ${jobNo} with <strong>${companyName}</strong>. This document supersedes any previously issued statement.`,
+      es: `Adjunto encontrarás el resumen de finalización enmendado para tu reserva ${jobNo} con <strong>${companyName}</strong>. Este documento reemplaza cualquier resumen emitido anteriormente.`,
+      fr: `Veuillez trouver ci-joint le relevé de finalisation modifié pour votre réservation ${jobNo} avec <strong>${companyName}</strong>. Ce document remplace tout relevé émis précédemment.`,
+      it: `In allegato trovi il riepilogo di completamento rettificato per la tua prenotazione ${jobNo} con <strong>${companyName}</strong>. Questo documento sostituisce qualsiasi riepilogo emesso in precedenza.`,
+      pt: `Em anexo encontra o resumo de conclusão corrigido para a sua reserva ${jobNo} com <strong>${companyName}</strong>. Este documento substitui qualquer resumo emitido anteriormente.`,
+      de: `Im Anhang finden Sie die geänderte Abschlussübersicht für Ihre Buchung ${jobNo} mit <strong>${companyName}</strong>. Dieses Dokument ersetzt jede zuvor ausgestellte Übersicht.`,
+    };
+    const contact: Record<EmailLocale, string> = {
+      en: `If you have any questions please contact us at <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+      es: `Si tienes alguna pregunta, contáctanos en <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+      fr: `Pour toute question, contactez-nous à <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+      it: `Per qualsiasi domanda contattaci a <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+      pt: `Para qualquer questão contacte-nos em <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+      de: `Bei Fragen erreichen Sie uns unter <a href="mailto:info@camel-global.com">info@camel-global.com</a>.`,
+    };
+    const cta: Record<EmailLocale, string> = { en: "View my booking", es: "Ver mi reserva", fr: "Voir ma réservation", it: "Visualizza la mia prenotazione", pt: "Ver a minha reserva", de: "Meine Buchung ansehen" };
+
+    const heading = isAmended ? pickL(headAmended, L) : pickL(headNormal, L);
+    const intro   = isAmended ? pickL(introAmended, L) : pickL(introNormal, L);
+
+    const html = `
       <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
         <div style="background:#000;padding:20px 28px;">
-          <h2 style="color:#fff;margin:0;">${isAmended ? "Resumen de reserva enmendado" : "Resumen de finalización de reserva"}</h2>
-          <p style="color:#999;margin:4px 0 0;font-size:13px;">Reserva ${jobNo}</p>
+          <h2 style="color:#fff;margin:0;">${heading}</h2>
+          <p style="color:#999;margin:4px 0 0;font-size:13px;">${pickL(subLabel, L)} ${jobNo}</p>
         </div>
         <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-          <p>Hola ${request.customer_name || ""},</p>
-          <p>${isAmended
-            ? `Adjunto encontrarás el resumen de finalización enmendado para tu reserva ${jobNo} con <strong>${companyName}</strong>. Este documento reemplaza cualquier resumen emitido anteriormente.`
-            : `Adjunto encontrarás el resumen de finalización para tu reserva ${jobNo} con <strong>${companyName}</strong>.`
-          }</p>
+          <p>${greetLine(request.customer_name, L)}</p>
+          <p>${intro}</p>
           ${adjustmentBlock}
-          <p style="font-size:13px;color:#666;">Si tienes alguna pregunta, contáctanos en <a href="mailto:info@camel-global.com">info@camel-global.com</a>.</p>
-          <a href="${siteUrl}/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">Ver mi reserva</a>
-          <p style="margin-top:24px;color:#999;font-size:13px;">Saludos,<br/>El equipo de Camel Global</p>
-        </div>
-      </div>
-    ` : `
-      <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
-        <div style="background:#000;padding:20px 28px;">
-          <h2 style="color:#fff;margin:0;">${isAmended ? "Amended booking completion statement" : "Booking completion statement"}</h2>
-          <p style="color:#999;margin:4px 0 0;font-size:13px;">Booking ${jobNo}</p>
-        </div>
-        <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-          <p>Hi ${request.customer_name || "there"},</p>
-          <p>${isAmended
-            ? `Please find attached the amended completion statement for your booking ${jobNo} with <strong>${companyName}</strong>. This document supersedes any previously issued statement.`
-            : `Please find attached your completion statement for booking ${jobNo} with <strong>${companyName}</strong>.`
-          }</p>
-          ${adjustmentBlock}
-          <p style="font-size:13px;color:#666;">If you have any questions please contact us at <a href="mailto:info@camel-global.com">info@camel-global.com</a>.</p>
-          <a href="${siteUrl}/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">View my booking</a>
-          <p style="margin-top:24px;color:#999;font-size:13px;">Best Regards,<br/>The Camel Global Team</p>
+          <p style="font-size:13px;color:#666;">${pickL(contact, L)}</p>
+          <a href="${siteUrl}/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">${pickL(cta, L)}</a>
+          <p style="margin-top:24px;color:#999;font-size:13px;">${pickL(SIG_REGARDS, L)}<br/>${pickL(SIG_TEAM, L)}</p>
         </div>
       </div>
     `;
