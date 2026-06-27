@@ -8,7 +8,7 @@ import {
 } from "@react-pdf/renderer";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { calculateFuelCharge, normalizeFuel } from "@/lib/portal/calculateFuelCharge";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, coerceEmailLocale, type EmailLocale } from "@/lib/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-04-22.dahlia" as any,
@@ -259,6 +259,238 @@ export async function generateCompletionStatementPDF(d: StatementData): Promise<
   return renderToBuffer(<StatementDocument d={d} />);
 }
 
+// ── Localized completion emails ─────────────────────────────────────────────
+// Notification emails are localized to the recipient's communication_locale
+// (6 locales, EN fallback). Fuel level values (QUARTER_LABELS / fuelLabel) and
+// the attached PDF stay English — only labels and prose are localized.
+
+const SIG_REGARDS: Record<EmailLocale, string> = {
+  en: "Best Regards,", es: "Saludos,", fr: "Cordialement,", it: "Cordiali saluti,", pt: "Com os melhores cumprimentos,", de: "Mit freundlichen Grüßen,",
+};
+const SIG_TEAM: Record<EmailLocale, string> = {
+  en: "The Camel Global Team", es: "El equipo de Camel Global", fr: "L'équipe Camel Global", it: "Il team di Camel Global", pt: "A equipa Camel Global", de: "Das Camel Global Team",
+};
+const HELLO: Record<EmailLocale, string> = { en: "Hi", es: "Hola", fr: "Bonjour", it: "Salve", pt: "Olá", de: "Hallo" };
+const TANK_WORD: Record<EmailLocale, string> = { en: "tank", es: "depósito", fr: "réservoir", it: "serbatoio", pt: "depósito", de: "Tank" };
+
+function pickL<T>(m: Record<EmailLocale, T>, l: EmailLocale): T { return m[l] ?? m.en; }
+
+function greetLine(name: string | null | undefined, locale: EmailLocale): string {
+  const hello = pickL(HELLO, locale);
+  const n = (name || "").trim();
+  if (n) return `${hello} ${n},`;
+  return locale === "en" ? `${hello} there,` : `${hello},`;
+}
+
+function usedLabel(q: number, locale: EmailLocale): string {
+  return QUARTER_LABELS[q] ?? `${q}/4 ${pickL(TANK_WORD, locale)}`;
+}
+
+function buildCustomerCompletionEmail(opts: {
+  locale: EmailLocale;
+  jobNo: string;
+  customerName: string | null;
+  companyName: string;
+  deliveryFuel: string | null;
+  collectionFuel: string | null;
+  usedQuarters: number;
+  fuelChargeFmt: string;
+  finalAmountFmt: string;
+  fuelRefund: number;
+  fuelRefundFmt: string;
+  siteUrl: string;
+}): { subject: string; html: string } {
+  const L = opts.locale;
+  const subject: Record<EmailLocale, string> = {
+    en: `Your Camel Global booking is now completed - ${opts.jobNo}`,
+    es: `Tu reserva de Camel Global ha sido completada - ${opts.jobNo}`,
+    fr: `Votre réservation Camel Global est maintenant finalisée - ${opts.jobNo}`,
+    it: `La tua prenotazione Camel Global è ora completata - ${opts.jobNo}`,
+    pt: `A sua reserva Camel Global foi concluída - ${opts.jobNo}`,
+    de: `Ihre Camel Global Buchung ist jetzt abgeschlossen - ${opts.jobNo}`,
+  };
+  const heading: Record<EmailLocale, string> = {
+    en: "Booking completed", es: "Reserva completada", fr: "Réservation finalisée", it: "Prenotazione completata", pt: "Reserva concluída", de: "Buchung abgeschlossen",
+  };
+  const subLabel: Record<EmailLocale, string> = { en: "Booking", es: "Reserva", fr: "Réservation", it: "Prenotazione", pt: "Reserva", de: "Buchung" };
+  const intro1: Record<EmailLocale, string> = {
+    en: `The Camel Global team thank you for your completed car hire with <strong>${opts.companyName}</strong>. We hope your experience was everything you expected.`,
+    es: `El equipo de Camel Global te agradece tu alquiler de coche completado con <strong>${opts.companyName}</strong>. Esperamos que tu experiencia haya sido todo lo que esperabas.`,
+    fr: `L'équipe Camel Global vous remercie pour votre location de voiture finalisée avec <strong>${opts.companyName}</strong>. Nous espérons que votre expérience a été à la hauteur de vos attentes.`,
+    it: `Il team di Camel Global ti ringrazia per il noleggio auto completato con <strong>${opts.companyName}</strong>. Speriamo che la tua esperienza sia stata all'altezza delle aspettative.`,
+    pt: `A equipa da Camel Global agradece o seu aluguer de automóvel concluído com <strong>${opts.companyName}</strong>. Esperamos que a sua experiência tenha correspondido às suas expectativas.`,
+    de: `Das Camel Global Team dankt Ihnen für Ihre abgeschlossene Autovermietung mit <strong>${opts.companyName}</strong>. Wir hoffen, Ihre Erfahrung hat Ihre Erwartungen erfüllt.`,
+  };
+  const intro2: Record<EmailLocale, string> = {
+    en: "Please find your Booking Completion Statement attached to this email.",
+    es: "Encontrarás tu Resumen de Finalización de Reserva adjunto a este correo.",
+    fr: "Vous trouverez votre relevé de finalisation de réservation en pièce jointe à cet email.",
+    it: "In allegato a questa email trovi il tuo Riepilogo di Completamento della Prenotazione.",
+    pt: "Em anexo a este email encontra o seu Resumo de Conclusão da Reserva.",
+    de: "Ihre Buchungsabschlussübersicht finden Sie im Anhang dieser E-Mail.",
+  };
+  const fuelTitle: Record<EmailLocale, string> = { en: "Fuel Summary", es: "Resumen de combustible", fr: "Récapitulatif du carburant", it: "Riepilogo carburante", pt: "Resumo do combustível", de: "Kraftstoffübersicht" };
+  const rDelivery: Record<EmailLocale, string> = { en: "Delivery fuel level", es: "Nivel combustible entrega", fr: "Niveau de carburant à la livraison", it: "Livello carburante alla consegna", pt: "Nível de combustível na entrega", de: "Kraftstoffstand bei Lieferung" };
+  const rCollection: Record<EmailLocale, string> = { en: "Collection fuel level", es: "Nivel combustible recogida", fr: "Niveau de carburant à la restitution", it: "Livello carburante al ritiro", pt: "Nível de combustível na recolha", de: "Kraftstoffstand bei Abholung" };
+  const rUsed: Record<EmailLocale, string> = { en: "Fuel used", es: "Combustible usado", fr: "Carburant utilisé", it: "Carburante utilizzato", pt: "Combustível usado", de: "Verbrauchter Kraftstoff" };
+  const rCharge: Record<EmailLocale, string> = { en: "Fuel charge", es: "Cargo combustible", fr: "Frais de carburant", it: "Costo carburante", pt: "Custo do combustível", de: "Kraftstoffkosten" };
+  const finalLabel: Record<EmailLocale, string> = { en: "Final amount (car hire + fuel)", es: "Importe final (alquiler + combustible)", fr: "Montant final (location + carburant)", it: "Importo finale (noleggio + carburante)", pt: "Montante final (aluguer + combustível)", de: "Endbetrag (Miete + Kraftstoff)" };
+  const refundYes: Record<EmailLocale, string> = {
+    en: `A fuel deposit refund of <strong>${opts.fuelRefundFmt}</strong> has been issued to your original payment method. Please allow 5–10 business days for it to appear.`,
+    es: `Se ha emitido un reembolso del depósito de combustible de <strong>${opts.fuelRefundFmt}</strong> en tu método de pago original. Por favor, permite 5–10 días laborables para que aparezca.`,
+    fr: `Un remboursement du dépôt de carburant de <strong>${opts.fuelRefundFmt}</strong> a été émis sur votre moyen de paiement d'origine. Veuillez compter 5–10 jours ouvrés pour qu'il apparaisse.`,
+    it: `Un rimborso del deposito carburante di <strong>${opts.fuelRefundFmt}</strong> è stato emesso sul tuo metodo di pagamento originale. Attendi 5–10 giorni lavorativi affinché venga visualizzato.`,
+    pt: `Foi emitido um reembolso do depósito de combustível de <strong>${opts.fuelRefundFmt}</strong> para o seu método de pagamento original. Aguarde 5–10 dias úteis até que apareça.`,
+    de: `Eine Erstattung der Kraftstoffkaution von <strong>${opts.fuelRefundFmt}</strong> wurde auf Ihr ursprüngliches Zahlungsmittel veranlasst. Bitte rechnen Sie mit 5–10 Werktagen, bis sie erscheint.`,
+  };
+  const refundNo: Record<EmailLocale, string> = {
+    en: "No fuel refund is due — the full tank deposit covered the fuel used.",
+    es: "No hay reembolso de combustible — el depósito completo cubrió el combustible usado.",
+    fr: "Aucun remboursement de carburant n'est dû — le dépôt du plein a couvert le carburant utilisé.",
+    it: "Nessun rimborso carburante dovuto — il deposito per il pieno ha coperto il carburante utilizzato.",
+    pt: "Não há reembolso de combustível — o depósito do depósito cheio cobriu o combustível usado.",
+    de: "Es ist keine Kraftstofferstattung fällig — die Kaution für den vollen Tank deckte den verbrauchten Kraftstoff.",
+  };
+  const contact: Record<EmailLocale, string> = {
+    en: `If you have any questions please contact us at <a href="mailto:info@camel-global.com">info@camel-global.com</a>. We look forward to welcoming you again.`,
+    es: `Si tienes alguna pregunta, contáctanos en <a href="mailto:info@camel-global.com">info@camel-global.com</a>. Esperamos volverte a ver pronto.`,
+    fr: `Pour toute question, contactez-nous à <a href="mailto:info@camel-global.com">info@camel-global.com</a>. Au plaisir de vous accueillir à nouveau.`,
+    it: `Per qualsiasi domanda contattaci a <a href="mailto:info@camel-global.com">info@camel-global.com</a>. Saremo lieti di accoglierti di nuovo.`,
+    pt: `Para qualquer questão contacte-nos em <a href="mailto:info@camel-global.com">info@camel-global.com</a>. Esperamos voltar a recebê-lo em breve.`,
+    de: `Bei Fragen erreichen Sie uns unter <a href="mailto:info@camel-global.com">info@camel-global.com</a>. Wir freuen uns, Sie wieder begrüßen zu dürfen.`,
+  };
+  const cta: Record<EmailLocale, string> = { en: "View My Bookings", es: "Ver mis reservas", fr: "Voir mes réservations", it: "Visualizza le mie prenotazioni", pt: "Ver as minhas reservas", de: "Meine Buchungen anzeigen" };
+
+  const refundLine = opts.fuelRefund > 0
+    ? `<p style="margin:8px 0 0;font-size:13px;color:#22a06b;font-weight:600;">${pickL(refundYes, L)}</p>`
+    : `<p style="margin:8px 0 0;font-size:13px;color:#666;">${pickL(refundNo, L)}</p>`;
+
+  const html = `
+        <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
+          <div style="background:#000;padding:20px 28px;">
+            <h2 style="color:#fff;margin:0;">${pickL(heading, L)}</h2>
+            <p style="color:#999;margin:4px 0 0;font-size:13px;">${pickL(subLabel, L)} ${opts.jobNo}</p>
+          </div>
+          <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
+            <p>${greetLine(opts.customerName, L)}</p>
+            <p>${pickL(intro1, L)}</p>
+            <p>${pickL(intro2, L)}</p>
+            <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
+              <p style="margin:0 0 8px;font-weight:700;">${pickL(fuelTitle, L)}</p>
+              <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rDelivery, L)}</td><td style="text-align:right;">${fuelLabel(opts.deliveryFuel)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rCollection, L)}</td><td style="text-align:right;">${fuelLabel(opts.collectionFuel)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rUsed, L)}</td><td style="text-align:right;">${usedLabel(opts.usedQuarters, L)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rCharge, L)}</td><td style="text-align:right;">${opts.fuelChargeFmt}</td></tr>
+                <tr style="border-top:1px solid #ddd;">
+                  <td style="padding:8px 0 4px;font-weight:700;">${pickL(finalLabel, L)}</td>
+                  <td style="text-align:right;font-weight:700;">${opts.finalAmountFmt}</td>
+                </tr>
+              </table>
+              ${refundLine}
+            </div>
+            <p style="font-size:13px;color:#666;">${pickL(contact, L)}</p>
+            <a href="${opts.siteUrl}/bookings" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">${pickL(cta, L)}</a>
+            <p style="margin-top:24px;color:#999;font-size:13px;">${pickL(SIG_REGARDS, L)}<br/>${pickL(SIG_TEAM, L)}</p>
+          </div>
+        </div>
+      `;
+
+  return { subject: pickL(subject, L), html };
+}
+
+function buildPartnerCompletionEmail(opts: {
+  locale: EmailLocale;
+  jobNo: string;
+  contactName: string;
+  companyName: string;
+  deliveryFuel: string | null;
+  collectionFuel: string | null;
+  usedQuarters: number;
+  fuelChargeFmt: string;
+  fuelRefund: number;
+  fuelRefundFmt: string;
+  carHireFmt: string;
+  commRate: number;
+  commAmtFmt: string;
+  partnerPayoutFmt: string;
+  portalUrl: string;
+  bookingId: string;
+}): { subject: string; html: string } {
+  const L = opts.locale;
+  const subject: Record<EmailLocale, string> = {
+    en: `Booking ${opts.jobNo} completed — payout ready`,
+    es: `Reserva ${opts.jobNo} completada — pago listo`,
+    fr: `Réservation ${opts.jobNo} finalisée — paiement prêt`,
+    it: `Prenotazione ${opts.jobNo} completata — pagamento pronto`,
+    pt: `Reserva ${opts.jobNo} concluída — pagamento pronto`,
+    de: `Buchung ${opts.jobNo} abgeschlossen — Auszahlung bereit`,
+  };
+  const heading: Record<EmailLocale, string> = { en: "Booking Completed", es: "Reserva completada", fr: "Réservation finalisée", it: "Prenotazione completata", pt: "Reserva concluída", de: "Buchung abgeschlossen" };
+  const subLabel: Record<EmailLocale, string> = { en: "Booking", es: "Reserva", fr: "Réservation", it: "Prenotazione", pt: "Reserva", de: "Buchung" };
+  const intro: Record<EmailLocale, string> = {
+    en: `Booking ${opts.jobNo} has been marked as completed. Your payout has been queued for the next monthly run.`,
+    es: `La reserva ${opts.jobNo} ha sido marcada como completada. Tu pago ha sido añadido a la cola para el próximo pago mensual.`,
+    fr: `La réservation ${opts.jobNo} a été marquée comme finalisée. Votre paiement a été ajouté à la file pour le prochain versement mensuel.`,
+    it: `La prenotazione ${opts.jobNo} è stata contrassegnata come completata. Il tuo pagamento è stato messo in coda per il prossimo versamento mensile.`,
+    pt: `A reserva ${opts.jobNo} foi marcada como concluída. O seu pagamento foi colocado em fila para o próximo pagamento mensal.`,
+    de: `Buchung ${opts.jobNo} wurde als abgeschlossen markiert. Ihre Auszahlung wurde für den nächsten monatlichen Lauf eingeplant.`,
+  };
+  const fuelTitle: Record<EmailLocale, string> = { en: "Fuel Summary", es: "Resumen de combustible", fr: "Récapitulatif du carburant", it: "Riepilogo carburante", pt: "Resumo do combustível", de: "Kraftstoffübersicht" };
+  const rDelivery: Record<EmailLocale, string> = { en: "Delivery fuel level", es: "Nivel combustible entrega", fr: "Niveau de carburant à la livraison", it: "Livello carburante alla consegna", pt: "Nível de combustível na entrega", de: "Kraftstoffstand bei Lieferung" };
+  const rCollection: Record<EmailLocale, string> = { en: "Collection fuel level", es: "Nivel combustible recogida", fr: "Niveau de carburant à la restitution", it: "Livello carburante al ritiro", pt: "Nível de combustível na recolha", de: "Kraftstoffstand bei Abholung" };
+  const rUsed: Record<EmailLocale, string> = { en: "Fuel used", es: "Combustible usado", fr: "Carburant utilisé", it: "Carburante utilizzato", pt: "Combustível usado", de: "Verbrauchter Kraftstoff" };
+  const rChargeCust: Record<EmailLocale, string> = { en: "Fuel charge to customer", es: "Cargo combustible al cliente", fr: "Frais de carburant facturés au client", it: "Costo carburante addebitato al cliente", pt: "Custo de combustível ao cliente", de: "Kraftstoffkosten für den Kunden" };
+  const rRefundCust: Record<EmailLocale, string> = { en: "Fuel refund to customer", es: "Reembolso combustible al cliente", fr: "Remboursement carburant au client", it: "Rimborso carburante al cliente", pt: "Reembolso de combustível ao cliente", de: "Kraftstofferstattung an den Kunden" };
+  const none: Record<EmailLocale, string> = { en: "None", es: "Ninguno", fr: "Aucun", it: "Nessuno", pt: "Nenhum", de: "Keine" };
+  const payoutTitle: Record<EmailLocale, string> = { en: "Payout Summary", es: "Resumen de pago", fr: "Récapitulatif du paiement", it: "Riepilogo pagamento", pt: "Resumo do pagamento", de: "Auszahlungsübersicht" };
+  const rCarHire: Record<EmailLocale, string> = { en: "Car hire price", es: "Precio alquiler", fr: "Prix de la location", it: "Prezzo del noleggio", pt: "Preço do aluguer", de: "Mietpreis" };
+  const rCommission: Record<EmailLocale, string> = {
+    en: `Camel commission (${opts.commRate}%)`, es: `Comisión Camel (${opts.commRate}%)`, fr: `Commission Camel (${opts.commRate}%)`, it: `Commissione Camel (${opts.commRate}%)`, pt: `Comissão Camel (${opts.commRate}%)`, de: `Camel-Provision (${opts.commRate}%)`,
+  };
+  const rFuelCharge: Record<EmailLocale, string> = { en: "Fuel charge", es: "Cargo combustible", fr: "Frais de carburant", it: "Costo carburante", pt: "Custo do combustível", de: "Kraftstoffkosten" };
+  const rNetPayout: Record<EmailLocale, string> = { en: "Your net payout", es: "Tu pago neto", fr: "Votre paiement net", it: "Il tuo pagamento netto", pt: "O seu pagamento líquido", de: "Ihre Nettoauszahlung" };
+  const cta: Record<EmailLocale, string> = { en: "View Booking", es: "Ver reserva", fr: "Voir la réservation", it: "Visualizza prenotazione", pt: "Ver reserva", de: "Buchung ansehen" };
+
+  const refundCustVal = opts.fuelRefund > 0 ? opts.fuelRefundFmt : pickL(none, L);
+
+  const html = `
+        <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
+          <div style="background:#000;padding:20px 28px;">
+            <h2 style="color:#fff;margin:0;">${pickL(heading, L)}</h2>
+            <p style="color:#999;margin:4px 0 0;font-size:13px;">${pickL(subLabel, L)} ${opts.jobNo}</p>
+          </div>
+          <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
+            <p>${greetLine(opts.contactName || opts.companyName, L)}</p>
+            <p>${pickL(intro, L)}</p>
+            <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
+              <p style="margin:0 0 8px;font-weight:700;">${pickL(fuelTitle, L)}</p>
+              <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rDelivery, L)}</td><td style="text-align:right;">${fuelLabel(opts.deliveryFuel)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rCollection, L)}</td><td style="text-align:right;">${fuelLabel(opts.collectionFuel)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rUsed, L)}</td><td style="text-align:right;">${usedLabel(opts.usedQuarters, L)}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rChargeCust, L)}</td><td style="text-align:right;">${opts.fuelChargeFmt}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rRefundCust, L)}</td><td style="text-align:right;">${refundCustVal}</td></tr>
+              </table>
+            </div>
+            <div style="background:#f0fff0;padding:16px;margin:16px 0;border-left:4px solid #22c55e;">
+              <p style="margin:0 0 8px;font-weight:700;">${pickL(payoutTitle, L)}</p>
+              <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rCarHire, L)}</td><td style="text-align:right;">${opts.carHireFmt}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rCommission, L)}</td><td style="text-align:right;">− ${opts.commAmtFmt}</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">${pickL(rFuelCharge, L)}</td><td style="text-align:right;">+ ${opts.fuelChargeFmt}</td></tr>
+                <tr style="font-weight:700;border-top:1px solid #ddd;"><td style="padding:6px 0;">${pickL(rNetPayout, L)}</td><td style="text-align:right;">${opts.partnerPayoutFmt}</td></tr>
+              </table>
+            </div>
+            <a href="${opts.portalUrl}/partner/bookings/${opts.bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">${pickL(cta, L)}</a>
+            <p style="margin-top:24px;color:#999;font-size:13px;">${pickL(SIG_TEAM, L)}</p>
+          </div>
+        </div>
+      `;
+
+  return { subject: pickL(subject, L), html };
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 export type CompleteBookingResult =
   | { ok: true; already_processed: true }
@@ -438,10 +670,10 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   const commRate      = Number(booking.commission_rate ?? 20);
   const commAmt       = Math.max((carHire * commRate) / 100, 10);
   const partnerPayout = Math.max(0, carHire - commAmt + fuel_charge);
-  const partnerLocale = (partnerProfile?.communication_locale as "en" | "es") || "en";
+  const partnerLocale = coerceEmailLocale(partnerProfile?.communication_locale);
 
   // ── Look up customer communication locale ─────────────────────────────────
-  let customerLocale: "en" | "es" = "en";
+  let customerLocale: EmailLocale = "en";
   try {
     if (request?.customer_user_id) {
       const { data: custProfile } = await db
@@ -449,7 +681,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
         .select("communication_locale")
         .eq("user_id", request.customer_user_id)
         .maybeSingle();
-      if (custProfile?.communication_locale === "es") customerLocale = "es";
+      customerLocale = coerceEmailLocale(custProfile?.communication_locale);
     }
   } catch (e) {
     console.error("completeBooking: failed to fetch customer locale:", e);
@@ -493,75 +725,20 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   // ── Email customer ────────────────────────────────────────────────────────
   if (request?.customer_email) {
-    const custSubject = customerLocale === "es"
-      ? `Tu reserva de Camel Global ha sido completada - ${jobNo}`
-      : `Your Camel Global booking is now completed - ${jobNo}`;
-
-    const custHtml = customerLocale === "es" ? `
-        <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
-          <div style="background:#000;padding:20px 28px;">
-            <h2 style="color:#fff;margin:0;">Reserva completada</h2>
-            <p style="color:#999;margin:4px 0 0;font-size:13px;">Reserva ${jobNo}</p>
-          </div>
-          <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-            <p>Hola ${request.customer_name || ""},</p>
-            <p>El equipo de Camel Global te agradece tu alquiler de coche completado con <strong>${companyName}</strong>. Esperamos que tu experiencia haya sido todo lo que esperabas.</p>
-            <p>Encontrarás tu Resumen de Finalización de Reserva adjunto a este correo.</p>
-            <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
-              <p style="margin:0 0 8px;font-weight:700;">Resumen de combustible</p>
-              <table style="width:100%;font-size:14px;border-collapse:collapse;">
-                <tr><td style="padding:4px 0;color:#666;">Nivel combustible entrega</td><td style="text-align:right;">${fuelLabel(collectionFuel)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Nivel combustible recogida</td><td style="text-align:right;">${fuelLabel(returnFuel)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Combustible usado</td><td style="text-align:right;">${QUARTER_LABELS[used_quarters]??`${used_quarters}/4 depósito`}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Cargo combustible</td><td style="text-align:right;">${fmt(fuel_charge)}</td></tr>
-                <tr style="border-top:1px solid #ddd;">
-                  <td style="padding:8px 0 4px;font-weight:700;">Importe final (alquiler + combustible)</td>
-                  <td style="text-align:right;font-weight:700;">${fmt(finalAmount)}</td>
-                </tr>
-              </table>
-              ${fuel_refund > 0
-                ? `<p style="margin:8px 0 0;font-size:13px;color:#22a06b;font-weight:600;">Se ha emitido un reembolso del depósito de combustible de <strong>${fmt(fuel_refund)}</strong> en tu método de pago original. Por favor, permite 5–10 días laborables para que aparezca.</p>`
-                : `<p style="margin:8px 0 0;font-size:13px;color:#666;">No hay reembolso de combustible — el depósito completo cubrió el combustible usado.</p>`
-              }
-            </div>
-            <p style="font-size:13px;color:#666;">Si tienes alguna pregunta, contáctanos en <a href="mailto:info@camel-global.com">info@camel-global.com</a>. Esperamos volverte a ver pronto.</p>
-            <a href="${siteUrl}/bookings" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">Ver mis reservas</a>
-            <p style="margin-top:24px;color:#999;font-size:13px;">Saludos,<br/>El equipo de Camel Global</p>
-          </div>
-        </div>
-      ` : `
-        <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
-          <div style="background:#000;padding:20px 28px;">
-            <h2 style="color:#fff;margin:0;">Booking completed</h2>
-            <p style="color:#999;margin:4px 0 0;font-size:13px;">Booking ${jobNo}</p>
-          </div>
-          <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-            <p>Hi ${request.customer_name || "there"},</p>
-            <p>The Camel Global team thank you for your completed car hire with <strong>${companyName}</strong>. We hope your experience was everything you expected.</p>
-            <p>Please find your Booking Completion Statement attached to this email.</p>
-            <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
-              <p style="margin:0 0 8px;font-weight:700;">Fuel Summary</p>
-              <table style="width:100%;font-size:14px;border-collapse:collapse;">
-                <tr><td style="padding:4px 0;color:#666;">Delivery fuel level</td><td style="text-align:right;">${fuelLabel(collectionFuel)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Collection fuel level</td><td style="text-align:right;">${fuelLabel(returnFuel)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Fuel used</td><td style="text-align:right;">${QUARTER_LABELS[used_quarters]??`${used_quarters}/4 tank`}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Fuel charge</td><td style="text-align:right;">${fmt(fuel_charge)}</td></tr>
-                <tr style="border-top:1px solid #ddd;">
-                  <td style="padding:8px 0 4px;font-weight:700;">Final amount (car hire + fuel)</td>
-                  <td style="text-align:right;font-weight:700;">${fmt(finalAmount)}</td>
-                </tr>
-              </table>
-              ${fuel_refund > 0
-                ? `<p style="margin:8px 0 0;font-size:13px;color:#22a06b;font-weight:600;">A fuel deposit refund of <strong>${fmt(fuel_refund)}</strong> has been issued to your original payment method. Please allow 5–10 business days for it to appear.</p>`
-                : `<p style="margin:8px 0 0;font-size:13px;color:#666;">No fuel refund is due — the full tank deposit covered the fuel used.</p>`
-              }
-            </div>
-            <p style="font-size:13px;color:#666;">If you have any questions please contact us at <a href="mailto:info@camel-global.com">info@camel-global.com</a>. We look forward to welcoming you again.</p>
-            <a href="${siteUrl}/bookings" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">View My Bookings</a>
-            <p style="margin-top:24px;color:#999;font-size:13px;">Best Regards,<br/>The Camel Global Team</p>
-          </div>
-        </div>
-      `;
+    const { subject: custSubject, html: custHtml } = buildCustomerCompletionEmail({
+      locale:          customerLocale,
+      jobNo,
+      customerName:    request.customer_name || null,
+      companyName,
+      deliveryFuel:    collectionFuel,
+      collectionFuel:  returnFuel,
+      usedQuarters:    used_quarters,
+      fuelChargeFmt:   fmt(fuel_charge),
+      finalAmountFmt:  fmt(finalAmount),
+      fuelRefund:      fuel_refund,
+      fuelRefundFmt:   fmt(fuel_refund),
+      siteUrl,
+    });
 
     await sendEmail({
       to: request.customer_email,
@@ -581,76 +758,29 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   // ── Email partner ─────────────────────────────────────────────────────────
   if (partnerEmail) {
+    const { subject: partnerSubject, html: partnerHtml } = buildPartnerCompletionEmail({
+      locale:           partnerLocale,
+      jobNo,
+      contactName:      partnerProfile?.contact_name || "",
+      companyName,
+      deliveryFuel:     collectionFuel,
+      collectionFuel:   returnFuel,
+      usedQuarters:     used_quarters,
+      fuelChargeFmt:    fmt(fuel_charge),
+      fuelRefund:       fuel_refund,
+      fuelRefundFmt:    fmt(fuel_refund),
+      carHireFmt:       fmt(carHire),
+      commRate,
+      commAmtFmt:       fmt(commAmt),
+      partnerPayoutFmt: fmt(partnerPayout),
+      portalUrl,
+      bookingId,
+    });
+
     await sendEmail({
       to:      partnerEmail,
-      subject: partnerLocale === "es"
-        ? `Reserva ${jobNo} completada — pago listo`
-        : `Booking ${jobNo} completed — payout ready`,
-      html: partnerLocale === "es" ? `
-        <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
-          <div style="background:#000;padding:20px 28px;">
-            <h2 style="color:#fff;margin:0;">Reserva completada</h2>
-            <p style="color:#999;margin:4px 0 0;font-size:13px;">Reserva ${jobNo}</p>
-          </div>
-          <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-            <p>Hola ${partnerProfile?.contact_name || companyName},</p>
-            <p>La reserva ${jobNo} ha sido marcada como completada. Tu pago ha sido añadido a la cola para el próximo pago mensual.</p>
-            <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
-              <p style="margin:0 0 8px;font-weight:700;">Resumen de combustible</p>
-              <table style="width:100%;font-size:14px;border-collapse:collapse;">
-                <tr><td style="padding:4px 0;color:#666;">Nivel combustible entrega</td><td style="text-align:right;">${fuelLabel(collectionFuel)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Nivel combustible recogida</td><td style="text-align:right;">${fuelLabel(returnFuel)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Combustible usado</td><td style="text-align:right;">${QUARTER_LABELS[used_quarters]??`${used_quarters}/4 depósito`}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Cargo combustible al cliente</td><td style="text-align:right;">${fmt(fuel_charge)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Reembolso combustible al cliente</td><td style="text-align:right;">${fuel_refund>0?fmt(fuel_refund):"Ninguno"}</td></tr>
-              </table>
-            </div>
-            <div style="background:#f0fff0;padding:16px;margin:16px 0;border-left:4px solid #22c55e;">
-              <p style="margin:0 0 8px;font-weight:700;">Resumen de pago</p>
-              <table style="width:100%;font-size:14px;border-collapse:collapse;">
-                <tr><td style="padding:4px 0;color:#666;">Precio alquiler</td><td style="text-align:right;">${fmt(carHire)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Comisión Camel (${commRate}%)</td><td style="text-align:right;">− ${fmt(commAmt)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Cargo combustible</td><td style="text-align:right;">+ ${fmt(fuel_charge)}</td></tr>
-                <tr style="font-weight:700;border-top:1px solid #ddd;"><td style="padding:6px 0;">Tu pago neto</td><td style="text-align:right;">${fmt(partnerPayout)}</td></tr>
-              </table>
-            </div>
-            <a href="${portalUrl}/partner/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">Ver reserva</a>
-            <p style="margin-top:24px;color:#999;font-size:13px;">El equipo de Camel Global</p>
-          </div>
-        </div>
-      ` : `
-        <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
-          <div style="background:#000;padding:20px 28px;">
-            <h2 style="color:#fff;margin:0;">Booking Completed</h2>
-            <p style="color:#999;margin:4px 0 0;font-size:13px;">Booking ${jobNo}</p>
-          </div>
-          <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-            <p>Hi ${partnerProfile?.contact_name || companyName},</p>
-            <p>Booking ${jobNo} has been marked as completed. Your payout has been queued for the next monthly run.</p>
-            <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
-              <p style="margin:0 0 8px;font-weight:700;">Fuel Summary</p>
-              <table style="width:100%;font-size:14px;border-collapse:collapse;">
-                <tr><td style="padding:4px 0;color:#666;">Delivery fuel level</td><td style="text-align:right;">${fuelLabel(collectionFuel)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Collection fuel level</td><td style="text-align:right;">${fuelLabel(returnFuel)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Fuel used</td><td style="text-align:right;">${QUARTER_LABELS[used_quarters]??`${used_quarters}/4 tank`}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Fuel charge to customer</td><td style="text-align:right;">${fmt(fuel_charge)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Fuel refund to customer</td><td style="text-align:right;">${fuel_refund>0?fmt(fuel_refund):"None"}</td></tr>
-              </table>
-            </div>
-            <div style="background:#f0fff0;padding:16px;margin:16px 0;border-left:4px solid #22c55e;">
-              <p style="margin:0 0 8px;font-weight:700;">Payout Summary</p>
-              <table style="width:100%;font-size:14px;border-collapse:collapse;">
-                <tr><td style="padding:4px 0;color:#666;">Car hire price</td><td style="text-align:right;">${fmt(carHire)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Camel commission (${commRate}%)</td><td style="text-align:right;">− ${fmt(commAmt)}</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">Fuel charge</td><td style="text-align:right;">+ ${fmt(fuel_charge)}</td></tr>
-                <tr style="font-weight:700;border-top:1px solid #ddd;"><td style="padding:6px 0;">Your net payout</td><td style="text-align:right;">${fmt(partnerPayout)}</td></tr>
-              </table>
-            </div>
-            <a href="${portalUrl}/partner/bookings/${bookingId}" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">View Booking</a>
-            <p style="margin-top:24px;color:#999;font-size:13px;">The Camel Global Team</p>
-          </div>
-        </div>
-      `,
+      subject: partnerSubject,
+      html:    partnerHtml,
     }).catch(e => console.error("Completion partner email failed:", e?.message));
   }
 
