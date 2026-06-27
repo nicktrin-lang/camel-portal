@@ -82,8 +82,6 @@ export async function POST(
     // ── Cap check: total refunded must not exceed final amount ────────────
     const carHire     = Number(booking.car_hire_price ?? 0);
     const fuelCharge  = Number(booking.fuel_charge ?? 0);
-    const fuelRefund  = Number(booking.fuel_refund ?? 0);
-    const commRate    = Number(booking.commission_rate ?? 20);
     const finalAmount = carHire + fuelCharge;
     const existingTotal = Number(booking.post_completion_refund_total ?? 0);
     const newTotal = existingTotal + amount;
@@ -105,50 +103,56 @@ export async function POST(
       return NextResponse.json({ error: "No Stripe payment intent found for this booking" }, { status: 400 });
     }
 
-    // ── Calculate how much the partner actually has available to reverse ──
-    // Original transfer = car hire - commission + fuel charge
-    const commAmt          = Math.max((carHire * commRate) / 100, 10);
-    const originalTransfer = Math.max(0, carHire - commAmt + fuelCharge);
-    // Fuel refund already reversed from partner
-    const alreadyReversed  = fuelRefund + existingTotal;
-    // What the partner still has
-    const partnerAvailable = Math.max(0, originalTransfer - alreadyReversed);
-    // Only reverse up to what the partner has
-    const reversalAmount   = Math.min(amount, partnerAvailable);
-
     const jobNo = booking.job_number ? `#${booking.job_number}` : bookingId.slice(0, 8);
     let stripeRefundId: string | null = null;
+    let reversalAmount = 0;
 
     try {
+      // ── Fetch payment intent and transfer ────────────────────────────────
       const pi = await stripe.paymentIntents.retrieve(
         payment.stripe_payment_intent_id,
         { expand: ["latest_charge"] }
       );
-      const charge    = pi.latest_charge as any;
+      const charge     = pi.latest_charge as any;
       const transferId = charge?.transfer as string | null;
 
-      // Step 1: Reverse only what the partner has available
-      if (transferId && reversalAmount > 0) {
-        await stripe.transfers.createReversal(transferId, {
-          amount: Math.round(reversalAmount * 100),
-          metadata: {
-            refund_type:      "post_completion_refund",
-            booking_id:       bookingId,
-            job_number:       jobNo,
-            reason:           reason || "Post-completion adjustment",
-            issued_by:        email,
-            reversal_amount:  String(reversalAmount),
-            refund_amount:    String(amount),
-            shortfall:        String(amount - reversalAmount),
-          },
+      if (transferId) {
+        // ── Fetch the actual transfer from Stripe to get real available balance
+        // This is the source of truth — avoids any calculation errors
+        const transfer = await stripe.transfers.retrieve(transferId, {
+          expand: ["reversals"],
         });
-      } else if (!transferId) {
-        console.warn(`post-refund: no transfer found on payment intent ${payment.stripe_payment_intent_id} — skipping transfer reversal`);
+
+        const transferAmountCents  = transfer.amount;                          // total sent to partner
+        const alreadyReversedCents = transfer.amount_reversed;                 // already pulled back
+        const availableCents       = transferAmountCents - alreadyReversedCents; // what's still with partner
+        const requestedCents       = Math.round(amount * 100);
+        const reversalCents        = Math.min(requestedCents, availableCents); // only reverse what's there
+
+        reversalAmount = reversalCents / 100;
+
+        if (reversalCents > 0) {
+          await stripe.transfers.createReversal(transferId, {
+            amount: reversalCents,
+            metadata: {
+              refund_type:     "post_completion_refund",
+              booking_id:      bookingId,
+              job_number:      jobNo,
+              reason:          reason || "Post-completion adjustment",
+              issued_by:       email,
+              reversal_amount: String(reversalAmount),
+              refund_amount:   String(amount),
+              camel_absorbs:   String(amount - reversalAmount),
+            },
+          });
+        } else {
+          console.warn(`post-refund: transfer ${transferId} has no remaining balance — refunding entirely from Camel balance`);
+        }
       } else {
-        console.warn(`post-refund: partner has no available balance (available: ${partnerAvailable}) — refunding entirely from Camel balance`);
+        console.warn(`post-refund: no transfer found on payment intent ${payment.stripe_payment_intent_id} — skipping transfer reversal`);
       }
 
-      // Step 2: Refund the full amount to the customer from Camel's balance
+      // ── Refund the full amount to the customer from Camel's balance ──────
       // Any shortfall (amount - reversalAmount) comes from Camel's commission
       const refund = await stripe.refunds.create({
         payment_intent: payment.stripe_payment_intent_id,
@@ -165,9 +169,12 @@ export async function POST(
         },
       });
       stripeRefundId = refund.id;
+
     } catch (stripeErr: any) {
       return NextResponse.json({ error: `Stripe refund failed: ${stripeErr?.message}` }, { status: 500 });
     }
+
+    const camelAbsorbs = amount - reversalAmount;
 
     // ── Insert into partner_booking_refunds ───────────────────────────────
     const { data: refundRow, error: insertErr } = await db
@@ -287,7 +294,6 @@ export async function POST(
 
     const totalRefunded = postCompletionRefunds.reduce((s, r) => s + r.amount, 0);
     const netFinal = finalAmount - totalRefunded;
-    const camelAbsorbs = amount - reversalAmount;
 
     // ── Email customer ────────────────────────────────────────────────────
     if (request?.customer_email) {
@@ -393,11 +399,11 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      refund_id:        refundRow.id,
-      stripe_refund_id: stripeRefundId,
+      refund_id:             refundRow.id,
+      stripe_refund_id:      stripeRefundId,
       amount,
-      new_total:        newTotal,
-      net_final:        netFinal,
+      new_total:             newTotal,
+      net_final:             netFinal,
       reversed_from_partner: reversalAmount,
       absorbed_by_camel:     camelAbsorbs,
     }, { status: 200 });

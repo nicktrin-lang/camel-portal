@@ -790,7 +790,8 @@ export default function PartnerOnboardingPage() {
 
   function trackOnboardingStep(stepName: string) {
     if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
-      (window as any).gtag("event", "onboarding_step", {
+      // Fire unique event per step so GA4 funnel works without custom dimensions
+      (window as any).gtag("event", `onboarding_step_${stepName}`, {
         event_category: "partner_onboarding",
         step_name: stepName,
       });
