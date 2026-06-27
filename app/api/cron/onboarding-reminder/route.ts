@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
-import { sendApprovalEmail } from "@/lib/email";
+import { sendApprovalEmail, coerceEmailLocale, type EmailLocale } from "@/lib/email";
 
 // Vercel cron — runs daily at 09:00 UTC
 // Sends onboarding reminder to approved-not-live partners every 48 hours
@@ -8,7 +8,7 @@ import { sendApprovalEmail } from "@/lib/email";
 async function getPartnerLocale(
   db: ReturnType<typeof createServiceRoleSupabaseClient>,
   userId: string | null
-): Promise<"en" | "es"> {
+): Promise<EmailLocale> {
   if (!userId) return "en";
   try {
     const { data } = await db
@@ -16,7 +16,7 @@ async function getPartnerLocale(
       .select("communication_locale")
       .eq("user_id", userId)
       .maybeSingle();
-    return data?.communication_locale === "es" ? "es" : "en";
+    return coerceEmailLocale(data?.communication_locale);
   } catch {
     return "en";
   }

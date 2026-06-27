@@ -3,13 +3,13 @@ import {
   createRouteHandlerSupabaseClient,
   createServiceRoleSupabaseClient,
 } from "@/lib/supabase/server";
-import { sendAccountLiveEmail } from "@/lib/email";
+import { sendAccountLiveEmail, coerceEmailLocale, type EmailLocale } from "@/lib/email";
 
 function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";
 }
 
-async function getPartnerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, userId: string | null): Promise<"en" | "es"> {
+async function getPartnerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, userId: string | null): Promise<EmailLocale> {
   if (!userId) return "en";
   try {
     const { data } = await db
@@ -17,7 +17,7 @@ async function getPartnerLocale(db: ReturnType<typeof createServiceRoleSupabaseC
       .select("communication_locale")
       .eq("user_id", userId)
       .maybeSingle();
-    return (data?.communication_locale === "es") ? "es" : "en";
+    return coerceEmailLocale(data?.communication_locale);
   } catch {
     return "en";
   }

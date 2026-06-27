@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
-import { sendReviewReminderEmail } from "@/lib/email";
+import { sendReviewReminderEmail, coerceEmailLocale, type EmailLocale } from "@/lib/email";
 
 // Called by Vercel cron — add to vercel.json:
 // { "crons": [{ "path": "/api/cron/review-reminder", "schedule": "0 10 * * *" }] }
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
     (requests || []).map((r: any) => r.customer_user_id).filter(Boolean)
   )];
 
-  const userIdLocaleMap = new Map<string, "en" | "es">();
+  const userIdLocaleMap = new Map<string, EmailLocale>();
   try {
     if (customerUserIds.length > 0) {
       const { data: profiles } = await db
@@ -58,7 +58,7 @@ export async function GET(req: Request) {
         .select("user_id, communication_locale")
         .in("user_id", customerUserIds);
       for (const p of profiles || []) {
-        userIdLocaleMap.set(p.user_id, p.communication_locale === "es" ? "es" : "en");
+        userIdLocaleMap.set(p.user_id, coerceEmailLocale(p.communication_locale));
       }
     }
   } catch (e) {
@@ -69,7 +69,7 @@ export async function GET(req: Request) {
   for (const booking of toRemind) {
     const request = requestMap.get(booking.request_id);
     if (!request?.customer_email) continue;
-    const locale = request.customer_user_id
+    const locale: EmailLocale = request.customer_user_id
       ? (userIdLocaleMap.get(request.customer_user_id) ?? "en")
       : "en";
     try {

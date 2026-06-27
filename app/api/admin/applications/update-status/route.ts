@@ -3,7 +3,7 @@ import {
   createRouteHandlerSupabaseClient,
   createServiceRoleSupabaseClient,
 } from "@/lib/supabase/server";
-import { sendApprovalEmail, sendRejectionEmail } from "@/lib/email";
+import { sendApprovalEmail, sendRejectionEmail, coerceEmailLocale, type EmailLocale } from "@/lib/email";
 
 type StatusValue = "pending" | "approved" | "rejected";
 
@@ -11,7 +11,7 @@ function isAllowedStatus(s: any): s is StatusValue {
   return s === "pending" || s === "approved" || s === "rejected";
 }
 
-async function getPartnerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, userId: string | null): Promise<"en" | "es"> {
+async function getPartnerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, userId: string | null): Promise<EmailLocale> {
   if (!userId) return "en";
   try {
     const { data } = await db
@@ -19,7 +19,7 @@ async function getPartnerLocale(db: ReturnType<typeof createServiceRoleSupabaseC
       .select("communication_locale")
       .eq("user_id", userId)
       .maybeSingle();
-    return (data?.communication_locale === "es") ? "es" : "en";
+    return coerceEmailLocale(data?.communication_locale);
   } catch {
     return "en";
   }
