@@ -1,14 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Webhook } from "svix";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
+  // Read the RAW body first — svix signature verification must run on the
+  // exact bytes Resend signed, before any JSON parsing.
+  const body = await req.text();
+
+  // ── Verify the webhook signature (svix / Resend) ──────────────────────────
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error("outreach-webhook: RESEND_WEBHOOK_SECRET not set — rejecting");
+    return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
+  }
+
+  let payload: any;
   try {
-    const body = await req.text();
+    const wh = new Webhook(secret);
+    // verify() throws on a bad/missing signature and returns the parsed payload on success
+    payload = wh.verify(body, {
+      "svix-id":        req.headers.get("svix-id")        ?? "",
+      "svix-timestamp": req.headers.get("svix-timestamp") ?? "",
+      "svix-signature": req.headers.get("svix-signature") ?? "",
+    });
+  } catch (err: any) {
+    console.warn("outreach-webhook: signature verification failed:", err?.message);
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
 
-    // Signature verification disabled — Resend svix format mismatch
-    // TODO: re-enable once svix library is added
-
-    const payload = JSON.parse(body);
+  // ── Process the (now verified) event ──────────────────────────────────────
+  try {
     const { type, data } = payload;
 
     // Only handle the events we care about
@@ -76,7 +97,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error("outreach-webhook error:", e?.message);
-    // Always return 200 to Resend — otherwise it will retry indefinitely
+    // Signature already verified — return 200 on a processing error so Resend
+    // does not retry indefinitely for a legit-but-unprocessable event.
     return NextResponse.json({ ok: true });
   }
 }
