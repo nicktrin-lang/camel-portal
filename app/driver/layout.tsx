@@ -98,13 +98,57 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
             <Link href="/">
               <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
             </Link>
-            <div className="flex items-center gap-3">
+
+            {/* Desktop right */}
+            <div className="hidden lg:flex items-center gap-3">
               <CompactLanguageToggle />
               <Link href="/" className="text-sm font-bold text-white/60 hover:text-white transition-colors">
                 Partner Portal →
               </Link>
             </div>
+
+            {/* Mobile right — hamburger */}
+            <button type="button" onClick={() => setMenuOpen(o => !o)}
+              className="lg:hidden inline-flex h-10 w-10 items-center justify-center border border-white/20 text-white hover:bg-white/10 transition-colors"
+              aria-label="Open menu">
+              {menuOpen ? (
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M18 6 6 18" /><path d="M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" />
+                </svg>
+              )}
+            </button>
           </div>
+
+          {/* Mobile dropdown */}
+          {menuOpen && (
+            <div className="lg:hidden border-t border-white/10 bg-black px-6 pb-4 pt-3 space-y-3">
+              {/* Language */}
+              <div>
+                <p className="mb-2 text-xs font-black uppercase tracking-widest text-white/30">{t("settings.language.label")}</p>
+                <div className="flex gap-2">
+                  {langOptions.map(({ code, label }) => (
+                    <button key={code} type="button"
+                      onClick={() => { setLocale(code); setMenuOpen(false); }}
+                      className={[
+                        "flex-1 py-2.5 text-sm font-black border transition-colors",
+                        locale === code ? "bg-[#ff7a00] border-[#ff7a00] text-white" : "border-white/20 text-white/60 hover:bg-white/10 hover:text-white",
+                      ].join(" ")}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Partner Portal link */}
+              <Link href="/" onClick={() => setMenuOpen(false)}
+                className="block border-t border-white/10 pt-3 text-sm font-bold text-white/60 hover:text-white transition-colors">
+                Partner Portal →
+              </Link>
+            </div>
+          )}
         </header>
         <div className="pt-[76px]">{children}</div>
       </div>

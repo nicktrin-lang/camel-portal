@@ -8,9 +8,41 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { createAuthSupabaseClient, createCustomerAuthSupabaseClient } from "@/lib/supabase/auth-client";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
+import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
 
 const inputCls = "w-full bg-[#f0f0f0] px-4 py-4 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
 const labelCls = "block text-xs font-black uppercase tracking-widest text-black mb-2";
+
+/** Mobile-only language row (lg:hidden). Desktop (lg+) uses the inline <LanguageToggle /> in the header. */
+function MobileLanguageRow() {
+  const { t } = useTranslation();
+  const { locale, setLocale } = useLanguage();
+  const options: { code: Locale; label: string }[] = [
+    { code: "en", label: "EN" }, { code: "es", label: "ES" }, { code: "fr", label: "FR" },
+    { code: "it", label: "IT" }, { code: "pt", label: "PT" }, { code: "de", label: "DE" },
+  ];
+  return (
+    <div className="lg:hidden w-full bg-black border-b border-white/10 px-4 pb-3 pt-1">
+      <div className="mx-auto max-w-7xl">
+        <p className="mb-2 text-xs font-black uppercase tracking-widest text-white/30">{t("settings.language.label")}</p>
+        <div className="flex gap-2">
+          {options.map(({ code, label }) => (
+            <button key={code} type="button" onClick={() => setLocale(code)}
+              aria-pressed={locale === code}
+              className={[
+                "flex-1 py-2.5 text-sm font-black border transition-colors",
+                locale === code
+                  ? "bg-[#ff7a00] border-[#ff7a00] text-white"
+                  : "border-white/20 text-white/60 hover:bg-white/10 hover:text-white",
+              ].join(" ")}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function PartnerResetPasswordInner() {
   const { t }               = useTranslation();
@@ -86,9 +118,11 @@ function PartnerResetPasswordInner() {
           <Link href="/partner/login">
             <Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" />
           </Link>
-          <LanguageToggle />
+          <div className="hidden lg:block"><LanguageToggle /></div>
         </div>
       </header>
+
+      <MobileLanguageRow />
 
       <div className="w-full bg-black px-6 pb-16 pt-10 text-white">
         <div className="mx-auto max-w-xl">

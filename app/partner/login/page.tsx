@@ -35,27 +35,28 @@ async function verifyCaptcha(token: string): Promise<boolean> {
 const inputCls = "w-full bg-[#f0f0f0] px-4 py-4 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
 const labelCls = "block text-xs font-black uppercase tracking-widest text-black mb-2";
 
-/** Mobile-only six-box language row (lg:hidden). Desktop uses <LanguageToggle /> in the header.
- *  Matches the customer-site LANGUAGE-labelled box row. Visual only — drives the shared locale context. */
+/** Mobile-only language row (lg:hidden). Desktop (lg+) uses the inline <LanguageToggle /> in the header.
+ *  Matches the driver portal's authenticated LANGUAGE row. Visual only — drives the shared locale context. */
 function MobileLanguageRow() {
+  const { t } = useTranslation();
   const { locale, setLocale } = useLanguage();
   const options: { code: Locale; label: string }[] = [
     { code: "en", label: "EN" }, { code: "es", label: "ES" }, { code: "fr", label: "FR" },
     { code: "it", label: "IT" }, { code: "pt", label: "PT" }, { code: "de", label: "DE" },
   ];
   return (
-    <div className="lg:hidden w-full bg-black border-b border-white/10 px-4 py-2.5">
-      <div className="mx-auto flex max-w-7xl items-center gap-2">
-        <span className="shrink-0 text-[10px] font-black uppercase tracking-widest text-white/40">Language</span>
-        <div className="flex flex-1 gap-1">
+    <div className="lg:hidden w-full bg-black border-b border-white/10 px-4 pb-3 pt-1">
+      <div className="mx-auto max-w-7xl">
+        <p className="mb-2 text-xs font-black uppercase tracking-widest text-white/30">{t("settings.language.label")}</p>
+        <div className="flex gap-2">
           {options.map(({ code, label }) => (
             <button key={code} type="button" onClick={() => setLocale(code)}
               aria-pressed={locale === code}
               className={[
-                "flex-1 border py-1.5 text-xs font-black transition-colors",
+                "flex-1 py-2.5 text-sm font-black border transition-colors",
                 locale === code
-                  ? "border-[#ff7a00] bg-[#ff7a00] text-white"
-                  : "border-white/20 text-white/70 hover:bg-white/10 hover:text-white",
+                  ? "bg-[#ff7a00] border-[#ff7a00] text-white"
+                  : "border-white/20 text-white/60 hover:bg-white/10 hover:text-white",
               ].join(" ")}>
               {label}
             </button>
@@ -185,7 +186,7 @@ function PartnerLoginInner() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
           <Link href="/"><Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" /></Link>
           <div className="flex items-center gap-3">
-            <LanguageToggle />
+            <div className="hidden lg:block"><LanguageToggle /></div>
             <Link href="/partner/signup" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">
               {t("nav.becomePartner")}
             </Link>
