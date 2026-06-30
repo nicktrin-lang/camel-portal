@@ -9,6 +9,7 @@ import { CITIES, citiesByCountry, type CityEntry } from "@/lib/cities";
 import { downloadPartnerTermsPDF } from "@/lib/portal/partnerTerms";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
+import LanguageToggle from "@/lib/i18n/LanguageToggle";
 
 const inputCls     = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
 const labelCls     = "block text-xs font-black uppercase tracking-widest text-black mb-2";
@@ -42,42 +43,6 @@ const EMPTY: FormData = {
   fleetLat: null, fleetLng: null, password: "", confirmPassword: "", agreedToTerms: false,
 };
 
-/** Compact EN/ES toggle for tight mobile headers */
-function CompactLanguageToggle() {
-  const { locale, setLocale } = useLanguage();
-  const [open, setOpen] = useState(false);
-  const options: { code: Locale; label: string }[] = [
-    { code: "en", label: "EN" }, { code: "es", label: "ES" }, { code: "fr", label: "FR" },
-    { code: "it", label: "IT" }, { code: "pt", label: "PT" }, { code: "de", label: "DE" },
-  ];
-  const current = options.find(o => o.code === locale) ?? options[0];
-  return (
-    <div className="relative">
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1 border border-white/20 px-3 py-1.5 text-xs font-black text-white hover:bg-white/10 transition-colors"
-        aria-label="Change language" aria-expanded={open}>
-        {current.label}
-        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
-      {open && (
-        <>
-          <button type="button" aria-hidden tabIndex={-1} onClick={() => setOpen(false)} className="fixed inset-0 z-40 cursor-default" />
-          <div className="absolute right-0 top-full mt-1 z-50 min-w-[72px] border border-white/20 bg-black shadow-xl">
-            {options.map(({ code, label }) => (
-              <button key={code} type="button" onClick={() => { setLocale(code); setOpen(false); }}
-                className={[
-                  "block w-full px-3 py-2 text-left text-xs font-black transition-colors",
-                  locale === code ? "bg-[#ff7a00] text-white" : "text-white/70 hover:bg-white/10 hover:text-white",
-                ].join(" ")}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 function ProgressBar({ step, stepLabels }: { step: number; stepLabels: string[] }) {
   return (
@@ -485,6 +450,12 @@ function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaV
 export default function PartnerSignupPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { locale, setLocale } = useLanguage();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const langOptions: { code: Locale; label: string }[] = [
+    { code: "en", label: "EN" }, { code: "es", label: "ES" }, { code: "fr", label: "FR" },
+    { code: "it", label: "IT" }, { code: "pt", label: "PT" }, { code: "de", label: "DE" },
+  ];
   const [step, setStep]               = useState(1);
 
   useEffect(() => { trackSignupStep(1, "company_details"); }, []);
@@ -555,11 +526,54 @@ export default function PartnerSignupPage() {
       <header className="w-full bg-black border-b border-white/10">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
           <Link href="/"><Image src="/camel-logo.png" alt="Camel Global" width={200} height={70} priority className="h-16 w-auto brightness-0 invert" /></Link>
-          <div className="flex items-center gap-3">
-            <CompactLanguageToggle />
+          {/* Desktop */}
+          <div className="hidden lg:flex items-center gap-3">
+            <LanguageToggle />
             <Link href="/partner/login" className="border border-white/30 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10 transition-colors">{t("common.partnerLogin")}</Link>
           </div>
+
+          {/* Mobile hamburger */}
+          <button type="button" onClick={() => setMenuOpen(o => !o)}
+            className="lg:hidden inline-flex h-10 w-10 items-center justify-center border border-white/20 text-white hover:bg-white/10 transition-colors"
+            aria-label="Open menu">
+            {menuOpen ? (
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M18 6 6 18" /><path d="M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" />
+              </svg>
+            )}
+          </button>
         </div>
+
+        {/* Mobile dropdown */}
+        {menuOpen && (
+          <div className="lg:hidden border-t border-white/10 bg-black px-4 pb-4 pt-3 space-y-3">
+            <div>
+              <p className="mb-2 text-xs font-black uppercase tracking-widest text-white/30">{t("settings.language.label")}</p>
+              <div className="flex gap-2">
+                {langOptions.map(({ code, label }) => (
+                  <button key={code} type="button"
+                    onClick={() => { setLocale(code); setMenuOpen(false); }}
+                    className={[
+                      "flex-1 py-2.5 text-sm font-black border transition-colors",
+                      locale === code ? "bg-[#ff7a00] border-[#ff7a00] text-white" : "border-white/20 text-white/60 hover:bg-white/10 hover:text-white",
+                    ].join(" ")}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="border-t border-white/10 pt-3">
+              <Link href="/partner/login" onClick={() => setMenuOpen(false)}
+                className="block border border-white/20 px-4 py-3 text-sm font-black text-white hover:bg-white/10 transition-colors">
+                {t("common.partnerLogin")}
+              </Link>
+            </div>
+          </div>
+        )}
       </header>
       <div className="w-full bg-black px-4 sm:px-6 pb-12 pt-8 text-white">
         <div className="mx-auto max-w-2xl">
