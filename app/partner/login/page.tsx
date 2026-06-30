@@ -9,6 +9,7 @@ import { createAuthSupabaseClient } from "@/lib/supabase/auth-client";
 import HCaptcha from "@/app/components/HCaptcha";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
+import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
 
 async function safeJson(res: Response): Promise<any> {
   const text = await res.text();
@@ -33,6 +34,37 @@ async function verifyCaptcha(token: string): Promise<boolean> {
 
 const inputCls = "w-full bg-[#f0f0f0] px-4 py-4 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
 const labelCls = "block text-xs font-black uppercase tracking-widest text-black mb-2";
+
+/** Mobile-only six-box language row (lg:hidden). Desktop uses <LanguageToggle /> in the header.
+ *  Matches the customer-site LANGUAGE-labelled box row. Visual only — drives the shared locale context. */
+function MobileLanguageRow() {
+  const { locale, setLocale } = useLanguage();
+  const options: { code: Locale; label: string }[] = [
+    { code: "en", label: "EN" }, { code: "es", label: "ES" }, { code: "fr", label: "FR" },
+    { code: "it", label: "IT" }, { code: "pt", label: "PT" }, { code: "de", label: "DE" },
+  ];
+  return (
+    <div className="lg:hidden w-full bg-black border-b border-white/10 px-4 py-2.5">
+      <div className="mx-auto flex max-w-7xl items-center gap-2">
+        <span className="shrink-0 text-[10px] font-black uppercase tracking-widest text-white/40">Language</span>
+        <div className="flex flex-1 gap-1">
+          {options.map(({ code, label }) => (
+            <button key={code} type="button" onClick={() => setLocale(code)}
+              aria-pressed={locale === code}
+              className={[
+                "flex-1 border py-1.5 text-xs font-black transition-colors",
+                locale === code
+                  ? "border-[#ff7a00] bg-[#ff7a00] text-white"
+                  : "border-white/20 text-white/70 hover:bg-white/10 hover:text-white",
+              ].join(" ")}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function PartnerLoginInner() {
   const { t }      = useTranslation();
@@ -160,6 +192,8 @@ function PartnerLoginInner() {
           </div>
         </div>
       </header>
+
+      <MobileLanguageRow />
 
       <div className="w-full bg-black px-6 pb-16 pt-10 text-white">
         <div className="mx-auto max-w-xl">
