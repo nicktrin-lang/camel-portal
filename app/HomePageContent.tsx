@@ -7,42 +7,6 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
 
-function CompactLanguageToggle() {
-  const { locale, setLocale } = useLanguage();
-  const [open, setOpen] = useState(false);
-  const options: { code: Locale; label: string }[] = [
-    { code: "en", label: "EN" }, { code: "es", label: "ES" }, { code: "fr", label: "FR" },
-    { code: "it", label: "IT" }, { code: "pt", label: "PT" }, { code: "de", label: "DE" },
-  ];
-  const current = options.find(o => o.code === locale) ?? options[0];
-  return (
-    <div className="relative">
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1 border border-white/20 px-3 py-1.5 text-xs font-black text-white hover:bg-white/10 transition-colors"
-        aria-label="Change language" aria-expanded={open}>
-        {current.label}
-        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
-      {open && (
-        <>
-          <button type="button" aria-hidden tabIndex={-1} onClick={() => setOpen(false)} className="fixed inset-0 z-40 cursor-default" />
-          <div className="absolute right-0 top-full mt-1 z-50 min-w-[72px] border border-white/20 bg-black shadow-xl">
-            {options.map(({ code, label }) => (
-              <button key={code} type="button" onClick={() => { setLocale(code); setOpen(false); }}
-                className={[
-                  "block w-full px-3 py-2 text-left text-xs font-black transition-colors",
-                  locale === code ? "bg-[#ff7a00] text-white" : "text-white/70 hover:bg-white/10 hover:text-white",
-                ].join(" ")}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 // Fire a GA4 custom event if gtag is available
 function fireGtagEvent(eventName: string, params?: Record<string, string>) {
   try {
@@ -58,6 +22,11 @@ export default function HomePageContent() {
   const year = new Date().getFullYear();
   const [menuOpen, setMenuOpen] = useState(false);
   const [unsubscribed, setUnsubscribed] = useState(false);
+
+  const langOptions: { code: Locale; label: string }[] = [
+    { code: "en", label: "EN" }, { code: "es", label: "ES" }, { code: "fr", label: "FR" },
+    { code: "it", label: "IT" }, { code: "pt", label: "PT" }, { code: "de", label: "DE" },
+  ];
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -112,9 +81,8 @@ export default function HomePageContent() {
             </Link>
           </div>
 
-          {/* Mobile: compact toggle + hamburger */}
-          <div className="flex items-center gap-2 sm:hidden">
-            <CompactLanguageToggle />
+          {/* Mobile: hamburger only (language lives inside the menu) */}
+          <div className="flex items-center sm:hidden">
             <button
               type="button"
               onClick={() => setMenuOpen(o => !o)}
@@ -136,19 +104,39 @@ export default function HomePageContent() {
 
         {/* Mobile dropdown menu */}
         {menuOpen && (
-          <div className="sm:hidden border-t border-white/10 bg-black px-4 pb-4 pt-2 flex flex-col gap-2">
-            <Link href="/driver/login" onClick={() => setMenuOpen(false)}
-              className="block border border-white/20 px-4 py-3 text-sm font-black text-white hover:bg-white/10 transition-colors">
-              {t("nav.driverLogin")}
-            </Link>
-            <Link href="/partner/login" onClick={() => setMenuOpen(false)}
-              className="block border border-white/20 px-4 py-3 text-sm font-black text-white hover:bg-white/10 transition-colors">
-              {t("nav.partnerLogin")}
-            </Link>
-            <Link href="/partner/signup" onClick={() => setMenuOpen(false)}
-              className="block bg-[#ff7a00] px-4 py-3 text-sm font-black text-white hover:opacity-90 transition-opacity">
-              {t("nav.becomePartner")}
-            </Link>
+          <div className="sm:hidden border-t border-white/10 bg-black px-4 pb-4 pt-3 flex flex-col gap-3">
+            {/* Language */}
+            <div>
+              <p className="mb-2 text-xs font-black uppercase tracking-widest text-white/30">{t("settings.language.label")}</p>
+              <div className="flex gap-2">
+                {langOptions.map(({ code, label }) => (
+                  <button key={code} type="button"
+                    onClick={() => { setLocale(code); setMenuOpen(false); }}
+                    className={[
+                      "flex-1 py-2.5 text-sm font-black border transition-colors",
+                      locale === code ? "bg-[#ff7a00] border-[#ff7a00] text-white" : "border-white/20 text-white/60 hover:bg-white/10 hover:text-white",
+                    ].join(" ")}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Links */}
+            <div className="flex flex-col gap-2 border-t border-white/10 pt-3">
+              <Link href="/driver/login" onClick={() => setMenuOpen(false)}
+                className="block border border-white/20 px-4 py-3 text-sm font-black text-white hover:bg-white/10 transition-colors">
+                {t("nav.driverLogin")}
+              </Link>
+              <Link href="/partner/login" onClick={() => setMenuOpen(false)}
+                className="block border border-white/20 px-4 py-3 text-sm font-black text-white hover:bg-white/10 transition-colors">
+                {t("nav.partnerLogin")}
+              </Link>
+              <Link href="/partner/signup" onClick={() => setMenuOpen(false)}
+                className="block bg-[#ff7a00] px-4 py-3 text-sm font-black text-white hover:opacity-90 transition-opacity">
+                {t("nav.becomePartner")}
+              </Link>
+            </div>
           </div>
         )}
       </header>
