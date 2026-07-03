@@ -576,26 +576,29 @@ export default function PartnerSignupPage() {
         )}
       </header>
       <div className="w-full bg-black px-4 sm:px-6 pb-12 pt-8 text-white">
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto max-w-4xl">
           <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">{t("signup.tag")}</p>
           <h1 className="text-4xl font-black text-white md:text-5xl">{t("signup.title")}</h1>
           <p className="mt-3 text-base font-semibold text-white/70">{t("signup.subtitle")}</p>
         </div>
       </div>
       <div className="w-full bg-[#f0f0f0] px-3 sm:px-6 py-8 flex-1">
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto max-w-4xl">
           <div className="bg-white p-4 sm:p-8">
-            <div className="-mx-4 sm:-mx-8 -mt-4 sm:-mt-8 mb-6 bg-[#ff7a00] px-6 py-7 sm:px-10 sm:py-9">
+            <div className="-mx-4 sm:-mx-8 -mt-4 sm:-mt-8 mb-6 bg-[#ff7a00] px-6 py-8 sm:px-10 sm:py-10">
               <p className="text-xs font-black uppercase tracking-widest text-white/80">{t("signup.step1.reassure.founding")}</p>
-              <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
-                {[t("signup.step1.reassure.stat1"), t("signup.step1.reassure.stat2"), t("signup.step1.reassure.stat3")].map((s, i) => (
-                  <div key={i}>
-                    <span className="block text-2xl font-black leading-tight text-white sm:text-3xl">{s}</span>
+              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {[
+                  { s: t("signup.step1.reassure.stat1"), d: t("signup.step1.reassure.sub1") },
+                  { s: t("signup.step1.reassure.stat2"), d: t("signup.step1.reassure.sub2") },
+                  { s: t("signup.step1.reassure.stat3"), d: t("signup.step1.reassure.sub3") },
+                ].map((c, i) => (
+                  <div key={i} className="bg-white px-5 py-6">
+                    <span className="block text-2xl font-black uppercase leading-tight text-black sm:text-3xl">{c.s}</span>
+                    <span className="mt-2 block text-sm font-semibold text-black/60">{c.d}</span>
                   </div>
                 ))}
               </div>
-              <p className="mt-5 text-sm font-semibold text-white/90">{t("signup.step1.reassure.sub")}</p>
-              <p className="mt-1 text-sm font-semibold text-white/90">{t("signup.step1.reassure.line")}</p>
             </div>
             <ProgressBar step={step} stepLabels={stepLabels} />
             {step === 1 && <Step1 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(2); trackSignupStep(2, "business_address"); }} error={error} />}
