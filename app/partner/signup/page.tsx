@@ -206,17 +206,6 @@ function Step1({ data, onChange, onNext, error }: { data: FormData; onChange: (k
         <h2 className="text-3xl font-black text-black">{t("signup.step1.title")}</h2>
         <p className="mt-1 text-sm font-semibold text-black/50">{t("signup.step1.subtitle")}</p>
       </div>
-      <div className="bg-[#f0f0f0] p-4 sm:p-5">
-        <p className="text-xs font-black uppercase tracking-widest text-[#ff7a00]">{t("signup.step1.reassure.founding")}</p>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          {[t("signup.step1.reassure.stat1"), t("signup.step1.reassure.stat2"), t("signup.step1.reassure.stat3")].map((s, i) => (
-            <div key={i} className="bg-white px-2 py-3">
-              <span className="block text-xs font-black leading-snug text-black">{s}</span>
-            </div>
-          ))}
-        </div>
-        <p className="mt-3 text-xs font-semibold text-black/60">{t("signup.step1.reassure.line")}</p>
-      </div>
       {error && <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t("signup.step1.companyName")} required error={errors.companyName}><input value={data.companyName} onChange={e => onChange("companyName", e.target.value)} placeholder={t("signup.step1.companyName.placeholder")} className={inputCls} /></Field>
@@ -596,6 +585,18 @@ export default function PartnerSignupPage() {
       <div className="w-full bg-[#f0f0f0] px-3 sm:px-6 py-8 flex-1">
         <div className="mx-auto max-w-2xl">
           <div className="bg-white p-4 sm:p-8">
+            <div className="-mx-4 sm:-mx-8 -mt-4 sm:-mt-8 mb-6 bg-[#ff7a00] px-6 py-7 sm:px-10 sm:py-9">
+              <p className="text-xs font-black uppercase tracking-widest text-white/80">{t("signup.step1.reassure.founding")}</p>
+              <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
+                {[t("signup.step1.reassure.stat1"), t("signup.step1.reassure.stat2"), t("signup.step1.reassure.stat3")].map((s, i) => (
+                  <div key={i}>
+                    <span className="block text-2xl font-black leading-tight text-white sm:text-3xl">{s}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-5 text-sm font-semibold text-white/90">{t("signup.step1.reassure.sub")}</p>
+              <p className="mt-1 text-sm font-semibold text-white/90">{t("signup.step1.reassure.line")}</p>
+            </div>
             <ProgressBar step={step} stepLabels={stepLabels} />
             {step === 1 && <Step1 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(2); trackSignupStep(2, "business_address"); }} error={error} />}
             {step === 2 && <Step2 data={data} onChange={(k, v) => setField(k, v)} onNext={() => { setError(""); setStep(3); trackSignupStep(3, "fleet_address"); }} onBack={() => setStep(1)} />}
