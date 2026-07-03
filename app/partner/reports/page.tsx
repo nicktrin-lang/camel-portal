@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CURRENCIES } from "@/lib/currency";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
-type Currency = "EUR" | "GBP" | "USD";
+type Currency = "EUR" | "GBP" | "USD" | "AUD" | "NZD" | "CAD";
 const CURRENCY_META: Record<Currency, { symbol: string; locale: string; label: string }> = {
   EUR: { symbol: "€", locale: "es-ES", label: "EUR" },
   GBP: { symbol: "£", locale: "en-GB", label: "GBP" },
   USD: { symbol: "$", locale: "en-US", label: "USD" },
+  AUD: { symbol: "A$", locale: "en-AU", label: "AUD" },
+  NZD: { symbol: "NZ$", locale: "en-NZ", label: "NZD" },
+  CAD: { symbol: "C$", locale: "en-CA", label: "CAD" },
 };
 const QUARTER_LABELS: Record<number, string> = { 0:"Empty", 1:"¼ Tank", 2:"½ Tank", 3:"¾ Tank", 4:"Full Tank" };
 

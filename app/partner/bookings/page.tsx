@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CURRENCIES } from "@/lib/currency";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
-type Currency = "EUR" | "GBP" | "USD";
+type Currency = "EUR" | "GBP" | "USD" | "AUD" | "NZD" | "CAD";
 
 type BookingRow = {
   id: string; request_id: string; partner_user_id: string; winning_bid_id: string;
@@ -39,6 +40,9 @@ const CURRENCY_CONFIG: Record<Currency, { locale: string; label: string }> = {
   EUR: { locale: "es-ES", label: "EUR €" },
   GBP: { locale: "en-GB", label: "GBP £" },
   USD: { locale: "en-US", label: "USD $" },
+  AUD: { locale: "en-AU", label: "AUD A$" },
+  NZD: { locale: "en-NZ", label: "NZD NZ$" },
+  CAD: { locale: "en-CA", label: "CAD C$" },
 };
 
 function fmt(v?: string | null) {
@@ -90,7 +94,7 @@ function statusPill(status?: string | null) {
 function norm(v: unknown) { return String(v || "").toLowerCase().trim(); }
 
 function payoutsByCurrency(rows: BookingRow[]): Record<Currency, number> {
-  const totals: Record<Currency, number> = { EUR: 0, GBP: 0, USD: 0 };
+  const totals = Object.fromEntries(CURRENCIES.map(c=>[c,0])) as Record<Currency, number>;
   for (const r of rows) {
     const curr: Currency = (r.currency as Currency) ?? "EUR";
     const net = calcNetPayout(r);
@@ -100,7 +104,7 @@ function payoutsByCurrency(rows: BookingRow[]): Record<Currency, number> {
 }
 
 function revenuesByCurrency(rows: BookingRow[]): Record<Currency, number> {
-  const totals: Record<Currency, number> = { EUR: 0, GBP: 0, USD: 0 };
+  const totals = Object.fromEntries(CURRENCIES.map(c=>[c,0])) as Record<Currency, number>;
   for (const r of rows) {
     const curr: Currency = (r.currency as Currency) ?? "EUR";
     const amt = Number(r.amount ?? 0);
@@ -308,7 +312,7 @@ export default function PartnerBookingsPage() {
             <p className={`mt-2 text-2xl font-black ${color}`}>{value}</p>
           </div>
         ))}
-        {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
+        {(CURRENCIES).map(curr => {
           const amt = payouts[curr];
           const { locale, label } = CURRENCY_CONFIG[curr];
           const formatted = new Intl.NumberFormat(locale, { style: "currency", currency: curr, maximumFractionDigits: 2 }).format(amt);
@@ -343,7 +347,7 @@ export default function PartnerBookingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/5">
-                {(["EUR", "GBP", "USD"] as Currency[]).map(curr => {
+                {(CURRENCIES).map(curr => {
                   const currRows = filtered.filter(r => (r.currency ?? "EUR") === curr);
                   if (currRows.length === 0) return null;
                   const gross          = revenues[curr];

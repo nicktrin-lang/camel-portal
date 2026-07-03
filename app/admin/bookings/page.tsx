@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CURRENCIES } from "@/lib/currency";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
-type Currency = "EUR" | "GBP" | "USD";
+type Currency = "EUR" | "GBP" | "USD" | "AUD" | "NZD" | "CAD";
 
 type BookingRow = {
   id: string; request_id: string | null; partner_user_id: string | null;
@@ -37,6 +38,9 @@ const CURRENCY_CONFIG: Record<Currency, { locale: string; label: string; symbol:
   EUR: { locale: "es-ES", label: "EUR", symbol: "€" },
   GBP: { locale: "en-GB", label: "GBP", symbol: "£" },
   USD: { locale: "en-US", label: "USD", symbol: "$" },
+  AUD: { locale: "en-AU", label: "AUD", symbol: "A$" },
+  NZD: { locale: "en-NZ", label: "NZD", symbol: "NZ$" },
+  CAD: { locale: "en-CA", label: "CAD", symbol: "C$" },
 };
 
 const QUARTER_LABELS: Record<number, string> = { 0:"Empty", 1:"¼ Tank", 2:"½ Tank", 3:"¾ Tank", 4:"Full Tank" };
@@ -152,7 +156,7 @@ function calcPayout(b: BookingRow): {
 }
 
 function revenuesByCurrency(rows: BookingRow[]): Record<Currency, number> {
-  const totals: Record<Currency, number> = { EUR:0, GBP:0, USD:0 };
+  const totals = Object.fromEntries(CURRENCIES.map(c=>[c,0])) as Record<Currency, number>;
   for (const r of rows) {
     if (String(r.booking_status || "").toLowerCase() === "cancelled") continue;
     const curr: Currency = (r.currency as Currency) ?? "EUR";
@@ -342,11 +346,9 @@ export default function AdminBookingsPage() {
   const revenuesByCurr = useMemo(()=>revenuesByCurrency(filtered),[filtered]);
 
   const currencyTotals = useMemo(()=>{
-    const t: Record<Currency,CurrencyTotals> = {
-      EUR:{total:0,carHire:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,count:0,completed:0,cancelled:0},
-      GBP:{total:0,carHire:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,count:0,completed:0,cancelled:0},
-      USD:{total:0,carHire:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,count:0,completed:0,cancelled:0},
-    };
+    const t = Object.fromEntries(CURRENCIES.map(c=>[c,
+      {total:0,carHire:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,count:0,completed:0,cancelled:0}
+    ])) as Record<Currency,CurrencyTotals>;
     for (const b of filtered) {
       const c: Currency=(b.currency as Currency)??"EUR";
       if (!t[c]) continue;
@@ -435,7 +437,7 @@ export default function AdminBookingsPage() {
       "Camel Commission","Stripe Fees (Camel cost)","Camel Net Income (after Stripe)",
       "Partner Net Payout","Fuel Charges Billed","Fuel Refunds Issued",
     ];
-    const summaryRows=(["EUR","GBP","USD"] as Currency[]).map(curr=>{
+    const summaryRows=(CURRENCIES).map(curr=>{
       const t=currencyTotals[curr];
       return [
         `${curr} ${CURRENCY_CONFIG[curr].symbol}`,
@@ -501,7 +503,7 @@ export default function AdminBookingsPage() {
             <p className={`mt-2 text-3xl font-black ${color}`}>{value}</p>
           </div>
         ))}
-        {(["EUR","GBP","USD"] as Currency[]).map(curr=>{
+        {(CURRENCIES).map(curr=>{
           const amt=revenuesByCurr[curr];
           const {locale,label,symbol}=CURRENCY_CONFIG[curr];
           const formatted=new Intl.NumberFormat(locale,{style:"currency",currency:curr,maximumFractionDigits:0}).format(amt);
@@ -523,7 +525,7 @@ export default function AdminBookingsPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <div><label className="text-xs font-black uppercase tracking-widest text-black">Search</label><input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Job, partner, customer…" className="mt-1 w-full border border-black/20 bg-[#f0f0f0] p-3 text-sm text-black outline-none focus:border-black"/></div>
             <div><label className="text-xs font-black uppercase tracking-widest text-black">Status</label><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="mt-1 w-full border border-black/20 bg-[#f0f0f0] p-3 text-sm text-black outline-none focus:border-black"><option value="all">All statuses</option>{statusOptions.map(s=><option key={s} value={s}>{fmtStatus(s)}</option>)}</select></div>
-            <div><label className="text-xs font-black uppercase tracking-widest text-black">Currency</label><select value={currencyFilter} onChange={e=>setCurrencyFilter(e.target.value as "all"|Currency)} className="mt-1 w-full border border-black/20 bg-[#f0f0f0] p-3 text-sm text-black outline-none focus:border-black"><option value="all">All currencies</option><option value="EUR">EUR €</option><option value="GBP">GBP £</option><option value="USD">USD $</option></select></div>
+            <div><label className="text-xs font-black uppercase tracking-widest text-black">Currency</label><select value={currencyFilter} onChange={e=>setCurrencyFilter(e.target.value as "all"|Currency)} className="mt-1 w-full border border-black/20 bg-[#f0f0f0] p-3 text-sm text-black outline-none focus:border-black"><option value="all">All currencies</option>{CURRENCIES.map(c=>(<option key={c} value={c}>{c}</option>))}</select></div>
             <div><label className="text-xs font-black uppercase tracking-widest text-black">Date from</label><input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="mt-1 w-full border border-black/20 bg-[#f0f0f0] p-3 text-sm text-black outline-none focus:border-black"/></div>
             <div><label className="text-xs font-black uppercase tracking-widest text-black">Date to</label><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="mt-1 w-full border border-black/20 bg-[#f0f0f0] p-3 text-sm text-black outline-none focus:border-black"/></div>
           </div>
@@ -535,7 +537,7 @@ export default function AdminBookingsPage() {
         </div>
       </div>
 
-      {(["EUR","GBP","USD"] as Currency[]).map(curr=>{
+      {(CURRENCIES).map(curr=>{
         const t=currencyTotals[curr];
         if (t.count===0) return null;
         const currBookings=filtered.filter(b=>(b.currency??"EUR")===curr);

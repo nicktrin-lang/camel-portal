@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CURRENCIES } from "@/lib/currency";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useRouter } from "next/navigation";
 
-type Currency = "EUR" | "GBP" | "USD";
+type Currency = "EUR" | "GBP" | "USD" | "AUD" | "NZD" | "CAD";
 
 const CURRENCY_META: Record<Currency, { symbol: string; locale: string; label: string }> = {
   EUR: { symbol:"€", locale:"es-ES", label:"EUR" },
   GBP: { symbol:"£", locale:"en-GB", label:"GBP" },
   USD: { symbol:"$", locale:"en-US", label:"USD" },
+  AUD: { symbol:"A$", locale:"en-AU", label:"AUD" },
+  NZD: { symbol:"NZ$", locale:"en-NZ", label:"NZD" },
+  CAD: { symbol:"C$", locale:"en-CA", label:"CAD" },
 };
 
 function fmtCurr(amount: number, currency: string): string {
@@ -791,11 +795,9 @@ export default function AdminReportsPage() {
   const cancelledBookings = filteredBookings.filter(r=>String(r.booking_status||"").toLowerCase()==="cancelled");
 
   const revenuesByCurrency = useMemo(()=>{
-    const t: Record<Currency,CurrencyTotals> = {
-      EUR:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,pcRefundTotal:0,count:0,completed:0,cancelled:0 },
-      GBP:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,pcRefundTotal:0,count:0,completed:0,cancelled:0 },
-      USD:{ total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,pcRefundTotal:0,count:0,completed:0,cancelled:0 },
-    };
+    const t = Object.fromEntries(CURRENCIES.map(c=>[c,
+      { total:0,carHire:0,fuelDeposit:0,fuelCharge:0,fuelRefund:0,commissionTotal:0,partnerPayoutTotal:0,stripeFeeTotal:0,camelNetCommTotal:0,pcRefundTotal:0,count:0,completed:0,cancelled:0 }
+    ])) as Record<Currency,CurrencyTotals>;
     for (const b of filteredBookings) {
       const c: Currency = (b.currency as Currency)??"EUR";
       if (!t[c]) continue;
@@ -929,7 +931,7 @@ export default function AdminReportsPage() {
       "Partner Net Payout","Fuel Deposits","Fuel Charges Billed","Fuel Refunds Issued",
       "Post-Completion Refunds Total",
     ];
-    const summaryRows = (["EUR","GBP","USD"] as Currency[]).map(curr=>{
+    const summaryRows = (CURRENCIES).map(curr=>{
       const t=revenuesByCurrency[curr];
       return [`${curr} ${CURRENCY_META[curr].symbol}`,t.count,t.completed,t.cancelled,t.total,t.carHire,t.commissionTotal,t.stripeFeeTotal,t.camelNetCommTotal,t.partnerPayoutTotal,t.fuelDeposit,t.fuelCharge,t.fuelRefund,t.pcRefundTotal];
     });
@@ -1107,7 +1109,7 @@ export default function AdminReportsPage() {
         )}
       </div>
 
-      {(["EUR","GBP","USD"] as Currency[]).map(curr=>{
+      {(CURRENCIES).map(curr=>{
         const t=revenuesByCurrency[curr];
         if (t.count===0) return null;
         const currBookings=filteredBookings.filter(b=>(b.currency??"EUR")===curr);
