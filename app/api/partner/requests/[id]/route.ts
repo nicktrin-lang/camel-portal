@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
+import { coerceCurrency } from "@/lib/currency";
 
 export async function GET(
   req: Request,
@@ -22,8 +23,7 @@ export async function GET(
       .eq("user_id", userId)
       .maybeSingle();
 
-    const partnerCurrency: "EUR" | "GBP" | "USD" =
-      (profileRow?.default_currency as "EUR" | "GBP" | "USD") ?? "EUR";
+    const partnerCurrency = coerceCurrency(profileRow?.default_currency);
 
     // Get platform default commission rate from platform_settings
     const { data: platformSettings } = await db

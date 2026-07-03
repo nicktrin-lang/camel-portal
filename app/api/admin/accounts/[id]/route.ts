@@ -3,8 +3,9 @@ import {
   createRouteHandlerSupabaseClient,
   createServiceRoleSupabaseClient,
 } from "@/lib/supabase/server";
+import { CURRENCIES } from "@/lib/currency";
 
-const VALID_CURRENCIES = ["EUR", "GBP", "USD"];
+const VALID_CURRENCIES = CURRENCIES as readonly string[];
 
 function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";

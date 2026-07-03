@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
+import { coerceCurrency } from "@/lib/currency";
 import { sendCustomerBidReceivedEmail, coerceEmailLocale, type EmailLocale } from "@/lib/email";
 
 async function getCustomerLocale(db: ReturnType<typeof createServiceRoleSupabaseClient>, customerUserId: string): Promise<EmailLocale> {
@@ -44,9 +45,13 @@ export async function POST(req: Request) {
       .select("default_currency")
       .eq("user_id", userId)
       .maybeSingle();
-    const bidCurrency: "EUR" | "GBP" =
-      (currency === "EUR" || currency === "GBP") ? currency :
-      (profileRow?.default_currency as "EUR" | "GBP") ?? "EUR";
+
+    // Partner currency = their Stripe settlement currency (default_currency).
+    // The bid currency must equal that. If a currency is passed in the body we
+    // coerce it, but the profile default is the authoritative source of truth.
+    const bidCurrency = currency
+      ? coerceCurrency(currency)
+      : coerceCurrency(profileRow?.default_currency);
 
     const { data: requestRow, error: requestErr } = await db
       .from("customer_requests")
