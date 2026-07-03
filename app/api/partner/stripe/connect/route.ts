@@ -4,31 +4,46 @@ import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-04-22.dahlia" as any });
 
-function stripeCountry(baseCountry: string | null): string {
-  const map: Record<string, string> = {
-    "United Kingdom":  "GB",
-    "Spain":           "ES",
-    "Australia":       "AU",
-    "United States":   "US",
-    "Canada":          "CA",
-    "France":          "FR",
-    "Germany":         "DE",
-    "Italy":           "IT",
-    "Netherlands":     "NL",
-    "Portugal":        "PT",
-    "Ireland":         "IE",
-    "New Zealand":     "NZ",
-    "Singapore":       "SG",
-    "United Arab Emirates": "AE",
-  };
-  const key = (baseCountry || "").trim();
-  return map[key] || "ES";
-}
+const COUNTRY_MAP: Record<string, string> = {
+  "United Kingdom":       "GB",
+  "Spain":                "ES",
+  "Australia":            "AU",
+  "United States":        "US",
+  "Canada":               "CA",
+  "France":               "FR",
+  "Germany":              "DE",
+  "Italy":                "IT",
+  "Netherlands":          "NL",
+  "Portugal":             "PT",
+  "Ireland":              "IE",
+  "New Zealand":          "NZ",
+  "Singapore":            "SG",
+  "United Arab Emirates": "AE",
+};
 
-function stripeCurrency(defaultCurrency: string | null): string {
-  const c = String(defaultCurrency || "").toUpperCase().trim();
-  if (c === "GBP" || c === "USD") return c.toLowerCase();
-  return "eur";
+// Settlement currency for the connected account, derived from its COUNTRY.
+// This is the Stripe account's own currency — NOT the partner's display/pricing
+// currency (default_currency), which is a separate concept used elsewhere.
+const COUNTRY_CURRENCY: Record<string, string> = {
+  GB: "gbp", ES: "eur", AU: "aud", US: "usd", CA: "cad",
+  FR: "eur", DE: "eur", IT: "eur", NL: "eur", PT: "eur",
+  IE: "eur", NZ: "nzd", SG: "sgd", AE: "aed",
+};
+
+function stripeCountry(baseCountry: string | null): string {
+  const key = (baseCountry || "").trim();
+  const code = COUNTRY_MAP[key];
+  if (!code) {
+    // Fail LOUDLY instead of silently defaulting to ES. A connected account's
+    // country is locked at creation and can never be changed, so a wrong default
+    // permanently traps the partner (they can't add a local bank). Better to
+    // block onboarding until the country is added to the maps above.
+    throw new Error(
+      `Unsupported partner country for Stripe onboarding: "${key || "(empty)"}". ` +
+      `Add it to COUNTRY_MAP/COUNTRY_CURRENCY before this partner can connect.`
+    );
+  }
+  return code;
 }
 
 export async function POST() {
@@ -48,11 +63,12 @@ export async function POST() {
     let accountId = profile.stripe_account_id;
 
     if (!accountId) {
+      const countryCode = stripeCountry(profile.base_country);
       const account = await stripe.accounts.create({
         type: "express",
-        country:          stripeCountry(profile.base_country),
+        country:          countryCode,
         email:            user.email,
-        default_currency: stripeCurrency(profile.default_currency),
+        default_currency: COUNTRY_CURRENCY[countryCode] ?? "eur",
         capabilities: {
           card_payments: { requested: true },
           transfers:     { requested: true },
