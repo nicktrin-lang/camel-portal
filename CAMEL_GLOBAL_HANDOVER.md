@@ -993,3 +993,210 @@ need confirmation with a US tax/legal professional — they are flagged as areas
 - Terms & Operating Rules PDF translations FR/IT/PT/DE — DONE.
 - Resend webhook signature verification — DONE (this session).
 
+# Handover — Chat 56
+
+Continues from the Chat 55 handover. Two repos: **camel-portal** (partner/admin/driver portal) and **camel-customer** (customer booking site). Both Next.js, Supabase, Stripe Connect, 6-locale i18n (en/es/fr/it/pt/de).
+
+Stable tags: `v-stable-chat55` (start of this session). Recommend tagging `v-stable-chat56` at the end (see rollback doc).
+
+---
+
+## What shipped this session
+
+### 1. Mobile language-switcher consistency (portal)
+All portal auth/marketing surfaces now use ONE pattern: desktop inline switcher (`lg+`), mobile **hamburger** whose dropdown holds a six-box LANGUAGE row (`t("settings.language.label")` + `flex-1 / py-2.5` active-orange), matching the driver authenticated header.
+- Homepage, partner login, partner reset-password, partner signup, driver public header (login/signup/reset via `app/driver/layout.tsx`).
+- Root cause fixed along the way: `LanguageToggle.tsx` has **no** `hidden lg:flex` (handover-55 note was wrong) — it renders at all breakpoints, which caused a double-up when a second mobile row was added. Fix = wrap inline toggle in `hidden lg:*` + single mobile treatment.
+
+### 2. Stripe connect hardening (portal) — `71bfb3a` + `7cc88c9`
+`app/api/partner/stripe/connect/route.ts`:
+- `stripeCountry()` now **throws** on an unrecognised `base_country` instead of `|| "ES"`. The old silent Spain default created wrong-country Stripe accounts (a connected account's country is **locked at creation**), which is exactly what broke the Australian partner.
+- Account settlement currency is **country-derived** (`COUNTRY_CURRENCY[countryCode]`), not the partner's display currency.
+- On account creation, writes `default_currency = settlement currency` (uppercased) back to `partner_profiles` → **Stripe is the single source of truth** for partner currency.
+
+### 3. Multi-currency rollout: AUD / NZD / CAD (both repos) — Phases 0–4
+Added Australian Dollar, NZ Dollar, Canadian Dollar to the existing EUR/GBP/USD system. **Key architecture (confirmed with the code, corrects a stale comment):** the system is **bid-currency, NO FX** — the partner's currency (= their Stripe settlement currency, country-derived, read-only) is what they bid in, what the customer is charged, and what they're paid out. The `useCurrency`/rate layer is only a **secondary browse-display** aid, never the transactional path.
+
+- **Phase 0 (foundation):** `lib/currency.ts` widened to 6; new shared exports `CURRENCIES`, `currencyLocale()`, `currencySymbol()`, `coerceCurrency()`, `isCurrency()`, `formatMoney()`. `lib/useCurrency.ts`, `app/api/currency/rate/route.ts`, and customer `lib/serverCurrency.ts` all handle 6. Rate route fetches AUD/NZD/CAD from frankfurter.app.
+- **Phase 1 (coercion points):** every place that narrowed currency to EUR/GBP(/USD) now uses `coerceCurrency()` — portal `bids/route.ts`, `partner/requests/[id]`, `admin/accounts/[id]`; customer `create-intent`, `book/page.tsx`, `test-booking/{requests,bids/accept,requests/[id]}`. This is what lets an AUD bid be stored and charged as AUD.
+- **Phase 2 (reporting/CSV):** the 4 reporting pages (`admin/bookings`, `admin/reports`, `partner/bookings`, `partner/reports`) iterate `CURRENCIES` instead of `["EUR","GBP","USD"]`; per-currency accumulators built dynamically from `CURRENCIES`. AUD/NZD/CAD now appear in breakdowns, filters, and CSV summary rows.
+- **Phase 3 (read-only currency UI):** partner currency is Stripe-derived & locked. `partner/profile/page.tsx` shows all 6 correctly (was falling through to "Euro"). Onboarding `StepCurrency` is now **informational** (no picker, no DB write) — reused `onboarding.currency.*` keys, retext'd in all 6 locales, explaining currency is set at the Stripe payout step.
+- **Phase 4 (formatting polish):** replaced the repeated `GBP→en-GB, USD→en-US, else es-ES` ternaries / 3-key locale maps with the shared `currencyLocale()` across booking-detail pages, PDFs, refund/statement routes, webhook. AUD/NZD/CAD now format natively (A$/NZ$/C$ with correct grouping).
+- **Phase 5 (verification):** end-to-end tested by flipping test booking `1000167` through AUD→NZD→CAD and confirming bookings/reports/CSV/detail render correctly, then restored to EUR. **Passed.** (Data-only test, no live charge.)
+
+The **€10 minimum-commission floor** (stored EUR) now converts to bid currency via a fixed `MIN_FLOOR_RATE` map in `create-intent` (approximate rates: AUD 1.63, NZD 1.78, CAD 1.47).
+
+### 4. Australia city list + generic tax wording (portal) — `19a971a`
+- Portal `lib/cities.ts` was stale (Spain/UK/FR/IT/DE/PT only). Replaced with the customer repo's fuller list — now includes **Australia** (7 cities), Netherlands, Ireland, expanded US/UK/Greece, UAE. Fixes AU partners being unable to find their city at signup.
+- Genericized Spain-specific tax strings site-wide across all 6 locales: **"VAT / NIF" → "VAT / Tax number"** (localized per language), removed the "Spanish companies use a NIF… ESB12345678" hint/placeholder, softened the eligibility line. No new translation keys.
+
+---
+
+## Current currency model (important for future work)
+
+- **One currency per partner = their Stripe account settlement currency** (country-derived at Stripe onboarding, written to `partner_profiles.default_currency`, **read-only** everywhere).
+- **Bid currency = charge currency = payout currency = settlement currency.** No FX on the transactional path.
+- Each bid/booking **snapshots** its currency at creation (`partner_bids.currency`, `partner_bookings.currency`) — history is immutable; changing a profile currency never rewrites past rows.
+- Multi-currency-per-partner is deliberately **out of scope** (would require multiple Stripe accounts and reintroduce FX).
+- Supported set is defined once in `lib/currency.ts` `CURRENCIES`. Adding a 7th currency = add it there + its `COUNTRY_MAP`/`COUNTRY_CURRENCY` entry in the connect route + a `MIN_FLOOR_RATE` entry + a rate in the rate route/`serverCurrency`. The shared helpers mean most consumers pick it up automatically.
+
+---
+
+## Stripe corridor reality (the AU/NZ payout blocker)
+
+- Your UK platform uses **destination charges** (customer pays → funds auto-transfer to partner's connected account). This works **in-corridor only**: US, UK, EEA, **Canada**, Switzerland.
+- **CAD is fully live** — Canada is in-corridor, no extra Stripe setup.
+- **AU / NZ are OUT of corridor.** Cross-border transfers don't reach them, and recipient-service-agreement accounts can't receive cross-border transfers either. Confirmed by Stripe live chat.
+- **The solution is Global Payouts** — a separate rail: funds land in the platform balance, then you explicitly send an outbound payment to the AU/NZ partner as a "recipient" (their bank details, per-payout FX quote, 0.25%+ fee). It is **limited public preview**, **Sales-gated** (not self-serve), verification takes a few business days.
+- **Status:** email sent to Stripe Sales requesting Global Payouts access for AU/NZ (see the 5 questions below). **Nothing to build until they reply** — Q2 (reuse Connect accounts vs. separate recipients) and Q5 (destination-charge vs. separate-charge-plus-outbound) determine the whole shape of the build.
+
+Questions pending with Stripe Sales:
+1. Enable Global Payouts for UK platform, AU/NZ recipients — eligibility/timeline.
+2. Reuse existing Connect accounts as recipients, or create separate Global Payouts recipient objects?
+3. Exact recipient onboarding data required (bank/routing, address, business type)?
+4. Available payout methods for AU/NZ (local bank vs card)?
+5. Works with destination charges, or requires separate charges + explicit outbound payment per booking? FX/fee/settlement mechanics?
+
+---
+
+## Kingsman Chauffeur Services (the AU partner) — state
+
+- `user_id = 116fd343-a034-4153-ac33-34bf1fcd7153`
+- Old **Spanish** Stripe account `acct_1TmAtY96UBUllKs9` was created by the pre-fix silent-ES default → couldn't attach an AU bank (country locked). **Deleted in Stripe.**
+- Profile now primed for a clean AU reconnect: `base_country = Australia`, `default_currency = AUD`, `stripe_account_id = NULL`.
+- **Next:** partner reconnects via portal ("Connect Stripe") → route mints a fresh **AU** account (AUD settlement) → he can add his Australian bank and complete onboarding. Reconnect email drafted/sent.
+- **Payout still blocked** until Global Payouts is enabled (above). Onboarding completes; live payout follows Stripe approval.
+
+---
+
+## Outstanding / to-do
+
+**Blocking on Stripe (no code until they reply):**
+- Global Payouts approval for AU/NZ → then build the AU/NZ payout path (likely: separate charge to platform balance + recipient creation + per-booking outbound payment + reconcile against existing `payout_status`/`payout_batch_id` columns). Scope as its own phased project.
+
+**Carried over from Chat 55 (still open):**
+- Live German-email test (set a test customer `communication_locale='de'`, trigger booking confirmation + completion, verify German email + English PDF).
+- Partner new-request alert live test — run null-coords audit SQL first (live partners with null `base_lat`/`base_lng`/`service_radius_km` silently never match), then confirm a live in-radius partner receives the alert.
+- `bookings/[id]` language-switcher spot-check (bespoke header, never audited for EN/ES leaks).
+- Server-side middleware auth gate (`middleware.ts` still pass-through; defence-in-depth, low priority).
+- Commission invoice VAT (blocked on NTUK VAT registration); Xero monthly commission endpoint (not built).
+- US-market launch items (sales tax vs VAT, 1099-K/W-9, US legal pages, USD end-to-end, entity/banking) — need a US professional.
+
+**Housekeeping:**
+- `.bak` files piling up in both repos (`*.chat5*.bak`) — clutter `git status`. Sweep them out or add `*.bak` to `.gitignore` when convenient.
+- `git` shows `camel-coming-soon` submodule always modified — ignore it, never `git add` it.
+
+---
+
+## Working-agreement notes (carried forward + reinforced this session)
+
+- **Always check the actual file before rewriting** — never assume the artifact/comment is current. (Two stale-comment traps this session: the `LanguageToggle` "hidden lg:flex" note, and the `currency.ts` "all prices in EUR" comment — both wrong; the code was truth.)
+- **Deliver as downloads or `python3 << 'PYEOF'` heredocs**, not pasted scripts. Browser downloads to `~/Downloads` sometimes don't land — heredocs are the reliable path. Never paste raw multi-line scripts into zsh (garbled / `event not found`).
+- **zsh globs `[id]` paths** — always single-quote paths containing `[...]` in `git add`, `cat`, `sed`, etc. This bit us repeatedly.
+- **Patch scripts must back up + assert + abort on mismatch** (never silent no-op). Validate against a faithful fixture when the file's too big to eyeball.
+- **`tsc --noEmit` after every change; commit per logical unit.** Widening a shared type surfaces every hardcoded consumer — use tsc as the checklist.
+- **Terminal command output frequently pasted back empty this session** — screenshots came through reliably. If a paste is blank, screenshot the terminal.
+- Git commits show a "committer name/email not configured" notice — harmless; commits succeed. (Optionally `git config --global user.name/user.email` to silence.)
+
+---
+
+## Chat 57 — Revert recovery + outreach conversion diagnosis + signup banner [Jul 4 2026]
+
+Stable tag: `v-stable-chat57` (camel-portal). Most of this session was (1) recovering an accidental
+revert of the entire Chat 56 portal session, and (2) diagnosing why partner outreach converts poorly
+and shipping a fix to the signup page. camel-customer was NOT affected by the revert and was not
+changed this session (still at `v-stable-chat56`).
+
+### 1. Accidental revert of all Chat 56 work — RECOVERED
+- Symptom: after asking a previous chat for a "safe rollback + handover update", `git log` showed a
+  stack of 13 `Revert "..."` commits on `origin/main` (all authored 22:06 same batch) that had backed
+  out EVERY Chat 56 portal commit — the 6-currency phases (0–4), Stripe connect hardening, AU city
+  list, and the mobile language-switcher work. `grep` confirmed the code was gone from disk
+  (`CURRENCIES`=0, `COUNTRY_CURRENCY`=0). This was NOT intentional — a "rollback" request had been
+  executed as `git revert` of the commits rather than a tag.
+- Recovery: identified last good commit `19a971a` (end-of-Chat-56, "Add Australia + fuller city
+  list…"). Tagged the broken tip as `backup-before-restore-chat56` (safety net), then
+  `git reset --hard 19a971a`, cherry-picked back the one legit post-revert commit (the `.gitignore`
+  `*.bak` change `5c0da15`), verified code was restored on disk (`CURRENCIES`=3 etc.), then
+  `git push --force-with-lease origin main`. Re-tagged `v-stable-chat56` properly.
+- **Vercel gotcha (important):** even after `main` was fixed, the live site still served the OLD
+  reverted build because Vercel had auto-promoted a *revert* commit to Production. Git being correct
+  does NOT mean production is correct. Fix: promote the correct deployment (`19a971a`) in the Vercel
+  dashboard. LESSON: after any history recovery, check the Vercel **Production badge is on a good
+  commit**, not just that git/`main` is right.
+- **LESSON (headline):** a "safe rollback" means create a `git tag` (changes nothing) — NEVER
+  `git revert` the commits (backs out working code). A tag is a bookmark; a revert is a deletion.
+
+### 2. Outreach conversion diagnosis (GA4)
+Outreach was ~616 sent, ~207 opens (34%), ~36 clicks, but only 2 signups. Investigated the whole
+funnel:
+- **List is clean.** `SELECT country, COUNT(*) FROM outreach_prospects GROUP BY country` = 1,449
+  Spain, 1 UK. The "opens from Netherlands/Ireland" the user worried about are Apple Mail Privacy /
+  corporate-scanner PROXY opens (they geolocate to Irish/Dutch datacentres), not real non-Spanish
+  companies. Email open/click geo is unreliable for this reason; click counts are also inflated by
+  proxy pre-fetch, so real human clicks < 36.
+- **The drop is click → signup-form, not form abandonment.** GA4 funnel showed `/partner/signup`
+  reached by only ~4 users over 90 days with **~4–9 second** engagement (a bounce), and
+  `/partner/application-submitted` ~2–3 users (= the 2 real signups). The homepage (`/`) gets real
+  prospect traffic (33s engagement) and tells the story well — but Step 1 of signup was a cold,
+  context-free form that killed the momentum.
+- **Open lead for next session:** `/partner/login` was getting ~3.5× MORE outreach traffic than
+  `/partner/signup` (35 vs 10 views). New prospects shouldn't be hitting login — they have no
+  account. Likely CTA ambiguity (homepage "Partner login" button next to "Apply", or email wording).
+  Worth investigating — could be an easy conversion win.
+
+### 3. GA4 saved-report gotcha (for future analytics work)
+- Temporary filters in standard **Reports** (the filter chip) do NOT persist on save — GA4 clears
+  them; only report structure (dimensions/metrics/date) saves. To keep a filtered view: use a
+  **Comparison** (persists in Reports, shows alongside All Users) OR build it in **Explore**
+  (filters persist fully — preferred).
+- Built a permanent Explore exploration named **"Outreach Journey"** (Free-form): rows = Page path,
+  values = Views + Avg engagement time, filters = `Session campaign exactly matches founding-partner`
+  AND `Page path does not match regex .*(admin|driver|/partner/(dashboard|bookings|requests|reports|
+  drivers|fleet|profile|settings|account|onboarding)).*`. Reopen after each batch to see the clean
+  prospect funnel. NOTE on the regex: anchored `/(admin|driver)` did NOT reliably match; the
+  `.*(...).* ` form does.
+- **Internal Traffic filter:** created in Chat 52 but check it's set to **Active**, not **Testing**
+  (Admin → Data settings → Data filters). In Testing it does nothing. It is not retroactive. (This is
+  why the user's own traffic still appeared in older reports.) For outreach analysis it barely matters
+  — filter by `session campaign = founding-partner`; you don't click your own outreach emails
+  (except the test prospects nicktrin+101/+102, which DO pollute the campaign bucket — hence the
+  page-path exclusion above).
+
+### 4. Signup Step 1 fix — founding-partner banner (SHIPPED)
+Root cause of the 4-second signup bounce: the excellent, story-rich homepage handed prospects to a
+naked Step-1 form with zero reinforcement of the pitch. Fix = a bold reassurance banner.
+- `app/partner/signup/page.tsx`: widened both `max-w-2xl` containers (header + card) to `max-w-4xl`;
+  inserted a full-width **orange banner at the TOP of the card, above the ProgressBar** (so it shows
+  on ALL 5 steps by design — reinforces free/quick throughout). Banner = "FOUNDING PARTNER INVITATION"
+  label + three white cards: **FREE TO JOIN** / No monthly fees, ever · **5 MINUTES** / Quick and
+  simple to apply · **MORE BOOKINGS** / Alongside your existing business.
+- Deliberately DROPPED from earlier drafts (per user, marketing calls): commission % (it's a negative
+  — don't advertise your cut), "100% fuel to you" (confusing to a cold reader), and any Spain
+  reference (keeps it universal / non-dating). No € shown.
+- i18n: reused/rewrote `signup.step1.reassure.*` keys (founding, stat1–3, sub1–3) across all 6
+  locales (en/es/fr/it/pt/de). No logic, validation, GA tracking, or API touched — copy + layout only.
+- Delivery method: pure-ASCII `python3 << 'PYEOF'` heredocs (backup + anchor-count assert + abort on
+  mismatch), `npx tsc --noEmit` clean before each deploy. Backups `.chat57*.bak` (swept at end).
+
+### To measure whether it worked
+Reopen the "Outreach Journey" Explore after the next send batch and watch:
+- `/partner/signup` **avg engagement time** — was ~4s; should climb if the banner reduces the bounce.
+- `/partner/application-submitted` **count** — the real success metric (was ~2). Small numbers — give
+  it a batch or two before judging.
+
+### Housekeeping done this session
+- `.bak` sweep + `*.bak` added to `.gitignore` (both repos) — early in session.
+- Handover `.md` committed to both repos (Chat 56 section had been uncommitted on disk).
+- `v-stable-chat56` tagged on BOTH repos (was missing); `v-stable-chat57` on camel-portal.
+- Safety tag `backup-before-restore-chat56` still on the old broken portal tip — deletable once
+  confident (`git tag -d backup-before-restore-chat56`, local only, never pushed).
+
+### Still open / next session
+- **Investigate `/partner/login` >> `/partner/signup` outreach traffic** (CTA ambiguity — likely
+  quick win).
+- Carried from Chat 56: Stripe Global Payouts for AU/NZ (blocked on Stripe Sales reply); live
+  German-email test; partner new-request alert live test (run null-coords audit SQL first);
+  `bookings/[id]` language-switcher spot-check; middleware auth gate; commission-invoice VAT; Xero
+  endpoint; US-market items.
+
