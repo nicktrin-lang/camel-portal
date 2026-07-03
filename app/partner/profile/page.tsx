@@ -7,6 +7,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { triggerPartnerLiveRefresh } from "@/lib/portal/triggerPartnerLiveRefresh";
 import { CITIES, citiesByCountry, type CityEntry } from "@/lib/cities";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { currencySymbol } from "@/lib/currency";
 
 const MapPicker = dynamic(() => import("./MapPicker"), { ssr: false });
 
@@ -451,7 +452,7 @@ export default function PartnerProfilePage() {
             <Field label={t("profile.field.currency")}>
               <p className="mt-1 mb-2 text-xs font-semibold text-black/50">{t("profile.field.currency.hint")}</p>
               <div className="border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-medium text-black">
-                {profile.default_currency === "GBP" ? t("profile.field.currency.gbp") : profile.default_currency === "USD" ? t("profile.field.currency.usd") : t("profile.field.currency.eur")}
+                {profile.default_currency === "EUR" ? t("profile.field.currency.eur") : profile.default_currency === "GBP" ? t("profile.field.currency.gbp") : profile.default_currency === "USD" ? t("profile.field.currency.usd") : `${currencySymbol(profile.default_currency)} ${profile.default_currency}`}
               </div>
               <p className="mt-2 text-xs font-semibold text-black/50">
                 {t("profile.field.currency.locked")} <a href="/partner/contact" className="underline font-black text-black">{t("profile.field.currency.lockedLink")}</a> {t("profile.field.currency.lockedEnd")}

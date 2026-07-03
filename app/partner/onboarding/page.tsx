@@ -292,54 +292,16 @@ function StepLocation({ profile, onDone }: { profile: Profile | null; onDone: ()
   );
 }
 
-function StepCurrency({ profile, onDone, onBack }: { profile: Profile | null; onDone: () => void; onBack: () => void }) {
+function StepCurrency({ onDone, onBack }: { profile: Profile | null; onDone: () => void; onBack: () => void }) {
   const { t } = useTranslation();
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [currency, setCurrency] = useState(profile?.default_currency || "EUR");
-  const [saving, setSaving]     = useState(false);
-  const [error, setError]       = useState("");
-
-  const options = [
-    { value: "EUR", label: t("onboarding.currency.eur.label"), symbol: "€", desc: t("onboarding.currency.eur.desc") },
-    { value: "GBP", label: t("onboarding.currency.gbp.label"), symbol: "£", desc: t("onboarding.currency.gbp.desc") },
-    { value: "USD", label: t("onboarding.currency.usd.label"), symbol: "$", desc: t("onboarding.currency.usd.desc") },
-  ];
-
-  async function save() {
-    setSaving(true); setError("");
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not signed in");
-      const { data: existing } = await supabase.from("partner_profiles").select("company_name,contact_name").eq("user_id", user.id).maybeSingle();
-      const { error: e } = await supabase.from("partner_profiles").upsert({
-        user_id: user.id, company_name: existing?.company_name ?? "", contact_name: existing?.contact_name ?? null,
-        default_currency: currency,
-      }, { onConflict: "user_id" });
-      if (e) throw new Error(e.message);
-      onDone();
-    } catch (e: any) { setError(e.message); } finally { setSaving(false); }
-  }
-
   return (
     <Card title={t("onboarding.currency.title")} subtitle={t("onboarding.currency.subtitle")}>
-      <div className="space-y-5">
+      <div className="space-y-6">
         <InfoBox>
-          <p className="font-black mb-1">{t("onboarding.currency.whyTitle")}</p>
-          <p className="font-bold text-black/60">{t("onboarding.currency.whyBody")}</p>
+          <p className="text-sm font-black text-black">{t("onboarding.currency.whyTitle")}</p>
+          <p className="mt-1 text-sm font-semibold text-black/60 leading-relaxed">{t("onboarding.currency.whyBody")}</p>
         </InfoBox>
-        {error && <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
-          {options.map(o => (
-            <button key={o.value} type="button" onClick={() => setCurrency(o.value)}
-              className={`border-2 p-4 text-left transition-all ${currency === o.value ? "border-[#ff7a00] bg-white" : "border-black/10 bg-[#f0f0f0] hover:border-black/30"}`}>
-              <div className="text-3xl font-black text-black">{o.symbol}</div>
-              <div className="mt-2 font-black text-black">{o.label}</div>
-              <div className="mt-0.5 text-xs font-bold text-black/50">{o.desc}</div>
-              {currency === o.value && <div className="mt-2 text-xs font-black text-[#ff7a00]">{t("onboarding.currency.selected")}</div>}
-            </button>
-          ))}
-        </div>
-        <NavButtons onBack={onBack} onNext={save} saving={saving} />
+        <NavButtons onBack={onBack} onNext={onDone} />
       </div>
     </Card>
   );
