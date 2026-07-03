@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { currencyLocale } from "@/lib/currency";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-type Currency = "EUR" | "GBP" | "USD";
+type Currency = "EUR" | "GBP" | "USD" | "AUD" | "NZD" | "CAD";
 const CURRENCY_META: Record<Currency, { locale: string }> = {
-  EUR: { locale: "es-ES" }, GBP: { locale: "en-GB" }, USD: { locale: "en-US" },
+  EUR: { locale: "es-ES" }, GBP: { locale: "en-GB" }, USD: { locale: "en-US" }, AUD: { locale: "en-AU" }, NZD: { locale: "en-NZ" }, CAD: { locale: "en-CA" },
 };
 type Rates = { GBP: number; USD: number };
 
@@ -82,7 +83,7 @@ type ApiResponse = {
 };
 
 function fmtCurr(amount: number, curr: string): string {
-  const locale = curr === "GBP" ? "en-GB" : curr === "USD" ? "en-US" : "es-ES";
+  const locale = currencyLocale(curr);
   return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(amount);
 }
 function toEur(amount: number, stored: Currency, rates: Rates): number {

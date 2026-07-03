@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { currencyLocale } from "@/lib/currency";
 import { createRouteHandlerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import {
   generateCompletionStatementPDF,
@@ -111,7 +112,7 @@ export async function POST(
 
     const companyName = partnerProfile?.company_name || "the car hire company";
     const currency    = booking.currency || "EUR";
-    const locale      = currency === "GBP" ? "en-GB" : currency === "USD" ? "en-US" : "es-ES";
+    const locale      = currencyLocale(currency);
     const fmt         = (n: number) => new Intl.NumberFormat(locale, { style: "currency", currency }).format(n);
     const siteUrl     = process.env.NEXT_PUBLIC_SITE_URL || "https://camel-global.com";
     const jobNo       = booking.job_number ? `#${booking.job_number}` : bookingId.slice(0, 8);

@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { currencyLocale } from "@/lib/currency";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
-type Currency = "EUR" | "GBP" | "USD";
+type Currency = "EUR" | "GBP" | "USD" | "AUD" | "NZD" | "CAD";
 const CURRENCY_META: Record<Currency, { symbol: string; locale: string; label: string }> = {
   EUR: { symbol: "€", locale: "es-ES", label: "EUR" },
+  AUD: { symbol: "A$", locale: "en-AU", label: "AUD" },
+  NZD: { symbol: "NZ$", locale: "en-NZ", label: "NZD" },
+  CAD: { symbol: "C$", locale: "en-CA", label: "CAD" },
   GBP: { symbol: "£", locale: "en-GB", label: "GBP" },
   USD: { symbol: "$", locale: "en-US", label: "USD" },
 };
@@ -102,7 +106,7 @@ const inputCls = "w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm f
 const labelCls = "text-xs font-black uppercase tracking-widest text-black";
 
 function fmtCurr(amount: number, curr: Currency | string): string {
-  const locale = curr === "GBP" ? "en-GB" : curr === "USD" ? "en-US" : "es-ES";
+  const locale = currencyLocale(curr);
   return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(amount);
 }
 function fmtDate(v?: string | null) {

@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { currencyLocale } from "@/lib/currency";
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
-type Currency = "EUR" | "GBP" | "USD";
+type Currency = "EUR" | "GBP" | "USD" | "AUD" | "NZD" | "CAD";
 
 const CURRENCY_META: Record<Currency, { symbol: string; label: string; locale: string }> = {
   EUR: { symbol: "€", label: "Euros (€)",          locale: "es-ES" },
+  AUD: { symbol: "A$", label: "AUD (A$)",           locale: "en-AU" },
+  NZD: { symbol: "NZ$", label: "NZD (NZ$)",         locale: "en-NZ" },
+  CAD: { symbol: "C$", label: "CAD (C$)",           locale: "en-CA" },
   GBP: { symbol: "£", label: "British Pounds (£)", locale: "en-GB" },
   USD: { symbol: "$", label: "US Dollars ($)",     locale: "en-US" },
 };

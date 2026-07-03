@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { currencyLocale } from "@/lib/currency";
 import React from "react";
 import fs from "fs";
 import path from "path";
@@ -119,7 +120,7 @@ export interface StatementData {
 
 export function StatementDocument({ d }: { d: StatementData }) {
   const cur       = d.currency;
-  const locale    = cur==="GBP"?"en-GB":cur==="USD"?"en-US":"es-ES";
+  const locale    = currencyLocale(cur);
   const fmt       = (n: number) => new Intl.NumberFormat(locale,{style:"currency",currency:cur}).format(n);
   const ref       = d.jobNumber ? `#${d.jobNumber}` : d.bookingId.slice(0,8).toUpperCase();
   const dateStr   = new Date(d.issuedAt).toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
@@ -577,7 +578,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
     .maybeSingle();
 
   const currency    = booking.currency || "EUR";
-  const locale      = currency==="GBP"?"en-GB":currency==="USD"?"en-US":"es-ES";
+  const locale      = currencyLocale(currency);
   const fmt         = (n: number) => new Intl.NumberFormat(locale, { style:"currency", currency }).format(n);
   const fmtRaw      = (n: number) => `${currency} ${n.toFixed(2)}`;
   const jobNo       = booking.job_number ? `#${booking.job_number}` : "";

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { currencyLocale } from "@/lib/currency";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
@@ -31,7 +32,7 @@ function fmtDateTime(iso?: string | null) {
 function fmtAmt(amount: number | null, currency: string | null) {
   if (amount == null || isNaN(amount)) return "—";
   const curr   = (currency ?? "EUR") as "EUR" | "GBP" | "USD";
-  const locale = curr === "EUR" ? "es-ES" : curr === "GBP" ? "en-GB" : "en-US";
+  const locale = currencyLocale(curr);
   return new Intl.NumberFormat(locale, { style: "currency", currency: curr }).format(amount);
 }
 

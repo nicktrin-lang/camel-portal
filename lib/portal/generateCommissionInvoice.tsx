@@ -1,4 +1,5 @@
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
+import { currencyLocale } from "@/lib/currency";
 import { sendEmail } from "@/lib/email";
 import fs from "fs";
 import path from "path";
@@ -42,7 +43,7 @@ function calcCommission(carHirePrice: number, rate: number): number {
 }
 
 function fmtCurr(amount: number, currency: string): string {
-  const locale = currency === "GBP" ? "en-GB" : currency === "USD" ? "en-US" : "es-ES";
+  const locale = currencyLocale(currency);
   return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
 }
 
