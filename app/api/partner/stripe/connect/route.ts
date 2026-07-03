@@ -22,8 +22,8 @@ const COUNTRY_MAP: Record<string, string> = {
 };
 
 // Settlement currency for the connected account, derived from its COUNTRY.
-// This is the Stripe account's own currency — NOT the partner's display/pricing
-// currency (default_currency), which is a separate concept used elsewhere.
+// This is the partner's SINGLE currency — bid = charge = payout = this value.
+// Written back to partner_profiles.default_currency so Stripe is the source of truth.
 const COUNTRY_CURRENCY: Record<string, string> = {
   GB: "gbp", ES: "eur", AU: "aud", US: "usd", CA: "cad",
   FR: "eur", DE: "eur", IT: "eur", NL: "eur", PT: "eur",
@@ -63,12 +63,13 @@ export async function POST() {
     let accountId = profile.stripe_account_id;
 
     if (!accountId) {
-      const countryCode = stripeCountry(profile.base_country);
+      const countryCode      = stripeCountry(profile.base_country);
+      const settlementCcy    = COUNTRY_CURRENCY[countryCode] ?? "eur";
       const account = await stripe.accounts.create({
         type: "express",
         country:          countryCode,
         email:            user.email,
-        default_currency: COUNTRY_CURRENCY[countryCode] ?? "eur",
+        default_currency: settlementCcy,
         capabilities: {
           card_payments: { requested: true },
           transfers:     { requested: true },
@@ -86,9 +87,15 @@ export async function POST() {
       });
       accountId = account.id;
 
+      // Stripe account currency is the single source of truth: mirror it into
+      // default_currency (uppercased, as stored elsewhere) so bids/reporting can
+      // never drift from what Stripe actually settles in.
       await supabase
         .from("partner_profiles")
-        .update({ stripe_account_id: accountId })
+        .update({
+          stripe_account_id: accountId,
+          default_currency:  settlementCcy.toUpperCase(),
+        })
         .eq("user_id", user.id);
     }
 
