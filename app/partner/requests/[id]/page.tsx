@@ -46,6 +46,8 @@ type RequestRow = {
   driver_age: number | null;
   additional_drivers: number;
   additional_driver_ages: string | null;
+  pref_transmission: string | null;
+  pref_child_seats: { infant?: number; toddler?: number; booster?: number } | null;
   vehicle_category_slug: string | null; vehicle_category_name: string | null;
   notes: string | null; status: string; created_at: string;
   expires_at: string | null; matched_status: string | null;
@@ -96,6 +98,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-sm font-bold text-black">{children}</span>
     </div>
   );
+}
+
+function childSeatsLabel(cs: { infant?: number; toddler?: number; booster?: number } | null, t: (k: string) => string): string {
+  if (!cs) return "—";
+  const parts: string[] = [];
+  if (cs.infant)  parts.push(`${cs.infant} ${t("requests.detail.info.childSeats.infant")}`);
+  if (cs.toddler) parts.push(`${cs.toddler} ${t("requests.detail.info.childSeats.toddler")}`);
+  if (cs.booster) parts.push(`${cs.booster} ${t("requests.detail.info.childSeats.booster")}`);
+  return parts.length ? parts.join(", ") : "—";
 }
 
 export default function PartnerRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -296,6 +307,8 @@ export default function PartnerRequestDetailPage({ params }: { params: Promise<{
             <Field label={t("requests.detail.info.passengers")}>{request.passengers}</Field>
             <Field label={t("requests.detail.info.suitcases")}>{request.suitcases}</Field>
             <Field label={t("requests.detail.info.handLuggage")}>{request.hand_luggage}</Field>
+            <Field label={t("requests.detail.info.transmission")}>{request.pref_transmission === "automatic" ? t("requests.detail.info.transmission.automatic") : request.pref_transmission === "manual" ? t("requests.detail.info.transmission.manual") : "—"}</Field>
+            <Field label={t("requests.detail.info.childSeats")}>{childSeatsLabel(request.pref_child_seats, t)}</Field>
             <Field label={t("requests.detail.info.sport")}>{sportEquipmentLabel(request.sport_equipment)}</Field>
             <Field label={t("requests.detail.info.driverAge")}>{request.driver_age ?? "—"}</Field>
             <Field label={t("requests.detail.info.additionalDrivers")}>
