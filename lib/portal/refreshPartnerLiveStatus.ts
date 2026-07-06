@@ -113,7 +113,6 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
     .from("partner_applications")
     .update({
       user_id:             cleanUserId,
-      status:              "live",
       live_email_sent_at:  new Date().toISOString(),
     })
     .eq("id", resolvedApplication.id)

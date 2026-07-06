@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     // refreshPartnerLiveStatus never fires a duplicate email.
     const { error: updateErr } = await db
       .from("partner_applications")
-      .update({ status: "live", live_email_sent_at: new Date().toISOString() })
+      .update({ live_email_sent_at: new Date().toISOString() })
       .eq("id", applicationId);
 
     if (updateErr) {
