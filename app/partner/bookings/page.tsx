@@ -30,8 +30,9 @@ type BookingRow = {
   fuel_charge: number | null; fuel_refund: number | null;
   post_completion_refund_total: number | null;
   commission_rate: number | null; commission_amount: number | null;
-  partner_payout_amount: number | null;
+  partner_payout_amount: number | null; settled_partner_net: number | null;
   stripe_fee: number | null; stripe_fee_currency: string | null; exchange_rate: number | null;
+  stripe_fee_total: number | null;
 };
 
 type ApiResponse = { data: BookingRow[]; role: string | null; adminMode: boolean };
@@ -69,9 +70,11 @@ function fmtAmount(amount: number | string | null, currency: string | null) {
 function calcNetPayout(r: BookingRow): number {
   const isCancelled = String(r.booking_status || "").toLowerCase() === "cancelled";
   if (isCancelled && r.refund_status === "full") return 0;
+  // Partner payout: prefer stored settled net; fall back to recompute for un-migrated rows
+  if (r.settled_partner_net != null) return Number(r.settled_partner_net);
   const hire    = Number(r.car_hire_price ?? 0);
   const rate    = r.commission_rate ?? 20;
-  const commAmt = Math.max((hire * rate) / 100, 10);
+  const commAmt = r.commission_amount != null ? Number(r.commission_amount) : Math.max((hire * rate) / 100, 10);
   const pcRefund = Number(r.post_completion_refund_total ?? 0);
   return Math.max(0, hire - commAmt + Number(r.fuel_charge ?? 0) - pcRefund);
 }
@@ -155,7 +158,7 @@ function downloadExcel(rows: BookingRow[]) {
     "Pickup Address","Dropoff Address","Scheduled Pickup At","Scheduled Dropoff At",
     "Actual Pickup Date & Time","Actual Dropoff Date & Time","Completed Date","Duration",
     "Bid Currency","Charge Currency",
-    "Car Hire Price","Commission Rate (%)","Commission Amount",
+    "Car Hire Price","Commission Rate (%)","Commission Amount","Stripe Fee Absorbed (Camel)",
     "Fuel Deposit","Fuel Charge","Fuel Refund",
     "Refund","Customer Final",
     "Total Amount","Net Payout",
@@ -164,7 +167,8 @@ function downloadExcel(rows: BookingRow[]) {
   const exRows = rows.map(r => {
     const hire      = Number(r.car_hire_price ?? 0);
     const rate      = r.commission_rate ?? 20;
-    const commAmt   = Math.max((hire * rate) / 100, 10);
+    // Commission: prefer stored canonical amount; fall back to recompute for un-migrated rows
+    const commAmt   = r.commission_amount != null ? Number(r.commission_amount) : Math.max((hire * rate) / 100, 10);
     const netPayout = calcNetPayout(r);
     const isCompleted = String(r.booking_status || "").toLowerCase() === "completed";
     return [
@@ -179,6 +183,7 @@ function downloadExcel(rows: BookingRow[]) {
       fmtDuration(r.journey_duration_minutes),
       r.currency ?? "EUR", r.charge_currency ?? r.currency ?? "EUR",
       hire, rate, commAmt,
+      Number(r.stripe_fee_total ?? 0) > 0 ? Number(r.stripe_fee_total) : "",
       r.fuel_price ?? "", r.fuel_charge ?? "", r.fuel_refund ?? "",
       Number(r.post_completion_refund_total??0)>0?Number(r.post_completion_refund_total??0):"",
       Number((Math.max(0,Number(r.amount??0)-Number(r.fuel_refund??0)-Number(r.post_completion_refund_total??0))).toFixed(2)),
@@ -412,7 +417,7 @@ export default function PartnerBookingsPage() {
                   {visible.map((row, i) => {
                     const hire      = Number(row.car_hire_price ?? 0);
                     const rate      = row.commission_rate ?? 20;
-                    const commAmt   = Math.max((hire * rate) / 100, 10);
+                    const commAmt   = row.commission_amount != null ? Number(row.commission_amount) : Math.max((hire * rate) / 100, 10);
                     const netPayout = calcNetPayout(row);
                     const hasCurrConv = row.charge_currency && row.charge_currency !== (row.currency ?? "EUR");
                     return (

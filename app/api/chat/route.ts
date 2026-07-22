@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       .select(`
         id, job_number, booking_status, amount, currency,
         car_hire_price, fuel_price, commission_rate, commission_amount,
-        partner_payout_amount, fuel_charge, fuel_refund,
+        partner_payout_amount, settled_partner_net, fuel_charge, fuel_refund,
         driver_name, driver_phone, driver_vehicle,
         driver_assigned_at, created_at, request_id, partner_user_id
       `)
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
             `Total: ${b.amount} ${b.currency}`,
             `Commission rate: ${rate}%`,
             `Commission amount: ${b.commission_amount ?? "not yet calculated"} ${b.currency}`,
-            `Your payout: ${b.partner_payout_amount ?? "not yet calculated"} ${b.currency}`,
+            `Your payout: ${b.settled_partner_net ?? b.partner_payout_amount ?? "not yet calculated"} ${b.currency}`,
             `Driver: ${b.driver_name || "not assigned"}`,
             `Driver phone: ${b.driver_phone || "not assigned"}`,
           ];
@@ -130,7 +130,7 @@ TODAY'S DATE/TIME: ${new Date().toLocaleString("en-GB", { timeZone: "Europe/Madr
 - At delivery: driver records fuel level and hands over insurance documents.
 - At collection: driver records return fuel level. Fuel charge or refund is calculated per quarter tank vs the full-tank deposit.
 - Commission: Camel Global earns a commission (default 20%, may be reduced by agreement). Commission is calculated on the car hire price only — fuel passes through 100% to the partner. Minimum commission is €10.
-- Partners are paid their payout amount (car hire price minus commission) plus the full fuel amount.
+- Partners are paid their settled net payout: car hire price minus commission, plus any fuel used charged to the customer. This settled figure is the canonical payout and is stored per booking.
 - Partners must be "live" to receive requests: they need a fleet base address, GPS coordinates, service radius, at least one active vehicle, one active driver, billing currency set, and VAT/NIF number set.
 
 == CANCELLATION POLICY ==

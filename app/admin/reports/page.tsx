@@ -37,8 +37,9 @@ type BookingRow = {
   car_hire_price:number|string|null; fuel_price:number|string|null;
   fuel_used_quarters:number|null; fuel_charge:number|string|null; fuel_refund:number|string|null;
   commission_rate:number|null; commission_amount:number|string|null;
-  partner_payout_amount:number|string|null;
+  partner_payout_amount:number|string|null; settled_partner_net:number|string|null;
   stripe_fee:number|null; stripe_fee_currency:string|null; exchange_rate:number|null;
+  stripe_fee_total:number|string|null; stripe_fee_breakdown:Record<string,unknown>|null;
   payout_status:string|null; payout_hold?:boolean|null;
   cancelled_by:string|null; cancelled_at:string|null;
   cancellation_reason:string|null; refund_status:string|null;
@@ -141,14 +142,17 @@ function calcPayout(b: BookingRow): { hire:number; rate:number; commAmt:number; 
   const refundStatus = b.refund_status||null;
   const fuel         = Number(b.fuel_price??0);
   const bidCurr      = (b.currency??"EUR") as string;
-  const feeInBid     = stripeFeeInBidCurrency(b.stripe_fee, b.stripe_fee_currency, bidCurr, b.exchange_rate);
+  // Stripe fee: prefer stored canonical total; fall back to payment-derived fee for un-migrated rows
+  const feeInBid     = b.stripe_fee_total!=null ? Number(b.stripe_fee_total) : stripeFeeInBidCurrency(b.stripe_fee, b.stripe_fee_currency, bidCurr, b.exchange_rate);
   const pcRefundTotal = Number(b.post_completion_refund_total ?? 0);
   if (isCancelled&&refundStatus==="full") return { hire:0, rate:0, commAmt:0, partnerPayout:0, camelNetComm:0, fuelRefund:fuel, feeInBid:0, pcRefundTotal:0, netFinal:0 };
   const hire          = Number(b.car_hire_price??0);
   const rate          = b.commission_rate??20;
-  const commAmt       = Math.max((hire*rate)/100, 10);
+  // Commission: prefer stored canonical amount; fall back to recompute for un-migrated rows
+  const commAmt       = b.commission_amount!=null ? Number(b.commission_amount) : Math.max((hire*rate)/100, 10);
   const fuelCharge    = Number(b.fuel_charge??0);
-  const partnerPayout = Math.max(0, hire - commAmt + fuelCharge);
+  // Partner payout: prefer stored settled net; fall back to recompute for un-migrated rows
+  const partnerPayout = b.settled_partner_net!=null ? Number(b.settled_partner_net) : Math.max(0, hire - commAmt + fuelCharge);
   const camelNetComm  = Math.max(0, commAmt - feeInBid);
   const fuelRefund    = (isCancelled&&refundStatus==="partial") ? fuel : Number(b.fuel_refund??0);
   const finalAmount   = hire + fuelCharge;
@@ -826,13 +830,16 @@ export default function AdminReportsPage() {
   const previousMonthKey = getPreviousMonthKey();
   const bidsSubmitted    = filteredRequests.filter(r=>["bid_submitted","bid_successful","bid_unsuccessful"].includes(String(r.status||"").toLowerCase())).length;
 
-  const partnerMap = new Map<string,{name:string;bookings:number;revenue:number;commission:number;payout:number;stripeFees:number;camelNet:number;completed:number;cancelled:number;pcRefunds:number}>();
+  // Keyed by (partner, currency) — never sum money across currencies
+  const partnerMap = new Map<string,{name:string;currency:string;bookings:number;revenue:number;commission:number;payout:number;stripeFees:number;camelNet:number;completed:number;cancelled:number;pcRefunds:number}>();
   for (const b of filteredBookings) {
     const pid  = String(b.partner_user_id||"unknown");
     const name = String(b.partner_company_name||"Unknown Partner");
+    const curr = String(b.currency||"EUR");
+    const key  = `${pid}|${curr}`;
     const isCancelled = String(b.booking_status||"").toLowerCase()==="cancelled";
     const { commAmt, partnerPayout, camelNetComm, hire, feeInBid, pcRefundTotal } = calcPayout(b);
-    const cur = partnerMap.get(pid)||{ name, bookings:0, revenue:0, commission:0, payout:0, stripeFees:0, camelNet:0, completed:0, cancelled:0, pcRefunds:0 };
+    const cur = partnerMap.get(key)||{ name, currency:curr, bookings:0, revenue:0, commission:0, payout:0, stripeFees:0, camelNet:0, completed:0, cancelled:0, pcRefunds:0 };
     cur.bookings++;
     if (!isCancelled) {
       cur.revenue    += isFinite(Number(b.amount??0))?Number(b.amount??0):0;
@@ -844,9 +851,9 @@ export default function AdminReportsPage() {
     }
     if (isCancelled) cur.cancelled++;
     if (String(b.booking_status||"").toLowerCase()==="completed") cur.completed++;
-    partnerMap.set(pid,cur);
+    partnerMap.set(key,cur);
   }
-  const partnerBreakdown = Array.from(partnerMap.values()).sort((a,b)=>b.revenue-a.revenue);
+  const partnerBreakdown = Array.from(partnerMap.values()).sort((a,b)=>a.name.localeCompare(b.name)||b.revenue-a.revenue);
 
   const vehicleBreakdown = Array.from(
     filteredBookings.reduce((map,r)=>{
@@ -935,8 +942,8 @@ export default function AdminReportsPage() {
       const t=revenuesByCurrency[curr];
       return [`${curr} ${CURRENCY_META[curr].symbol}`,t.count,t.completed,t.cancelled,t.total,t.carHire,t.commissionTotal,t.stripeFeeTotal,t.camelNetCommTotal,t.partnerPayoutTotal,t.fuelDeposit,t.fuelCharge,t.fuelRefund,t.pcRefundTotal];
     });
-    const partnerHeaders = ["Partner","Total Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees (Camel)","Camel Net Income","Partner Net Payout","Post-Completion Refunds"];
-    const partnerRows = partnerBreakdown.map(p=>[p.name,p.bookings,p.completed,p.cancelled,p.revenue,p.commission,p.stripeFees,p.camelNet,p.payout,p.pcRefunds]);
+    const partnerHeaders = ["Partner","Currency","Total Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees (Camel)","Camel Net Income","Partner Net Payout","Post-Completion Refunds"];
+    const partnerRows = partnerBreakdown.map(p=>[p.name,p.currency,p.bookings,p.completed,p.cancelled,p.revenue,p.commission,p.stripeFees,p.camelNet,p.payout,p.pcRefunds]);
     const allHeaders = [
       "Job","Partner","Partner Country","Customer","Booking Status","Payout Status","Bid Currency",
       "Car Hire","Commission Rate (%)","Commission Amount",
@@ -1118,31 +1125,32 @@ export default function AdminReportsPage() {
 
       <div className="border border-black/10 bg-white p-6 md:p-8">
         <h2 className="text-xl font-black text-black mb-1">Partner Breakdown</h2>
-        <p className="text-sm text-black/50 mb-4">Revenue, commission, Stripe fees and payout performance by partner.</p>
+        <p className="text-sm text-black/50 mb-4">Revenue, commission, Stripe fees and payout performance by partner. One row per partner per currency — money is never summed across currencies.</p>
         <div className="overflow-x-auto border border-black/10">
           <table className="min-w-full text-sm">
             <thead className="bg-black text-white">
               <tr>
-                {["Partner","Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees (Camel)","Camel Net Income","Partner Net Payout","Post-Comp Refunds"].map(h=>(
+                {["Partner","Currency","Bookings","Completed","Cancelled","Total Revenue","Camel Commission","Stripe Fees (Camel)","Camel Net Income","Partner Net Payout","Post-Comp Refunds"].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
               {partnerBreakdown.length===0 ? (
-                <tr><td colSpan={10} className="px-4 py-4 text-black/50">No partner data.</td></tr>
+                <tr><td colSpan={11} className="px-4 py-4 text-black/50">No partner data.</td></tr>
               ) : partnerBreakdown.map((p,i)=>(
                 <tr key={i} className={`hover:bg-[#f0f0f0] ${i%2===0?"bg-white":"bg-[#fafafa]"}`}>
                   <td className="px-4 py-3 font-black text-black">{p.name}</td>
+                  <td className="px-4 py-3 font-bold text-black/60">{p.currency}</td>
                   <td className="px-4 py-3 text-black/70">{p.bookings}</td>
                   <td className="px-4 py-3 text-black/70">{p.completed}</td>
                   <td className={`px-4 py-3 font-bold ${p.cancelled>0?"text-red-600":"text-black/30"}`}>{p.cancelled}</td>
-                  <td className="px-4 py-3 font-black text-black">{p.revenue.toFixed(2)}</td>
-                  <td className="px-4 py-3 font-black text-[#ff7a00]">{p.commission.toFixed(2)}</td>
-                  <td className="px-4 py-3 font-black text-amber-700">{p.stripeFees.toFixed(2)}</td>
-                  <td className="px-4 py-3 font-black text-green-700">{p.camelNet.toFixed(2)}</td>
-                  <td className="px-4 py-3 font-black text-black/70">{p.payout.toFixed(2)}</td>
-                  <td className="px-4 py-3 font-black text-amber-700">{p.pcRefunds>0?p.pcRefunds.toFixed(2):<span className="text-black/30">—</span>}</td>
+                  <td className="px-4 py-3 font-black text-black">{fmtCurr(p.revenue,p.currency)}</td>
+                  <td className="px-4 py-3 font-black text-[#ff7a00]">{fmtCurr(p.commission,p.currency)}</td>
+                  <td className="px-4 py-3 font-black text-amber-700">{fmtCurr(p.stripeFees,p.currency)}</td>
+                  <td className="px-4 py-3 font-black text-green-700">{fmtCurr(p.camelNet,p.currency)}</td>
+                  <td className="px-4 py-3 font-black text-black/70">{fmtCurr(p.payout,p.currency)}</td>
+                  <td className="px-4 py-3 font-black text-amber-700">{p.pcRefunds>0?fmtCurr(p.pcRefunds,p.currency):<span className="text-black/30">—</span>}</td>
                 </tr>
               ))}
             </tbody>

@@ -16,9 +16,10 @@ type BookingRow = {
   car_hire_price: number | string | null; fuel_price: number | string | null;
   fuel_used_quarters: number | null; fuel_charge: number | string | null; fuel_refund: number | string | null;
   commission_rate: number | null; commission_amount: number | string | null;
-  partner_payout_amount: number | string | null;
+  partner_payout_amount: number | string | null; settled_partner_net: number | string | null;
   post_completion_refund_total: number | string | null;
   stripe_fee: number | null; stripe_fee_currency: string | null; exchange_rate: number | null;
+  stripe_fee_total: number | string | null; stripe_fee_breakdown: Record<string, unknown> | null;
   cancelled_by: string | null; cancelled_at: string | null;
   cancellation_reason: string | null; refund_status: string | null;
   created_at: string | null; job_number: string | null;
@@ -135,7 +136,8 @@ function calcPayout(b: BookingRow): {
   const refundStatus = b.refund_status || null;
   const fuel         = Number(b.fuel_price ?? 0);
   const bidCurr      = (b.currency ?? "EUR") as string;
-  const feeInBid     = stripeFeeInBidCurrency(b.stripe_fee, b.stripe_fee_currency, bidCurr, b.exchange_rate);
+  // Stripe fee: prefer stored canonical total; fall back to payment-derived fee for un-migrated rows
+  const feeInBid     = b.stripe_fee_total != null ? Number(b.stripe_fee_total) : stripeFeeInBidCurrency(b.stripe_fee, b.stripe_fee_currency, bidCurr, b.exchange_rate);
 
   if (isCancelled && refundStatus === "full") {
     return { hire:0, rate:0, commAmt:0, partnerPayout:0, camelNetComm:0, fuelRefund:fuel, feeInBid:0 };
@@ -143,11 +145,12 @@ function calcPayout(b: BookingRow): {
 
   const hire         = Number(b.car_hire_price ?? 0);
   const rate         = b.commission_rate ?? 20;
-  const commAmt      = Math.max((hire * rate) / 100, 10);
+  // Commission: prefer stored canonical amount; fall back to recompute for un-migrated rows
+  const commAmt      = b.commission_amount != null ? Number(b.commission_amount) : Math.max((hire * rate) / 100, 10);
   const fuelCharge   = Number(b.fuel_charge ?? 0);
-  // Partner payout: car hire minus commission plus any fuel charge retained — Stripe fee is NOT their cost
+  // Partner payout: prefer stored settled net; fall back to recompute for un-migrated rows
   const pcRefund      = Number(b.post_completion_refund_total ?? 0);
-  const partnerPayout = Math.max(0, hire - commAmt + fuelCharge - pcRefund);
+  const partnerPayout = b.settled_partner_net != null ? Number(b.settled_partner_net) : Math.max(0, hire - commAmt + fuelCharge - pcRefund);
   // Camel net commission: what Camel actually keeps after paying Stripe
   const camelNetComm  = Math.max(0, commAmt - feeInBid);
   const fuelRefund    = (isCancelled && refundStatus === "partial") ? fuel : Number(b.fuel_refund ?? 0);

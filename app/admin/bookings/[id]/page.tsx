@@ -28,7 +28,9 @@ type BookingRow = {
   driver_vehicle: string | null; driver_notes: string | null; driver_assigned_at: string | null;
   fuel_price: number | null; car_hire_price: number | null;
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
-  commission_rate: number | null;
+  commission_rate: number | null; commission_amount?: number | null;
+  partner_payout_amount?: number | null; settled_partner_net?: number | null;
+  stripe_fee_total?: number | null; stripe_fee_breakdown?: Record<string, unknown> | null;
   currency: Currency; charge_currency: string | null; conversion_rate: number | null;
   cancelled_by?: string | null; cancelled_at?: string | null;
   cancellation_reason?: string | null; refund_status?: string | null;
@@ -168,13 +170,15 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
   if (!payment) return null;
 
   const hire            = Number(booking.car_hire_price ?? 0);
-  const rate            = (booking as any).commission_rate ?? 20;
-  const commAmt         = Math.max((hire * rate) / 100, 10);
+  const rate            = booking.commission_rate ?? 20;
+  // Commission: prefer stored canonical amount; fall back to recompute for un-migrated rows
+  const commAmt         = booking.commission_amount != null ? Number(booking.commission_amount) : Math.max((hire * rate) / 100, 10);
   const fuelDeposit     = Number(booking.fuel_price ?? 0);
   const fuelCharge      = Number(booking.fuel_charge ?? 0);
   const fuelRefund      = Number(booking.fuel_refund ?? payment.fuel_refund_amount ?? 0);
   const totalPaid       = hire + fuelDeposit;
-  const netPayout       = Math.max(0, hire - commAmt + fuelCharge);
+  // Partner payout: prefer stored settled net; fall back to recompute for un-migrated rows
+  const netPayout       = booking.settled_partner_net != null ? Number(booking.settled_partner_net) : Math.max(0, hire - commAmt + fuelCharge);
   const pcTotal         = Number(booking.post_completion_refund_total ?? 0);
   const finalAmount     = hire + fuelCharge;
   const netFinal        = finalAmount - pcTotal;
@@ -259,9 +263,11 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
 
       <p className="text-xs font-bold text-black/40">
         Stripe processing fees are covered by Camel Global and are not deducted from partner payout.
-        {payment?.stripe_fee != null && payment.stripe_fee > 0 && (
+        {booking.stripe_fee_total != null && Number(booking.stripe_fee_total) > 0 ? (
+          <span className="ml-1">Stripe fees absorbed: {fmtCurr(Number(booking.stripe_fee_total), bidCurrency)} (Camel absorbed).</span>
+        ) : payment?.stripe_fee != null && payment.stripe_fee > 0 ? (
           <span className="ml-1">Actual Stripe fee: {fmtCurr(payment.stripe_fee, payment.stripe_fee_currency ?? bidCurrency)} (Camel absorbed).</span>
-        )}
+        ) : null}
       </p>
     </div>
   );
@@ -471,8 +477,8 @@ function CancellationSummary({ bk }: { bk: BookingRow }) {
   const stored   = (bk.currency ?? "EUR") as Currency;
   const carHire  = Number(bk.car_hire_price ?? 0);
   const fuel     = Number(bk.fuel_price ?? 0);
-  const commRate = (bk as any).commission_rate ?? 20;
-  const commAmt  = Math.max((carHire * commRate) / 100, 10);
+  const commRate = bk.commission_rate ?? 20;
+  const commAmt  = bk.commission_amount != null ? Number(bk.commission_amount) : Math.max((carHire * commRate) / 100, 10);
   const basePayout = Math.max(0, carHire - commAmt);
   const isFull    = bk.refund_status === "full";
   const isPartial = bk.refund_status === "partial";
@@ -481,7 +487,8 @@ function CancellationSummary({ bk }: { bk: BookingRow }) {
   const customerTotalRefund   = customerCarHireRefund + customerFuelRefund;
   const partnerKeepsCarHire   = isPartial ? carHire : 0;
   const partnerKeepsComm      = isPartial ? commAmt : 0;
-  const partnerNetPayout      = isPartial ? basePayout : 0;
+  // Partner payout: prefer stored settled net; fall back to refund-driven recompute for un-migrated rows
+  const partnerNetPayout      = isFull ? 0 : (bk.settled_partner_net != null ? Number(bk.settled_partner_net) : (isPartial ? basePayout : 0));
   const cancelledByLabel = bk.cancelled_by === "customer" ? "Customer" : bk.cancelled_by === "partner" ? "Partner" : "Camel Global Admin";
   return (
     <div className="border border-red-200 bg-red-50 p-6 space-y-4">

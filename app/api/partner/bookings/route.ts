@@ -28,6 +28,7 @@ export async function GET() {
         car_hire_price, fuel_price,
         fuel_used_quarters, fuel_charge, fuel_refund,
         commission_rate, commission_amount, partner_payout_amount,
+        settled_partner_net, stripe_fee_total, stripe_fee_breakdown,
         cancelled_by, cancelled_at, cancellation_reason, refund_status,
         notes, created_at, job_number,
         driver_name, driver_phone, driver_vehicle, driver_notes, driver_assigned_at,
@@ -101,12 +102,14 @@ export async function GET() {
       let effectiveCarHire    = booking.car_hire_price ?? null;
       let effectiveCommission = booking.commission_amount ?? null;
       let effectivePayout     = booking.partner_payout_amount ?? null;
+      let effectiveSettledNet = booking.settled_partner_net ?? null;
       let effectiveFuelRefund = booking.fuel_refund ?? null;
 
       if (isCancelled && refundStatus === "full") {
         effectiveCarHire    = 0;
         effectiveCommission = 0;
         effectivePayout     = 0;
+        effectiveSettledNet = 0;
         effectiveFuelRefund = fuel;
       } else if (isCancelled && refundStatus === "partial") {
         effectiveFuelRefund = fuel;
@@ -130,6 +133,7 @@ export async function GET() {
         commission_rate:       booking.commission_rate ?? null,
         commission_amount:     effectiveCommission,
         partner_payout_amount: effectivePayout,
+        settled_partner_net:   effectiveSettledNet,
         cancelled_by:          booking.cancelled_by || null,
         cancelled_at:          booking.cancelled_at || null,
         cancellation_reason:   booking.cancellation_reason || null,
@@ -175,6 +179,8 @@ export async function GET() {
         request_status:    request?.status || null,
         stripe_fee:          payment?.stripe_fee ?? null,
         stripe_fee_currency: payment?.stripe_fee_currency ?? null,
+        stripe_fee_total:    booking.stripe_fee_total ?? null,
+        stripe_fee_breakdown: booking.stripe_fee_breakdown ?? null,
         exchange_rate:       payment?.exchange_rate ?? null,
         payout_status:       booking.payout_status ?? null,
         payout_hold:         booking.payout_hold ?? false,
