@@ -91,7 +91,6 @@ export async function GET(
     const hasBaseLng       = p?.base_lng != null && !isNaN(Number(p.base_lng));
     const hasRadius        = p?.service_radius_km != null && Number(p.service_radius_km) > 0;
     const hasFleet         = fleet.length > 0;
-    const hasDrivers       = drivers.length > 0;
     const hasCurrency      = !!String(p?.default_currency || "").trim();
     const hasVat           = !!String(p?.vat_number || "").trim();
 
@@ -100,7 +99,8 @@ export async function GET(
     if (!hasBaseLat || !hasBaseLng) missing.push("Fleet GPS coordinates");
     if (!hasRadius)                 missing.push("Service radius");
     if (!hasFleet)                  missing.push("Active fleet vehicle");
-    if (!hasDrivers)                missing.push("Active driver");
+    // Active driver is NOT a live-readiness gate — it's a fulfilment-time
+    // requirement. `drivers` is still returned so the UI can nudge "no driver yet".
     if (!hasCurrency)               missing.push("Billing currency");
     if (!hasVat)                    missing.push("VAT / NIF number");
 
