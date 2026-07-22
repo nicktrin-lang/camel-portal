@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendApprovalEmail, coerceEmailLocale, type EmailLocale } from "@/lib/email";
+import { computeLiveReadiness } from "@/lib/portal/computeLiveReadiness";
 
 // Vercel cron — runs daily at 09:00 UTC
-// Sends onboarding reminder to approved-not-live partners every 48 hours
+// Sends onboarding reminder to approved-but-NOT-LIVE partners every 48 hours.
+// A partner that is already live (passes the 7 live-readiness checks — note an
+// active driver is NOT one of them) is skipped: we never nag a live partner.
+// Only partners still missing a live requirement (base address, coords, radius,
+// active fleet, currency, VAT) receive the reminder.
 
 async function getPartnerLocale(
   db: ReturnType<typeof createServiceRoleSupabaseClient>,
@@ -50,11 +55,26 @@ export async function GET(req: Request) {
   }
 
   let sent = 0;
+  let skippedLive = 0;
   const errors: string[] = [];
 
   for (const partner of partners) {
     const toEmail = String(partner.email || "").trim().toLowerCase();
     if (!toEmail) continue;
+
+    // Skip partners that are already live — a driver is NOT required for live,
+    // so a partner missing only a driver counts as live and is not nagged.
+    // If readiness can't be computed (e.g. no profile yet) treat as not-live
+    // and send the reminder — they still have onboarding to finish.
+    try {
+      const { isLive } = await computeLiveReadiness(String(partner.user_id || ""));
+      if (isLive) {
+        skippedLive++;
+        continue;
+      }
+    } catch {
+      // fall through and send — partner has not completed enough to be live
+    }
 
     try {
       const locale = await getPartnerLocale(db, partner.user_id);
@@ -71,5 +91,5 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, sent, errors });
+  return NextResponse.json({ ok: true, sent, skippedLive, errors });
 }
