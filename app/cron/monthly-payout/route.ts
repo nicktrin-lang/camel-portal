@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
 import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
+import { generateMonthlyStatement } from "@/lib/portal/generateMonthlyStatementPDF";
 import { coerceCurrency } from "@/lib/currency";
 
 // Vercel cron — runs 1st of each month at 08:00 UTC
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
     .from("partner_bookings")
     .select(`
       id, job_number, partner_user_id,
-      car_hire_price, fuel_charge, commission_rate, commission_amount,
+      car_hire_price, fuel_charge, fuel_refund, commission_rate, commission_amount,
       settled_partner_net,
       currency, charge_currency, conversion_rate,
       payout_status, payment_id,
@@ -240,6 +241,23 @@ export async function GET(req: Request) {
     } else {
       console.log(`monthly-payout: invoice ${invoiceResult.invoice_number} generated for ${profile.company_name}`);
     }
+
+    // ── Monthly statement PDF — full list of the period's transactions ─────
+    const statementBookings = partnerBookings.map(b => ({
+      id:                  b.id,
+      job_number:          b.job_number,
+      created_at:          b.created_at,
+      car_hire_price:      b.car_hire_price,
+      commission_amount:   b.commission_amount,
+      fuel_charge:         b.fuel_charge,
+      fuel_refund:         b.fuel_refund,
+      settled_partner_net: b.settled_partner_net,
+      currency:            b.currency,
+      booking_status:      b.booking_status,
+      refund_status:       b.refund_status,
+    }));
+    await generateMonthlyStatement(partnerUserId, periodMonth, statementBookings, payoutCurrency)
+      .catch(e => console.error(`monthly-payout: statement generation failed for ${profile.company_name}:`, e?.message));
 
     // ── Email partner payout notification ─────────────────────────────────
     const { data: partnerAuthData } = await db.auth.admin.getUserById(partnerUserId);

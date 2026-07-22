@@ -11,6 +11,7 @@ export type InvoiceBooking = {
   created_at: string | null;
   car_hire_price: number | null;
   commission_rate: number | null;
+  commission_amount?: number | null;
   currency: string | null;
   booking_status: string | null;
   refund_status: string | null;
@@ -208,7 +209,9 @@ async function buildPdf(params: {
           const fullRefund  = isCancelled && b.refund_status === "full";
           const hire        = fullRefund ? 0 : Number(b.car_hire_price ?? 0);
           const rate        = b.commission_rate ?? 20;
-          const comm        = fullRefund ? 0 : calcCommission(hire, rate);
+          // Use the stored commission (what was actually charged/retained), not a
+          // recompute — falls back to the formula only for un-migrated rows.
+          const comm        = fullRefund ? 0 : (b.commission_amount != null ? Number(b.commission_amount) : calcCommission(hire, rate));
           const curr        = b.currency || currency;
           const desc        = fullRefund
             ? `Cancelled — full refund${b.cancellation_reason ? ` (${b.cancellation_reason})` : ""}`
@@ -308,7 +311,9 @@ export async function generateCommissionInvoice(
       const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
       const fullRefund  = isCancelled && b.refund_status === "full";
       if (fullRefund) continue;
-      totalCommission += calcCommission(Number(b.car_hire_price ?? 0), b.commission_rate ?? 20);
+      totalCommission += b.commission_amount != null
+        ? Number(b.commission_amount)
+        : calcCommission(Number(b.car_hire_price ?? 0), b.commission_rate ?? 20);
     }
 
     // ── Generate atomic invoice number via DB sequence ─────────────────────
