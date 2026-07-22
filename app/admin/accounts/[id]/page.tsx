@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { CURRENCIES, currencySymbol } from "@/lib/currency";
 
 const MapPicker = dynamic(() => import("@/app/partner/profile/MapPicker"), { ssr: false });
 
@@ -92,11 +93,20 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const inputCls = "w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-bold outline-none focus:border-black placeholder:text-black/30";
 const labelCls = "text-xs font-black uppercase tracking-widest text-black";
 
-const CURRENCY_OPTIONS = [
-  { value: "EUR", label: "EUR — Euro (€)" },
-  { value: "GBP", label: "GBP — British Pound (£)" },
-  { value: "USD", label: "USD — US Dollar ($)" },
-];
+// Driven by the shared CURRENCIES set so this list never drifts from the source
+// of truth again (adding a 7th currency there flows through here automatically).
+const CURRENCY_NAMES: Record<string, string> = {
+  EUR: "Euro",
+  GBP: "British Pound",
+  USD: "US Dollar",
+  AUD: "Australian Dollar",
+  NZD: "New Zealand Dollar",
+  CAD: "Canadian Dollar",
+};
+const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({
+  value: c,
+  label: `${c} — ${CURRENCY_NAMES[c] ?? c} (${currencySymbol(c)})`,
+}));
 
 export default function AdminAccountDetailPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
