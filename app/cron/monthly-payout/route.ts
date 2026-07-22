@@ -3,22 +3,20 @@ import Stripe from "stripe";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
 import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
+import { coerceCurrency } from "@/lib/currency";
 
 // Vercel cron — runs 1st of each month at 08:00 UTC
 // vercel.json: { "path": "/api/cron/monthly-payout", "schedule": "0 8 1 * *" }
+//
+// Platform-hold model: the charge already settled to Camel's balance; this cron is
+// the SINGLE partner payout (there is no charge-time transfer any more). It pays each
+// partner the sum of their bookings' canonical settled_partner_net, one transfer per
+// (partner, currency), reading stored values — never recomputing — so it reconciles
+// to the cent with reports. Commission stays on Camel's balance.
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-04-22.dahlia" as any,
 });
-
-function calcCommission(carHirePrice: number, commissionRate: number): number {
-  return Math.max((carHirePrice * commissionRate) / 100, 10);
-}
-
-function calcPartnerPayout(carHirePrice: number, commissionRate: number, fuelCharge: number): number {
-  const commission = calcCommission(carHirePrice, commissionRate);
-  return Math.max(0, carHirePrice - commission + fuelCharge);
-}
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -40,7 +38,8 @@ export async function GET(req: Request) {
     .from("partner_bookings")
     .select(`
       id, job_number, partner_user_id,
-      car_hire_price, fuel_charge, commission_rate,
+      car_hire_price, fuel_charge, commission_rate, commission_amount,
+      settled_partner_net,
       currency, charge_currency, conversion_rate,
       payout_status, payment_id,
       created_at, booking_status, refund_status, cancellation_reason
@@ -58,21 +57,24 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, payouts: 0, skipped: 0 });
   }
 
-  // ── Group by partner ─────────────────────────────────────────────────────
-  const byPartner = new Map<string, typeof bookings>();
+  // ── Group by partner + currency ──────────────────────────────────────────
+  // Per-currency so we NEVER sum a partner's bookings across currencies into one
+  // transfer. One payout (and one commission invoice) per (partner, currency).
+  const byPartnerCurrency = new Map<string, typeof bookings>();
   for (const b of bookings) {
-    const group = byPartner.get(b.partner_user_id) || [];
+    const groupKey = `${b.partner_user_id}::${coerceCurrency(b.currency)}`;
+    const group = byPartnerCurrency.get(groupKey) || [];
     group.push(b);
-    byPartner.set(b.partner_user_id, group);
+    byPartnerCurrency.set(groupKey, group);
   }
 
   // ── Fetch partner profiles ───────────────────────────────────────────────
-  const partnerIds = [...byPartner.keys()];
+  const partnerIds = [...new Set(bookings.map(b => b.partner_user_id))];
   const { data: profiles, error: profErr } = await db
     .from("partner_profiles")
     .select(`
       user_id, company_name, contact_name,
-      stripe_account_id, stripe_payouts_enabled,
+      stripe_account_id, stripe_payouts_enabled, stripe_recipient_id, payout_rail,
       default_currency, commission_rate
     `)
     .in("user_id", partnerIds);
@@ -91,8 +93,9 @@ export async function GET(req: Request) {
   let skipped = 0;
   const results: Array<{ partner: string; status: string; amount?: number; currency?: string; error?: string }> = [];
 
-  // ── Process each partner ─────────────────────────────────────────────────
-  for (const [partnerUserId, partnerBookings] of byPartner) {
+  // ── Process each (partner, currency) group ───────────────────────────────
+  for (const [groupKey, partnerBookings] of byPartnerCurrency) {
+    const [partnerUserId, payoutCurrency] = groupKey.split("::");
     const profile = profileMap.get(partnerUserId);
 
     if (!profile) {
@@ -102,44 +105,51 @@ export async function GET(req: Request) {
       continue;
     }
 
-    if (!profile.stripe_account_id || !profile.stripe_payouts_enabled) {
-      console.warn(`monthly-payout: ${profile.company_name} — Stripe not ready, skipping`);
-      skipped++;
-      results.push({ partner: profile.company_name, status: "skipped — Stripe payouts not enabled" });
-      continue;
-    }
+    const payoutRail = profile.payout_rail || "connect";
 
-    const payoutCurrency = (profile.default_currency || "EUR").toUpperCase();
-
-    // ── Calculate total payout ─────────────────────────────────────────────
+    // ── Sum the canonical settled net (stored at completion / <48h cancel) ──
+    // Read, never recompute — this is what makes the payout tie out with reports.
     let totalPayout = 0;
     const bookingLines: string[] = [];
-
     for (const b of partnerBookings) {
-      const carHire    = Number(b.car_hire_price || 0);
-      const fuelCharge = Number(b.fuel_charge    || 0);
-      const commRate   = Number(b.commission_rate ?? profile.commission_rate ?? 20);
-      const commission = calcCommission(carHire, commRate);
-      const payout     = calcPartnerPayout(carHire, commRate, fuelCharge);
-      totalPayout += payout;
+      const net = Number(b.settled_partner_net || 0);
+      totalPayout += net;
 
-      const jobNo = b.job_number ? `#${b.job_number}` : b.id.slice(0, 8);
-      const curr  = b.currency || payoutCurrency;
-      const fmt   = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: curr }).format(n);
-      bookingLines.push(`${jobNo}: car hire ${fmt(carHire)} − commission ${fmt(commission)} + fuel ${fmt(fuelCharge)} = ${fmt(payout)}`);
+      const jobNo      = b.job_number ? `#${b.job_number}` : b.id.slice(0, 8);
+      const fmt        = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: payoutCurrency }).format(n);
+      const carHire    = Number(b.car_hire_price    || 0);
+      const commission = Number(b.commission_amount || 0);
+      const fuelCharge = Number(b.fuel_charge        || 0);
+      bookingLines.push(`${jobNo}: car hire ${fmt(carHire)} − commission ${fmt(commission)} + fuel used ${fmt(fuelCharge)} = ${fmt(net)}`);
     }
 
     const totalCents = Math.round(totalPayout * 100);
 
     if (totalCents <= 0) {
-      console.warn(`monthly-payout: ${profile.company_name} — payout is £0, skipping`);
+      console.warn(`monthly-payout: ${profile.company_name} (${payoutCurrency}) — zero payout, skipping`);
       skipped++;
-      results.push({ partner: profile.company_name, status: "skipped — zero payout" });
+      results.push({ partner: profile.company_name, currency: payoutCurrency, status: "skipped — zero payout" });
       continue;
     }
 
     const bookingIds = partnerBookings.map(b => b.id);
     const paymentIds = partnerBookings.map(b => b.payment_id).filter(Boolean) as string[];
+
+    // ── AU/NZ Global Payouts rail — built in P5. Until then leave as 'ready'. ─
+    if (payoutRail === "global_payouts") {
+      console.warn(`monthly-payout: ${profile.company_name} (${payoutCurrency}) — Global Payouts (AU/NZ) rail not yet enabled, leaving ready`);
+      skipped++;
+      results.push({ partner: profile.company_name, currency: payoutCurrency, status: "skipped — Global Payouts (AU/NZ) not yet enabled" });
+      continue;
+    }
+
+    // ── In-corridor: require a payouts-enabled connected account ────────────
+    if (!profile.stripe_account_id || !profile.stripe_payouts_enabled) {
+      console.warn(`monthly-payout: ${profile.company_name} — Stripe payouts not enabled, skipping`);
+      skipped++;
+      results.push({ partner: profile.company_name, currency: payoutCurrency, status: "skipped — Stripe payouts not enabled" });
+      continue;
+    }
 
     // ── Trigger Stripe transfer ────────────────────────────────────────────
     let transferId: string | null = null;
@@ -153,8 +163,13 @@ export async function GET(req: Request) {
           partner_user_id: partnerUserId,
           booking_count:   String(partnerBookings.length),
           payout_month:    runLabel,
+          currency:        payoutCurrency,
           booking_ids:     bookingIds.slice(0, 5).join(","),
         },
+      }, {
+        // Same key on a re-run returns the SAME transfer — the cron can never
+        // double-pay even if it re-runs or times out mid-batch.
+        idempotencyKey: `payout_${partnerUserId}_${periodMonth}_${payoutCurrency}`,
       });
       transferId = transfer.id;
       console.log(`monthly-payout: ${profile.company_name} — transfer ${transferId} — ${payoutCurrency} ${totalPayout}`);
@@ -212,6 +227,7 @@ export async function GET(req: Request) {
       created_at:          b.created_at,
       car_hire_price:      b.car_hire_price,
       commission_rate:     b.commission_rate,
+      commission_amount:   b.commission_amount,
       currency:            b.currency,
       booking_status:      b.booking_status,
       refund_status:       b.refund_status,
