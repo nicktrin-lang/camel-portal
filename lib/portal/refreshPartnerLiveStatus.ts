@@ -1,5 +1,6 @@
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendAccountLiveEmail } from "@/lib/email";
+import { computeLiveReadiness } from "@/lib/portal/computeLiveReadiness";
 
 type RefreshResult = {
   ok: boolean;
@@ -10,44 +11,11 @@ type RefreshResult = {
   missing: string[];
 };
 
-function hasText(value: unknown) {
-  return String(value || "").trim().length > 0;
-}
-
-function hasValidNumber(value: unknown) {
-  return value !== null && value !== undefined && !Number.isNaN(Number(value));
-}
-
 export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshResult> {
   const cleanUserId = String(userId || "").trim();
   if (!cleanUserId) throw new Error("Missing userId");
 
   const db = createServiceRoleSupabaseClient();
-
-  const { data: profile, error: profileErr } = await db
-    .from("partner_profiles")
-    .select("user_id, service_radius_km, base_address, base_lat, base_lng, default_currency, vat_number")
-    .eq("user_id", cleanUserId)
-    .maybeSingle();
-
-  if (profileErr) throw new Error(profileErr.message);
-  if (!profile)   throw new Error("Partner profile not found.");
-
-  const { data: fleetRows,  error: fleetErr  } = await db
-    .from("partner_fleet")
-    .select("id")
-    .eq("user_id", cleanUserId)
-    .eq("is_active", true)
-    .limit(1);
-  if (fleetErr) throw new Error(fleetErr.message);
-
-  const { data: driverRows, error: driverErr } = await db
-    .from("partner_drivers")
-    .select("id")
-    .eq("partner_user_id", cleanUserId)
-    .eq("is_active", true)
-    .limit(1);
-  if (driverErr) throw new Error(driverErr.message);
 
   const { data: application, error: applicationErr } = await db
     .from("partner_applications")
@@ -78,22 +46,11 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
 
   if (!resolvedApplication) throw new Error("Partner application not found.");
 
-  // ── 7 live checks ────────────────────────────────────────────────────────
-  const missing: string[] = [];
-  const hasRadius = profile.service_radius_km !== null &&
-    profile.service_radius_km !== undefined &&
-    Number(profile.service_radius_km) > 0;
+  // ── Live-readiness (7 checks; an active driver is deliberately NOT one) ────
+  // Single source of truth — mirrors the customer match loop. Driver is a
+  // fulfilment-time requirement, not a matching gate.
+  const { isLive: isLiveNow, missing } = await computeLiveReadiness(cleanUserId);
 
-  if (!hasRadius)                                            missing.push("service_radius_km");
-  if (!hasText(profile.base_address))                        missing.push("base_address");
-  if (!hasValidNumber(profile.base_lat))                     missing.push("base_lat");
-  if (!hasValidNumber(profile.base_lng))                     missing.push("base_lng");
-  if (!Array.isArray(fleetRows)  || fleetRows.length === 0)  missing.push("fleet");
-  if (!Array.isArray(driverRows) || driverRows.length === 0) missing.push("driver");
-  if (!hasText(profile.default_currency))                    missing.push("default_currency");
-  if (!hasText(profile.vat_number))                          missing.push("vat_number");
-
-  const isLiveNow          = missing.length === 0;
   const liveEmailAlreadySent = !!resolvedApplication.live_email_sent_at;
 
   // Not live — return early, no email
