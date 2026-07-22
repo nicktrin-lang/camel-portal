@@ -60,7 +60,18 @@ export async function POST(
 
     const cancelledBy = isAdmin ? "admin" : "partner";
 
-    // ── Mark booking cancelled ───────────────────────────────────────────────
+    // ── Issue the Stripe refund FIRST — only cancel once the money is on its
+    // way back. Abort without cancelling if the refund fails, so it can be retried.
+    const refundResult = await cancelBookingRefund(bookingId, "full");
+    if (!refundResult.ok) {
+      console.error("Partner cancel refund error:", refundResult.error);
+      return NextResponse.json(
+        { error: `Refund failed — booking NOT cancelled, please retry: ${refundResult.error}` },
+        { status: 502 }
+      );
+    }
+
+    // ── Refund succeeded — mark booking + request cancelled ──────────────────
     const { error: updateErr } = await db
       .from("partner_bookings")
       .update({
@@ -76,13 +87,7 @@ export async function POST(
 
     await db.from("customer_requests").update({ status: "cancelled" }).eq("id", booking.request_id);
 
-    // ── Issue Stripe refund ──────────────────────────────────────────────────
-    const refundResult = await cancelBookingRefund(bookingId, "full");
-    if (!refundResult.ok) {
-      console.error("Partner cancel refund error:", refundResult.error);
-    }
-
-    const refundAmount = refundResult.ok && !("already_processed" in refundResult)
+    const refundAmount = !("already_processed" in refundResult)
       ? refundResult.refund_amount
       : Number(booking.car_hire_price || 0) + Number(booking.fuel_price || 0);
 
