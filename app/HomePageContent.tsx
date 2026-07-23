@@ -35,6 +35,22 @@ export default function HomePageContent() {
     }
   }, []);
 
+  // Fire a clean GA4 event the instant a REAL browser lands from an outreach
+  // email. Security scanners pre-fetch the link server-side and never run JS, so
+  // this event only counts genuine human click-throughs — the honest number,
+  // distinct from Resend's bot-inflated "clicked" count.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("utm_source") === "outreach") {
+      fireGtagEvent("outreach_landing", {
+        utm_campaign: params.get("utm_campaign") || "founding-partner",
+        utm_medium:   params.get("utm_medium")   || "email",
+        utm_term:     params.get("utm_term")     || "",
+        utm_content:  params.get("utm_content")  || "",
+      });
+    }
+  }, []);
+
   // Track CTA clicks — only fires when utm_source=outreach so organic clicks aren't counted
   const handleOutreachCta = useCallback((position: "hero" | "apply" | "final-cta") => {
     const params = new URLSearchParams(window.location.search);
