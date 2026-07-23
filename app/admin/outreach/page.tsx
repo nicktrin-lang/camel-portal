@@ -342,6 +342,15 @@ export default function OutreachPage() {
     return acc;
   }, {} as Record<string, number>);
 
+  // Country filter options derived from the ACTUAL prospect data, so no country is
+  // ever missed (e.g. a stray non-Spain prospect like Australia). Sorted, with counts.
+  const countryCounts = prospects.reduce((acc, p) => {
+    const c = (p.country || "").trim();
+    if (c) acc[c] = (acc[c] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const countryOptions = ["All Countries", ...Object.keys(countryCounts).sort((a, b) => a.localeCompare(b))];
+
   const remaining     = Math.max(0, DAILY_LIMIT - sentToday);
   const pendingInView = filtered.filter(p => p.status === "pending" && !p.unsubscribed).length;
   const batchSize     = Math.min(remaining, pendingInView);
@@ -500,20 +509,20 @@ export default function OutreachPage() {
         ))}
       </div>
 
-      {/* Country filter */}
+      {/* Country filter — options auto-derived from the data so none are missed */}
       <div className="flex flex-wrap gap-3 items-center">
         <span className="text-xs font-black uppercase tracking-widest text-black/40">Filter by country:</span>
-        <div className="flex flex-wrap gap-2">
-          {COUNTRIES.map(c => (
-            <button
-              key={c}
-              onClick={() => setCountryFilter(c)}
-              className={["px-3 py-1.5 text-xs font-black transition-all border", countryFilter === c ? "bg-black text-white border-black" : "bg-white text-black/60 border-black/15 hover:border-black/40 hover:text-black"].join(" ")}
-            >
-              {c}
-            </button>
+        <select
+          value={countryOptions.includes(countryFilter) ? countryFilter : "All Countries"}
+          onChange={e => setCountryFilter(e.target.value)}
+          className="border border-black/15 bg-white px-3 py-1.5 text-xs font-black text-black outline-none focus:border-black cursor-pointer"
+        >
+          {countryOptions.map(c => (
+            <option key={c} value={c}>
+              {c === "All Countries" ? `All Countries (${prospects.length})` : `${c} (${countryCounts[c]})`}
+            </option>
           ))}
-        </div>
+        </select>
       </div>
 
       {/* Active filter indicator */}
