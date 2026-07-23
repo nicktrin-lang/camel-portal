@@ -34,15 +34,12 @@ export async function GET(
     if (bkErr) return NextResponse.json({ error: bkErr.message }, { status: 400 });
     if (!bk)   return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
-    // ── Fetch partner locale ──────────────────────────────────────────────────
-    const { data: partnerProfile } = await db
-      .from("partner_profiles")
-      .select("communication_locale")
-      .eq("user_id", bk.partner_user_id)
-      .maybeSingle();
-
-    const locale: "en" | "es" =
-      partnerProfile?.communication_locale === "es" ? "es" : "en";
+    // ── PDF language ──────────────────────────────────────────────────────────
+    // The Invoice Data sheet is a finance/legal document (NTUK) and, like every
+    // attached PDF, stays ENGLISH regardless of the partner's communication_locale.
+    // (Previously this used `communication_locale === "es" ? "es" : "en"`, the
+    // forbidden es-collapse pattern — removed. No email is sent from this route.)
+    const locale: "en" = "en";
 
     // ── Fetch request + customer billing details ───────────────────────────────
     const { data: cr } = await db
