@@ -1,6 +1,6 @@
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { currencyLocale } from "@/lib/currency";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, coerceEmailLocale, EmailLocale } from "@/lib/email";
 import fs from "fs";
 import path from "path";
 
@@ -196,7 +196,7 @@ export async function generateMonthlyStatement(
   try {
     const { data: profile } = await db
       .from("partner_profiles")
-      .select("company_name, legal_company_name, vat_number, address")
+      .select("company_name, legal_company_name, vat_number, address, communication_locale")
       .eq("user_id", partnerUserId)
       .maybeSingle();
 
@@ -204,6 +204,10 @@ export async function generateMonthlyStatement(
     const partnerEmail = authUser?.user?.email || null;
     const companyName  = profile?.company_name || "Partner";
     const label        = periodLabel(periodMonth);
+    // Covering email is localized to the partner; the attached statement PDF
+    // stays English (NTUK finance document).
+    const emailLocale  = coerceEmailLocale(profile?.communication_locale);
+    const tL = <T,>(m: Record<EmailLocale, T>) => m[emailLocale] ?? m.en;
 
     const pdfBuffer = await buildPdf({
       periodMonth,
@@ -222,19 +226,45 @@ export async function generateMonthlyStatement(
     if (uploadErr) console.error("Monthly statement upload failed:", uploadErr.message);
 
     if (partnerEmail) {
+      const subjectL: Record<EmailLocale, string> = {
+        en: `Your Camel Global statement — ${label} (${currency})`,
+        es: `Tu extracto de Camel Global — ${label} (${currency})`,
+        fr: `Votre relevé Camel Global — ${label} (${currency})`,
+        it: `Il tuo estratto conto Camel Global — ${label} (${currency})`,
+        pt: `O seu extrato Camel Global — ${label} (${currency})`,
+        de: `Ihre Camel Global Abrechnung — ${label} (${currency})`,
+      };
+      const headL: Record<EmailLocale, string> = { en: "Monthly Statement", es: "Extracto mensual", fr: "Relevé mensuel", it: "Estratto conto mensile", pt: "Extrato mensal", de: "Monatliche Abrechnung" };
+      const hiL: Record<EmailLocale, string> = { en: `Hi ${companyName},`, es: `Hola ${companyName},`, fr: `Bonjour ${companyName},`, it: `Ciao ${companyName},`, pt: `Olá ${companyName},`, de: `Hallo ${companyName},` };
+      const p1L: Record<EmailLocale, string> = {
+        en: `Please find attached your full Camel Global statement for <strong>${label}</strong> — every transaction for the period, with your net payout. Your commission invoice is attached to a separate email.`,
+        es: `Adjunto encontrarás tu extracto completo de Camel Global para <strong>${label}</strong>: todas las transacciones del período, con tu pago neto. Tu factura de comisión se envía en un correo aparte.`,
+        fr: `Veuillez trouver ci-joint votre relevé Camel Global complet pour <strong>${label}</strong> — toutes les transactions de la période, avec votre paiement net. Votre facture de commission est jointe à un e-mail distinct.`,
+        it: `In allegato trovi il tuo estratto conto Camel Global completo per <strong>${label}</strong>: tutte le transazioni del periodo, con il tuo pagamento netto. La tua fattura di commissione è allegata a un'email separata.`,
+        pt: `Em anexo encontra o seu extrato Camel Global completo para <strong>${label}</strong> — todas as transações do período, com o seu pagamento líquido. A sua fatura de comissão é enviada num email separado.`,
+        de: `Anbei finden Sie Ihre vollständige Camel Global Abrechnung für <strong>${label}</strong> — alle Transaktionen des Zeitraums mit Ihrer Nettoauszahlung. Ihre Provisionsrechnung erhalten Sie in einer separaten E-Mail.`,
+      };
+      const dlL: Record<EmailLocale, string> = {
+        en: "You can also download this any time from your partner portal under Reports.",
+        es: "También puedes descargarlo en cualquier momento desde tu portal de socios, en Informes.",
+        fr: "Vous pouvez également le télécharger à tout moment depuis votre portail partenaire, dans Rapports.",
+        it: "Puoi scaricarlo in qualsiasi momento dal tuo portale partner, nella sezione Report.",
+        pt: "Também pode transferi-lo a qualquer momento a partir do seu portal de parceiro, em Relatórios.",
+        de: "Sie können sie jederzeit in Ihrem Partnerportal unter Berichte herunterladen.",
+      };
       await sendEmail({
         to: partnerEmail,
-        subject: `Your Camel Global statement — ${label} (${currency})`,
+        subject: tL(subjectL),
         html: `
           <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
             <div style="background:#000;padding:20px 28px;">
-              <h2 style="color:#fff;margin:0;">Monthly Statement</h2>
+              <h2 style="color:#fff;margin:0;">${tL(headL)}</h2>
               <p style="color:#999;margin:4px 0 0;font-size:13px;">${label} · ${currency}</p>
             </div>
             <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-              <p>Hi ${companyName},</p>
-              <p>Please find attached your full Camel Global statement for <strong>${label}</strong> — every transaction for the period, with your net payout. Your commission invoice is attached to a separate email.</p>
-              <p style="font-size:13px;color:#666;">You can also download this any time from your partner portal under Reports.</p>
+              <p>${tL(hiL)}</p>
+              <p>${tL(p1L)}</p>
+              <p style="font-size:13px;color:#666;">${tL(dlL)}</p>
               <p style="margin-top:24px;color:#999;font-size:12px;">NTUK Ltd · Company No: 08765474 · Office 7, 35-37 Ludgate Hill, London EC4M 7JN</p>
             </div>
           </div>`,
