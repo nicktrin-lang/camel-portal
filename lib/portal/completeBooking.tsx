@@ -671,8 +671,13 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
   const totalPaid     = Number(booking.amount         || carHire + fuelDep);
   const finalAmount   = carHire + fuel_charge;
   const commRate      = Number(booking.commission_rate ?? 20);
-  const commAmt       = Math.max((carHire * commRate) / 100, 10);
-  const partnerPayout = Math.max(0, carHire - commAmt + fuel_charge);
+  // Use the STORED commission + canonical settled net (already computed above at
+  // charge/completion time). Do NOT recompute with a hardcoded floor — the stored
+  // commission_amount already applied the €10 minimum in the correct currency
+  // (converted via MIN_FLOOR_RATE for non-EUR). Recomputing here diverged the
+  // partner's completion email from the amount actually transferred.
+  const commAmt       = commissionAmt;
+  const partnerPayout = settledNet;
   const partnerLocale = coerceEmailLocale(partnerProfile?.communication_locale);
 
   // ── Look up customer communication locale ─────────────────────────────────

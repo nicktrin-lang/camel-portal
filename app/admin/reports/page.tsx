@@ -134,7 +134,11 @@ function stripeFeeInBidCurrency(stripe_fee: number|null, stripe_fee_currency: st
   if (!stripe_fee || stripe_fee <= 0) return 0;
   if (!stripe_fee_currency || stripe_fee_currency.toUpperCase() === bid_currency.toUpperCase()) return stripe_fee;
   if (exchange_rate && exchange_rate > 0) return stripe_fee / exchange_rate;
-  return stripe_fee;
+  // Cannot convert a foreign-currency fee without a rate — return 0 rather than
+  // adding a raw foreign amount into the bid-currency bucket (that silently
+  // summed across currencies). Only affects legacy rows with no stripe_fee_total
+  // and no exchange_rate; migrated rows use the stored stripe_fee_total.
+  return 0;
 }
 
 function calcPayout(b: BookingRow): { hire:number; rate:number; commAmt:number; partnerPayout:number; camelNetComm:number; fuelRefund:number; feeInBid:number; pcRefundTotal:number; netFinal:number } {

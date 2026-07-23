@@ -42,7 +42,10 @@ export async function POST(req: Request) {
       }, { status: 200 });
     }
 
-    // Fetch completed/cancelled bookings for this period
+    // Fetch bookings SETTLED in this period. Use settled_at (not created_at) so
+    // the invoice reconciles with the monthly payout + statement, which the cron
+    // groups by settled month. Full-refund cancels (settled_at null, zero
+    // commission) are correctly excluded.
     const from = new Date(year, month - 1, 1).toISOString();
     const to   = new Date(year, month, 1).toISOString();
 
@@ -51,8 +54,8 @@ export async function POST(req: Request) {
       .select("id, job_number, created_at, car_hire_price, commission_rate, commission_amount, currency, booking_status, refund_status, cancellation_reason")
       .eq("partner_user_id", user.id)
       .in("booking_status", ["completed", "cancelled"])
-      .gte("created_at", from)
-      .lt("created_at", to);
+      .gte("settled_at", from)
+      .lt("settled_at", to);
 
     if (bkErr) return NextResponse.json({ error: bkErr.message }, { status: 400 });
     if (!bookings?.length) {
