@@ -83,13 +83,15 @@ export async function POST(req: Request) {
     const from = new Date(year, month - 1, 1).toISOString();
     const to   = new Date(year, month, 1).toISOString();
 
+    // Settled-month basis (matches the payout/statement the cron produces), not
+    // created_at — so a manually generated invoice ties to the actual payout set.
     const { data: bookings, error: bkErr } = await db
       .from("partner_bookings")
       .select("id, job_number, created_at, car_hire_price, commission_rate, commission_amount, currency, booking_status, refund_status, cancellation_reason")
       .eq("partner_user_id", partner_id)
       .in("booking_status", ["completed", "cancelled"])
-      .gte("created_at", from)
-      .lt("created_at", to);
+      .gte("settled_at", from)
+      .lt("settled_at", to);
 
     if (bkErr) return NextResponse.json({ error: bkErr.message }, { status: 400 });
     if (!bookings?.length) {

@@ -305,9 +305,20 @@ export async function generateCommissionInvoice(
 
     const currency = profile.default_currency || "EUR";
 
+    // ── Single-currency guard ───────────────────────────────────────────────
+    // The invoice total is expressed in one currency (the partner's settlement
+    // currency). NEVER sum commissions across currencies. A partner is
+    // single-currency today, but if a currency change ever left mixed-currency
+    // history, only bookings matching the invoice currency belong on this invoice.
+    const invoiceCcy = String(currency).toUpperCase();
+    const scoped = bookings.filter(b => String(b.currency ?? currency).toUpperCase() === invoiceCcy);
+    if (scoped.length !== bookings.length) {
+      console.warn(`generateCommissionInvoice: dropped ${bookings.length - scoped.length} booking(s) not in ${invoiceCcy} for partner ${partnerUserId}`);
+    }
+
     // ── Calculate total commission (full-refund cancelled = zero) ──────────
     let totalCommission = 0;
-    for (const b of bookings) {
+    for (const b of scoped) {
       const isCancelled = String(b.booking_status || "").toLowerCase() === "cancelled";
       const fullRefund  = isCancelled && b.refund_status === "full";
       if (fullRefund) continue;
@@ -320,7 +331,7 @@ export async function generateCommissionInvoice(
     const invoiceNumber = await nextInvoiceNumber(db, periodMonth);
 
     // ── Build PDF ──────────────────────────────────────────────────────────
-    const pdfBuffer = await buildPdf({ invoiceNumber, periodMonth, partner, bookings, totalCommission, currency });
+    const pdfBuffer = await buildPdf({ invoiceNumber, periodMonth, partner, bookings: scoped, totalCommission, currency });
 
     // ── Upload to Supabase Storage ─────────────────────────────────────────
     const storagePath = `${partnerUserId}/${periodMonth}/${invoiceNumber}.pdf`;
@@ -346,7 +357,7 @@ export async function generateCommissionInvoice(
         currency,
         subtotal:        totalCommission,
         total:           totalCommission,
-        booking_count:   bookings.length,
+        booking_count:   scoped.length,
         storage_path:    storagePath,
         issued_at:       new Date().toISOString(),
         status:          "issued",
@@ -355,7 +366,7 @@ export async function generateCommissionInvoice(
         partner_tax_id:  partner.vat_number || "",
         vat_rate:        0,
         vat_amount:      0,
-        line_items:      JSON.stringify(bookings.map(b => ({ job: b.job_number, amount: b.car_hire_price }))),
+        line_items:      JSON.stringify(scoped.map(b => ({ job: b.job_number, amount: b.car_hire_price }))),
       })
       .select("id")
       .single();
