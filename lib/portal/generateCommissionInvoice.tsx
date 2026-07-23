@@ -1,6 +1,6 @@
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { currencyLocale } from "@/lib/currency";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, coerceEmailLocale, EmailLocale } from "@/lib/email";
 import fs from "fs";
 import path from "path";
 
@@ -282,7 +282,7 @@ export async function generateCommissionInvoice(
     // ── Fetch partner profile ──────────────────────────────────────────────
     const { data: profile, error: profErr } = await db
       .from("partner_profiles")
-      .select("user_id, company_name, legal_company_name, vat_number, company_registration_number, address, base_country, default_currency")
+      .select("user_id, company_name, legal_company_name, vat_number, company_registration_number, address, base_country, default_currency, communication_locale")
       .eq("user_id", partnerUserId)
       .single();
 
@@ -363,27 +363,61 @@ export async function generateCommissionInvoice(
     if (insertErr) return { ok: false, error: `DB insert failed: ${insertErr.message}` };
 
     // ── Email PDF to partner ───────────────────────────────────────────────
+    // Covering email localized to the partner; the attached commission invoice
+    // PDF stays English (NTUK legal/finance document).
     if (partnerEmail) {
       const label = periodLabel(periodMonth);
+      const emailLocale = coerceEmailLocale(profile.communication_locale);
+      const tL = <T,>(m: Record<EmailLocale, T>) => m[emailLocale] ?? m.en;
+      const subjectL: Record<EmailLocale, string> = {
+        en: `Your Camel Global commission invoice — ${label} — ${invoiceNumber}`,
+        es: `Tu factura de comisión de Camel Global — ${label} — ${invoiceNumber}`,
+        fr: `Votre facture de commission Camel Global — ${label} — ${invoiceNumber}`,
+        it: `La tua fattura di commissione Camel Global — ${label} — ${invoiceNumber}`,
+        pt: `A sua fatura de comissão Camel Global — ${label} — ${invoiceNumber}`,
+        de: `Ihre Camel Global Provisionsrechnung — ${label} — ${invoiceNumber}`,
+      };
+      const headL: Record<EmailLocale, string> = { en: "Commission Invoice", es: "Factura de comisión", fr: "Facture de commission", it: "Fattura di commissione", pt: "Fatura de comissão", de: "Provisionsrechnung" };
+      const hiL: Record<EmailLocale, string> = { en: `Hi ${profile.company_name},`, es: `Hola ${profile.company_name},`, fr: `Bonjour ${profile.company_name},`, it: `Ciao ${profile.company_name},`, pt: `Olá ${profile.company_name},`, de: `Hallo ${profile.company_name},` };
+      const p1L: Record<EmailLocale, string> = {
+        en: `Please find attached your Camel Global commission invoice for <strong>${label}</strong>.`,
+        es: `Adjunto encontrarás tu factura de comisión de Camel Global correspondiente a <strong>${label}</strong>.`,
+        fr: `Veuillez trouver ci-joint votre facture de commission Camel Global pour <strong>${label}</strong>.`,
+        it: `In allegato trovi la tua fattura di commissione Camel Global per <strong>${label}</strong>.`,
+        pt: `Em anexo encontra a sua fatura de comissão Camel Global referente a <strong>${label}</strong>.`,
+        de: `Anbei finden Sie Ihre Camel Global Provisionsrechnung für <strong>${label}</strong>.`,
+      };
+      const rowInvoice: Record<EmailLocale, string> = { en: "Invoice number", es: "Número de factura", fr: "Numéro de facture", it: "Numero fattura", pt: "Número da fatura", de: "Rechnungsnummer" };
+      const rowPeriod: Record<EmailLocale, string> = { en: "Period", es: "Período", fr: "Période", it: "Periodo", pt: "Período", de: "Zeitraum" };
+      const rowBookings: Record<EmailLocale, string> = { en: "Bookings", es: "Reservas", fr: "Réservations", it: "Prenotazioni", pt: "Reservas", de: "Buchungen" };
+      const rowTotal: Record<EmailLocale, string> = { en: "Total commission", es: "Comisión total", fr: "Commission totale", it: "Commissione totale", pt: "Comissão total", de: "Gesamtprovision" };
+      const dlL: Record<EmailLocale, string> = {
+        en: "You can also download this invoice at any time from your partner portal under Reports.",
+        es: "También puedes descargar esta factura en cualquier momento desde tu portal de socios, en Informes.",
+        fr: "Vous pouvez également télécharger cette facture à tout moment depuis votre portail partenaire, dans Rapports.",
+        it: "Puoi scaricare questa fattura in qualsiasi momento dal tuo portale partner, nella sezione Report.",
+        pt: "Também pode transferir esta fatura a qualquer momento a partir do seu portal de parceiro, em Relatórios.",
+        de: "Sie können diese Rechnung jederzeit in Ihrem Partnerportal unter Berichte herunterladen.",
+      };
       await sendEmail({
         to: partnerEmail,
-        subject: `Your Camel Global commission invoice — ${label} — ${invoiceNumber}`,
+        subject: tL(subjectL),
         html: `
           <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
             <div style="background:#000;padding:20px 28px;">
-              <h2 style="color:#fff;margin:0;">Commission Invoice</h2>
+              <h2 style="color:#fff;margin:0;">${tL(headL)}</h2>
               <p style="color:#999;margin:4px 0 0;font-size:13px;">${label}</p>
             </div>
             <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-              <p>Hi ${profile.company_name},</p>
-              <p>Please find attached your Camel Global commission invoice for <strong>${label}</strong>.</p>
+              <p>${tL(hiL)}</p>
+              <p>${tL(p1L)}</p>
               <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;">
-                <tr><td style="padding:6px 0;color:#666;">Invoice number</td><td style="font-weight:700;">${invoiceNumber}</td></tr>
-                <tr><td style="padding:6px 0;color:#666;">Period</td><td style="font-weight:700;">${label}</td></tr>
-                <tr><td style="padding:6px 0;color:#666;">Bookings</td><td style="font-weight:700;">${bookings.length}</td></tr>
-                <tr><td style="padding:6px 0;color:#666;">Total commission</td><td style="font-weight:700;">${fmtCurr(totalCommission, currency)}</td></tr>
+                <tr><td style="padding:6px 0;color:#666;">${tL(rowInvoice)}</td><td style="font-weight:700;">${invoiceNumber}</td></tr>
+                <tr><td style="padding:6px 0;color:#666;">${tL(rowPeriod)}</td><td style="font-weight:700;">${label}</td></tr>
+                <tr><td style="padding:6px 0;color:#666;">${tL(rowBookings)}</td><td style="font-weight:700;">${bookings.length}</td></tr>
+                <tr><td style="padding:6px 0;color:#666;">${tL(rowTotal)}</td><td style="font-weight:700;">${fmtCurr(totalCommission, currency)}</td></tr>
               </table>
-              <p style="font-size:13px;color:#666;">You can also download this invoice at any time from your partner portal under Reports.</p>
+              <p style="font-size:13px;color:#666;">${tL(dlL)}</p>
               <p style="margin-top:24px;color:#999;font-size:12px;">NTUK Ltd · Company No: 08765474 · Office 7, 35-37 Ludgate Hill, London EC4M 7JN</p>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
-import { sendApplicationReceivedEmail, sendEmail } from "@/lib/email";
+import { sendApplicationReceivedEmail, sendEmail, countryToEmailLocale } from "@/lib/email";
 
 const TERMS_VERSION = "2026-04";
 
@@ -35,11 +35,6 @@ function parseCoordinate(value: string | number | null | undefined, kind: "lat" 
   const num = Number(raw);
   if (!Number.isFinite(num)) return null;
   return sign * num;
-}
-
-function deriveLocale(country: string): "en" | "es" {
-  const c = country.trim().toLowerCase();
-  return c === "spain" || c === "españa" || c === "es" ? "es" : "en";
 }
 
 async function safeDeleteApplication(db: any, userId: string) {
@@ -97,8 +92,11 @@ export async function POST(req: Request) {
     if (!postcode)    return NextResponse.json({ error: "Postcode is required." },                { status: 400 });
     if (!country)     return NextResponse.json({ error: "Country is required." },                 { status: 400 });
 
-    // Derive email locale from country
-    const signupLocale = deriveLocale(country);
+    // Derive default email locale from the partner's country. This is only a
+    // default — the partner can override it later in account settings
+    // (partner_profiles.communication_locale). Full 6-locale map: DE→de, FR→fr,
+    // IT→it, PT→pt, ES→es, else en.
+    const signupLocale = countryToEmailLocale(country);
 
     const db = createServiceRoleSupabaseClient();
 
@@ -162,6 +160,9 @@ export async function POST(req: Request) {
       base_lat:          baseLat ?? addressLat,
       base_lng:          baseLng ?? addressLng,
       role:              "partner",
+      // Default transactional-email language from country (user-overridable in
+      // settings). Without this every partner started life at null → "en".
+      communication_locale: signupLocale,
     }, { onConflict: "user_id" });
 
     if (profileErr) {

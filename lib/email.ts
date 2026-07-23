@@ -87,6 +87,33 @@ export function coerceEmailLocale(v: unknown): EmailLocale {
     : "en";
 }
 
+// Default email locale derived from a partner/customer country at account
+// creation. Countries are stored as freeform strings (e.g. "Spain", "España",
+// "Deutschland"), so we match on normalized name variants and ISO codes.
+// Anything unrecognised falls back to English. This is only a DEFAULT — the
+// recipient can override it in account settings (communication_locale).
+export function countryToEmailLocale(country: unknown): EmailLocale {
+  const c = String(country ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, ""); // strip accents: "espana" (accents removed)
+  if (!c) return "en";
+  const map: Record<string, EmailLocale> = {
+    // Spain
+    spain: "es", espana: "es", es: "es", esp: "es",
+    // Germany
+    germany: "de", deutschland: "de", de: "de", deu: "de", ger: "de",
+    // France
+    france: "fr", fr: "fr", fra: "fr",
+    // Italy
+    italy: "it", italia: "it", it: "it", ita: "it",
+    // Portugal
+    portugal: "pt", pt: "pt", prt: "pt",
+  };
+  return map[c] ?? "en";
+}
+
 function pick<T>(map: Record<EmailLocale, T>, locale: EmailLocale): T {
   return map[locale] ?? map.en;
 }
@@ -488,6 +515,149 @@ export async function sendAccountLiveEmail(to: string, locale: EmailLocale = "en
     subject: pick(subject, locale),
     html: brandEmail(pick(heading, locale), pick(body, locale), locale),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Booking cancellation emails — localized to the recipient's locale. The
+// refund amount ({AMT}) and company name are proper values, not translated.
+// The attached documents (none here) and money logic live in the route.
+// ---------------------------------------------------------------------------
+
+export async function sendCustomerCancellationEmail(to: string, opts: {
+  locale?: EmailLocale;
+  jobNo: string;                 // "#1234" or ""
+  customerName?: string | null;
+  cancelledByName: string;       // "Camel Global" or the partner company name
+  reason?: string | null;
+  pickupTime?: string | null;
+  pickupAddress?: string | null;
+  refundAmountText: string;      // pre-formatted, e.g. "€150.00"
+  siteUrl: string;
+}) {
+  const locale = opts.locale ?? "en";
+  const t = <T,>(m: Record<EmailLocale, T>) => m[locale] ?? m.en;
+  const JOB = opts.jobNo;
+  const genericName: Record<EmailLocale, string> = { en: "there", es: "cliente", fr: "client", it: "cliente", pt: "cliente", de: "Kunde" };
+  const name = (opts.customerName && opts.customerName.trim()) || t(genericName);
+
+  const subject: Record<EmailLocale, string> = {
+    en: `Your Camel Global booking ${JOB} has been cancelled`,
+    es: `Tu reserva de Camel Global ${JOB} ha sido cancelada`,
+    fr: `Votre réservation Camel Global ${JOB} a été annulée`,
+    it: `La tua prenotazione Camel Global ${JOB} è stata annullata`,
+    pt: `A sua reserva Camel Global ${JOB} foi cancelada`,
+    de: `Ihre Camel Global Buchung ${JOB} wurde storniert`,
+  };
+  const heading: Record<EmailLocale, string> = {
+    en: "Booking Cancelled", es: "Reserva cancelada", fr: "Réservation annulée",
+    it: "Prenotazione annullata", pt: "Reserva cancelada", de: "Buchung storniert",
+  };
+  const hi: Record<EmailLocale, string> = {
+    en: `Hi ${name},`, es: `Hola ${name},`, fr: `Bonjour ${name},`,
+    it: `Ciao ${name},`, pt: `Olá ${name},`, de: `Hallo ${name},`,
+  };
+  const line: Record<EmailLocale, string> = {
+    en: `Your car hire booking ${JOB} has been cancelled by ${opts.cancelledByName}.`,
+    es: `Tu reserva de alquiler ${JOB} ha sido cancelada por ${opts.cancelledByName}.`,
+    fr: `Votre réservation de location ${JOB} a été annulée par ${opts.cancelledByName}.`,
+    it: `La tua prenotazione di noleggio ${JOB} è stata annullata da ${opts.cancelledByName}.`,
+    pt: `A sua reserva de aluguer ${JOB} foi cancelada por ${opts.cancelledByName}.`,
+    de: `Ihre Mietwagenbuchung ${JOB} wurde von ${opts.cancelledByName} storniert.`,
+  };
+  const reasonLbl: Record<EmailLocale, string> = { en: "Reason:", es: "Motivo:", fr: "Motif :", it: "Motivo:", pt: "Motivo:", de: "Grund:" };
+  const pickupLbl: Record<EmailLocale, string> = { en: "Pickup was:", es: "Recogida:", fr: "Prise en charge :", it: "Ritiro:", pt: "Recolha:", de: "Abholung:" };
+  const pickupAddrLbl: Record<EmailLocale, string> = { en: "Pickup address:", es: "Dirección de recogida:", fr: "Adresse de prise en charge :", it: "Indirizzo di ritiro:", pt: "Morada de recolha:", de: "Abholadresse:" };
+  const refundHead: Record<EmailLocale, string> = {
+    en: `✅ Full refund of ${opts.refundAmountText} will be processed to your original payment method.`,
+    es: `✅ Se procesará un reembolso completo de ${opts.refundAmountText} a tu método de pago original.`,
+    fr: `✅ Un remboursement intégral de ${opts.refundAmountText} sera effectué sur votre moyen de paiement d'origine.`,
+    it: `✅ Verrà elaborato un rimborso completo di ${opts.refundAmountText} sul tuo metodo di pagamento originale.`,
+    pt: `✅ Será processado um reembolso total de ${opts.refundAmountText} para o seu método de pagamento original.`,
+    de: `✅ Eine vollständige Rückerstattung von ${opts.refundAmountText} wird auf Ihr ursprüngliches Zahlungsmittel veranlasst.`,
+  };
+  const refundSub: Record<EmailLocale, string> = {
+    en: "Car hire and fuel deposit will both be refunded in full. Please allow 5–10 business days.",
+    es: "El alquiler y el depósito de combustible se reembolsarán íntegramente. El reembolso puede tardar de 5 a 10 días hábiles.",
+    fr: "La location et le dépôt de carburant seront intégralement remboursés. Comptez 5 à 10 jours ouvrés.",
+    it: "Il noleggio e il deposito carburante saranno interamente rimborsati. Sono necessari da 5 a 10 giorni lavorativi.",
+    pt: "O aluguer e o depósito de combustível serão totalmente reembolsados. Aguarde 5 a 10 dias úteis.",
+    de: "Mietwagen und Kraftstoffkaution werden vollständig erstattet. Bitte rechnen Sie mit 5–10 Werktagen.",
+  };
+  const questions: Record<EmailLocale, string> = {
+    en: "Questions? Email", es: "¿Preguntas? Escribe a", fr: "Des questions ? Écrivez à",
+    it: "Domande? Scrivi a", pt: "Dúvidas? Escreva para", de: "Fragen? Schreiben Sie an",
+  };
+  const cta: Record<EmailLocale, string> = {
+    en: "View My Bookings", es: "Ver mis reservas", fr: "Voir mes réservations",
+    it: "Vedi le mie prenotazioni", pt: "Ver as minhas reservas", de: "Meine Buchungen ansehen",
+  };
+
+  const body = `
+    <p>${t(hi)}</p>
+    <p>${t(line)}</p>
+    ${opts.reason ? `<p><strong>${t(reasonLbl)}</strong> ${opts.reason}</p>` : ""}
+    <p><strong>${t(pickupLbl)}</strong> ${opts.pickupTime || "—"}${opts.pickupAddress ? `<br/><strong>${t(pickupAddrLbl)}</strong> ${opts.pickupAddress}` : ""}</p>
+    <div style="background:#f0fff4;border:1px solid #22c55e;padding:16px;margin:16px 0;">
+      <p style="margin:0;font-weight:700;">${t(refundHead)}</p>
+      <p style="margin:4px 0 0;font-size:13px;color:#666;">${t(refundSub)}</p>
+    </div>
+    <p>${t(questions)} <a href="mailto:contact@camel-global.com" style="color:#ff7a00;">contact@camel-global.com</a></p>
+    <a href="${opts.siteUrl}/bookings" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">${t(cta)}</a>`;
+
+  return sendEmail({ to, subject: t(subject), html: brandEmail(t(heading), body, locale) });
+}
+
+export async function sendPartnerCancellationEmail(to: string, opts: {
+  locale?: EmailLocale;
+  jobNo: string;
+  cancelledByName: string;       // already-localized actor phrase
+  reason?: string | null;
+  customerName?: string | null;
+  pickupTime?: string | null;
+}) {
+  const locale = opts.locale ?? "en";
+  const t = <T,>(m: Record<EmailLocale, T>) => m[locale] ?? m.en;
+  const JOB = opts.jobNo;
+
+  const subject: Record<EmailLocale, string> = {
+    en: `Booking ${JOB} has been cancelled`,
+    es: `La reserva ${JOB} ha sido cancelada`,
+    fr: `La réservation ${JOB} a été annulée`,
+    it: `La prenotazione ${JOB} è stata annullata`,
+    pt: `A reserva ${JOB} foi cancelada`,
+    de: `Buchung ${JOB} wurde storniert`,
+  };
+  const heading: Record<EmailLocale, string> = {
+    en: "Booking Cancelled", es: "Reserva cancelada", fr: "Réservation annulée",
+    it: "Prenotazione annullata", pt: "Reserva cancelada", de: "Buchung storniert",
+  };
+  const line: Record<EmailLocale, string> = {
+    en: `Booking ${JOB} has been cancelled by ${opts.cancelledByName}.`,
+    es: `La reserva ${JOB} ha sido cancelada por ${opts.cancelledByName}.`,
+    fr: `La réservation ${JOB} a été annulée par ${opts.cancelledByName}.`,
+    it: `La prenotazione ${JOB} è stata annullata da ${opts.cancelledByName}.`,
+    pt: `A reserva ${JOB} foi cancelada por ${opts.cancelledByName}.`,
+    de: `Buchung ${JOB} wurde von ${opts.cancelledByName} storniert.`,
+  };
+  const reasonLbl: Record<EmailLocale, string> = { en: "Reason:", es: "Motivo:", fr: "Motif :", it: "Motivo:", pt: "Motivo:", de: "Grund:" };
+  const custLbl: Record<EmailLocale, string> = { en: "Customer:", es: "Cliente:", fr: "Client :", it: "Cliente:", pt: "Cliente:", de: "Kunde:" };
+  const pickupLbl: Record<EmailLocale, string> = { en: "Pickup was:", es: "Recogida:", fr: "Prise en charge :", it: "Ritiro:", pt: "Recolha:", de: "Abholung:" };
+  const note: Record<EmailLocale, string> = {
+    en: "The customer will receive a full refund. No further action is required from you.",
+    es: "El cliente recibirá un reembolso completo. No es necesario que hagas nada más.",
+    fr: "Le client recevra un remboursement intégral. Aucune action supplémentaire n'est requise de votre part.",
+    it: "Il cliente riceverà un rimborso completo. Non è richiesta alcuna ulteriore azione da parte tua.",
+    pt: "O cliente receberá um reembolso total. Não é necessária qualquer ação adicional da sua parte.",
+    de: "Der Kunde erhält eine vollständige Rückerstattung. Von Ihnen ist keine weitere Aktion erforderlich.",
+  };
+
+  const body = `
+    <p>${t(line)}</p>
+    ${opts.reason ? `<p><strong>${t(reasonLbl)}</strong> ${opts.reason}</p>` : ""}
+    <p><strong>${t(custLbl)}</strong> ${opts.customerName || "—"}<br/><strong>${t(pickupLbl)}</strong> ${opts.pickupTime || "—"}</p>
+    <p>${t(note)}</p>`;
+
+  return sendEmail({ to, subject: t(subject), html: brandEmail(t(heading), body, locale) });
 }
 
 // ---------------------------------------------------------------------------

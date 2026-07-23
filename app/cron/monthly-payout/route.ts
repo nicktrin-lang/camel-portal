@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import crypto from "crypto";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, coerceEmailLocale, EmailLocale } from "@/lib/email";
 import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
 import { generateMonthlyStatement } from "@/lib/portal/generateMonthlyStatementPDF";
 import { coerceCurrency } from "@/lib/currency";
@@ -101,7 +101,7 @@ export async function GET(req: Request) {
     .select(`
       user_id, company_name, contact_name,
       stripe_account_id, stripe_payouts_enabled, stripe_recipient_id, payout_rail,
-      default_currency, commission_rate
+      default_currency, commission_rate, communication_locale
     `)
     .in("user_id", partnerIds);
 
@@ -332,29 +332,64 @@ export async function GET(req: Request) {
     const fmt = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: payoutCurrency }).format(n);
 
     if (partnerEmail) {
+      // Covering email localized to the partner; the numeric per-booking
+      // breakdown lines mirror the English finance documents (invoice/statement)
+      // and stay as-is. Money/transfer logic above is untouched.
+      const emailLocale = coerceEmailLocale(profile.communication_locale);
+      const tL = <T,>(m: Record<EmailLocale, T>) => m[emailLocale] ?? m.en;
+      const greetName = profile.contact_name || profile.company_name;
+      const subjectL: Record<EmailLocale, string> = {
+        en: `Your Camel Global payout for ${runLabel} — ${fmt(totalPayout)}`,
+        es: `Tu pago de Camel Global de ${runLabel} — ${fmt(totalPayout)}`,
+        fr: `Votre paiement Camel Global pour ${runLabel} — ${fmt(totalPayout)}`,
+        it: `Il tuo pagamento Camel Global per ${runLabel} — ${fmt(totalPayout)}`,
+        pt: `O seu pagamento Camel Global de ${runLabel} — ${fmt(totalPayout)}`,
+        de: `Ihre Camel Global Auszahlung für ${runLabel} — ${fmt(totalPayout)}`,
+      };
+      const headL: Record<EmailLocale, string> = { en: "Monthly Payout", es: "Pago mensual", fr: "Paiement mensuel", it: "Pagamento mensile", pt: "Pagamento mensal", de: "Monatliche Auszahlung" };
+      const hiL: Record<EmailLocale, string> = { en: `Hi ${greetName},`, es: `Hola ${greetName},`, fr: `Bonjour ${greetName},`, it: `Ciao ${greetName},`, pt: `Olá ${greetName},`, de: `Hallo ${greetName},` };
+      const p1L: Record<EmailLocale, string> = {
+        en: `Your payout for <strong>${runLabel}</strong> has been processed. Your commission invoice has been sent separately.`,
+        es: `Tu pago correspondiente a <strong>${runLabel}</strong> ha sido procesado. Tu factura de comisión se ha enviado por separado.`,
+        fr: `Votre paiement pour <strong>${runLabel}</strong> a été traité. Votre facture de commission a été envoyée séparément.`,
+        it: `Il tuo pagamento per <strong>${runLabel}</strong> è stato elaborato. La tua fattura di commissione è stata inviata separatamente.`,
+        pt: `O seu pagamento referente a <strong>${runLabel}</strong> foi processado. A sua fatura de comissão foi enviada separadamente.`,
+        de: `Ihre Auszahlung für <strong>${runLabel}</strong> wurde verarbeitet. Ihre Provisionsrechnung wurde separat versendet.`,
+      };
+      const summaryL: Record<EmailLocale, string> = { en: "Payout Summary", es: "Resumen del pago", fr: "Récapitulatif du paiement", it: "Riepilogo del pagamento", pt: "Resumo do pagamento", de: "Auszahlungsübersicht" };
+      const totalL: Record<EmailLocale, string> = { en: "Total", es: "Total", fr: "Total", it: "Totale", pt: "Total", de: "Gesamt" };
+      const arriveL: Record<EmailLocale, string> = {
+        en: "The transfer has been sent to your Stripe account and should arrive within 2–5 business days.",
+        es: "La transferencia se ha enviado a tu cuenta de Stripe y debería llegar en un plazo de 2 a 5 días hábiles.",
+        fr: "Le virement a été envoyé sur votre compte Stripe et devrait arriver sous 2 à 5 jours ouvrés.",
+        it: "Il bonifico è stato inviato al tuo account Stripe e dovrebbe arrivare entro 2–5 giorni lavorativi.",
+        pt: "A transferência foi enviada para a sua conta Stripe e deverá chegar dentro de 2 a 5 dias úteis.",
+        de: "Die Überweisung wurde an Ihr Stripe-Konto gesendet und sollte innerhalb von 2–5 Werktagen eintreffen.",
+      };
+      const refL: Record<EmailLocale, string> = { en: "Stripe transfer reference:", es: "Referencia de la transferencia de Stripe:", fr: "Référence du virement Stripe :", it: "Riferimento del bonifico Stripe:", pt: "Referência da transferência Stripe:", de: "Stripe-Überweisungsreferenz:" };
       await sendEmail({
         to: partnerEmail,
-        subject: `Your Camel Global payout for ${runLabel} — ${fmt(totalPayout)}`,
+        subject: tL(subjectL),
         html: `
           <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
             <div style="background:#000;padding:20px 28px;">
-              <h2 style="color:#fff;margin:0;">Monthly Payout</h2>
+              <h2 style="color:#fff;margin:0;">${tL(headL)}</h2>
               <p style="color:#999;margin:4px 0 0;font-size:13px;">${runLabel}</p>
             </div>
             <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-              <p>Hi ${profile.contact_name || profile.company_name},</p>
-              <p>Your payout for <strong>${runLabel}</strong> has been processed. Your commission invoice has been sent separately.</p>
+              <p>${tL(hiL)}</p>
+              <p>${tL(p1L)}</p>
               <div style="background:#f8f8f8;padding:16px;margin:16px 0;border-left:4px solid #ff7a00;">
-                <p style="margin:0 0 12px;font-weight:700;">Payout Summary</p>
+                <p style="margin:0 0 12px;font-weight:700;">${tL(summaryL)}</p>
                 <table style="width:100%;font-size:13px;border-collapse:collapse;">
                   ${bookingLines.map(line => `<tr><td style="padding:3px 0;color:#444;">${line}</td></tr>`).join("")}
                   <tr style="border-top:1px solid #ddd;">
-                    <td style="padding:8px 0 4px;font-weight:700;font-size:15px;">Total: ${fmt(totalPayout)}</td>
+                    <td style="padding:8px 0 4px;font-weight:700;font-size:15px;">${tL(totalL)}: ${fmt(totalPayout)}</td>
                   </tr>
                 </table>
               </div>
-              <p style="font-size:13px;color:#666;">The transfer has been sent to your Stripe account and should arrive within 2–5 business days.</p>
-              <p style="font-size:13px;color:#666;">Stripe transfer reference: <code>${transferId}</code></p>
+              <p style="font-size:13px;color:#666;">${tL(arriveL)}</p>
+              <p style="font-size:13px;color:#666;">${tL(refL)} <code>${transferId}</code></p>
               <p style="margin-top:24px;color:#999;font-size:13px;">The Camel Global Team — NTUK Ltd</p>
             </div>
           </div>

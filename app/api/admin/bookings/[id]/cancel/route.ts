@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase/server";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, coerceEmailLocale, sendCustomerCancellationEmail, sendPartnerCancellationEmail, EmailLocale } from "@/lib/email";
 import { cancelBookingRefund } from "@/lib/portal/cancelBooking";
 
 async function requireAdmin() {
@@ -42,15 +42,28 @@ export async function POST(
 
     const { data: request } = await db
       .from("customer_requests")
-      .select("id, customer_name, customer_email, pickup_at, pickup_address")
+      .select("id, customer_name, customer_email, customer_user_id, pickup_at, pickup_address")
       .eq("id", booking.request_id)
       .maybeSingle();
 
     const { data: partnerProfile } = await db
       .from("partner_profiles")
-      .select("company_name")
+      .select("company_name, communication_locale")
       .eq("user_id", booking.partner_user_id)
       .maybeSingle();
+
+    // Recipient email locales (default en). Customer locale is looked up from
+    // their profile via customer_user_id; partner locale from partner_profiles.
+    const partnerLocale = coerceEmailLocale(partnerProfile?.communication_locale);
+    let customerLocale: EmailLocale = "en";
+    if (request?.customer_user_id) {
+      const { data: custProfile } = await db
+        .from("customer_profiles")
+        .select("communication_locale")
+        .eq("user_id", request.customer_user_id)
+        .maybeSingle();
+      customerLocale = coerceEmailLocale(custProfile?.communication_locale);
+    }
 
     const { data: partnerAuthData } = await db.auth.admin.getUserById(booking.partner_user_id);
     const partnerEmail = partnerAuthData?.user?.email || null;
@@ -100,43 +113,32 @@ export async function POST(
     const fmt     = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: curr }).format(n);
 
     if (request?.customer_email) {
-      await sendEmail({
-        to: request.customer_email,
-        subject: `Your Camel Global booking ${jobNo} has been cancelled`,
-        html: `
-          <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
-            <div style="background:#000;padding:20px 28px;"><h2 style="color:#fff;margin:0;">Booking Cancelled</h2></div>
-            <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-              <p>Hi ${request.customer_name || "there"},</p>
-              <p>Your booking ${jobNo} has been cancelled by Camel Global.</p>
-              ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ""}
-              <div style="background:#f0f0f0;padding:16px;margin:16px 0;">
-                <p style="margin:0;font-weight:700;">Full refund of ${fmt(refundAmount)} will be processed to your original payment method.</p>
-                <p style="margin:4px 0 0;font-size:13px;color:#666;">Please allow 5–10 business days for the refund to appear.</p>
-              </div>
-              <p>Questions? Email <a href="mailto:contact@camel-global.com" style="color:#ff7a00;">contact@camel-global.com</a></p>
-              <a href="${siteUrl}/bookings" style="display:inline-block;background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;margin-top:8px;">View My Bookings</a>
-            </div>
-          </div>
-        `,
+      await sendCustomerCancellationEmail(request.customer_email, {
+        locale: customerLocale,
+        jobNo,
+        customerName: request.customer_name,
+        cancelledByName: "Camel Global",
+        reason,
+        pickupTime,
+        pickupAddress: request.pickup_address,
+        refundAmountText: fmt(refundAmount),
+        siteUrl,
       }).catch(e => console.error("Customer cancel email failed:", e?.message));
     }
 
     if (partnerEmail) {
-      await sendEmail({
-        to: partnerEmail,
-        subject: `Booking ${jobNo} cancelled by Camel Global admin`,
-        html: `
-          <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
-            <div style="background:#000;padding:20px 28px;"><h2 style="color:#fff;margin:0;">Booking Cancelled</h2></div>
-            <div style="padding:24px 28px;background:#fff;border:1px solid #eee;">
-              <p>Booking ${jobNo} has been cancelled by Camel Global admin.</p>
-              ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ""}
-              <p>Customer will receive a full refund. No action required from you.</p>
-              <p style="color:#999;font-size:13px;">The Camel Global Team</p>
-            </div>
-          </div>
-        `,
+      const adminActor: Record<EmailLocale, string> = {
+        en: "a Camel Global administrator", es: "un administrador de Camel Global",
+        fr: "un administrateur Camel Global", it: "un amministratore di Camel Global",
+        pt: "um administrador da Camel Global", de: "einen Camel Global Administrator",
+      };
+      await sendPartnerCancellationEmail(partnerEmail, {
+        locale: partnerLocale,
+        jobNo,
+        cancelledByName: adminActor[partnerLocale] ?? adminActor.en,
+        reason,
+        customerName: request?.customer_name,
+        pickupTime,
       }).catch(e => console.error("Partner cancel email failed:", e?.message));
     }
 
