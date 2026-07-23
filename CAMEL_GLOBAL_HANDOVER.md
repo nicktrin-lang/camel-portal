@@ -1,45 +1,26 @@
 Camel Global — Project Handover Document
-Always paste this document at the start of every new conversation.
 
-Update it at the end of each session before the chat fills up.
+This file is read directly by Claude Code from disk — you do NOT need to paste it.
+At the start of a session, Claude reads `CLAUDE.md` in each repo (auto-loaded) plus the
+"LATEST SESSION" section below. Update this file at the end of each session.
+
 Working Rules
-Always paste the current file before Claude rewrites it. Claude works from what you paste, not from memory.
-
-Always give Claude the full file tree at the start of a new chat:
-Portal: find ~/camel-portal -not -path '/node_modules/' -not -path '/.git/' -not -path '/.next/' | sort
-
-Customer: find ~/camel-customer -not -path '/node_modules/' -not -path '/.git/' -not -path '/.next/' | sort
-Before any rewrite, Claude will tell you which files to paste, or give you a command to cat them.
-
-Always ask Claude to check the actual file before rewriting — never assume the artifact is current.
-
-Always provide the git push command at the end of every change.
-
-Claude must always write full files — no partial diffs, no "change X to Y" instructions.
-
-When rebranding/restyling, never touch API call parameters or business logic — visual classes only.
-
-ChatWidget.tsx is NOT identical in both repos — portal has partner-focused welcome message, customer has booking-focused welcome message. Update separately.
-
-Footer.tsx exists in both repos but they are different — portal has PortalFooter/DriverFooter/CustomerFooter, customer has CustomerFooter only. Update separately.
-
-Always git pull before starting any session — collaborator may have pushed.
-
-zsh square bracket paths — always quote dynamic route paths in git commands: 'app/partner/bookings/[id]/page.tsx'
-
-JSON i18n files — when adding new keys, always copy the full artifact content to disk. Never assume the artifact was saved automatically.
-
-Portal email.ts is large — never replace it with a partial file. Always restore from git if accidentally overwritten: git show <commit>:lib/email.ts > lib/email.ts
-
-Always tell Claude which sed commands failed — sed on disk is the only reliable way to make small changes to deployed files.
-
-When making changes with sed, always verify with grep afterwards before committing.
-
-Always label artifacts with the destination file path so the user knows where to copy them.
-
-multiline sed never works in zsh — always use separate sed commands per line, or write a full file artifact.
-
-Python3 heredoc is the reliable way to make multiline replacements — use python3 << 'EOF' pattern.
+- Claude Code reads and edits files directly on disk (Read / Edit / Write). It does not
+  work from pasted text or artifacts, so the old "paste the file / paste the file tree /
+  write full files only / use sed / copy artifacts to disk" instructions no longer apply.
+- Read the actual file before editing it — never trust a comment or this document as current.
+- `npx tsc --noEmit` after every change. Commit per logical unit; deploy + verify per unit.
+- Always git pull both repos before starting — a collaborator may have pushed.
+- `main` requires a PR (pushes have used admin bypass). Confirm before pushing to production.
+- When restyling, never touch API params or business logic — visual classes only.
+- ChatWidget.tsx is NOT identical in both repos (portal = partner-focused welcome, customer =
+  booking-focused). Footer.tsx also differs (portal has Portal/Driver/CustomerFooter, customer
+  has CustomerFooter only). Update each separately.
+- zsh globs `[id]` paths — single-quote dynamic route paths: 'app/partner/bookings/[id]/page.tsx'.
+- Portal `lib/email.ts` is large — never replace it with a partial file. Restore if clobbered:
+  `git show <commit>:lib/email.ts > lib/email.ts`.
+- camel-coming-soon is a submodule and always shows modified — ignore it, never `git add` it;
+  always `git add <specific-file>`, never `git add .`.
 ═══════════════════════════════════════════════════════════════════════════════
 LATEST SESSION — 2026-07-23  (read this first)
 ═══════════════════════════════════════════════════════════════════════════════
