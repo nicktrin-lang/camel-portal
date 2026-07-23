@@ -7,7 +7,7 @@ const DAILY_LIMIT = 50;
 const COUNTRIES = ["All Countries", "Spain", "France", "Italy", "Portugal", "Germany", "UK", "USA"];
 
 type Status = "pending" | "sent" | "bounced" | "replied" | "onboarded";
-type EngagementFilter = "all" | "sent" | "delivered" | "opened" | "clicked" | "complained" | "onboarded" | "unsubscribed";
+type EngagementFilter = "all" | "sent" | "delivered" | "opened" | "clicked" | "complained" | "onboarded" | "unsubscribed" | "forwarded";
 
 type Prospect = {
   id: string;
@@ -28,6 +28,7 @@ type Prospect = {
   open_count: number | null;
   click_count: number | null;
   last_click_user_agent: string | null;
+  click_country: string | null;       // ISO code geolocated from the click IP
   onboarded: boolean | null;          // computed: matched a partner application
   application_status: string | null;  // computed: that application's status
   onboarded_match: string | null;     // 'email' | 'company' | null (how it matched)
@@ -41,6 +42,19 @@ function isTestAddress(email: string | null) { return /nicktrin\+/i.test(String(
 function isHumanClick(p: Prospect) {
   return !!p.clicked_at && !isTestAddress(p.email) &&
     !(p.last_click_user_agent && SCANNER_UA.test(p.last_click_user_agent));
+}
+
+// Map a prospect's listed country to an ISO code so we can compare it against the
+// geolocated click country. A click from a different country = possibly forwarded.
+const COUNTRY_ISO: Record<string, string> = {
+  spain: "ES", france: "FR", italy: "IT", portugal: "PT", germany: "DE",
+  uk: "GB", "united kingdom": "GB", usa: "US", "united states": "US",
+  ireland: "IE", netherlands: "NL", australia: "AU", "new zealand": "NZ", canada: "CA",
+};
+function prospectISO(country: string | null) { return COUNTRY_ISO[String(country || "").toLowerCase().trim()] || null; }
+function isPossiblyForwarded(p: Prospect) {
+  const home = prospectISO(p.country);
+  return !!(p.click_country && home && p.click_country !== home);
 }
 
 const STATUS_STYLES: Record<Status, string> = {
@@ -311,6 +325,7 @@ export default function OutreachPage() {
   const complainedCount = realProspects.filter(p => p.complained_at).length;
   const onboardedCount  = realProspects.filter(p => p.onboarded).length;
   const unsubCount      = realProspects.filter(p => p.unsubscribed).length;
+  const forwardedCount  = realProspects.filter(isPossiblyForwarded).length;
 
   // Toggle engagement filter — clicking same card clears it
   function toggleEngagementFilter(f: EngagementFilter) {
@@ -332,6 +347,7 @@ export default function OutreachPage() {
       if (engagementFilter === "complained")   return !!p.complained_at;
       if (engagementFilter === "onboarded")    return !!p.onboarded;
       if (engagementFilter === "unsubscribed") return !!p.unsubscribed;
+      if (engagementFilter === "forwarded")    return isPossiblyForwarded(p);
       return true;
     })
     .filter(p => statusFilter === "all" || p.status === statusFilter)
@@ -447,7 +463,7 @@ export default function OutreachPage() {
 
       {/* Trust signals — all filterable */}
       {sentCount > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <button
             onClick={() => toggleEngagementFilter("delivered")}
             className={["border p-4 text-left transition-all", engagementFilter === "delivered" ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
@@ -482,6 +498,14 @@ export default function OutreachPage() {
             <p className="text-xs font-black uppercase tracking-widest text-black/40">Onboarded</p>
             <p className={["mt-1 text-2xl font-black", onboardedCount > 0 ? "text-green-700" : "text-black"].join(" ")}>{onboardedCount}</p>
             <p className="mt-1 text-xs font-semibold text-black/30">actually signed up (real conversions)</p>
+          </button>
+          <button
+            onClick={() => toggleEngagementFilter("forwarded")}
+            className={["border p-4 text-left transition-all", engagementFilter === "forwarded" ? "border-black ring-2 ring-black" : forwardedCount > 0 ? "border-blue-300 bg-blue-50 hover:border-blue-500" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+          >
+            <p className="text-xs font-black uppercase tracking-widest text-black/40">Poss. Forwarded</p>
+            <p className={["mt-1 text-2xl font-black", forwardedCount > 0 ? "text-blue-700" : "text-black"].join(" ")}>{forwardedCount}</p>
+            <p className="mt-1 text-xs font-semibold text-black/30">clicked from another country</p>
           </button>
         </div>
       )}
@@ -614,6 +638,7 @@ export default function OutreachPage() {
                     <td className="px-4 py-3 font-black text-black">
                       {p.company_name}
                       {p.onboarded && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-green-100 text-green-700 px-1.5 py-0.5">signed up{p.application_status ? ` · ${p.application_status}` : ""}{p.onboarded_match === "company" ? " · by name" : ""}</span>}
+                      {isPossiblyForwarded(p) && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-700 px-1.5 py-0.5" title={`Clicked from ${p.click_country}, but listed as ${p.country}`}>forwarded? · {p.click_country}</span>}
                       {p.complained_at && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5">spam</span>}
                       {p.unsubscribed && !p.complained_at && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5">unsub</span>}
                     </td>

@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 
+// Best-effort IP → ISO country code, for the "possibly forwarded" heuristic: a
+// click from a country different to the prospect's own suggests the email was
+// forwarded on. Fails silently (returns null) so it can never break the webhook.
+// Only used on CLICKS — open IPs are Apple Mail Privacy relays and meaningless.
+async function geolocateCountry(ip: string): Promise<string | null> {
+  try {
+    if (!ip || ip.startsWith("127.") || ip === "::1") return null;
+    const res = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/country/`, {
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!res.ok) return null;
+    const code = (await res.text()).trim().toUpperCase();
+    return /^[A-Z]{2}$/.test(code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   // Read the RAW body first — svix signature verification must run on the
   // exact bytes Resend signed, before any JSON parsing.
@@ -81,7 +99,12 @@ export async function POST(req: NextRequest) {
       // Capture click context so we can filter out security-scanner "bot" clicks
       const click = data?.click || {};
       if (click.userAgent) updates.last_click_user_agent = String(click.userAgent).slice(0, 400);
-      if (click.ipAddress) updates.last_click_ip = String(click.ipAddress).slice(0, 64);
+      if (click.ipAddress) {
+        updates.last_click_ip = String(click.ipAddress).slice(0, 64);
+        // Geolocate the click IP — a country ≠ the prospect's own = possibly forwarded.
+        const cc = await geolocateCountry(String(click.ipAddress));
+        if (cc) updates.click_country = cc;
+      }
     }
 
     if (type === "email.complained") {
