@@ -509,7 +509,7 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
       job_number, request_id, payment_id,
       collection_fuel_level_partner, collection_fuel_level_driver,
       return_fuel_level_partner, return_fuel_level_driver,
-      fuel_used_quarters, payout_status, commission_rate
+      fuel_used_quarters, payout_status, commission_rate, commission_amount
     `)
     .eq("id", bookingId)
     .maybeSingle();
@@ -546,6 +546,13 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   const { used_quarters, fuel_charge, fuel_refund } = fuelCalc;
 
+  // Canonical settled partner net = car hire − commission + fuel actually used.
+  // Written to the ledger now (single source of truth for the monthly payout and
+  // every report — reports must read this, not recompute it).
+  const carHireAmt   = Number(booking.car_hire_price   || 0);
+  const commissionAmt = Number(booking.commission_amount || 0);
+  const settledNet   = Math.round((carHireAmt - commissionAmt + fuel_charge) * 100) / 100;
+
   const { data: payment, error: pmtErr } = await db
     .from("payments")
     .select("id, stripe_payment_intent_id, amount_fuel_deposit, fuel_refunded_at")
@@ -556,10 +563,12 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (!payment) {
     await db.from("partner_bookings").update({
-      fuel_used_quarters: used_quarters,
+      fuel_used_quarters:  used_quarters,
       fuel_charge,
       fuel_refund,
-      payout_status: "ready",
+      settled_partner_net: settledNet,
+      settled_at:          new Date().toISOString(),
+      payout_status:       "ready",
     }).eq("id", bookingId);
 
     console.log(`completeBooking: no payment record for ${bookingId} — marked ready without Stripe refund`);
@@ -591,28 +600,12 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   if (refundCents > 0 && payment.stripe_payment_intent_id) {
     try {
-      // Step 1: Reverse the transfer to the partner — pulls money back before refunding customer
-      const pi = await stripe.paymentIntents.retrieve(
-        payment.stripe_payment_intent_id,
-        { expand: ["latest_charge"] }
-      );
-      const charge = pi.latest_charge as any;
-      const transferId = charge?.transfer as string | null;
-
-      if (transferId) {
-        await stripe.transfers.createReversal(transferId, {
-          amount: refundCents,
-          metadata: {
-            refund_type: "fuel_refund",
-            booking_id:  bookingId,
-            job_number:  jobNo,
-          },
-        });
-      } else {
-        console.warn(`completeBooking: no transfer found on PI ${payment.stripe_payment_intent_id} — skipping transfer reversal`);
-      }
-
-      // Step 2: Refund the customer from Camel's main account
+      // Refund the customer the UNUSED fuel from Camel's platform balance.
+      // Under the platform-hold model NOTHING was transferred to the partner yet
+      // (they are paid the settled net monthly), so there is no transfer to reverse
+      // — this is a plain refund against the charge. Idempotency-keyed on the
+      // booking so a retry (or a DB-write failure below) can never double-refund:
+      // Stripe returns the same refund for the same key.
       const refund = await stripe.refunds.create({
         payment_intent: payment.stripe_payment_intent_id,
         amount: refundCents,
@@ -629,10 +622,12 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
           fuel_charge:       fmtRaw(fuel_charge),
           fuel_refund:       fmtRaw(fuel_refund),
         },
+      }, {
+        idempotencyKey: `fuelrefund_${bookingId}`,
       });
       stripeRefundId = refund.id;
     } catch (stripeErr: any) {
-      console.error("Stripe refund error:", stripeErr?.message);
+      console.error("Stripe fuel refund error:", stripeErr?.message);
       return { ok: false, error: `Stripe refund failed: ${stripeErr?.message}`, status: 500 };
     }
   }
@@ -641,7 +636,14 @@ export async function completeBooking(bookingId: string): Promise<CompleteBookin
 
   const { error: bkUpdateErr } = await db
     .from("partner_bookings")
-    .update({ fuel_used_quarters: used_quarters, fuel_charge, fuel_refund, payout_status: "ready" })
+    .update({
+      fuel_used_quarters:  used_quarters,
+      fuel_charge,
+      fuel_refund,
+      settled_partner_net: settledNet,
+      settled_at:          now,
+      payout_status:       "ready",
+    })
     .eq("id", bookingId);
 
   if (bkUpdateErr) return { ok: false, error: bkUpdateErr.message, status: 500 };

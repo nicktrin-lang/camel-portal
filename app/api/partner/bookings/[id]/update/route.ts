@@ -3,6 +3,7 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
 import { isAdminRole } from "@/lib/portal/roles";
 import { completeBooking } from "@/lib/portal/completeBooking";
+import { sendEmail } from "@/lib/email";
 
 const ALLOWED_BOOKING_STATUSES = [
   "confirmed", "driver_assigned", "en_route", "arrived",
@@ -208,16 +209,35 @@ export async function POST(
     // ── Trigger completion inline when booking reaches "completed" ────────────
     // Called directly (no HTTP round-trip) so no auth/cookie issues.
     // completeBooking is idempotent — safe if already processed.
+    let settlementError: string | null = null;
     if (updatePayload.booking_status === "completed" && bookingRow.payout_status === "held") {
       const result = await completeBooking(id);
       if (!result.ok && !("already_processed" in result)) {
-        // Log but don't fail the update response — booking is already completed in DB
-        console.error(`completeBooking failed for ${id}:`, result.error);
+        // Do NOT swallow this. The physical hire is done (booking_status=completed),
+        // but the customer fuel refund + partner settlement did NOT complete, leaving
+        // the booking stuck in payout_status='held'. Surface it in the response AND
+        // alert admins so it's never silent. completeBooking is idempotent, so
+        // re-saving the completed booking retries it once the cause is resolved.
+        settlementError = result.error || "settlement failed";
+        console.error(`completeBooking SETTLEMENT FAILED for ${id}:`, result.error);
+        const adminEmails = String(process.env.CAMEL_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean);
+        for (const to of adminEmails) {
+          await sendEmail({
+            to,
+            subject: `[Admin] Booking completion settlement FAILED — ${id}`,
+            html: `<div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
+              <p><strong>completeBooking failed</strong> for booking <code>${id}</code>.</p>
+              <p>The booking is marked completed, but the <strong>customer fuel refund and partner settlement did NOT run</strong> — it is stuck in <code>payout_status='held'</code>.</p>
+              <p><strong>Error:</strong> ${result.error}</p>
+              <p>Resolve the cause, then re-open the booking and mark it completed again to retry (completion is idempotent).</p>
+            </div>`,
+          }).catch(e => console.error("Settlement-failure admin alert failed:", e?.message));
+        }
       }
     }
 
     return NextResponse.json(
-      { ok: true, collection_locked: collectionMatched, return_locked: returnMatched },
+      { ok: true, collection_locked: collectionMatched, return_locked: returnMatched, settlement_error: settlementError },
       { status: 200 }
     );
   } catch (e: any) {

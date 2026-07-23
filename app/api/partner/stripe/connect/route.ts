@@ -30,9 +30,26 @@ const COUNTRY_CURRENCY: Record<string, string> = {
   IE: "eur", NZ: "nzd", SG: "sgd", AE: "aed",
 };
 
+// Localized country names the map picker's reverse-geocoding can return in the
+// local language (e.g. "España" for Spain). Mapped so a partner who picks their
+// address on the map — and doesn't retype the country in English — can still
+// connect Stripe. Keyed lowercased.
+const COUNTRY_ALIASES: Record<string, string> = {
+  "españa": "ES", "espagne": "ES", "spanien": "ES", "spagna": "ES",
+  "deutschland": "DE", "allemagne": "DE", "alemania": "DE", "germania": "DE",
+  "italia": "IT", "italie": "IT", "italien": "IT",
+  "francia": "FR", "frankreich": "FR", "frança": "FR",
+  "reino unido": "GB", "royaume-uni": "GB", "regno unito": "GB", "vereinigtes königreich": "GB",
+  "irlanda": "IE", "irlande": "IE", "irland": "IE",
+  "países bajos": "NL", "pays-bas": "NL", "niederlande": "NL", "paesi bassi": "NL",
+  "nueva zelanda": "NZ", "nouvelle-zélande": "NZ", "neuseeland": "NZ",
+  "canadá": "CA", "kanada": "CA",
+  "estados unidos": "US", "états-unis": "US", "vereinigte staaten": "US",
+};
+
 function stripeCountry(baseCountry: string | null): string {
   const key = (baseCountry || "").trim();
-  const code = COUNTRY_MAP[key];
+  const code = COUNTRY_MAP[key] || COUNTRY_ALIASES[key.toLowerCase()];
   if (!code) {
     // Fail LOUDLY instead of silently defaulting to ES. A connected account's
     // country is locked at creation and can never be changed, so a wrong default

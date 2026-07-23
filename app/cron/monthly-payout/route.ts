@@ -1,24 +1,24 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import crypto from "crypto";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
 import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
+import { generateMonthlyStatement } from "@/lib/portal/generateMonthlyStatementPDF";
+import { coerceCurrency } from "@/lib/currency";
 
 // Vercel cron — runs 1st of each month at 08:00 UTC
 // vercel.json: { "path": "/api/cron/monthly-payout", "schedule": "0 8 1 * *" }
+//
+// Platform-hold model: the charge already settled to Camel's balance; this cron is
+// the SINGLE partner payout (there is no charge-time transfer any more). It pays each
+// partner the sum of their bookings' canonical settled_partner_net, one transfer per
+// (partner, currency), reading stored values — never recomputing — so it reconciles
+// to the cent with reports. Commission stays on Camel's balance.
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-04-22.dahlia" as any,
 });
-
-function calcCommission(carHirePrice: number, commissionRate: number): number {
-  return Math.max((carHirePrice * commissionRate) / 100, 10);
-}
-
-function calcPartnerPayout(carHirePrice: number, commissionRate: number, fuelCharge: number): number {
-  const commission = calcCommission(carHirePrice, commissionRate);
-  return Math.max(0, carHirePrice - commission + fuelCharge);
-}
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -29,21 +29,34 @@ export async function GET(req: Request) {
   const db = createServiceRoleSupabaseClient();
   const now = new Date();
   const nowIso = now.toISOString();
-  const runLabel = now.toLocaleString("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
+  const runDateLabel = now.toLocaleString("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
 
-  // Period month = previous month (cron runs on 1st, invoices cover the month just ended)
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const periodMonth = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
+  // A booking's payout is tied to the month it actually SETTLED (completion or <48h
+  // cancel = settled_at), never to the run date. We only pay bookings that settled in
+  // an already-CLOSED month; anything settled in the current still-open month is
+  // deferred to next month's run. This removes end-of-month cutoff ambiguity — a
+  // cancellation at 30 Jun 23:59 lands in June, one at 1 Jul 00:01 lands in July.
+  const startOfCurrentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+  const monthKey = (ts: string | null): string => {
+    const d = new Date(ts || nowIso);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  };
+  const monthLabel = (ym: string): string => {
+    const [y, m] = ym.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
+  };
 
   // ── Fetch all ready bookings ─────────────────────────────────────────────
   const { data: bookings, error: bkErr } = await db
     .from("partner_bookings")
     .select(`
       id, job_number, partner_user_id,
-      car_hire_price, fuel_charge, commission_rate,
+      car_hire_price, fuel_charge, fuel_refund, commission_rate, commission_amount,
+      settled_partner_net,
       currency, charge_currency, conversion_rate,
       payout_status, payment_id,
-      created_at, booking_status, refund_status, cancellation_reason
+      created_at, settled_at, booking_status, refund_status, cancellation_reason
     `)
     .eq("payout_status", "ready")
     .eq("payout_hold", false);
@@ -55,24 +68,39 @@ export async function GET(req: Request) {
 
   if (!bookings?.length) {
     console.log("monthly-payout: no ready bookings");
-    return NextResponse.json({ ok: true, payouts: 0, skipped: 0 });
+    return NextResponse.json({ ok: true, payouts: 0, skipped: 0, deferred: 0 });
   }
 
-  // ── Group by partner ─────────────────────────────────────────────────────
-  const byPartner = new Map<string, typeof bookings>();
-  for (const b of bookings) {
-    const group = byPartner.get(b.partner_user_id) || [];
+  // Defer bookings that settled in the current (still-open) month to next month's run.
+  // Fall back to created_at only if settled_at is somehow missing (shouldn't happen —
+  // completion and <48h cancel both stamp settled_at).
+  const eligible = bookings.filter(b => new Date(b.settled_at || b.created_at) < startOfCurrentMonth);
+  const deferred = bookings.length - eligible.length;
+  if (deferred > 0) console.log(`monthly-payout: deferring ${deferred} booking(s) settled in the current open month`);
+
+  if (!eligible.length) {
+    console.log("monthly-payout: no bookings from a closed month to pay");
+    return NextResponse.json({ ok: true, payouts: 0, skipped: 0, deferred });
+  }
+
+  // ── Group by partner + currency + settlement month ───────────────────────
+  // Per-currency so we NEVER sum across currencies; per settlement-month so each
+  // payout, commission invoice and statement is tied to the month work settled.
+  const byGroup = new Map<string, typeof bookings>();
+  for (const b of eligible) {
+    const groupKey = `${b.partner_user_id}::${coerceCurrency(b.currency)}::${monthKey(b.settled_at)}`;
+    const group = byGroup.get(groupKey) || [];
     group.push(b);
-    byPartner.set(b.partner_user_id, group);
+    byGroup.set(groupKey, group);
   }
 
   // ── Fetch partner profiles ───────────────────────────────────────────────
-  const partnerIds = [...byPartner.keys()];
+  const partnerIds = [...new Set(eligible.map(b => b.partner_user_id))];
   const { data: profiles, error: profErr } = await db
     .from("partner_profiles")
     .select(`
       user_id, company_name, contact_name,
-      stripe_account_id, stripe_payouts_enabled,
+      stripe_account_id, stripe_payouts_enabled, stripe_recipient_id, payout_rail,
       default_currency, commission_rate
     `)
     .in("user_id", partnerIds);
@@ -91,8 +119,10 @@ export async function GET(req: Request) {
   let skipped = 0;
   const results: Array<{ partner: string; status: string; amount?: number; currency?: string; error?: string }> = [];
 
-  // ── Process each partner ─────────────────────────────────────────────────
-  for (const [partnerUserId, partnerBookings] of byPartner) {
+  // ── Process each (partner, currency, settlement-month) group ─────────────
+  for (const [groupKey, partnerBookings] of byGroup) {
+    const [partnerUserId, payoutCurrency, periodMonth] = groupKey.split("::");
+    const runLabel = monthLabel(periodMonth);   // the settlement month this group is paid for
     const profile = profileMap.get(partnerUserId);
 
     if (!profile) {
@@ -102,44 +132,64 @@ export async function GET(req: Request) {
       continue;
     }
 
-    if (!profile.stripe_account_id || !profile.stripe_payouts_enabled) {
-      console.warn(`monthly-payout: ${profile.company_name} — Stripe not ready, skipping`);
-      skipped++;
-      results.push({ partner: profile.company_name, status: "skipped — Stripe payouts not enabled" });
-      continue;
-    }
+    const payoutRail = profile.payout_rail || "connect";
 
-    const payoutCurrency = (profile.default_currency || "EUR").toUpperCase();
-
-    // ── Calculate total payout ─────────────────────────────────────────────
+    // ── Sum the canonical settled net (stored at completion / <48h cancel) ──
+    // Read, never recompute — this is what makes the payout tie out with reports.
     let totalPayout = 0;
     const bookingLines: string[] = [];
-
     for (const b of partnerBookings) {
-      const carHire    = Number(b.car_hire_price || 0);
-      const fuelCharge = Number(b.fuel_charge    || 0);
-      const commRate   = Number(b.commission_rate ?? profile.commission_rate ?? 20);
-      const commission = calcCommission(carHire, commRate);
-      const payout     = calcPartnerPayout(carHire, commRate, fuelCharge);
-      totalPayout += payout;
+      const net = Number(b.settled_partner_net || 0);
+      totalPayout += net;
 
-      const jobNo = b.job_number ? `#${b.job_number}` : b.id.slice(0, 8);
-      const curr  = b.currency || payoutCurrency;
-      const fmt   = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: curr }).format(n);
-      bookingLines.push(`${jobNo}: car hire ${fmt(carHire)} − commission ${fmt(commission)} + fuel ${fmt(fuelCharge)} = ${fmt(payout)}`);
+      const jobNo      = b.job_number ? `#${b.job_number}` : b.id.slice(0, 8);
+      const fmt        = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: payoutCurrency }).format(n);
+      const carHire    = Number(b.car_hire_price    || 0);
+      const commission = Number(b.commission_amount || 0);
+      const fuelCharge = Number(b.fuel_charge        || 0);
+      bookingLines.push(`${jobNo}: car hire ${fmt(carHire)} − commission ${fmt(commission)} + fuel used ${fmt(fuelCharge)} = ${fmt(net)}`);
     }
 
     const totalCents = Math.round(totalPayout * 100);
 
     if (totalCents <= 0) {
-      console.warn(`monthly-payout: ${profile.company_name} — payout is £0, skipping`);
+      console.warn(`monthly-payout: ${profile.company_name} (${payoutCurrency}) — zero payout, skipping`);
       skipped++;
-      results.push({ partner: profile.company_name, status: "skipped — zero payout" });
+      results.push({ partner: profile.company_name, currency: payoutCurrency, status: "skipped — zero payout" });
       continue;
     }
 
     const bookingIds = partnerBookings.map(b => b.id);
     const paymentIds = partnerBookings.map(b => b.payment_id).filter(Boolean) as string[];
+
+    // Idempotency key is derived from the EXACT set of bookings being paid (sorted,
+    // hashed), not just (partner, period, currency). This keeps the true double-pay
+    // guard — a re-run over the SAME still-'ready' set reuses the key and Stripe
+    // returns the existing transfer rather than sending a second one — while making
+    // sure a *failed* attempt (e.g. funds hadn't settled) can't poison the key: the
+    // real dedup is the 'ready'→'paid' flip, so once the cause is fixed the retry
+    // proceeds. Without this, a transient failure on the 1st blocks the partner for 24h.
+    const bookingSetHash = crypto
+      .createHash("sha1")
+      .update([...bookingIds].sort().join(","))
+      .digest("hex")
+      .slice(0, 12);
+
+    // ── AU/NZ Global Payouts rail — built in P5. Until then leave as 'ready'. ─
+    if (payoutRail === "global_payouts") {
+      console.warn(`monthly-payout: ${profile.company_name} (${payoutCurrency}) — Global Payouts (AU/NZ) rail not yet enabled, leaving ready`);
+      skipped++;
+      results.push({ partner: profile.company_name, currency: payoutCurrency, status: "skipped — Global Payouts (AU/NZ) not yet enabled" });
+      continue;
+    }
+
+    // ── In-corridor: require a payouts-enabled connected account ────────────
+    if (!profile.stripe_account_id || !profile.stripe_payouts_enabled) {
+      console.warn(`monthly-payout: ${profile.company_name} — Stripe payouts not enabled, skipping`);
+      skipped++;
+      results.push({ partner: profile.company_name, currency: payoutCurrency, status: "skipped — Stripe payouts not enabled" });
+      continue;
+    }
 
     // ── Trigger Stripe transfer ────────────────────────────────────────────
     let transferId: string | null = null;
@@ -153,8 +203,13 @@ export async function GET(req: Request) {
           partner_user_id: partnerUserId,
           booking_count:   String(partnerBookings.length),
           payout_month:    runLabel,
+          currency:        payoutCurrency,
           booking_ids:     bookingIds.slice(0, 5).join(","),
         },
+      }, {
+        // Same key on a re-run returns the SAME transfer — the cron can never
+        // double-pay even if it re-runs or times out mid-batch.
+        idempotencyKey: `payout_${partnerUserId}_${periodMonth}_${payoutCurrency}_${bookingSetHash}`,
       });
       transferId = transfer.id;
       console.log(`monthly-payout: ${profile.company_name} — transfer ${transferId} — ${payoutCurrency} ${totalPayout}`);
@@ -181,25 +236,53 @@ export async function GET(req: Request) {
     }
 
     // ── Mark bookings paid ─────────────────────────────────────────────────
+    // The Stripe transfer id is TEXT (tr_...). It goes in payout_transfer_id — NOT
+    // in payout_batch_id, which is a uuid column: writing tr_... there fails 22P02.
+    // Because the money has ALREADY moved by this point, this update failing must
+    // NOT be swallowed (it previously was, leaving money sent + booking still 'ready').
     const { error: bkUpdateErr } = await db
       .from("partner_bookings")
       .update({
-        payout_status:   "paid",
-        paid_out_at:     nowIso,
-        payout_batch_id: transferId,
+        payout_status:      "paid",
+        paid_out_at:        nowIso,
+        payout_transfer_id: transferId,
       })
       .in("id", bookingIds);
 
-    if (bkUpdateErr) {
-      console.error(`monthly-payout: failed to mark bookings paid for ${profile.company_name}:`, bkUpdateErr.message);
+    // ── Mark payments paid ─────────────────────────────────────────────────
+    let pmtUpdateErr: string | null = null;
+    if (paymentIds.length) {
+      const { error } = await db
+        .from("payments")
+        .update({ payout_status: "paid", paid_out_at: nowIso, payout_transfer_id: transferId })
+        .in("id", paymentIds);
+      pmtUpdateErr = error?.message || null;
     }
 
-    // ── Mark payments paid ─────────────────────────────────────────────────
-    if (paymentIds.length) {
-      await db
-        .from("payments")
-        .update({ payout_status: "paid", paid_out_at: nowIso })
-        .in("id", paymentIds);
+    // Transfer succeeded but we couldn't record it → split-brain (money sent, rows
+    // not marked paid). Alert loudly with the transfer id for manual reconciliation.
+    // The booking-set idempotency key guarantees a later re-run returns the SAME
+    // transfer (no double pay) once the DB issue is fixed.
+    if (bkUpdateErr || pmtUpdateErr) {
+      const dbErr = bkUpdateErr?.message || pmtUpdateErr;
+      console.error(`monthly-payout: TRANSFER SENT (${transferId}) but DB update FAILED for ${profile.company_name}:`, dbErr);
+      for (const adminEmail of adminEmails) {
+        await sendEmail({
+          to: adminEmail,
+          subject: `[Admin] Payout SENT but not recorded — ${profile.company_name} — ${transferId}`,
+          html: `
+            <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
+              <p><strong>The Stripe transfer succeeded but the database update failed.</strong> The money HAS moved.</p>
+              <p><strong>Partner:</strong> ${profile.company_name}<br/>
+              <strong>Transfer:</strong> ${transferId}<br/>
+              <strong>Amount:</strong> ${new Intl.NumberFormat("en-GB", { style: "currency", currency: payoutCurrency }).format(totalPayout)}<br/>
+              <strong>Bookings:</strong> ${bookingIds.join(", ")}<br/>
+              <strong>DB error:</strong> ${dbErr}</p>
+              <p>Set these bookings <code>payout_status='paid'</code>, <code>payout_transfer_id='${transferId}'</code> manually so reports reconcile.</p>
+            </div>
+          `,
+        }).catch(() => {});
+      }
     }
 
     payoutsTriggered++;
@@ -212,6 +295,7 @@ export async function GET(req: Request) {
       created_at:          b.created_at,
       car_hire_price:      b.car_hire_price,
       commission_rate:     b.commission_rate,
+      commission_amount:   b.commission_amount,
       currency:            b.currency,
       booking_status:      b.booking_status,
       refund_status:       b.refund_status,
@@ -224,6 +308,23 @@ export async function GET(req: Request) {
     } else {
       console.log(`monthly-payout: invoice ${invoiceResult.invoice_number} generated for ${profile.company_name}`);
     }
+
+    // ── Monthly statement PDF — full list of the period's transactions ─────
+    const statementBookings = partnerBookings.map(b => ({
+      id:                  b.id,
+      job_number:          b.job_number,
+      created_at:          b.created_at,
+      car_hire_price:      b.car_hire_price,
+      commission_amount:   b.commission_amount,
+      fuel_charge:         b.fuel_charge,
+      fuel_refund:         b.fuel_refund,
+      settled_partner_net: b.settled_partner_net,
+      currency:            b.currency,
+      booking_status:      b.booking_status,
+      refund_status:       b.refund_status,
+    }));
+    await generateMonthlyStatement(partnerUserId, periodMonth, statementBookings, payoutCurrency)
+      .catch(e => console.error(`monthly-payout: statement generation failed for ${profile.company_name}:`, e?.message));
 
     // ── Email partner payout notification ─────────────────────────────────
     const { data: partnerAuthData } = await db.auth.admin.getUserById(partnerUserId);
@@ -287,12 +388,13 @@ export async function GET(req: Request) {
   for (const adminEmail of adminEmails) {
     await sendEmail({
       to: adminEmail,
-      subject: `[Admin] Monthly payout run complete — ${runLabel} — ${payoutsTriggered} paid, ${skipped} skipped`,
+      subject: `[Admin] Monthly payout run complete — ${runDateLabel} — ${payoutsTriggered} paid, ${skipped} skipped`,
       html: `
         <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
-          <p>Monthly payout run for <strong>${runLabel}</strong> complete.</p>
+          <p>Monthly payout run executed on <strong>${runDateLabel}</strong> complete. Each payout below is labelled by the month its bookings settled.</p>
           <p><strong>Payouts triggered:</strong> ${payoutsTriggered}<br/>
-          <strong>Skipped:</strong> ${skipped}</p>
+          <strong>Skipped:</strong> ${skipped}<br/>
+          <strong>Deferred (settled this month, pay next run):</strong> ${deferred}</p>
           <pre style="font-size:12px;background:#f4f4f4;padding:12px;">${results.map(r =>
             `${r.partner}: ${r.status}${r.amount ? ` — ${r.currency} ${r.amount.toFixed(2)}` : ""}`
           ).join("\n")}</pre>
@@ -301,6 +403,6 @@ export async function GET(req: Request) {
     }).catch(() => {});
   }
 
-  console.log(`monthly-payout: done — ${payoutsTriggered} paid, ${skipped} skipped`);
-  return NextResponse.json({ ok: true, payouts: payoutsTriggered, skipped, results });
+  console.log(`monthly-payout: done — ${payoutsTriggered} paid, ${skipped} skipped, ${deferred} deferred`);
+  return NextResponse.json({ ok: true, payouts: payoutsTriggered, skipped, deferred, results });
 }

@@ -22,7 +22,9 @@ type BookingRow = {
   car_hire_price: number | string | null; fuel_price: number | string | null;
   fuel_used_quarters: number | null; fuel_charge: number | string | null;
   fuel_refund: number | string | null; commission_rate: number | null;
+  commission_amount: number | string | null; settled_partner_net: number | string | null;
   stripe_fee: number | null; stripe_fee_currency: string | null; exchange_rate: number | null;
+  stripe_fee_total: number | string | null;
   cancelled_by: string | null; refund_status: string | null;
   created_at: string | null; pickup_at: string | null; dropoff_at: string | null;
   pickup_address: string | null; dropoff_address: string | null;
@@ -66,9 +68,11 @@ function calcPayout(b: BookingRow) {
   if (isCancelled && b.refund_status === "full") return { hire:0, rate:0, commAmt:0, partnerPayout:0, fuelRefund:fuel, pcRefundTotal:0, netFinal:0 };
   const hire        = Number(b.car_hire_price ?? 0);
   const rate        = b.commission_rate ?? 20;
-  const commAmt     = Math.max((hire * rate) / 100, 10);
+  // Commission: prefer stored canonical amount; fall back to recompute for un-migrated rows
+  const commAmt     = b.commission_amount != null ? Number(b.commission_amount) : Math.max((hire * rate) / 100, 10);
   const fuelCharge  = Number(b.fuel_charge ?? 0);
-  const partnerPayout = Math.max(0, hire - commAmt + fuelCharge - pcRefundTotal);
+  // Partner payout: prefer stored settled net; fall back to recompute for un-migrated rows
+  const partnerPayout = b.settled_partner_net != null ? Number(b.settled_partner_net) : Math.max(0, hire - commAmt + fuelCharge - pcRefundTotal);
   const fuelRefund  = (isCancelled && b.refund_status === "partial") ? fuel : Number(b.fuel_refund ?? 0);
   const totalPaid   = hire + fuel;
   const netFinal    = Math.max(0, totalPaid - fuelRefund - pcRefundTotal);
@@ -312,7 +316,7 @@ export default function PartnerReportsPage() {
     const headers = [
       "Job Number","Customer","Pickup Address","Dropoff Address",
       "Pickup Date","Dropoff Date","Vehicle","Currency",
-      "Car Hire","Commission Rate (%)","Commission Amount",
+      "Car Hire","Commission Rate (%)","Commission Amount","Stripe Fee Absorbed (Camel)",
       "Fuel Deposit","Fuel Used","Fuel Charge","Fuel Refund",
       "Refund","Customer Final",
       "Total Booking","Your Net Payout",
@@ -328,6 +332,7 @@ export default function PartnerReportsPage() {
         fmtDateTime(b.pickup_at), fmtDateTime(b.dropoff_at),
         b.vehicle_category_name || "", b.currency || "EUR",
         hire, rate, commAmt,
+        Number(b.stripe_fee_total ?? 0) > 0 ? Number(b.stripe_fee_total) : "",
         Number(b.fuel_price ?? 0),
         usedQ !== null && usedQ !== undefined ? (QUARTER_LABELS[usedQ] ?? `${usedQ}/4`) : "—",
         Number(b.fuel_charge ?? 0), fuelRefund,

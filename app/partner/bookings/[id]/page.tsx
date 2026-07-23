@@ -40,6 +40,7 @@ type BookingRow = {
   fuel_price: number | null; car_hire_price: number | null;
   fuel_used_quarters: number | null; fuel_charge: number | null; fuel_refund: number | null;
   commission_rate: number | null; commission_amount: number | null; partner_payout_amount: number | null;
+  settled_partner_net: number | null; stripe_fee_total: number | null; stripe_fee_breakdown?: Record<string, unknown> | null;
   currency: Currency; charge_currency: string | null; conversion_rate: number | null;
   cancelled_by: string | null; cancelled_at: string | null;
   cancellation_reason: string | null; refund_status: string | null | undefined;
@@ -194,10 +195,14 @@ function PaymentFeesCard({ payment, bidCurrency, booking, postCompletionRefunds 
   const fmtB = (n: number) => fmtCurr(n, bidCurrency);
   const hire        = Number(booking.car_hire_price ?? 0);
   const rate        = booking.commission_rate ?? 20;
-  const commAmt     = Math.max((hire * rate) / 100, 10);
+  // Commission: prefer stored canonical amount; fall back to recompute for un-migrated rows
+  const commAmt     = booking.commission_amount != null ? Number(booking.commission_amount) : Math.max((hire * rate) / 100, 10);
   const fuelDeposit = Number(booking.fuel_price ?? 0);
   const fuelCharge  = Number(booking.fuel_charge ?? 0);
-  const netPayout   = (booking.booking_status === "cancelled" && booking.refund_status === "full") ? 0 : Math.max(0, hire - commAmt + fuelCharge);
+  // Partner payout: prefer stored settled net; fall back to recompute for un-migrated rows
+  const netPayout   = (booking.booking_status === "cancelled" && booking.refund_status === "full")
+    ? 0
+    : (booking.settled_partner_net != null ? Number(booking.settled_partner_net) : Math.max(0, hire - commAmt + fuelCharge));
   const pcTotal     = Number(booking.post_completion_refund_total ?? 0);
   const finalAmount = hire + fuelCharge;
   const netFinal    = finalAmount - pcTotal;
@@ -281,7 +286,7 @@ function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
   const carHire    = Number(bk.car_hire_price||0);
   const fuel       = Number(bk.fuel_price||0);
   const commRate   = bk.commission_rate??20;
-  const commAmt    = Math.max((carHire*commRate)/100,10);
+  const commAmt    = bk.commission_amount!=null ? Number(bk.commission_amount) : Math.max((carHire*commRate)/100,10);
   const basePayout = Math.max(0,carHire-commAmt);
   const isFull     = bk.refund_status==="full";
   const isPartial  = bk.refund_status==="partial";
@@ -290,7 +295,8 @@ function CancellationSummary({ bk, rates }: { bk: BookingRow; rates: Rates }) {
   const customerTotalRefund   = customerCarHireRefund+customerFuelRefund;
   const partnerKeepsCarHire   = isPartial ? carHire : 0;
   const partnerKeepsComm      = isPartial ? commAmt : 0;
-  const partnerNetPayout      = isPartial ? basePayout : 0;
+  // Partner payout: prefer stored settled net; fall back to refund-driven recompute for un-migrated rows
+  const partnerNetPayout      = isFull ? 0 : (bk.settled_partner_net!=null ? Number(bk.settled_partner_net) : (isPartial ? basePayout : 0));
   const cancelledByLabel =
     bk.cancelled_by==="customer" ? t("bookings.detail.cancellation.cancelledByCustomer") :
     bk.cancelled_by==="partner"  ? t("bookings.detail.cancellation.cancelledByPartner") :
@@ -702,8 +708,10 @@ export default function PartnerBookingDetailPage() {
   const rateBadgeText    = `1€ = ${new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format(rates.GBP)} · 1€ = ${new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(rates.USD)}`;
   const commissionRate   = bk.commission_rate ?? 20;
   const carHire          = Number(bk.car_hire_price || 0);
-  const commissionAmount = Math.max((carHire * commissionRate) / 100, 10);
-  const partnerPayout    = Math.max(0, carHire - commissionAmount);
+  // Commission: prefer stored canonical amount; fall back to recompute for un-migrated rows
+  const commissionAmount = bk.commission_amount != null ? Number(bk.commission_amount) : Math.max((carHire * commissionRate) / 100, 10);
+  // Partner payout: prefer stored settled net; fall back to recompute for un-migrated rows
+  const partnerPayout    = bk.settled_partner_net != null ? Number(bk.settled_partner_net) : Math.max(0, carHire - commissionAmount);
   const isCancelled      = bk.booking_status==="cancelled";
   const canCancel        = !isCancelled&&PRE_COLLECTION.includes(bk.booking_status);
 
