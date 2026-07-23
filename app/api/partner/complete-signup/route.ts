@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendApplicationReceivedEmail, sendEmail, countryToEmailLocale } from "@/lib/email";
+import { canonicalCountryName } from "@/lib/portal/countryCanonical";
 
 const TERMS_VERSION = "2026-04";
 
@@ -61,7 +62,9 @@ export async function POST(req: Request) {
     const city     = String(body?.city     || "").trim();
     const province = String(body?.province || "").trim();
     const postcode = String(body?.postcode || "").trim();
-    const country  = String(body?.country  || "").trim();
+    // Canonical English country name — the map picker can return a local-language
+    // name ("España"); Stripe onboarding needs the English canonical ("Spain").
+    const country  = canonicalCountryName(body?.country);
 
     // Fleet address
     const baseAddress1 = String(body?.baseAddress1 || "").trim();
@@ -69,7 +72,7 @@ export async function POST(req: Request) {
     const baseCity     = String(body?.baseCity     || "").trim();
     const baseProvince = String(body?.baseProvince || "").trim();
     const basePostcode = String(body?.basePostcode || "").trim();
-    const baseCountry  = String(body?.baseCountry  || "").trim();
+    const baseCountry  = canonicalCountryName(body?.baseCountry);
     const baseLat      = parseCoordinate(body?.baseLat, "lat");
     const baseLng      = parseCoordinate(body?.baseLng, "lng");
     const addressLat   = parseCoordinate(body?.addressLat, "lat");

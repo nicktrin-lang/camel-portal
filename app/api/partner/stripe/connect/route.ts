@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
+import { canonicalCountryName } from "@/lib/portal/countryCanonical";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-04-22.dahlia" as any });
 
@@ -49,7 +50,10 @@ const COUNTRY_ALIASES: Record<string, string> = {
 
 function stripeCountry(baseCountry: string | null): string {
   const key = (baseCountry || "").trim();
-  const code = COUNTRY_MAP[key] || COUNTRY_ALIASES[key.toLowerCase()];
+  // Canonicalise first (handles local-language names + ISO codes for every
+  // supported country), then map to the Stripe 2-letter code. COUNTRY_ALIASES
+  // stays as a belt-and-braces fallback for any stored legacy value.
+  const code = COUNTRY_MAP[canonicalCountryName(key)] || COUNTRY_MAP[key] || COUNTRY_ALIASES[key.toLowerCase()];
   if (!code) {
     // Fail LOUDLY instead of silently defaulting to ES. A connected account's
     // country is locked at creation and can never be changed, so a wrong default

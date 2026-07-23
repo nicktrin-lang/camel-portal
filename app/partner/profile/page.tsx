@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { triggerPartnerLiveRefresh } from "@/lib/portal/triggerPartnerLiveRefresh";
+import { canonicalCountryName } from "@/lib/portal/countryCanonical";
 import { CITIES, citiesByCountry, type CityEntry } from "@/lib/cities";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { currencySymbol } from "@/lib/currency";
@@ -390,7 +391,7 @@ export default function PartnerProfilePage() {
         city:                        profile.city.trim()                        || null,
         province:                    profile.province.trim()                    || null,
         postcode:                    profile.postcode.trim()                    || null,
-        country:                     profile.country.trim()                     || null,
+        country:                     canonicalCountryName(profile.country)      || null,
         website:                     profile.website.trim()                     || null,
         service_radius_km:           radius,
         base_address:                profile.base_address.trim() || profile.search_address.trim() || null,
@@ -399,7 +400,7 @@ export default function PartnerProfilePage() {
         base_city:                   profile.base_city.trim()                   || null,
         base_province:               profile.base_province.trim()               || null,
         base_postcode:               profile.base_postcode.trim()               || null,
-        base_country:                profile.base_country.trim()                || null,
+        base_country:                canonicalCountryName(profile.base_country) || null,
         base_lat:                    lat,
         base_lng:                    lng,
         default_currency:            profile.default_currency,
