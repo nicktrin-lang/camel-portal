@@ -175,19 +175,19 @@ export async function GET() {
         profile?.service_radius_km !== undefined &&
         Number(profile.service_radius_km) > 0;
       const hasFleet    = fleetCount > 0;
-      const hasDriver   = driverCount > 0;
       const hasCurrency = hasText(profile?.default_currency);
 
+      // Active driver is NOT a live-readiness gate — it's a fulfilment-time
+      // requirement. driver_count is still returned so the UI can nudge for one.
       const isLiveProfile =
         hasBaseAddress && hasBaseLat && hasBaseLng &&
-        hasRadius && hasFleet && hasDriver && hasCurrency;
+        hasRadius && hasFleet && hasCurrency;
 
       const missing: string[] = [];
       if (!hasRadius)           missing.push("service_radius_km");
       if (!hasBaseAddress)      missing.push("base_address");
       if (!hasBaseLat || !hasBaseLng) missing.push("base_location");
       if (!hasFleet)            missing.push("fleet");
-      if (!hasDriver)           missing.push("driver");
       if (!hasCurrency)         missing.push("default_currency");
 
       return {
