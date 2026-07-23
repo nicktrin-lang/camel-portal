@@ -29,11 +29,23 @@ export async function GET(req: Request) {
   const db = createServiceRoleSupabaseClient();
   const now = new Date();
   const nowIso = now.toISOString();
-  const runLabel = now.toLocaleString("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
+  const runDateLabel = now.toLocaleString("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
 
-  // Period month = previous month (cron runs on 1st, invoices cover the month just ended)
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const periodMonth = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
+  // A booking's payout is tied to the month it actually SETTLED (completion or <48h
+  // cancel = settled_at), never to the run date. We only pay bookings that settled in
+  // an already-CLOSED month; anything settled in the current still-open month is
+  // deferred to next month's run. This removes end-of-month cutoff ambiguity — a
+  // cancellation at 30 Jun 23:59 lands in June, one at 1 Jul 00:01 lands in July.
+  const startOfCurrentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+  const monthKey = (ts: string | null): string => {
+    const d = new Date(ts || nowIso);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  };
+  const monthLabel = (ym: string): string => {
+    const [y, m] = ym.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
+  };
 
   // ── Fetch all ready bookings ─────────────────────────────────────────────
   const { data: bookings, error: bkErr } = await db
@@ -44,7 +56,7 @@ export async function GET(req: Request) {
       settled_partner_net,
       currency, charge_currency, conversion_rate,
       payout_status, payment_id,
-      created_at, booking_status, refund_status, cancellation_reason
+      created_at, settled_at, booking_status, refund_status, cancellation_reason
     `)
     .eq("payout_status", "ready")
     .eq("payout_hold", false);
@@ -56,22 +68,34 @@ export async function GET(req: Request) {
 
   if (!bookings?.length) {
     console.log("monthly-payout: no ready bookings");
-    return NextResponse.json({ ok: true, payouts: 0, skipped: 0 });
+    return NextResponse.json({ ok: true, payouts: 0, skipped: 0, deferred: 0 });
   }
 
-  // ── Group by partner + currency ──────────────────────────────────────────
-  // Per-currency so we NEVER sum a partner's bookings across currencies into one
-  // transfer. One payout (and one commission invoice) per (partner, currency).
-  const byPartnerCurrency = new Map<string, typeof bookings>();
-  for (const b of bookings) {
-    const groupKey = `${b.partner_user_id}::${coerceCurrency(b.currency)}`;
-    const group = byPartnerCurrency.get(groupKey) || [];
+  // Defer bookings that settled in the current (still-open) month to next month's run.
+  // Fall back to created_at only if settled_at is somehow missing (shouldn't happen —
+  // completion and <48h cancel both stamp settled_at).
+  const eligible = bookings.filter(b => new Date(b.settled_at || b.created_at) < startOfCurrentMonth);
+  const deferred = bookings.length - eligible.length;
+  if (deferred > 0) console.log(`monthly-payout: deferring ${deferred} booking(s) settled in the current open month`);
+
+  if (!eligible.length) {
+    console.log("monthly-payout: no bookings from a closed month to pay");
+    return NextResponse.json({ ok: true, payouts: 0, skipped: 0, deferred });
+  }
+
+  // ── Group by partner + currency + settlement month ───────────────────────
+  // Per-currency so we NEVER sum across currencies; per settlement-month so each
+  // payout, commission invoice and statement is tied to the month work settled.
+  const byGroup = new Map<string, typeof bookings>();
+  for (const b of eligible) {
+    const groupKey = `${b.partner_user_id}::${coerceCurrency(b.currency)}::${monthKey(b.settled_at)}`;
+    const group = byGroup.get(groupKey) || [];
     group.push(b);
-    byPartnerCurrency.set(groupKey, group);
+    byGroup.set(groupKey, group);
   }
 
   // ── Fetch partner profiles ───────────────────────────────────────────────
-  const partnerIds = [...new Set(bookings.map(b => b.partner_user_id))];
+  const partnerIds = [...new Set(eligible.map(b => b.partner_user_id))];
   const { data: profiles, error: profErr } = await db
     .from("partner_profiles")
     .select(`
@@ -95,9 +119,10 @@ export async function GET(req: Request) {
   let skipped = 0;
   const results: Array<{ partner: string; status: string; amount?: number; currency?: string; error?: string }> = [];
 
-  // ── Process each (partner, currency) group ───────────────────────────────
-  for (const [groupKey, partnerBookings] of byPartnerCurrency) {
-    const [partnerUserId, payoutCurrency] = groupKey.split("::");
+  // ── Process each (partner, currency, settlement-month) group ─────────────
+  for (const [groupKey, partnerBookings] of byGroup) {
+    const [partnerUserId, payoutCurrency, periodMonth] = groupKey.split("::");
+    const runLabel = monthLabel(periodMonth);   // the settlement month this group is paid for
     const profile = profileMap.get(partnerUserId);
 
     if (!profile) {
@@ -363,12 +388,13 @@ export async function GET(req: Request) {
   for (const adminEmail of adminEmails) {
     await sendEmail({
       to: adminEmail,
-      subject: `[Admin] Monthly payout run complete — ${runLabel} — ${payoutsTriggered} paid, ${skipped} skipped`,
+      subject: `[Admin] Monthly payout run complete — ${runDateLabel} — ${payoutsTriggered} paid, ${skipped} skipped`,
       html: `
         <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
-          <p>Monthly payout run for <strong>${runLabel}</strong> complete.</p>
+          <p>Monthly payout run executed on <strong>${runDateLabel}</strong> complete. Each payout below is labelled by the month its bookings settled.</p>
           <p><strong>Payouts triggered:</strong> ${payoutsTriggered}<br/>
-          <strong>Skipped:</strong> ${skipped}</p>
+          <strong>Skipped:</strong> ${skipped}<br/>
+          <strong>Deferred (settled this month, pay next run):</strong> ${deferred}</p>
           <pre style="font-size:12px;background:#f4f4f4;padding:12px;">${results.map(r =>
             `${r.partner}: ${r.status}${r.amount ? ` — ${r.currency} ${r.amount.toFixed(2)}` : ""}`
           ).join("\n")}</pre>
@@ -377,6 +403,6 @@ export async function GET(req: Request) {
     }).catch(() => {});
   }
 
-  console.log(`monthly-payout: done — ${payoutsTriggered} paid, ${skipped} skipped`);
-  return NextResponse.json({ ok: true, payouts: payoutsTriggered, skipped, results });
+  console.log(`monthly-payout: done — ${payoutsTriggered} paid, ${skipped} skipped, ${deferred} deferred`);
+  return NextResponse.json({ ok: true, payouts: payoutsTriggered, skipped, deferred, results });
 }
