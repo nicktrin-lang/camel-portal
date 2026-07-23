@@ -121,7 +121,9 @@ function stripeFeeInBidCurrency(
   if (!stripe_fee || stripe_fee <= 0) return 0;
   if (!stripe_fee_currency || stripe_fee_currency.toUpperCase() === bid_currency.toUpperCase()) return stripe_fee;
   if (exchange_rate && exchange_rate > 0) return stripe_fee / exchange_rate;
-  return stripe_fee;
+  // Can't convert without a rate — return 0 rather than contaminating the
+  // bid-currency bucket with a raw foreign amount (legacy rows only).
+  return 0;
 }
 
 // Payout calc — Stripe fee is Camel's cost, NOT deducted from partner payout
