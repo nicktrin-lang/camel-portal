@@ -40,6 +40,101 @@ Always label artifacts with the destination file path so the user knows where to
 multiline sed never works in zsh — always use separate sed commands per line, or write a full file artifact.
 
 Python3 heredoc is the reliable way to make multiline replacements — use python3 << 'EOF' pattern.
+═══════════════════════════════════════════════════════════════════════════════
+LATEST SESSION — 2026-07-23  (read this first)
+═══════════════════════════════════════════════════════════════════════════════
+
+## ✅ DONE & LIVE — Stripe payment system rewrite (platform-hold model)
+
+Both repos merged to `main` and deployed to production:
+- Portal `main` = `3116b9c`  ·  Customer `main` = `e6dea37`
+- Rollback tag on both repos: **`v-pre-stripe-rewrite`** (revert target if ever needed)
+
+**Model** (replaces destination charges):
+- Charge settles to Camel's **platform balance** — NO `transfer_data.destination`, NO
+  `on_behalf_of`, NO `application_fee`. Metadata `charge_model="platform_hold"`.
+- Partner paid **monthly** via explicit `stripe.transfers.create`, amount = stored
+  `settled_partner_net`, **one transfer per (partner, currency, settlement-month)**.
+- Commission stays on Camel's balance, per-currency. Camel bears all Stripe fees.
+- Fuel: customer refunded unused fuel at **completion**; partner credited fuel used.
+- Cancellation: **>48h = full refund** (booking `cancelled`); **<48h = fuel deposit
+  refunded, partner keeps car hire** (booking `ready`, `settled_partner_net = car_hire − commission`).
+- `settled_partner_net = car_hire − commission + fuel_used`, written at completion / <48h cancel.
+
+**Validated end-to-end on the Stripe SANDBOX (real test money moved), all reconcile to the cent:**
+P1 charge · P2 completion + €25 fuel refund (net €105) · P3 full refund (€150) + fuel-only
+refund (€50, net €80) · P4 monthly payout (€105 transfer, invoice + statement, both tables `paid`).
+
+**Bugs found & fixed this session:**
+1. Completion failure was swallowed by `app/api/partner/bookings/[id]/update/route.ts` — now
+   surfaces `settlement_error` + admin alert (money-critical, never silent).
+2. Stripe connect threw on localized country names ("España") — added `COUNTRY_ALIASES` in
+   `app/api/partner/stripe/connect/route.ts`.
+3. Payout idempotency **poison**: key was `payout_<partner>_<period>_<ccy>`; a failed run
+   cached the error for 24h and blocked retries. Now includes a sha1 of the booking-set.
+4. `payout_batch_id` is a **uuid** column; cron wrote the Stripe `tr_...` string into it →
+   22P02 → swallowed → split-brain (money sent, booking stuck `ready`). Added **`payout_transfer_id text`**
+   column (bookings + payments); post-transfer DB failure now alerts admin, never swallowed.
+5. End-of-month cutoff: payout/invoice/statement now tied to each booking's **`settled_at`
+   month**, not the run date; current-open-month settlements defer to next run.
+
+**DB migration already applied to prod (shared Supabase project):**
+`ALTER TABLE partner_bookings ADD COLUMN payout_transfer_id text;` + same on `payments`.
+(STRIPE_REWRITE_SCHEMA.sql already run in an earlier session.)
+
+**Cleanup still pending (non-urgent):**
+- Synthetic P3 test rows: `DELETE FROM payments WHERE booking_id IN ('11111111-1111-4111-8111-111111111111','33333333-3333-4333-8333-333333333333'); DELETE FROM partner_bookings WHERE job_number IN (1000180,1000181);`
+- `ff60076` (outreach forwarded-email heuristic) shipped to prod with the portal merge — intentional, just noted.
+
+**Deferred (separate builds, NOT blocking in-corridor EUR/GBP/USD/CAD launch):**
+- **P5 AU/NZ Global Payouts** — Kingsman (AUD) is out-of-corridor. Needs v2 recipient objects +
+  charge to platform balance + explicit OutboundPayment. Cron already branches on
+  `payout_rail === "global_payouts"` and leaves those bookings `ready` (unpaid) for now.
+- Optional: add `payout_transfer_id` to admin/partner CSV exports for reconciliation.
+
+## ⏭️ NEXT TASK — Full email LANGUAGE audit (partner + customer)
+
+**Symptoms observed:** Spanish partner (Denia Cars) — the application-received email was
+Spanish (correct), but the "account is live" email arrived in **English** (should be Spanish).
+A resent test booking produced a "new booking" email in **German** for a Spain-based partner.
+
+**Requirement:** every transactional email to a partner or customer must be in the recipient's
+language = their `communication_locale`, which **defaults to the language of their country** at
+account creation and is **user-overridable** in account settings. All **6** locales (en, es, fr,
+it, pt, de) must actually translate. **EXCEPT** the commission invoice, monthly statement, and
+**every attached PDF** (receipt, completion statement, invoice-data, terms, operating rules) —
+those stay **English** (NTUK legal). Internal `[Admin]` emails stay English.
+
+**Root causes already identified (start here):**
+1. **Country→locale default is es-or-en ONLY** — `app/api/partner/complete-signup/route.ts:42`:
+   `c === "spain" || c === "españa" || c === "es" ? "es" : "en"` — a German/French/Italian/
+   Portuguese partner never gets their language. Need a full COUNTRY→locale map (DE→de, FR→fr,
+   IT→it, PT→pt, ES→es, else en) applied as the default `communication_locale` at creation.
+2. **es-collapse ternary** (the exact CLAUDE.md-forbidden pattern) in a transactional email:
+   `app/api/partner/bookings/[id]/invoice-data/route.ts:45` `communication_locale === "es" ? "es" : "en"`
+   collapses de/fr/it/pt → English for the invoice-data *email*.
+3. `communication_locale` may be **null/unset** for some accounts → `coerceEmailLocale` → 'en'.
+4. **Inconsistent locale sourcing** across senders — some read `communication_locale`, some the
+   application/browser locale, some hardcode. The German booking email comes from the customer
+   webhook's `getPartnerLocale()` (`camel-customer/app/api/webhooks/stripe/route.ts`) — trace why
+   it returned `de` for Denia.
+
+**Audit scope — check EVERY email sender in both repos:**
+- Portal senders: `app/api/admin/applications/{make-live,resend-approval,update-status}`,
+  `app/api/admin/bookings/[id]/{cancel,post-refund,resend-statement}`,
+  `app/api/partner/{bids,complete-signup,suggestions}`, `app/api/partner/bookings/[id]/{cancel,invoice-data,update}`,
+  `app/api/cron/{onboarding-reminder,review-reminder}`, `app/cron/monthly-payout`,
+  `lib/portal/completeBooking.tsx`, `lib/email.ts`.
+- Customer senders: `app/api/test-booking/bookings/[id]/cancel`, `app/api/test-booking/requests`,
+  `app/api/test-booking/customer-profile`, `app/api/webhooks/stripe`, `lib/email.ts`,
+  `lib/portal/generateBookingReceiptPDF.tsx` (PDF must stay English — check the `locale === "es"`
+  companyName fallback at line ~499).
+- For each: resolve locale from `communication_locale` (defaulted by country); assert all 6
+  languages actually DIFFER from the English source (a past bug left headings English while JSON
+  shape validated); confirm PDFs/invoice/statement stay English.
+
+═══════════════════════════════════════════════════════════════════════════════
+
 Project Overview
 Name: Camel Global
 
