@@ -87,6 +87,33 @@ export function coerceEmailLocale(v: unknown): EmailLocale {
     : "en";
 }
 
+// Default email locale derived from a partner/customer country at account
+// creation. Countries are stored as freeform strings (e.g. "Spain", "España",
+// "Deutschland"), so we match on normalized name variants and ISO codes.
+// Anything unrecognised falls back to English. This is only a DEFAULT — the
+// recipient can override it in account settings (communication_locale).
+export function countryToEmailLocale(country: unknown): EmailLocale {
+  const c = String(country ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, ""); // strip accents: "espana" (accents removed)
+  if (!c) return "en";
+  const map: Record<string, EmailLocale> = {
+    // Spain
+    spain: "es", espana: "es", es: "es", esp: "es",
+    // Germany
+    germany: "de", deutschland: "de", de: "de", deu: "de", ger: "de",
+    // France
+    france: "fr", fr: "fr", fra: "fr",
+    // Italy
+    italy: "it", italia: "it", it: "it", ita: "it",
+    // Portugal
+    portugal: "pt", pt: "pt", prt: "pt",
+  };
+  return map[c] ?? "en";
+}
+
 function pick<T>(map: Record<EmailLocale, T>, locale: EmailLocale): T {
   return map[locale] ?? map.en;
 }
