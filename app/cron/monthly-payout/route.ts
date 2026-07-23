@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import crypto from "crypto";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
 import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
@@ -136,6 +137,19 @@ export async function GET(req: Request) {
     const bookingIds = partnerBookings.map(b => b.id);
     const paymentIds = partnerBookings.map(b => b.payment_id).filter(Boolean) as string[];
 
+    // Idempotency key is derived from the EXACT set of bookings being paid (sorted,
+    // hashed), not just (partner, period, currency). This keeps the true double-pay
+    // guard — a re-run over the SAME still-'ready' set reuses the key and Stripe
+    // returns the existing transfer rather than sending a second one — while making
+    // sure a *failed* attempt (e.g. funds hadn't settled) can't poison the key: the
+    // real dedup is the 'ready'→'paid' flip, so once the cause is fixed the retry
+    // proceeds. Without this, a transient failure on the 1st blocks the partner for 24h.
+    const bookingSetHash = crypto
+      .createHash("sha1")
+      .update([...bookingIds].sort().join(","))
+      .digest("hex")
+      .slice(0, 12);
+
     // ── AU/NZ Global Payouts rail — built in P5. Until then leave as 'ready'. ─
     if (payoutRail === "global_payouts") {
       console.warn(`monthly-payout: ${profile.company_name} (${payoutCurrency}) — Global Payouts (AU/NZ) rail not yet enabled, leaving ready`);
@@ -170,7 +184,7 @@ export async function GET(req: Request) {
       }, {
         // Same key on a re-run returns the SAME transfer — the cron can never
         // double-pay even if it re-runs or times out mid-batch.
-        idempotencyKey: `payout_${partnerUserId}_${periodMonth}_${payoutCurrency}`,
+        idempotencyKey: `payout_${partnerUserId}_${periodMonth}_${payoutCurrency}_${bookingSetHash}`,
       });
       transferId = transfer.id;
       console.log(`monthly-payout: ${profile.company_name} — transfer ${transferId} — ${payoutCurrency} ${totalPayout}`);
