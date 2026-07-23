@@ -1,5 +1,5 @@
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
-import { sendAccountLiveEmail } from "@/lib/email";
+import { sendAccountLiveEmail, coerceEmailLocale } from "@/lib/email";
 import { computeLiveReadiness } from "@/lib/portal/computeLiveReadiness";
 
 type RefreshResult = {
@@ -77,11 +77,19 @@ export async function refreshPartnerLiveStatus(userId: string): Promise<RefreshR
 
   if (updateErr) throw new Error(updateErr.message);
 
-  // Send email after DB is committed
+  // Send email after DB is committed — in the partner's communication_locale.
+  // The manual admin go-live path already localises; this automatic path (the
+  // common one — fires when a partner passes the 7 live checks) previously sent
+  // English to everyone, so a Spanish/German/etc. partner got the wrong language.
   const partnerEmail = String(resolvedApplication.email || "").trim().toLowerCase();
   if (partnerEmail) {
+    const { data: prof } = await db
+      .from("partner_profiles")
+      .select("communication_locale")
+      .eq("user_id", cleanUserId)
+      .maybeSingle();
     try {
-      await sendAccountLiveEmail(partnerEmail);
+      await sendAccountLiveEmail(partnerEmail, coerceEmailLocale(prof?.communication_locale));
     } catch (emailErr) {
       // Email failed but DB is already stamped — won't retry, log only
       console.error("Live email send failed (DB already stamped):", emailErr);
