@@ -119,3 +119,118 @@ export async function createRecipientOnboardingLink(opts: {
 export function recipientCanReceivePayouts(account: RecipientAccount): boolean {
   return account?.configuration?.recipient?.capabilities?.bank_accounts?.local?.status === "active";
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OutboundPayment pipeline (Phase 3/4). Flow per Stripe docs:
+//   1. GET  /v2/money_management/financial_accounts        → platform FA (fa_)
+//   2. GET  /v2/money_management/payout_methods            → recipient local bank
+//        (Stripe-Context header = recipient account id)
+//   3. POST /v2/money_management/outbound_payment_quotes   → locks FX, returns fees
+//   4. POST /v2/money_management/outbound_payments         → the actual payout (obp_)
+// Same-currency payout (hold AUD, pay AUD) avoids the 2% FX leg.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function stripeV2Get<T = any>(path: string, contextId?: string): Promise<T> {
+  const res = await fetch(`${STRIPE_API}${path}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${secretKey()}`,
+      "Stripe-Version": STRIPE_V2_VERSION,
+      ...(contextId ? { "Stripe-Context": contextId } : {}),
+    },
+  });
+  const json: any = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = json?.error?.message || json?.message || `HTTP ${res.status}`;
+    throw new Error(`Stripe v2 GET ${path} failed: ${msg}`);
+  }
+  return json as T;
+}
+
+/**
+ * The platform's own financial account id (funds outbound payments). Returns the
+ * account id plus its available balance in `currency` (smallest unit → major).
+ * Camel has a single platform financial account holding a multi-currency balance.
+ */
+export async function getPlatformFinancialAccount(currency: string): Promise<{ id: string; availableMajor: number }> {
+  const ccy = currency.toLowerCase();
+  const json = await stripeV2Get<{ data: Array<{ id: string; balance?: { available?: Record<string, { value: number }> } }> }>(
+    "/v2/money_management/financial_accounts",
+  );
+  const fa = json?.data?.[0];
+  if (!fa?.id) throw new Error("No platform financial account found for Global Payouts");
+  const cents = fa.balance?.available?.[ccy]?.value ?? 0;
+  return { id: fa.id, availableMajor: cents / 100 };
+}
+
+/** The recipient's default local-bank payout method id (…ba_), or null if none yet. */
+export async function getRecipientPayoutMethod(recipientId: string): Promise<string | null> {
+  const json = await stripeV2Get<{ data: Array<{ id: string }> }>(
+    "/v2/money_management/payout_methods",
+    recipientId,
+  );
+  return json?.data?.[0]?.id ?? null;
+}
+
+export type QuoteFee = { type?: string; amount?: { value: number; currency: string } };
+
+/** Create an OutboundPaymentQuote (locks FX, returns the fee breakdown). */
+export async function createOutboundPaymentQuote(opts: {
+  financialAccountId: string;
+  recipientId: string;
+  payoutMethodId: string | null;
+  amountValue: number;   // smallest currency unit
+  currency: string;      // same currency both sides (no-FX intent)
+}): Promise<{ id: string; fees: QuoteFee[]; raw: any }> {
+  const ccy = opts.currency.toLowerCase();
+  const to: any = { recipient: opts.recipientId, currency: ccy };
+  if (opts.payoutMethodId) to.payout_method = opts.payoutMethodId;
+  const json = await stripeV2Post<any>("/v2/money_management/outbound_payment_quotes", {
+    from:   { financial_account: opts.financialAccountId, currency: ccy },
+    to,
+    amount: { value: opts.amountValue, currency: ccy },
+    delivery_options: { bank_account: "local" },
+  });
+  const fees: QuoteFee[] = json?.estimated_fees || json?.fees || [];
+  return { id: json?.id, fees, raw: json };
+}
+
+/** Sum a quote's fees expressed in `currency` into a major-unit number. */
+export function sumQuoteFees(fees: QuoteFee[], currency: string): number {
+  const ccy = currency.toLowerCase();
+  let cents = 0;
+  for (const f of fees || []) {
+    if ((f?.amount?.currency || "").toLowerCase() === ccy) cents += Number(f?.amount?.value || 0);
+  }
+  return cents / 100;
+}
+
+export type OutboundPaymentResult = { id: string; status: string; raw: any };
+
+/** Create the OutboundPayment (the actual money movement). Idempotent per key. */
+export async function createOutboundPayment(opts: {
+  financialAccountId: string;
+  recipientId: string;
+  payoutMethodId: string | null;
+  amountValue: number;
+  currency: string;
+  quoteId?: string;
+  description?: string;
+  metadata?: Record<string, string>;
+  idempotencyKey?: string;
+}): Promise<OutboundPaymentResult> {
+  const ccy = opts.currency.toLowerCase();
+  const to: any = { recipient: opts.recipientId, currency: ccy };
+  if (opts.payoutMethodId) to.payout_method = opts.payoutMethodId;
+  const body: any = {
+    from:   { financial_account: opts.financialAccountId, currency: ccy },
+    to,
+    amount: { value: opts.amountValue, currency: ccy },
+    delivery_options: { bank_account: "local" },
+  };
+  if (opts.quoteId)     body.outbound_payment_quote = opts.quoteId;
+  if (opts.description) body.description = opts.description;
+  if (opts.metadata)    body.metadata = opts.metadata;
+  const json = await stripeV2Post<any>("/v2/money_management/outbound_payments", body, opts.idempotencyKey);
+  return { id: json?.id, status: json?.status, raw: json };
+}
