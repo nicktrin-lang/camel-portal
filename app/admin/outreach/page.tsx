@@ -7,7 +7,7 @@ const DAILY_LIMIT = 50;
 const COUNTRIES = ["All Countries", "Spain", "France", "Italy", "Portugal", "Germany", "UK", "USA"];
 
 type Status = "pending" | "sent" | "bounced" | "replied" | "onboarded";
-type EngagementFilter = "all" | "sent" | "opened" | "clicked";
+type EngagementFilter = "all" | "sent" | "delivered" | "opened" | "clicked" | "complained" | "onboarded" | "unsubscribed";
 
 type Prospect = {
   id: string;
@@ -28,8 +28,9 @@ type Prospect = {
   open_count: number | null;
   click_count: number | null;
   last_click_user_agent: string | null;
-  onboarded: boolean | null;          // computed: email matched a partner application
+  onboarded: boolean | null;          // computed: matched a partner application
   application_status: string | null;  // computed: that application's status
+  onboarded_match: string | null;     // 'email' | 'company' | null (how it matched)
   created_at: string;
 };
 
@@ -309,6 +310,7 @@ export default function OutreachPage() {
   const humanClickCount = realProspects.filter(isHumanClick).length;
   const complainedCount = realProspects.filter(p => p.complained_at).length;
   const onboardedCount  = realProspects.filter(p => p.onboarded).length;
+  const unsubCount      = realProspects.filter(p => p.unsubscribed).length;
 
   // Toggle engagement filter — clicking same card clears it
   function toggleEngagementFilter(f: EngagementFilter) {
@@ -323,9 +325,13 @@ export default function OutreachPage() {
 
   const filtered = prospects
     .filter(p => {
-      if (engagementFilter === "sent")    return !!p.sent_at;
-      if (engagementFilter === "opened")  return !!p.opened_at;
-      if (engagementFilter === "clicked") return !!p.clicked_at;
+      if (engagementFilter === "sent")         return !!p.sent_at;
+      if (engagementFilter === "delivered")    return !!p.delivered_at;
+      if (engagementFilter === "opened")       return !!p.opened_at;
+      if (engagementFilter === "clicked")      return !!p.clicked_at;
+      if (engagementFilter === "complained")   return !!p.complained_at;
+      if (engagementFilter === "onboarded")    return !!p.onboarded;
+      if (engagementFilter === "unsubscribed") return !!p.unsubscribed;
       return true;
     })
     .filter(p => statusFilter === "all" || p.status === statusFilter)
@@ -430,27 +436,44 @@ export default function OutreachPage() {
         </div>
       )}
 
-      {/* Trust signals — delivered, spam complaints, real conversions */}
+      {/* Trust signals — all filterable */}
       {sentCount > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="border border-black/10 bg-white p-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <button
+            onClick={() => toggleEngagementFilter("delivered")}
+            className={["border p-4 text-left transition-all", engagementFilter === "delivered" ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+          >
             <p className="text-xs font-black uppercase tracking-widest text-black/40">Delivered</p>
             <p className="mt-1 text-2xl font-black text-black">
               {deliveredCount}
               <span className="ml-2 text-sm font-bold text-black/40">{sentCount > 0 ? `${Math.round((deliveredCount / sentCount) * 100)}%` : ""}</span>
             </p>
             <p className="mt-1 text-xs font-semibold text-black/30">confirmed reached inbox</p>
-          </div>
-          <div className={["border p-4", complainedCount > 0 ? "border-red-300 bg-red-50" : "border-black/10 bg-white"].join(" ")}>
+          </button>
+          <button
+            onClick={() => toggleEngagementFilter("complained")}
+            className={["border p-4 text-left transition-all", engagementFilter === "complained" ? "border-black ring-2 ring-black" : complainedCount > 0 ? "border-red-300 bg-red-50 hover:border-red-500" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+          >
             <p className="text-xs font-black uppercase tracking-widest text-black/40">Spam Complaints</p>
             <p className={["mt-1 text-2xl font-black", complainedCount > 0 ? "text-red-600" : "text-black"].join(" ")}>{complainedCount}</p>
-            <p className="mt-1 text-xs font-semibold text-black/30">{complainedCount > 0 ? "hurts deliverability — watch this" : "none — good"}</p>
-          </div>
-          <div className={["border p-4", onboardedCount > 0 ? "border-green-300 bg-green-50" : "border-black/10 bg-white"].join(" ")}>
+            <p className="mt-1 text-xs font-semibold text-black/30">{complainedCount > 0 ? "hurts deliverability" : "none — good"}</p>
+          </button>
+          <button
+            onClick={() => toggleEngagementFilter("unsubscribed")}
+            className={["border p-4 text-left transition-all", engagementFilter === "unsubscribed" ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+          >
+            <p className="text-xs font-black uppercase tracking-widest text-black/40">Unsubscribed</p>
+            <p className="mt-1 text-2xl font-black text-black">{unsubCount}</p>
+            <p className="mt-1 text-xs font-semibold text-black/30">opted out (incl. complaints)</p>
+          </button>
+          <button
+            onClick={() => toggleEngagementFilter("onboarded")}
+            className={["border p-4 text-left transition-all", engagementFilter === "onboarded" ? "border-black ring-2 ring-black" : onboardedCount > 0 ? "border-green-300 bg-green-50 hover:border-green-500" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+          >
             <p className="text-xs font-black uppercase tracking-widest text-black/40">Onboarded</p>
             <p className={["mt-1 text-2xl font-black", onboardedCount > 0 ? "text-green-700" : "text-black"].join(" ")}>{onboardedCount}</p>
             <p className="mt-1 text-xs font-semibold text-black/30">actually signed up (real conversions)</p>
-          </div>
+          </button>
         </div>
       )}
 
@@ -581,7 +604,7 @@ export default function OutreachPage() {
                   <tr key={p.id} className={["hover:bg-[#f8f8f8] transition-colors", p.unsubscribed ? "opacity-50" : ""].join(" ")}>
                     <td className="px-4 py-3 font-black text-black">
                       {p.company_name}
-                      {p.onboarded && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-green-100 text-green-700 px-1.5 py-0.5">signed up{p.application_status ? ` · ${p.application_status}` : ""}</span>}
+                      {p.onboarded && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-green-100 text-green-700 px-1.5 py-0.5">signed up{p.application_status ? ` · ${p.application_status}` : ""}{p.onboarded_match === "company" ? " · by name" : ""}</span>}
                       {p.complained_at && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5">spam</span>}
                       {p.unsubscribed && !p.complained_at && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5">unsub</span>}
                     </td>

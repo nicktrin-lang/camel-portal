@@ -25,21 +25,36 @@ export async function GET() {
       // All partner applications (a small table) — used to auto-detect which
       // prospects actually signed up. "Onboarded" is computed from this, NOT a
       // manual status, so it reflects real conversions.
-      db.from("partner_applications").select("email, status"),
+      db.from("partner_applications").select("email, status, company_name"),
     ]);
     if (batch1.error) throw batch1.error;
     if (batch2.error) throw batch2.error;
     if (appsRes.error) throw appsRes.error;
 
-    const appStatusByEmail = new Map<string, string>();
+    // Match on email first, then fall back to a normalised company-name match —
+    // partners often sign up with a different email than we outreached to, so the
+    // company-name fallback catches those "part onboarded" cases (flagged as a
+    // name match so it's clear it's fuzzier than an exact email match).
+    const normCompany = (s: any) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const appByEmail   = new Map<string, string>();
+    const appByCompany = new Map<string, string>();
     for (const a of appsRes.data || []) {
       const e = String((a as any).email || "").toLowerCase().trim();
-      if (e) appStatusByEmail.set(e, String((a as any).status || "pending"));
+      if (e) appByEmail.set(e, String((a as any).status || "pending"));
+      const c = normCompany((a as any).company_name);
+      if (c) appByCompany.set(c, String((a as any).status || "pending"));
     }
 
     const prospects = [...(batch1.data || []), ...(batch2.data || [])].map((p: any) => {
-      const appStatus = appStatusByEmail.get(String(p.email || "").toLowerCase().trim()) || null;
-      return { ...p, onboarded: !!appStatus, application_status: appStatus };
+      const byEmail   = appByEmail.get(String(p.email || "").toLowerCase().trim()) || null;
+      const byCompany = byEmail ? null : (appByCompany.get(normCompany(p.company_name)) || null);
+      const appStatus = byEmail || byCompany || null;
+      return {
+        ...p,
+        onboarded:          !!appStatus,
+        application_status: appStatus,
+        onboarded_match:    byEmail ? "email" : (byCompany ? "company" : null),
+      };
     });
 
     return NextResponse.json({ prospects });
