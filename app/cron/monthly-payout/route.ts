@@ -211,25 +211,53 @@ export async function GET(req: Request) {
     }
 
     // ── Mark bookings paid ─────────────────────────────────────────────────
+    // The Stripe transfer id is TEXT (tr_...). It goes in payout_transfer_id — NOT
+    // in payout_batch_id, which is a uuid column: writing tr_... there fails 22P02.
+    // Because the money has ALREADY moved by this point, this update failing must
+    // NOT be swallowed (it previously was, leaving money sent + booking still 'ready').
     const { error: bkUpdateErr } = await db
       .from("partner_bookings")
       .update({
-        payout_status:   "paid",
-        paid_out_at:     nowIso,
-        payout_batch_id: transferId,
+        payout_status:      "paid",
+        paid_out_at:        nowIso,
+        payout_transfer_id: transferId,
       })
       .in("id", bookingIds);
 
-    if (bkUpdateErr) {
-      console.error(`monthly-payout: failed to mark bookings paid for ${profile.company_name}:`, bkUpdateErr.message);
+    // ── Mark payments paid ─────────────────────────────────────────────────
+    let pmtUpdateErr: string | null = null;
+    if (paymentIds.length) {
+      const { error } = await db
+        .from("payments")
+        .update({ payout_status: "paid", paid_out_at: nowIso, payout_transfer_id: transferId })
+        .in("id", paymentIds);
+      pmtUpdateErr = error?.message || null;
     }
 
-    // ── Mark payments paid ─────────────────────────────────────────────────
-    if (paymentIds.length) {
-      await db
-        .from("payments")
-        .update({ payout_status: "paid", paid_out_at: nowIso })
-        .in("id", paymentIds);
+    // Transfer succeeded but we couldn't record it → split-brain (money sent, rows
+    // not marked paid). Alert loudly with the transfer id for manual reconciliation.
+    // The booking-set idempotency key guarantees a later re-run returns the SAME
+    // transfer (no double pay) once the DB issue is fixed.
+    if (bkUpdateErr || pmtUpdateErr) {
+      const dbErr = bkUpdateErr?.message || pmtUpdateErr;
+      console.error(`monthly-payout: TRANSFER SENT (${transferId}) but DB update FAILED for ${profile.company_name}:`, dbErr);
+      for (const adminEmail of adminEmails) {
+        await sendEmail({
+          to: adminEmail,
+          subject: `[Admin] Payout SENT but not recorded — ${profile.company_name} — ${transferId}`,
+          html: `
+            <div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;">
+              <p><strong>The Stripe transfer succeeded but the database update failed.</strong> The money HAS moved.</p>
+              <p><strong>Partner:</strong> ${profile.company_name}<br/>
+              <strong>Transfer:</strong> ${transferId}<br/>
+              <strong>Amount:</strong> ${new Intl.NumberFormat("en-GB", { style: "currency", currency: payoutCurrency }).format(totalPayout)}<br/>
+              <strong>Bookings:</strong> ${bookingIds.join(", ")}<br/>
+              <strong>DB error:</strong> ${dbErr}</p>
+              <p>Set these bookings <code>payout_status='paid'</code>, <code>payout_transfer_id='${transferId}'</code> manually so reports reconcile.</p>
+            </div>
+          `,
+        }).catch(() => {});
+      }
     }
 
     payoutsTriggered++;
