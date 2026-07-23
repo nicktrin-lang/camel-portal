@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     const { type, data } = payload;
 
     // Only handle the events we care about
-    if (!["email.opened", "email.clicked", "email.complained", "email.bounced"].includes(type)) {
+    if (!["email.delivered", "email.opened", "email.clicked", "email.complained", "email.bounced"].includes(type)) {
       return NextResponse.json({ ok: true, ignored: true });
     }
 
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     // Find the prospect by email
     const { data: prospect } = await db
       .from("outreach_prospects")
-      .select("id, opened_at, clicked_at, unsubscribed, status")
+      .select("id, opened_at, clicked_at, delivered_at, unsubscribed, status, open_count, click_count")
       .eq("email", toAddress.toLowerCase().trim())
       .maybeSingle();
 
@@ -61,28 +61,43 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const updates: Record<string, string | boolean> = {};
+    const updates: Record<string, string | boolean | number | null> = {};
 
-    if (type === "email.opened" && !prospect.opened_at) {
-      updates.opened_at = now;
+    if (type === "email.delivered" && !prospect.delivered_at) {
+      // Confirmed reached the inbox (vs merely handed to Resend)
+      updates.delivered_at = now;
     }
 
-    if (type === "email.clicked" && !prospect.clicked_at) {
-      updates.clicked_at = now;
-      // If they clicked, they must have opened
+    if (type === "email.opened") {
       if (!prospect.opened_at) updates.opened_at = now;
+      updates.open_count = Number(prospect.open_count || 0) + 1;
+    }
+
+    if (type === "email.clicked") {
+      if (!prospect.clicked_at) updates.clicked_at = now;
+      // A click implies an open
+      if (!prospect.opened_at) updates.opened_at = now;
+      updates.click_count = Number(prospect.click_count || 0) + 1;
+      // Capture click context so we can filter out security-scanner "bot" clicks
+      const click = data?.click || {};
+      if (click.userAgent) updates.last_click_user_agent = String(click.userAgent).slice(0, 400);
+      if (click.ipAddress) updates.last_click_ip = String(click.ipAddress).slice(0, 64);
     }
 
     if (type === "email.complained") {
-      // Spam complaint — unsubscribe immediately
-      updates.unsubscribed = true;
-      console.log(`outreach-webhook: spam complaint from ${toAddress} — unsubscribing`);
+      // Spam complaint — record it AND unsubscribe. (Previously only unsubscribed,
+      // so complaints were invisible on the dashboard.)
+      updates.complained_at = now;
+      updates.unsubscribed  = true;
+      console.log(`outreach-webhook: SPAM COMPLAINT from ${toAddress} — recording + unsubscribing`);
     }
 
     if (type === "email.bounced") {
-      // Hard bounce — mark as bounced so we don't keep trying
-      updates.status = "bounced";
-      console.log(`outreach-webhook: bounce from ${toAddress} — marking bounced`);
+      // Mark bounced; capture hard vs soft so we know whether to retry.
+      updates.status      = "bounced";
+      const bounceType    = data?.bounce?.type || data?.type || null;
+      if (bounceType) updates.bounce_type = String(bounceType).toLowerCase().includes("hard") ? "hard" : "soft";
+      console.log(`outreach-webhook: bounce (${updates.bounce_type || "unknown"}) from ${toAddress}`);
     }
 
     if (Object.keys(updates).length > 0) {

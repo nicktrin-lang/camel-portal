@@ -22,8 +22,25 @@ type Prospect = {
   sent_at: string | null;
   opened_at: string | null;
   clicked_at: string | null;
+  delivered_at: string | null;
+  complained_at: string | null;
+  bounce_type: string | null;
+  open_count: number | null;
+  click_count: number | null;
+  last_click_user_agent: string | null;
+  onboarded: boolean | null;          // computed: email matched a partner application
+  application_status: string | null;  // computed: that application's status
   created_at: string;
 };
+
+// A click whose user-agent is a known corporate security scanner (or a proxy
+// pre-fetcher) is almost certainly a bot, not a human. Best-effort filter.
+const SCANNER_UA = /googleimageproxy|proofpoint|barracuda|mimecast|forcepoint|symantec|fireeye|bitdefender|cloudmark|messagelabs|microsoft|outlook|avast|trendmicro/i;
+function isTestAddress(email: string | null) { return /nicktrin\+/i.test(String(email || "")); }
+function isHumanClick(p: Prospect) {
+  return !!p.clicked_at && !isTestAddress(p.email) &&
+    !(p.last_click_user_agent && SCANNER_UA.test(p.last_click_user_agent));
+}
 
 const STATUS_STYLES: Record<Status, string> = {
   pending:   "bg-yellow-100 text-yellow-800",
@@ -282,10 +299,16 @@ export default function OutreachPage() {
     }
   }
 
-  // Engagement stats
-  const sentCount  = prospects.filter(p => p.sent_at).length;
-  const openCount  = prospects.filter(p => p.opened_at).length;
-  const clickCount = prospects.filter(p => p.clicked_at).length;
+  // Engagement stats — exclude your own nicktrin+ test addresses, which otherwise
+  // inflate the numbers.
+  const realProspects   = prospects.filter(p => !isTestAddress(p.email));
+  const sentCount       = realProspects.filter(p => p.sent_at).length;
+  const deliveredCount  = realProspects.filter(p => p.delivered_at).length;
+  const openCount       = realProspects.filter(p => p.opened_at).length;
+  const clickCount      = realProspects.filter(p => p.clicked_at).length;
+  const humanClickCount = realProspects.filter(isHumanClick).length;
+  const complainedCount = realProspects.filter(p => p.complained_at).length;
+  const onboardedCount  = realProspects.filter(p => p.onboarded).length;
 
   // Toggle engagement filter — clicking same card clears it
   function toggleEngagementFilter(f: EngagementFilter) {
@@ -402,8 +425,32 @@ export default function OutreachPage() {
               {clickCount}
               <span className="ml-2 text-sm font-bold text-black/40">{sentCount > 0 ? `${Math.round((clickCount / sentCount) * 100)}%` : ""}</span>
             </p>
-            <p className="mt-1 text-xs font-semibold text-black/30">click to filter</p>
+            <p className="mt-1 text-xs font-semibold text-[#ff7a00]">{humanClickCount} likely human · {clickCount - humanClickCount} bot/scanner</p>
           </button>
+        </div>
+      )}
+
+      {/* Trust signals — delivered, spam complaints, real conversions */}
+      {sentCount > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="border border-black/10 bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-widest text-black/40">Delivered</p>
+            <p className="mt-1 text-2xl font-black text-black">
+              {deliveredCount}
+              <span className="ml-2 text-sm font-bold text-black/40">{sentCount > 0 ? `${Math.round((deliveredCount / sentCount) * 100)}%` : ""}</span>
+            </p>
+            <p className="mt-1 text-xs font-semibold text-black/30">confirmed reached inbox</p>
+          </div>
+          <div className={["border p-4", complainedCount > 0 ? "border-red-300 bg-red-50" : "border-black/10 bg-white"].join(" ")}>
+            <p className="text-xs font-black uppercase tracking-widest text-black/40">Spam Complaints</p>
+            <p className={["mt-1 text-2xl font-black", complainedCount > 0 ? "text-red-600" : "text-black"].join(" ")}>{complainedCount}</p>
+            <p className="mt-1 text-xs font-semibold text-black/30">{complainedCount > 0 ? "hurts deliverability — watch this" : "none — good"}</p>
+          </div>
+          <div className={["border p-4", onboardedCount > 0 ? "border-green-300 bg-green-50" : "border-black/10 bg-white"].join(" ")}>
+            <p className="text-xs font-black uppercase tracking-widest text-black/40">Onboarded</p>
+            <p className={["mt-1 text-2xl font-black", onboardedCount > 0 ? "text-green-700" : "text-black"].join(" ")}>{onboardedCount}</p>
+            <p className="mt-1 text-xs font-semibold text-black/30">actually signed up (real conversions)</p>
+          </div>
         </div>
       )}
 
@@ -424,7 +471,8 @@ export default function OutreachPage() {
             className={["border p-3 text-left transition-all", statusFilter === s ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
           >
             <p className="text-xs font-black uppercase tracking-widest text-black/40">{s}</p>
-            <p className="mt-1 text-2xl font-black text-black">{counts[s] || 0}</p>
+            {/* Onboarded is computed from real signups, not the manual status */}
+            <p className="mt-1 text-2xl font-black text-black">{s === "onboarded" ? onboardedCount : (counts[s] || 0)}</p>
           </button>
         ))}
       </div>
@@ -533,7 +581,9 @@ export default function OutreachPage() {
                   <tr key={p.id} className={["hover:bg-[#f8f8f8] transition-colors", p.unsubscribed ? "opacity-50" : ""].join(" ")}>
                     <td className="px-4 py-3 font-black text-black">
                       {p.company_name}
-                      {p.unsubscribed && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5">unsub</span>}
+                      {p.onboarded && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-green-100 text-green-700 px-1.5 py-0.5">signed up{p.application_status ? ` · ${p.application_status}` : ""}</span>}
+                      {p.complained_at && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5">spam</span>}
+                      {p.unsubscribed && !p.complained_at && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5">unsub</span>}
                     </td>
                     <td className="px-4 py-3 font-semibold text-black/70">{p.contact_name || "—"}</td>
                     <td className="px-4 py-3 font-semibold text-black/70 text-xs">{p.email}</td>
@@ -548,7 +598,9 @@ export default function OutreachPage() {
                       {p.opened_at ? <span className="text-green-700">✓ {fmt(p.opened_at)}</span> : <span className="text-black/30">—</span>}
                     </td>
                     <td className="px-4 py-3 text-xs font-semibold">
-                      {p.clicked_at ? <span className="text-[#ff7a00] font-black">✓ {fmt(p.clicked_at)}</span> : <span className="text-black/30">—</span>}
+                      {p.clicked_at
+                        ? <span className={isHumanClick(p) ? "text-[#ff7a00] font-black" : "text-black/40"} title={p.last_click_user_agent || ""}>✓ {fmt(p.clicked_at)}{isHumanClick(p) ? "" : " · bot"}</span>
+                        : <span className="text-black/30">—</span>}
                     </td>
                     <td className="px-4 py-3 text-xs font-semibold text-black/50 max-w-[120px] truncate" title={p.notes || ""}>{p.notes || "—"}</td>
                     <td className="px-4 py-3">
