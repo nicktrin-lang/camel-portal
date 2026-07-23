@@ -8,7 +8,7 @@ const inputCls = "w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm f
 const labelCls = "text-xs font-black uppercase tracking-widest text-black";
 
 export default function PartnerContactPage() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   const SUBJECTS = [
     t("contact.subject.general"),
@@ -41,7 +41,7 @@ export default function PartnerContactPage() {
       const res  = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, company, email, subject, message, captchaToken, source: "partner-portal" }),
+        body: JSON.stringify({ name, company, email, subject, message, captchaToken, source: "partner-portal", locale }),
       });
       const data = await res.json();
       if (!res.ok) {

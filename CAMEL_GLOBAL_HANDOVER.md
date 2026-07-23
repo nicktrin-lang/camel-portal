@@ -73,9 +73,13 @@ refund (€50, net €80) · P4 monthly payout (€105 transfer, invoice + state
   `payout_rail === "global_payouts"` and leaves those bookings `ready` (unpaid) for now.
 - Optional: add `payout_transfer_id` to admin/partner CSV exports for reconciliation.
 
-## ✅ DONE — Full email LANGUAGE audit (partner + customer)  [2026-07-23]
+## ✅ DONE & LIVE — Full email LANGUAGE audit (partner + customer)  [2026-07-23]
 
-Branch (both repos): `claude/email-language-audit-9bc42f` (NOT yet pushed/merged — awaiting review).
+MERGED to `main` and deployed to prod in both repos (portal PR #1, customer PR #1).
+Follow-ups (branch `claude/email-followups-9bc42f`): customer signup now defaults
+`communication_locale` from the signup UI language (customers have no country), and contact-form
+auto-replies are now localized to the sender's site language (partner + customer). Admin contact
+auto-reply stays English (internal).
 
 **Root causes fixed:**
 1. `partner/complete-signup/route.ts` — replaced es/en-only `deriveLocale` with shared
