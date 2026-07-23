@@ -105,6 +105,7 @@ export async function GET(req: Request) {
     .select(`
       user_id, company_name, contact_name,
       stripe_account_id, stripe_payouts_enabled, stripe_recipient_id, payout_rail,
+      recipient_payouts_enabled,
       default_currency, commission_rate, communication_locale
     `)
     .in("user_id", partnerIds);
@@ -188,10 +189,16 @@ export async function GET(req: Request) {
     // Charge already settled to the platform balance; pay the partner via an
     // OutboundPayment to their local bank recipient (no destination transfer).
     if (payoutRail === "global_payouts") {
-      if (!profile.stripe_recipient_id) {
-        console.warn(`monthly-payout: ${profile.company_name} — no Global Payouts recipient, leaving ready`);
+      // A recipient exists from the moment onboarding starts, so its presence is
+      // not proof of anything — require the persisted readiness signal too
+      // (local-bank capability active AND a payout method attached).
+      if (!profile.stripe_recipient_id || !profile.recipient_payouts_enabled) {
+        const why = profile.stripe_recipient_id
+          ? "recipient not payout-ready (KYC or bank details outstanding)"
+          : "no Global Payouts recipient (onboard first)";
+        console.warn(`monthly-payout: ${profile.company_name} — ${why}, leaving ready`);
         skipped++;
-        results.push({ partner: profile.company_name, currency: payoutCurrency, status: "skipped — no Global Payouts recipient (onboard first)" });
+        results.push({ partner: profile.company_name, currency: payoutCurrency, status: `skipped — ${why}` });
         continue;
       }
 

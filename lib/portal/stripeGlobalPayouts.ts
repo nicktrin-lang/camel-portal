@@ -234,3 +234,55 @@ export async function createOutboundPayment(opts: {
   const json = await stripeV2Post<any>("/v2/money_management/outbound_payments", body, opts.idempotencyKey);
   return { id: json?.id, status: json?.status, raw: json };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recipient readiness (P5). A recipient object exists the moment onboarding
+// STARTS, so its mere presence proves nothing. Money can only be delivered once
+// the local-bank capability reports `active` AND a payout method exists.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Fetch a recipient account with the fields needed to judge payout readiness. */
+export async function getRecipientAccount(recipientId: string): Promise<RecipientAccount> {
+  return stripeV2Get<RecipientAccount>(
+    `/v2/core/accounts/${recipientId}?include=configuration.recipient,requirements,identity`,
+  );
+}
+
+/** Outstanding requirement entries, for surfacing "what's still needed" to the partner. */
+export function recipientOutstandingRequirements(account: RecipientAccount): any[] {
+  const entries = account?.requirements?.entries;
+  if (!Array.isArray(entries)) return [];
+  return entries.filter((e: any) => {
+    const status = String(e?.status || "").toLowerCase();
+    return status && status !== "active" && status !== "satisfied";
+  });
+}
+
+export type RecipientReadiness = {
+  capabilityActive: boolean;
+  hasPayoutMethod:  boolean;
+  /** TRUE only when money can actually be delivered. This is what gates checkout. */
+  payoutsEnabled:   boolean;
+  outstanding:      any[];
+};
+
+/**
+ * The single source of truth for "can this AU/NZ partner be paid?".
+ *
+ * Deliberately requires BOTH the active capability and a real payout method:
+ * a recipient can pass KYC yet have no bank account attached, and an
+ * OutboundPayment with no payout method would let Stripe pick a destination we
+ * never verified. Checkout, live-readiness and the payout cron all gate on this.
+ */
+export async function getRecipientReadiness(recipientId: string): Promise<RecipientReadiness> {
+  const account          = await getRecipientAccount(recipientId);
+  const capabilityActive = recipientCanReceivePayouts(account);
+  const payoutMethod     = await getRecipientPayoutMethod(recipientId).catch(() => null);
+  const hasPayoutMethod  = Boolean(payoutMethod);
+  return {
+    capabilityActive,
+    hasPayoutMethod,
+    payoutsEnabled: capabilityActive && hasPayoutMethod,
+    outstanding:    recipientOutstandingRequirements(account),
+  };
+}
