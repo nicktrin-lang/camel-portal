@@ -73,7 +73,39 @@ refund (€50, net €80) · P4 monthly payout (€105 transfer, invoice + state
   `payout_rail === "global_payouts"` and leaves those bookings `ready` (unpaid) for now.
 - Optional: add `payout_transfer_id` to admin/partner CSV exports for reconciliation.
 
-## ⏭️ NEXT TASK — Full email LANGUAGE audit (partner + customer)
+## ✅ DONE — Full email LANGUAGE audit (partner + customer)  [2026-07-23]
+
+Branch (both repos): `claude/email-language-audit-9bc42f` (NOT yet pushed/merged — awaiting review).
+
+**Root causes fixed:**
+1. `partner/complete-signup/route.ts` — replaced es/en-only `deriveLocale` with shared
+   `countryToEmailLocale()` (lib/email.ts: DE→de, FR→fr, IT→it, PT→pt, ES→es, else en) AND now
+   **persists** it to `partner_profiles.communication_locale` (previously never written → every
+   partner started null→en).
+2. `partner/bookings/[id]/invoice-data/route.ts` — the `=== "es" ? "es" : "en"` fed the
+   **PDF** (no email in this route); per the PDF-stays-English rule it now forces `locale="en"`.
+3. Denia "German" traced: `getPartnerLocale` was correct; the `de` was stored on a Spain test
+   partner ("Test Cars") set manually via settings. Data corrected by backfill.
+4. **Backfill applied to prod (partners only):** 9 rows — 8 Spanish partners en→es, Test Cars
+   de→es; AU/null-country partners correctly stayed en. `customer_profiles` has **no country
+   column** so customers were left as-is (per decision).
+
+**Localized (6 locales, all verified to differ from EN — 158 maps auto-checked):** booking
+cancellation emails (admin/partner/customer routes, both repos), payout notification +
+commission-invoice + monthly-statement **covering emails** (attached PDFs stay English),
+partner suggestion-confirmation, partner + customer chat-transcript, partner + customer
+password-reset (best-effort via generateLink's matched user). Already-correct senders
+(make-live, update-status, resend-approval, bids, review/onboarding reminders, completeBooking,
+post-refund, resend-statement, webhook receipt/confirm/partner) confirmed OK.
+
+**Deliberate exceptions (documented):** contact-form auto-replies stay English (anonymous
+submitters have no communication_locale and the form sends no locale); `partner/application-received`
+alt route is unused (no callers — real signup email is localized in complete-signup).
+All PDFs / commission invoice / monthly statement bodies stay English; `[Admin]` emails stay English.
+
+---
+
+## ⏭️ (superseded) NEXT TASK — Full email LANGUAGE audit (partner + customer)
 
 **Symptoms observed:** Spanish partner (Denia Cars) — the application-received email was
 Spanish (correct), but the "account is live" email arrived in **English** (should be Spanish).
