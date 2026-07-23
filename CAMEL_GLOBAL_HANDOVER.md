@@ -1695,3 +1695,114 @@ user_id 116fd343-a034-4153-ac33-34bf1fcd7153. Live/matchable (approved + live ch
 - CONFIRM before finalising Phase 2/3 economics: the FX crux question above (~1% vs ~3%). Not a build blocker.
 - Batching shape = economics call, pick during Phase 3.
 
+
+---
+
+## Chat 60 — Stripe rewrite SHIPPED to production; docs corrected; AU/NZ P5 fixed but UNVERIFIED [Jul 22–24 2026]
+
+**SUPERSEDES the Chat 59 status line "nothing built yet".** The rewrite is built, merged and live
+in BOTH repos. Chat 59's *fee research and AU/NZ answers* remain valid; its *build plan* has been
+overtaken by `STRIPE_REWRITE_DESIGN.md`, which is now the authoritative money architecture.
+
+### How this session went wrong first (read this)
+Work happened across several surfaces — CLI, desktop app, phone. Separate sessions **share the
+repo, not each other's context.** A full charge-model rewrite shipped from desktop sessions while
+`CLAUDE.md` still described the old destination-charge model as "the existing path, do not touch
+it" — and `CLAUDE.md` was **untracked in both repos**, so it existed on one Mac only and travelled
+nowhere. A later session oriented itself from that stale file and had to rediscover the rewrite
+from git. Both problems are fixed below. **The rule: end a session with work committed and
+CLAUDE.md / this handover true, or the next session starts from a lie.**
+
+### 1. Money-flow audit → rewrite (Jul 22–23)
+`STRIPE_MONEY_FLOW_AUDIT.md` — 20 findings, 4 critical, from four parallel read-only audits. Root
+cause: the charge was a **destination charge**, so money reached the partner the instant the charge
+succeeded, while several downstream paths were written as if funds still sat on the platform.
+Worst: the monthly cron issued a *second* transfer (double-pay or false-fail); the webhook dropped
+bookings on a transient insert error (card charged, no booking); completion refund/reversal
+double-fired on retry; a completed-then-cancelled booking still got paid.
+
+`STRIPE_REWRITE_DESIGN.md` replaced the model outright. Precondition was **zero live bookings** —
+a clean-slate rewrite, no data migration.
+
+### 2. The model now live on `main` (verified against source, not assumed)
+- **Charge** — plain PaymentIntent for `car_hire + fuel_deposit` to **Camel's platform balance**,
+  bid currency, `charge_model='platform_hold'`, idempotency `charge_${bid_id}`. **No
+  `transfer_data`, no `on_behalf_of`, no `application_fee`.** There is **no corridor fork** in
+  `create-intent` — every rail charges identically. Camel is **merchant of record**, so refund and
+  chargeback liability sits with Camel by choice.
+- **Webhook** — inserts `partner_bookings` **and** `payments` FIRST (compensating delete if the
+  payments insert fails), `payout_status='held'`, captures the card fee into `stripe_fee_total` /
+  `stripe_fee_breakdown`, and only THEN sets `customer_requests.status='confirmed'`. Amounts come
+  from the PaymentIntent metadata snapshot, never a re-read of the still-editable bid.
+- **Completion** — customer fuel refund from the platform balance. **No transfer reversal — nothing
+  was ever transferred.** Stamps `settled_partner_net` (`car_hire − commission + fuel_used`) and
+  `settled_at`, sets `ready`. Idempotency `fuelrefund_${booking_id}`; re-entry guarded on
+  `payout_status`.
+- **Cancellation** — >48h: full refund, `payout_status='cancelled'`. <48h: fuel deposit only,
+  partner keeps car hire, `ready` with `settled_partner_net = car_hire − commission`. Written to
+  **BOTH** `partner_bookings` and `payments` — writing only `payments` is what previously let the
+  cron pay a cancelled booking. Idempotency `cancelrefund_${booking_id}`.
+- **Monthly cron** — pays `payout_status='ready' AND payout_hold=false` from **stored**
+  `settled_partner_net`, grouped per (partner, currency, settlement-month), one idempotency-keyed
+  `transfers.create` each, then emits the commission invoice + monthly statement PDF. Bookings that
+  settled in the current still-open month are **deferred** to next month's run.
+- **State machine** — `held` → `ready` → `paid`, plus `cancelled`; orthogonal `payout_hold`.
+  The design's **`paying` claim state is NOT implemented** — do not assume it exists.
+- **Commission** — computed once in `calculateCommission.ts`, snapshotted to
+  `partner_bookings.commission_amount`, and **read** by payout, invoice, statement and every
+  report. The three divergent recomputations are gone; do not reintroduce one.
+- **Fees** — Camel absorbs all of them. Card fee at the webhook, AU/NZ payout fee at payout, both
+  onto `stripe_fee_total` / `stripe_fee_breakdown`. Never sum fees across currencies.
+
+### 3. Production state — VERIFIED Jul 24
+- Customer production = `3d40356`; portal production = `45aba26` (both confirmed on the Vercel
+  Production badge). Two portal *preview* deploys sit above it — the AU/NZ branch, not production.
+  Vercel crons only run on production, so the AU/NZ branch cannot fire the payout cron.
+- **DB: 2 bookings total, both `completed` and already `paid`, both EUR. Nothing is `ready`, so the
+  Aug 1 run is a no-op.** The "zero live bookings" precondition effectively still holds.
+- `STRIPE_REWRITE_SCHEMA.sql` **has been run** — every column it declares exists, plus
+  `partner_recovery_ledger`. Verified by probing the live schema, not by asking.
+- **One real gap: `payments.outbound_payment_id` does not exist** — the SQL declares
+  `outbound_payment_id` on `partner_bookings` only. The P5 code was writing it to `payments`; that
+  write has been removed rather than the column added, since `partner_bookings` is canonical
+  (design §7).
+
+### 4. AU/NZ Global Payouts (P5) — branch `claude/onboarding-country-aunz-9bc42f`
+Deliberately deferred in the design, then partly built anyway and left mid-edit. Now repaired and
+committed (`5eecf7b`, `b9ad0d0`):
+- Wrapping the in-corridor path in `else { … }` block-scoped `transferId` away from the shared
+  invoice/statement emails — it **did not typecheck**. Fixed with a rail-agnostic `payoutRef`.
+- A recipient with no local bank payout method fell through and created the quote **and** the
+  OutboundPayment with the payout method omitted, letting Stripe pick a destination we never
+  verified. Now throws.
+- Removed the write to the non-existent `payments.outbound_payment_id`, which ran *after* the
+  OutboundPayment — so it failed once money had already moved.
+
+**It compiles and is coherent. It is NOT verified.** The v2 Money Management response shapes
+(`financial_accounts`, `payout_methods`, quote `fees`) are written from the docs and have never
+been exercised against a live or test call. **Must go through test-mode end-to-end before it
+touches real money.** `main` still skips the `global_payouts` rail and leaves those bookings
+`ready`, so AU/NZ payouts remain manual and nothing breaks meanwhile.
+
+### 5. Docs corrected and TRACKED (branch `claude/docs-money-model`, both repos)
+`CLAUDE.md` is now in git in both repos for the first time, rewritten against the source:
+platform-hold model, state machine, cancellation split, the four idempotency keys, commission
+computed-once-then-read, fees absorbed, and corrected architecture-map rows (completeBooking no
+longer reverses transfers; added `cancelBooking`, `stripeGlobalPayouts`,
+`generateMonthlyStatementPDF`). Also corrected: **live readiness is 7 checks in
+`computeLiveReadiness.ts`**, not 8 in `refreshPartnerLiveStatus.ts`. Portal additionally tracks
+`STRIPE_REWRITE_DESIGN.md`, `STRIPE_MONEY_FLOW_AUDIT.md`, `STRIPE_REWRITE_SCHEMA.sql` and
+`OUTREACH_ANALYTICS_SCHEMA.sql` — all previously untracked and machine-local.
+
+### 6. Outstanding
+- **Two PRs to merge** — `claude/docs-money-model` → `main` in both repos. Until they land, `main`
+  still carries no `CLAUDE.md` and a fresh clone gets no ground truth.
+- **P5 test-mode verification** before any live AU/NZ money, plus the two dashboard tasks (enable
+  Local network payout method; recurring daily transfers) and confirming `STRIPE_SECRET_KEY`
+  resolves to the `…cs5n` account.
+- **Design P6** (reporting reconciliation) was in progress — read canonical stored values, add
+  fees-absorbed + net margin, per-currency reconciliation view.
+- Carried from the audit, not folded into the rewrite: **no `charge.dispute.created` handler** yet
+  (auto-`payout_hold` on dispute is design P6).
+- The FX crux — whether an AUD charge settles as AUD on a multi-currency balance so payouts skip
+  the ~2% FX leg — still unconfirmed. Decides ~1% vs ~3% on AU/NZ payouts. Not a build blocker.
