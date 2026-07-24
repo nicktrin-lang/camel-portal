@@ -9,6 +9,7 @@ import { coerceCurrency } from "@/lib/currency";
 import {
   getPlatformFinancialAccount, getRecipientPayoutMethod,
   createOutboundPaymentQuote, createOutboundPayment, sumQuoteFees,
+  classifyOutboundPaymentStatus,
 } from "@/lib/portal/stripeGlobalPayouts";
 
 // Vercel cron — runs 1st of each month at 08:00 UTC
@@ -204,6 +205,7 @@ export async function GET(req: Request) {
 
       let obpId: string | null = null;
       let obpQuoteId: string | null = null;
+      let obpStatus: string | null = null;
       let payoutFee = 0;
       try {
         const fa = await getPlatformFinancialAccount(payoutCurrency);
@@ -242,7 +244,8 @@ export async function GET(req: Request) {
           // Same key on a re-run returns the SAME OutboundPayment — never double-pays.
           idempotencyKey: `gp_payout_${partnerUserId}_${periodMonth}_${payoutCurrency}_${bookingSetHash}`,
         });
-        obpId = payment.id;
+        obpId     = payment.id;
+        obpStatus = payment.status ?? null;
         console.log(`monthly-payout: ${profile.company_name} — OutboundPayment ${obpId} (${payment.status}) — ${payoutCurrency} ${totalPayout}, fee ${payoutFee}`);
       } catch (gpErr: any) {
         console.error(`monthly-payout: Global Payout failed for ${profile.company_name}:`, gpErr?.message);
@@ -258,20 +261,33 @@ export async function GET(req: Request) {
         continue;
       }
 
-      // ── Mark bookings + payments paid (OutboundPayment, not transfer) ──────
+      // ── Record dispatch — NOT payment ─────────────────────────────────────
+      // An OutboundPayment is asynchronous: creation means the money is in
+      // flight, not delivered (local bank settlement is 1-7 days and can still
+      // fail or be returned on bad bank details). Marking `paid` here is how a
+      // failed payout would silently look settled forever.
+      //
+      // So we park at `paying` and let the v2 webhook promote to `paid` on
+      // `posted`, or return it to `ready` on failed/returned/canceled.
+      // If Stripe reports a terminal `posted` immediately, honour that.
+      const settledNow    = classifyOutboundPaymentStatus(obpStatus) === "paid";
       const feePerBooking = partnerBookings.length ? Math.round((payoutFee / partnerBookings.length) * 100) / 100 : 0;
       const { error: bkErr2 } = await db.from("partner_bookings").update({
-        payout_status:       "paid",
-        paid_out_at:         nowIso,
-        outbound_payment_id: obpId,
-        outbound_quote_id:   obpQuoteId,
+        payout_status:           settledNow ? "paid" : "paying",
+        paid_out_at:             settledNow ? nowIso : null,
+        outbound_payment_id:     obpId,
+        outbound_quote_id:       obpQuoteId,
+        outbound_payment_status: obpStatus,
       }).in("id", bookingIds);
       let pmtErr2: string | null = null;
       if (paymentIds.length) {
         // `payments` has no outbound_payment_id column — STRIPE_REWRITE_SCHEMA.sql
         // declares it on partner_bookings only, which is canonical (design §7).
         const { error } = await db.from("payments")
-          .update({ payout_status: "paid", paid_out_at: nowIso })
+          .update({
+            payout_status: settledNow ? "paid" : "paying",
+            paid_out_at:   settledNow ? nowIso : null,
+          })
           .in("id", paymentIds);
         pmtErr2 = error?.message || null;
       }

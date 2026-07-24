@@ -286,3 +286,24 @@ export async function getRecipientReadiness(recipientId: string): Promise<Recipi
     outstanding:    recipientOutstandingRequirements(account),
   };
 }
+
+/** Fetch an OutboundPayment by id — used by the webhook to read authoritative status + fees. */
+export async function getOutboundPayment(outboundPaymentId: string): Promise<any> {
+  return stripeV2Get<any>(`/v2/money_management/outbound_payments/${outboundPaymentId}`);
+}
+
+/**
+ * Terminal-state classification for an OutboundPayment.
+ *
+ * The payment is ASYNC: `created`/`processing` means the money is in flight, NOT
+ * delivered. Only `posted` proves the partner was actually paid. Treating
+ * creation as payment is how a failed payout silently looks settled.
+ */
+export function classifyOutboundPaymentStatus(status: string | null | undefined): "pending" | "paid" | "failed" {
+  const s = String(status || "").toLowerCase();
+  if (s === "posted") return "paid";
+  // `returned` = delivered then bounced back (bad bank details). `canceled` =
+  // stopped before delivery. Both mean the partner does NOT have the money.
+  if (s === "failed" || s === "returned" || s === "canceled" || s === "cancelled") return "failed";
+  return "pending";
+}
