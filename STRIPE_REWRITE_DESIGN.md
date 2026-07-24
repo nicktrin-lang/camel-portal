@@ -235,3 +235,18 @@ Spanish partners EUR monthly. That path ALSO depends on holding EUR in-kind — 
 the live account doesn't, every EUR booking silently pays FX both ways. The test
 balance holding EUR separately is reassuring but must be CONFIRMED in live
 (Balances shows EUR held as EUR, not swept to GBP).
+
+### UNRESOLVED (2026-07-24) — classic MCS vs Global Payouts financial account
+The Stripe AI assistant, asked how to enable MCS, described CLASSIC Multi-Currency
+Settlement: settle AUD → pay out to CAMEL'S OWN Australian AUD bank account (real
+AU bank, Wise/Airwallex not supported), min AU$1,000 auto / AU$100 manual. That is
+a DIFFERENT product from Global Payouts, where AUD is held in a Stripe FINANCIAL
+ACCOUNT and paid to the PARTNER via OutboundPayment. The AI also wrongly stated our
+account is Australian. Do NOT act on that answer.
+
+OPEN QUESTION for a human Global Payouts specialist: does funding OutboundPayments
+in AUD require Camel (UK) to hold a real Australian bank account, or does the
+Stripe financial account hold the AUD directly? One path is a serious blocker
+(UK company needs an AU bank account); the other is not. Believed to be the
+latter (financial account holds it), but UNCONFIRMED. Resolve before the live
+go-live test. NOT a code blocker for Units 5-6.
