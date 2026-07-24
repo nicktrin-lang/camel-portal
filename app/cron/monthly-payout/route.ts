@@ -125,6 +125,9 @@ export async function GET(req: Request) {
   let payoutsTriggered = 0;
   let skipped = 0;
   const results: Array<{ partner: string; status: string; amount?: number; currency?: string; error?: string }> = [];
+  // Prevent a partner+currency debt being deducted twice when a partner has more
+  // than one settlement-month group in the same run.
+  const recoveredKeys = new Set<string>();
 
   // ── Process each (partner, currency, settlement-month) group ─────────────
   for (const [groupKey, partnerBookings] of byGroup) {
@@ -162,6 +165,33 @@ export async function GET(req: Request) {
       const commission = Number(b.commission_amount || 0);
       const fuelCharge = Number(b.fuel_charge        || 0);
       bookingLines.push(`${jobNo}: car hire ${fmt(carHire)} − commission ${fmt(commission)} + fuel used ${fmt(fuelCharge)} = ${fmt(net)}`);
+    }
+
+    // ── Reclaim chargeback debt from this payout (partner_recovery_ledger) ────
+    // A partner charged back AFTER being paid owes us settled_partner_net. We only
+    // apply recovery when the WHOLE outstanding debt fits inside this payout (so
+    // the remainder stays positive and every debt row is fully cleared) — this
+    // keeps the logic provably correct and avoids partial-recovery / zero-payout
+    // edge cases. Rows are marked recovered ONLY after the payout succeeds (shared
+    // section below), so a failed payout leaves the debt to be retried next run.
+    // A debt larger than one month's payout waits for a bigger payout, or an admin.
+    const recoveryKey = `${partnerUserId}::${payoutCurrency}`;
+    let recoveryRowIds: string[] = [];
+    if (!recoveredKeys.has(recoveryKey)) {
+      const { data: debts } = await db
+        .from("partner_recovery_ledger")
+        .select("id, amount")
+        .eq("partner_user_id", partnerUserId)
+        .eq("currency", payoutCurrency)
+        .eq("status", "outstanding");
+      const debtTotal = (debts || []).reduce((s, d) => s + Number(d.amount || 0), 0);
+      if (debtTotal > 0 && debtTotal < totalPayout) {
+        totalPayout = Math.round((totalPayout - debtTotal) * 100) / 100;
+        recoveryRowIds = (debts || []).map(d => d.id);
+        recoveredKeys.add(recoveryKey);
+        bookingLines.push(`Recovered from prior chargeback(s): −${new Intl.NumberFormat("en-GB", { style: "currency", currency: payoutCurrency }).format(debtTotal)}`);
+        console.log(`monthly-payout: ${profile.company_name} — reclaiming ${debtTotal} ${payoutCurrency} of chargeback debt from this payout`);
+      }
     }
 
     const totalCents = Math.round(totalPayout * 100);
@@ -431,6 +461,16 @@ export async function GET(req: Request) {
     payoutsTriggered++;
     results.push({ partner: profile.company_name, status: "paid", amount: totalPayout, currency: payoutCurrency });
     } // end in-corridor (connect) rail
+
+    // ── Settle reclaimed chargeback debt (shared: both rails, on success) ──────
+    // Only reached when a payout actually went out (both rail branches `continue`
+    // on skip/failure), so a failed payout never clears the debt.
+    if (recoveryRowIds.length) {
+      await db.from("partner_recovery_ledger")
+        .update({ status: "recovered" })
+        .in("id", recoveryRowIds)
+        .then(() => {}, (e: any) => console.error(`monthly-payout: recovery-ledger settle failed for ${profile.company_name}:`, e?.message));
+    }
 
     // ── Generate commission invoice (shared: both rails) ───────────────────
     const invoiceBookings = partnerBookings.map(b => ({
