@@ -6,6 +6,7 @@ import { sendEmail, coerceEmailLocale, EmailLocale } from "@/lib/email";
 import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
 import { generateMonthlyStatement } from "@/lib/portal/generateMonthlyStatementPDF";
 import { coerceCurrency } from "@/lib/currency";
+import { canonicalCountryName } from "@/lib/portal/countryCanonical";
 import {
   getPlatformFinancialAccount, getRecipientPayoutMethod,
   createOutboundPaymentQuote, createOutboundPayment, sumQuoteFees,
@@ -104,7 +105,7 @@ export async function GET(req: Request) {
   const { data: profiles, error: profErr } = await db
     .from("partner_profiles")
     .select(`
-      user_id, company_name, contact_name,
+      user_id, company_name, contact_name, base_country,
       stripe_account_id, stripe_payouts_enabled, stripe_recipient_id, payout_rail,
       recipient_payouts_enabled,
       default_currency, commission_rate, communication_locale
@@ -138,7 +139,14 @@ export async function GET(req: Request) {
       continue;
     }
 
-    const payoutRail = profile.payout_rail || "connect";
+    // Rail is decided by COUNTRY, not just the stored flag. AU/NZ are out of
+    // corridor and can NEVER be paid by a Connect transfer (transfers_not_allowed).
+    // A stale payout_rail='connect' on an AU/NZ partner (e.g. a legacy Express
+    // account) must not route them to the transfer path — force global_payouts so
+    // they skip safely to the recipient requirement instead of a failed transfer.
+    const canonCountry  = canonicalCountryName(profile.base_country);
+    const isOutOfCorridor = canonCountry === "Australia" || canonCountry === "New Zealand";
+    const payoutRail = isOutOfCorridor ? "global_payouts" : (profile.payout_rail || "connect");
 
     // ── Sum the canonical settled net (stored at completion / <48h cancel) ──
     // Read, never recompute — this is what makes the payout tie out with reports.
