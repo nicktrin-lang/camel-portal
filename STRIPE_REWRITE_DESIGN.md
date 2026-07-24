@@ -250,3 +250,26 @@ Stripe financial account hold the AUD directly? One path is a serious blocker
 (UK company needs an AU bank account); the other is not. Believed to be the
 latter (financial account holds it), but UNCONFIRMED. Resolve before the live
 go-live test. NOT a code blocker for Units 5-6.
+
+### RESOLVED via Stripe docs (2026-07-24) — no AU/NZ bank account; FX is unavoidable for a UK entity
+Read from Stripe's own documentation (global-payouts, send-money, money-management/
+financial-accounts), which agree across three pages — unlike the chat AI, which kept
+answering about classic Multi-Currency Settlement (a DIFFERENT product) and
+contradicted itself on Wise/Revolut.
+
+- **No Camel-owned AU/NZ bank account is required.** Global Payouts pays the
+  PARTNER's local bank via OutboundPayment from a Stripe financial account. Classic
+  MCS (settle to your own foreign bank account) is a separate product we do NOT use.
+- **A UK entity's financial account holds GBP/EUR/USD only — NOT AUD/NZD.** So we
+  hold GBP, and an AUD/NZD OutboundPayment CONVERTS from GBP at send time → the ~2%
+  FX applies. The Chat 59 "hold AUD, pay AUD, no FX" plan is NOT achievable for a UK
+  entity. Revised cost per AU/NZ payout ≈ £0.50 + cross-border % + ~2% FX (worst
+  case ~3%), NOT ~1%. Camel absorbs it (margin hit on AU/NZ), not a blocker.
+- **Code implication (needs live confirmation):** the OutboundPaymentQuote's
+  `from.currency` should be what the financial account actually HOLDS (GBP), with the
+  `to`/`amount` in the recipient currency (AUD/NZD) — NOT GBP-in/AUD-out with
+  `from.currency=aud` as the current draft assumes. The quote will return the real FX
+  fee, which our per-booking fee capture already records. Verify the exact quote shape
+  in the live go-live test.
+- One confirmation still worth getting from a human GP specialist: that a UK financial
+  account genuinely cannot hold AUD/NZD. High confidence from docs; build on it.
