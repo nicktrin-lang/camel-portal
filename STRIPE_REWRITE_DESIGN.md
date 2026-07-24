@@ -177,3 +177,61 @@ There are four partner/customer PDFs: **booking receipt**, **completion statemen
 - **Dashboard (you):** multi-currency balance settles presentment currency in-kind (§2); enable AU/NZ Local network + recurring transfers (P5); confirm `STRIPE_SECRET_KEY` = the `…cs5n` account.
 - **Stripe SDK:** verify v2 Accounts API (recipient) + OutboundPayment are available on `stripe@^22` / apiVersion `2026-04-22.dahlia` before P5 (confirm against current Stripe docs).
 - **Policy:** monthly cron currently runs 1st @ 08:00 UTC — keep that cadence for payouts + invoices.
+
+---
+
+## P5 — Stripe confirmations (live-chat support, 2026-07-24)
+
+Answers obtained directly from Stripe support on the LIVE platform account
+`acct_1TggMl5bphnFcs5n`. These retire several open questions above. Treat as
+authoritative for AU/NZ Global Payouts.
+
+- **Global Payouts IS enabled on the live account, at Standard tier.** Confirmed
+  by the agent while screen-sharing the actual Global Payouts settings page. It
+  is enabled but not yet *set up* (financial account not provisioned, payout
+  method not activated).
+- **LIVE MODE ONLY. No sandbox, no test mode.** Stated explicitly and twice:
+  recipient onboarding + OutboundPayments cannot be exercised in test mode or a
+  sandbox. This kills the "verify in a sandbox first" plan — there is no such
+  environment. **The only validation is a small REAL payout in live.**
+- **Standard Connect cannot pay AU/NZ.** Verified by us:
+  `POST /v1/transfers currency=aud destination=<AU account>` →
+  `transfers_not_allowed` ("restricted outside of your platform's region"),
+  with GBP/EUR funds available (not a funding issue). Confirms Global Payouts is
+  required, not optional. Destination charges are separately incompatible with
+  our model (they pay at charge time; we refund fuel deposits + cancellations
+  after the charge), so we must settle from the platform balance.
+- **Same-currency payout avoids FX — CONDITIONAL on MCS.** Hold AUD → pay AUD =
+  no conversion = no FX fee. BUT this requires the platform to actually hold an
+  **AUD-denominated balance**, which requires **Multi-Currency Settlement (MCS)
+  enabled** so AUD accumulates separately instead of converting to GBP. Same for
+  NZD. Without MCS: ~2% FX in + ~2% out. This resolves the Chat 59 "FX crux" —
+  answer: enable MCS. **MCS for AUD/NZD is now a hard prerequisite.**
+- **Fees (Standard tier), Stripe-quoted:** £0.50 per payout (UK) + cross-border
+  0.25–1.25% + FX 0.50–2% *only when a conversion happens*. So same-currency AU
+  ≈ £0.50 + ~1% CBP; the 2% FX is avoided under MCS.
+- **Financial account funding:** transfer from the platform Payments balance into
+  the financial account, via Dashboard or API. Provisioned via Global Payouts →
+  Get started → accept ToS → enable Standard (local network) payout method.
+- **STILL OPEN (Jaya left chat before answering):** exact steps to enable MCS for
+  AUD/NZD. Likely a self-serve platform setting (the platform test balance
+  already holds GBP + EUR in separate buckets, so multi-currency holding is at
+  least partly active). If not self-serve, one short follow-up chat: "enable
+  multi-currency settlement for AUD and NZD on acct_1TggMl5bphnFcs5n". NOT a
+  code blocker — only bites at the live-test stage.
+
+### Live go-live sequence (there is no other test)
+1. Dashboard (live): enable Global Payouts (Get started + ToS), enable MCS for
+   AUD/NZD, provision the financial account, fund it with a small amount.
+2. Onboard ONE real AU recipient with a real AU bank account you control.
+3. FIRST payout BY HAND in the Dashboard — proves the Stripe side, zero code risk.
+4. THEN one small payout through the cron code for a single booking; watch the v2
+   webhook (/api/webhooks/stripe-v2) reconcile paying → paid.
+5. Only after that passes does AU/NZ go live for real bookings.
+
+### Broader flag (in-corridor, live NOW)
+The shipped rewrite already charges EUR bookings to the platform balance and pays
+Spanish partners EUR monthly. That path ALSO depends on holding EUR in-kind — if
+the live account doesn't, every EUR booking silently pays FX both ways. The test
+balance holding EUR separately is reassuring but must be CONFIRMED in live
+(Balances shows EUR held as EUR, not swept to GBP).
