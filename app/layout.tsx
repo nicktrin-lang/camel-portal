@@ -77,9 +77,19 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const GA_ID = "G-YCZMDQJDM7";
+// GA only fires on the REAL production host. localhost, Vercel preview (*.vercel.app),
+// test-portal staging, IPs and unknown hosts return "" so no gtag is injected — this
+// is what stopped dev + preview traffic polluting the production property (the
+// "localhost:3000" referrals and preview-crawler bot hits).
+function getGaId(host: string): string {
+  const h = host.toLowerCase();
+  if (h === "portal.camel-global.com") return "G-YCZMDQJDM7";  // production
+  return "";                                                    // localhost / preview / staging / unknown → no tracking
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const headerStore = await headers();
+  const gaId = getGaId(headerStore.get("host") || "");
   return (
     <html lang="en">
       <head>
@@ -87,10 +97,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        <script dangerouslySetInnerHTML={{
-          __html: `window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=gtag;gtag('js',new Date());gtag('config','${GA_ID}',{send_page_view:true});`,
-        }} />
-        <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} />
+        {gaId && (
+          <>
+            <script dangerouslySetInnerHTML={{
+              __html: `window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=gtag;gtag('js',new Date());gtag('config','${gaId}',{send_page_view:true});`,
+            }} />
+            <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`} />
+          </>
+        )}
       </head>
       <body className={`${font.variable} min-h-screen flex flex-col bg-[#f0f0f0]`}>
         <ClientRootLayout fontClass={font.variable}>
