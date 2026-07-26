@@ -25,6 +25,38 @@ Working Rules
 LATEST SESSION — 2026-07-23  (read this first)
 ═══════════════════════════════════════════════════════════════════════════════
 
+## ✅ MERGED & LIVE this session (email audit + onboarding + recon)
+- Email language audit (both repos) + follow-ups — MERGED. See the "DONE & LIVE — Full email
+  LANGUAGE audit" block below. Partner backfill (9 rows) applied; customer signup now defaults
+  locale from UI language.
+- **Country canonicalisation for Stripe** — MERGED-pending on branch `claude/onboarding-country-aunz-9bc42f`
+  (PR open). Map-click reverse geocoding returned local-language country ("España"); Stripe needs
+  English ("Spain"). New `lib/portal/countryCanonical.ts` (all supported countries); geocode route
+  requests `accept-language=en` + canonicalises; complete-signup / profile save / stripeCountry()
+  canonicalise. Existing "España" partner rows backfilled to "Spain".
+- **Payment/payout reconciliation audit** (read-only) — all invariants confirmed; job 1000174
+  reconciles to the cent. 3 fixes MERGED (completion-email floor → stored values; commission-invoice
+  single-currency guard + settled_at basis; report Stripe-fee bucket). Dead row 1000167 reconciled
+  (settled €2.50, no money moved).
+
+## 🚧 IN PROGRESS — AU/NZ Global Payouts (branch `claude/onboarding-country-aunz-9bc42f`, PR open)
+- **DB schema for Chat 59 is ALREADY fully applied** (stripe_recipient_id, payout_rail, charge_model,
+  outbound_payment_id/quote_id, stripe_fee_total/breakdown, partner_recovery_ledger). No migrations.
+- **SDK GAP (important):** npm `stripe@22.1.1` does NOT expose the Global Payouts v2 preview APIs
+  (recipient accounts / OutboundPayment). Decision: call the `/v2` REST API directly via HTTPS in an
+  isolated helper (`lib/portal/stripeGlobalPayouts.ts`) — the SDK corridor path stays byte-untouched.
+  API version header: `Stripe-Version: 2026-06-24.preview`.
+- **PHASE 1 DONE (code):** connect route forks on AU/NZ → creates a v2 recipient
+  (`configuration.recipient` + `capabilities.bank_accounts.local`), writes stripe_recipient_id +
+  payout_rail='global_payouts', returns a Stripe-hosted onboarding link (Account Links v2). Completion
+  webhook is `v2.core.account_link.returned`. Verified the request reaches `/v2/core/accounts`
+  correctly; **local `sk_test` key is EXPIRED** — refresh it for full test-mode recipient creation.
+- **STILL TO DO:** Phase 3 (OutboundPaymentQuote→OutboundPayment pipeline + decoupled-refund/ledger
+  fork + the 6 outbound_payment webhooks), Phase 4 (cron AU/NZ branch), Phase 5 (finish fee reporting),
+  Phase 6 (test-mode E2E → small real AU booking). Nick dashboard pre-work still required before live
+  payouts: enable Local network payout method; set up recurring daily transfers. Kingsman (AU) is on
+  payout_rail='connect' with a stale Connect account — Phase 1 is its reconnect path.
+
 ## ✅ DONE & LIVE — Stripe payment system rewrite (platform-hold model)
 
 Both repos merged to `main` and deployed to production:

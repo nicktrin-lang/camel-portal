@@ -177,3 +177,99 @@ There are four partner/customer PDFs: **booking receipt**, **completion statemen
 - **Dashboard (you):** multi-currency balance settles presentment currency in-kind (§2); enable AU/NZ Local network + recurring transfers (P5); confirm `STRIPE_SECRET_KEY` = the `…cs5n` account.
 - **Stripe SDK:** verify v2 Accounts API (recipient) + OutboundPayment are available on `stripe@^22` / apiVersion `2026-04-22.dahlia` before P5 (confirm against current Stripe docs).
 - **Policy:** monthly cron currently runs 1st @ 08:00 UTC — keep that cadence for payouts + invoices.
+
+---
+
+## P5 — Stripe confirmations (live-chat support, 2026-07-24)
+
+Answers obtained directly from Stripe support on the LIVE platform account
+`acct_1TggMl5bphnFcs5n`. These retire several open questions above. Treat as
+authoritative for AU/NZ Global Payouts.
+
+- **Global Payouts IS enabled on the live account, at Standard tier.** Confirmed
+  by the agent while screen-sharing the actual Global Payouts settings page. It
+  is enabled but not yet *set up* (financial account not provisioned, payout
+  method not activated).
+- **LIVE MODE ONLY. No sandbox, no test mode.** Stated explicitly and twice:
+  recipient onboarding + OutboundPayments cannot be exercised in test mode or a
+  sandbox. This kills the "verify in a sandbox first" plan — there is no such
+  environment. **The only validation is a small REAL payout in live.**
+- **Standard Connect cannot pay AU/NZ.** Verified by us:
+  `POST /v1/transfers currency=aud destination=<AU account>` →
+  `transfers_not_allowed` ("restricted outside of your platform's region"),
+  with GBP/EUR funds available (not a funding issue). Confirms Global Payouts is
+  required, not optional. Destination charges are separately incompatible with
+  our model (they pay at charge time; we refund fuel deposits + cancellations
+  after the charge), so we must settle from the platform balance.
+- **Same-currency payout avoids FX — CONDITIONAL on MCS.** Hold AUD → pay AUD =
+  no conversion = no FX fee. BUT this requires the platform to actually hold an
+  **AUD-denominated balance**, which requires **Multi-Currency Settlement (MCS)
+  enabled** so AUD accumulates separately instead of converting to GBP. Same for
+  NZD. Without MCS: ~2% FX in + ~2% out. This resolves the Chat 59 "FX crux" —
+  answer: enable MCS. **MCS for AUD/NZD is now a hard prerequisite.**
+- **Fees (Standard tier), Stripe-quoted:** £0.50 per payout (UK) + cross-border
+  0.25–1.25% + FX 0.50–2% *only when a conversion happens*. So same-currency AU
+  ≈ £0.50 + ~1% CBP; the 2% FX is avoided under MCS.
+- **Financial account funding:** transfer from the platform Payments balance into
+  the financial account, via Dashboard or API. Provisioned via Global Payouts →
+  Get started → accept ToS → enable Standard (local network) payout method.
+- **STILL OPEN (Jaya left chat before answering):** exact steps to enable MCS for
+  AUD/NZD. Likely a self-serve platform setting (the platform test balance
+  already holds GBP + EUR in separate buckets, so multi-currency holding is at
+  least partly active). If not self-serve, one short follow-up chat: "enable
+  multi-currency settlement for AUD and NZD on acct_1TggMl5bphnFcs5n". NOT a
+  code blocker — only bites at the live-test stage.
+
+### Live go-live sequence (there is no other test)
+1. Dashboard (live): enable Global Payouts (Get started + ToS), enable MCS for
+   AUD/NZD, provision the financial account, fund it with a small amount.
+2. Onboard ONE real AU recipient with a real AU bank account you control.
+3. FIRST payout BY HAND in the Dashboard — proves the Stripe side, zero code risk.
+4. THEN one small payout through the cron code for a single booking; watch the v2
+   webhook (/api/webhooks/stripe-v2) reconcile paying → paid.
+5. Only after that passes does AU/NZ go live for real bookings.
+
+### Broader flag (in-corridor, live NOW)
+The shipped rewrite already charges EUR bookings to the platform balance and pays
+Spanish partners EUR monthly. That path ALSO depends on holding EUR in-kind — if
+the live account doesn't, every EUR booking silently pays FX both ways. The test
+balance holding EUR separately is reassuring but must be CONFIRMED in live
+(Balances shows EUR held as EUR, not swept to GBP).
+
+### UNRESOLVED (2026-07-24) — classic MCS vs Global Payouts financial account
+The Stripe AI assistant, asked how to enable MCS, described CLASSIC Multi-Currency
+Settlement: settle AUD → pay out to CAMEL'S OWN Australian AUD bank account (real
+AU bank, Wise/Airwallex not supported), min AU$1,000 auto / AU$100 manual. That is
+a DIFFERENT product from Global Payouts, where AUD is held in a Stripe FINANCIAL
+ACCOUNT and paid to the PARTNER via OutboundPayment. The AI also wrongly stated our
+account is Australian. Do NOT act on that answer.
+
+OPEN QUESTION for a human Global Payouts specialist: does funding OutboundPayments
+in AUD require Camel (UK) to hold a real Australian bank account, or does the
+Stripe financial account hold the AUD directly? One path is a serious blocker
+(UK company needs an AU bank account); the other is not. Believed to be the
+latter (financial account holds it), but UNCONFIRMED. Resolve before the live
+go-live test. NOT a code blocker for Units 5-6.
+
+### RESOLVED via Stripe docs (2026-07-24) — no AU/NZ bank account; FX is unavoidable for a UK entity
+Read from Stripe's own documentation (global-payouts, send-money, money-management/
+financial-accounts), which agree across three pages — unlike the chat AI, which kept
+answering about classic Multi-Currency Settlement (a DIFFERENT product) and
+contradicted itself on Wise/Revolut.
+
+- **No Camel-owned AU/NZ bank account is required.** Global Payouts pays the
+  PARTNER's local bank via OutboundPayment from a Stripe financial account. Classic
+  MCS (settle to your own foreign bank account) is a separate product we do NOT use.
+- **A UK entity's financial account holds GBP/EUR/USD only — NOT AUD/NZD.** So we
+  hold GBP, and an AUD/NZD OutboundPayment CONVERTS from GBP at send time → the ~2%
+  FX applies. The Chat 59 "hold AUD, pay AUD, no FX" plan is NOT achievable for a UK
+  entity. Revised cost per AU/NZ payout ≈ £0.50 + cross-border % + ~2% FX (worst
+  case ~3%), NOT ~1%. Camel absorbs it (margin hit on AU/NZ), not a blocker.
+- **Code implication (needs live confirmation):** the OutboundPaymentQuote's
+  `from.currency` should be what the financial account actually HOLDS (GBP), with the
+  `to`/`amount` in the recipient currency (AUD/NZD) — NOT GBP-in/AUD-out with
+  `from.currency=aud` as the current draft assumes. The quote will return the real FX
+  fee, which our per-booking fee capture already records. Verify the exact quote shape
+  in the live go-live test.
+- One confirmation still worth getting from a human GP specialist: that a UK financial
+  account genuinely cannot hold AUD/NZD. High confidence from docs; build on it.

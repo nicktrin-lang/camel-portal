@@ -3,6 +3,7 @@
 // Reverse: stays on Nominatim — accurate for map-click lat/lng lookup
 
 import { NextResponse } from "next/server";
+import { canonicalCountryName } from "@/lib/portal/countryCanonical";
 
 // ── Nominatim reverse geocode normaliser ─────────────────────────────────────
 function normalizeFromNominatim(address: any) {
@@ -12,7 +13,9 @@ function normalizeFromNominatim(address: any) {
   const city     = String(address?.city || address?.town || address?.village || "").trim();
   const province = String(address?.state || address?.county || address?.region || "").trim();
   const postcode = String(address?.postcode || "").trim();
-  const country  = String(address?.country || "").trim();
+  // Canonical English country name — Stripe onboarding requires it (map clicks
+  // otherwise return the local-language name, e.g. "España").
+  const country  = canonicalCountryName(address?.country);
   const address_line1 = [house, road].filter(Boolean).join(" ").trim() || road;
   return { address_line1, address_line2: suburb, city, province, postcode, country };
 }
@@ -41,7 +44,7 @@ function formatPhotonResult(f: any) {
   const housenr  = String(props?.housenumber || "").trim();
   const district = String(props?.district || props?.suburb || props?.quarter || "").trim();
   const city     = String(props?.city || props?.town || props?.village || "").trim();
-  const country  = String(props?.country || "").trim();
+  const country  = canonicalCountryName(props?.country);
 
   const streetAddr = [street, housenr].filter(Boolean).join(" ");
 
@@ -75,7 +78,9 @@ export async function GET(req: Request) {
 
     // ── Reverse geocode (Nominatim) ──────────────────────────────────────────
     if (lat && lng) {
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`;
+      // accept-language=en so Nominatim returns English names ("Spain", not
+      // "España"); country is additionally canonicalised in normalizeFromNominatim.
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&accept-language=en&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`;
       const res = await fetch(url, {
         headers: { Accept: "application/json", "User-Agent": "CamelGlobal/1.0 (camel-global.com)" },
         cache: "no-store",

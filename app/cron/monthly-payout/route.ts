@@ -6,6 +6,12 @@ import { sendEmail, coerceEmailLocale, EmailLocale } from "@/lib/email";
 import { generateCommissionInvoice } from "@/lib/portal/generateCommissionInvoice";
 import { generateMonthlyStatement } from "@/lib/portal/generateMonthlyStatementPDF";
 import { coerceCurrency } from "@/lib/currency";
+import { canonicalCountryName } from "@/lib/portal/countryCanonical";
+import {
+  getPlatformFinancialAccount, getRecipientPayoutMethod,
+  createOutboundPaymentQuote, createOutboundPayment, sumQuoteFees,
+  classifyOutboundPaymentStatus,
+} from "@/lib/portal/stripeGlobalPayouts";
 
 // Vercel cron — runs 1st of each month at 08:00 UTC
 // vercel.json: { "path": "/api/cron/monthly-payout", "schedule": "0 8 1 * *" }
@@ -55,7 +61,7 @@ export async function GET(req: Request) {
       car_hire_price, fuel_charge, fuel_refund, commission_rate, commission_amount,
       settled_partner_net,
       currency, charge_currency, conversion_rate,
-      payout_status, payment_id,
+      payout_status, payment_id, stripe_fee_total, stripe_fee_breakdown,
       created_at, settled_at, booking_status, refund_status, cancellation_reason
     `)
     .eq("payout_status", "ready")
@@ -99,8 +105,9 @@ export async function GET(req: Request) {
   const { data: profiles, error: profErr } = await db
     .from("partner_profiles")
     .select(`
-      user_id, company_name, contact_name,
+      user_id, company_name, contact_name, base_country,
       stripe_account_id, stripe_payouts_enabled, stripe_recipient_id, payout_rail,
+      recipient_payouts_enabled,
       default_currency, commission_rate, communication_locale
     `)
     .in("user_id", partnerIds);
@@ -118,6 +125,9 @@ export async function GET(req: Request) {
   let payoutsTriggered = 0;
   let skipped = 0;
   const results: Array<{ partner: string; status: string; amount?: number; currency?: string; error?: string }> = [];
+  // Prevent a partner+currency debt being deducted twice when a partner has more
+  // than one settlement-month group in the same run.
+  const recoveredKeys = new Set<string>();
 
   // ── Process each (partner, currency, settlement-month) group ─────────────
   for (const [groupKey, partnerBookings] of byGroup) {
@@ -132,7 +142,14 @@ export async function GET(req: Request) {
       continue;
     }
 
-    const payoutRail = profile.payout_rail || "connect";
+    // Rail is decided by COUNTRY, not just the stored flag. AU/NZ are out of
+    // corridor and can NEVER be paid by a Connect transfer (transfers_not_allowed).
+    // A stale payout_rail='connect' on an AU/NZ partner (e.g. a legacy Express
+    // account) must not route them to the transfer path — force global_payouts so
+    // they skip safely to the recipient requirement instead of a failed transfer.
+    const canonCountry  = canonicalCountryName(profile.base_country);
+    const isOutOfCorridor = canonCountry === "Australia" || canonCountry === "New Zealand";
+    const payoutRail = isOutOfCorridor ? "global_payouts" : (profile.payout_rail || "connect");
 
     // ── Sum the canonical settled net (stored at completion / <48h cancel) ──
     // Read, never recompute — this is what makes the payout tie out with reports.
@@ -148,6 +165,33 @@ export async function GET(req: Request) {
       const commission = Number(b.commission_amount || 0);
       const fuelCharge = Number(b.fuel_charge        || 0);
       bookingLines.push(`${jobNo}: car hire ${fmt(carHire)} − commission ${fmt(commission)} + fuel used ${fmt(fuelCharge)} = ${fmt(net)}`);
+    }
+
+    // ── Reclaim chargeback debt from this payout (partner_recovery_ledger) ────
+    // A partner charged back AFTER being paid owes us settled_partner_net. We only
+    // apply recovery when the WHOLE outstanding debt fits inside this payout (so
+    // the remainder stays positive and every debt row is fully cleared) — this
+    // keeps the logic provably correct and avoids partial-recovery / zero-payout
+    // edge cases. Rows are marked recovered ONLY after the payout succeeds (shared
+    // section below), so a failed payout leaves the debt to be retried next run.
+    // A debt larger than one month's payout waits for a bigger payout, or an admin.
+    const recoveryKey = `${partnerUserId}::${payoutCurrency}`;
+    let recoveryRowIds: string[] = [];
+    if (!recoveredKeys.has(recoveryKey)) {
+      const { data: debts } = await db
+        .from("partner_recovery_ledger")
+        .select("id, amount")
+        .eq("partner_user_id", partnerUserId)
+        .eq("currency", payoutCurrency)
+        .eq("status", "outstanding");
+      const debtTotal = (debts || []).reduce((s, d) => s + Number(d.amount || 0), 0);
+      if (debtTotal > 0 && debtTotal < totalPayout) {
+        totalPayout = Math.round((totalPayout - debtTotal) * 100) / 100;
+        recoveryRowIds = (debts || []).map(d => d.id);
+        recoveredKeys.add(recoveryKey);
+        bookingLines.push(`Recovered from prior chargeback(s): −${new Intl.NumberFormat("en-GB", { style: "currency", currency: payoutCurrency }).format(debtTotal)}`);
+        console.log(`monthly-payout: ${profile.company_name} — reclaiming ${debtTotal} ${payoutCurrency} of chargeback debt from this payout`);
+      }
     }
 
     const totalCents = Math.round(totalPayout * 100);
@@ -175,13 +219,141 @@ export async function GET(req: Request) {
       .digest("hex")
       .slice(0, 12);
 
-    // ── AU/NZ Global Payouts rail — built in P5. Until then leave as 'ready'. ─
+    // Rail-agnostic payout reference: the Stripe transfer id in-corridor, the
+    // OutboundPayment id for AU/NZ. Declared out here because the invoice and
+    // statement emails below are shared by both rails.
+    let payoutRef: string | null = null;
+
+    // ══ AU/NZ Global Payouts rail (out of corridor) ═════════════════════════
+    // Charge already settled to the platform balance; pay the partner via an
+    // OutboundPayment to their local bank recipient (no destination transfer).
     if (payoutRail === "global_payouts") {
-      console.warn(`monthly-payout: ${profile.company_name} (${payoutCurrency}) — Global Payouts (AU/NZ) rail not yet enabled, leaving ready`);
-      skipped++;
-      results.push({ partner: profile.company_name, currency: payoutCurrency, status: "skipped — Global Payouts (AU/NZ) not yet enabled" });
-      continue;
-    }
+      // A recipient exists from the moment onboarding starts, so its presence is
+      // not proof of anything — require the persisted readiness signal too
+      // (local-bank capability active AND a payout method attached).
+      if (!profile.stripe_recipient_id || !profile.recipient_payouts_enabled) {
+        const why = profile.stripe_recipient_id
+          ? "recipient not payout-ready (KYC or bank details outstanding)"
+          : "no Global Payouts recipient (onboard first)";
+        console.warn(`monthly-payout: ${profile.company_name} — ${why}, leaving ready`);
+        skipped++;
+        results.push({ partner: profile.company_name, currency: payoutCurrency, status: `skipped — ${why}` });
+        continue;
+      }
+
+      let obpId: string | null = null;
+      let obpQuoteId: string | null = null;
+      let obpStatus: string | null = null;
+      let payoutFee = 0;
+      try {
+        const fa = await getPlatformFinancialAccount(payoutCurrency);
+        if (fa.availableMajor + 1e-9 < totalPayout) {
+          throw new Error(`Insufficient ${payoutCurrency} balance (have ${fa.availableMajor}, need ${totalPayout}) — fund the financial account (recurring transfer).`);
+        }
+        const payoutMethod = await getRecipientPayoutMethod(profile.stripe_recipient_id);
+        // Stop rather than quoting/paying with the payout method omitted — that
+        // would let Stripe pick a destination we never verified.
+        if (!payoutMethod) {
+          throw new Error("Recipient has no local bank payout method — finish recipient onboarding before paying out.");
+        }
+        const quote = await createOutboundPaymentQuote({
+          financialAccountId: fa.id,
+          recipientId:        profile.stripe_recipient_id,
+          payoutMethodId:     payoutMethod,
+          amountValue:        totalCents,
+          currency:           payoutCurrency,
+        });
+        obpQuoteId = quote.id || null;
+        payoutFee  = sumQuoteFees(quote.fees, payoutCurrency);
+        const payment = await createOutboundPayment({
+          financialAccountId: fa.id,
+          recipientId:        profile.stripe_recipient_id,
+          payoutMethodId:     payoutMethod,
+          amountValue:        totalCents,
+          currency:           payoutCurrency,
+          quoteId:            obpQuoteId || undefined,
+          description:        `Camel Global payout — ${runLabel} — ${partnerBookings.length} booking(s)`,
+          metadata: {
+            partner_user_id: partnerUserId,
+            payout_month:    runLabel,
+            currency:        payoutCurrency,
+            booking_ids:     bookingIds.slice(0, 5).join(","),
+          },
+          // Same key on a re-run returns the SAME OutboundPayment — never double-pays.
+          idempotencyKey: `gp_payout_${partnerUserId}_${periodMonth}_${payoutCurrency}_${bookingSetHash}`,
+        });
+        obpId     = payment.id;
+        obpStatus = payment.status ?? null;
+        console.log(`monthly-payout: ${profile.company_name} — OutboundPayment ${obpId} (${payment.status}) — ${payoutCurrency} ${totalPayout}, fee ${payoutFee}`);
+      } catch (gpErr: any) {
+        console.error(`monthly-payout: Global Payout failed for ${profile.company_name}:`, gpErr?.message);
+        skipped++;
+        results.push({ partner: profile.company_name, status: `failed — ${gpErr?.message}` });
+        for (const adminEmail of adminEmails) {
+          await sendEmail({
+            to: adminEmail,
+            subject: `[Admin] Global Payout FAILED — ${profile.company_name} — ${runLabel}`,
+            html: `<div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;"><p><strong>Global Payout (OutboundPayment) failed</strong> for <strong>${profile.company_name}</strong> during the ${runLabel} run.</p><p><strong>Amount:</strong> ${new Intl.NumberFormat("en-GB",{style:"currency",currency:payoutCurrency}).format(totalPayout)}<br/><strong>Error:</strong> ${gpErr?.message}</p><p>Resolve manually in the Stripe dashboard (Global Payouts).</p></div>`,
+          }).catch(() => {});
+        }
+        continue;
+      }
+
+      // ── Record dispatch — NOT payment ─────────────────────────────────────
+      // An OutboundPayment is asynchronous: creation means the money is in
+      // flight, not delivered (local bank settlement is 1-7 days and can still
+      // fail or be returned on bad bank details). Marking `paid` here is how a
+      // failed payout would silently look settled forever.
+      //
+      // So we park at `paying` and let the v2 webhook promote to `paid` on
+      // `posted`, or return it to `ready` on failed/returned/canceled.
+      // If Stripe reports a terminal `posted` immediately, honour that.
+      const settledNow    = classifyOutboundPaymentStatus(obpStatus) === "paid";
+      const feePerBooking = partnerBookings.length ? Math.round((payoutFee / partnerBookings.length) * 100) / 100 : 0;
+      const { error: bkErr2 } = await db.from("partner_bookings").update({
+        payout_status:           settledNow ? "paid" : "paying",
+        paid_out_at:             settledNow ? nowIso : null,
+        outbound_payment_id:     obpId,
+        outbound_quote_id:       obpQuoteId,
+        outbound_payment_status: obpStatus,
+      }).in("id", bookingIds);
+      let pmtErr2: string | null = null;
+      if (paymentIds.length) {
+        // `payments` has no outbound_payment_id column — STRIPE_REWRITE_SCHEMA.sql
+        // declares it on partner_bookings only, which is canonical (design §7).
+        const { error } = await db.from("payments")
+          .update({
+            payout_status: settledNow ? "paid" : "paying",
+            paid_out_at:   settledNow ? nowIso : null,
+          })
+          .in("id", paymentIds);
+        pmtErr2 = error?.message || null;
+      }
+      // Capture the absorbed payout fee per booking (Phase 5 reporting), added to
+      // any existing card fee — never overwrite it. Per-currency; split evenly.
+      if (payoutFee > 0) {
+        for (const b of partnerBookings) {
+          const existing = Number(b.stripe_fee_total || 0);
+          const breakdown = { ...(b.stripe_fee_breakdown && typeof b.stripe_fee_breakdown === "object" ? b.stripe_fee_breakdown : {}), global_payout_fee: feePerBooking, payout_fee_currency: payoutCurrency };
+          await db.from("partner_bookings")
+            .update({ stripe_fee_total: Math.round((existing + feePerBooking) * 100) / 100, stripe_fee_breakdown: breakdown })
+            .eq("id", b.id).then(() => {}, () => {});
+        }
+      }
+      if (bkErr2 || pmtErr2) {
+        console.error(`monthly-payout: OUTBOUND PAYMENT SENT (${obpId}) but DB update FAILED for ${profile.company_name}:`, bkErr2?.message || pmtErr2);
+        for (const adminEmail of adminEmails) {
+          await sendEmail({
+            to: adminEmail,
+            subject: `[Admin] Global Payout SENT but not recorded — ${profile.company_name} — ${obpId}`,
+            html: `<div style="font-family:system-ui,sans-serif;color:#222;max-width:600px;"><p><strong>OutboundPayment succeeded but the DB update failed.</strong> Money HAS moved.</p><p><strong>Partner:</strong> ${profile.company_name}<br/><strong>OutboundPayment:</strong> ${obpId}<br/><strong>Bookings:</strong> ${bookingIds.join(", ")}</p><p>Set these bookings <code>payout_status='paid'</code>, <code>outbound_payment_id='${obpId}'</code> manually so reports reconcile.</p></div>`,
+          }).catch(() => {});
+        }
+      }
+      payoutRef = obpId;
+      payoutsTriggered++;
+      results.push({ partner: profile.company_name, status: "paid (global payouts)", amount: totalPayout, currency: payoutCurrency });
+    } else {
 
     // ── In-corridor: require a payouts-enabled connected account ────────────
     if (!profile.stripe_account_id || !profile.stripe_payouts_enabled) {
@@ -285,10 +457,22 @@ export async function GET(req: Request) {
       }
     }
 
+    payoutRef = transferId;
     payoutsTriggered++;
     results.push({ partner: profile.company_name, status: "paid", amount: totalPayout, currency: payoutCurrency });
+    } // end in-corridor (connect) rail
 
-    // ── Generate commission invoice ────────────────────────────────────────
+    // ── Settle reclaimed chargeback debt (shared: both rails, on success) ──────
+    // Only reached when a payout actually went out (both rail branches `continue`
+    // on skip/failure), so a failed payout never clears the debt.
+    if (recoveryRowIds.length) {
+      await db.from("partner_recovery_ledger")
+        .update({ status: "recovered" })
+        .in("id", recoveryRowIds)
+        .then(() => {}, (e: any) => console.error(`monthly-payout: recovery-ledger settle failed for ${profile.company_name}:`, e?.message));
+    }
+
+    // ── Generate commission invoice (shared: both rails) ───────────────────
     const invoiceBookings = partnerBookings.map(b => ({
       id:                  b.id,
       job_number:          b.job_number,
@@ -389,7 +573,7 @@ export async function GET(req: Request) {
                 </table>
               </div>
               <p style="font-size:13px;color:#666;">${tL(arriveL)}</p>
-              <p style="font-size:13px;color:#666;">${tL(refL)} <code>${transferId}</code></p>
+              <p style="font-size:13px;color:#666;">${tL(refL)} <code>${payoutRef}</code></p>
               <p style="margin-top:24px;color:#999;font-size:13px;">The Camel Global Team — NTUK Ltd</p>
             </div>
           </div>
@@ -409,7 +593,7 @@ export async function GET(req: Request) {
               <strong>Amount:</strong> ${fmt(totalPayout)}<br/>
               <strong>Currency:</strong> ${payoutCurrency}<br/>
               <strong>Bookings:</strong> ${partnerBookings.length}<br/>
-              <strong>Stripe transfer:</strong> ${transferId}<br/>
+              <strong>${payoutRail === "global_payouts" ? "OutboundPayment" : "Stripe transfer"}:</strong> ${payoutRef}<br/>
               <strong>Invoice:</strong> ${invoiceResult.invoice_number || "generation failed"}
             </p>
             <pre style="font-size:12px;background:#f4f4f4;padding:12px;">${bookingLines.join("\n")}</pre>
