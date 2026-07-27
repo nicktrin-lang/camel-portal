@@ -273,3 +273,34 @@ contradicted itself on Wise/Revolut.
   in the live go-live test.
 - One confirmation still worth getting from a human GP specialist: that a UK financial
   account genuinely cannot hold AUD/NZD. High confidence from docs; build on it.
+
+### CONFIRMED by Stripe support (LK, 2026-07-27) — the definitive AU/NZ model
+Two SEPARATE money mechanisms, confirmed for our UK platform account:
+
+1. **Commission (Camel's own money) → Multi-Currency Settlement (MCS): NO FX.**
+   AUD charges can settle directly as AUD to a Camel AUD balance, withdrawn to a
+   Camel-owned AUD bank account (a Wise UK business account's AUD details are
+   accepted). Setup: Dashboard → Payout Settings → Manage Currencies → Add AUD +
+   add the AUD bank account. Zero FX on the commission leg.
+
+2. **Partner payout → Global Payouts OutboundPayment: FX APPLIES.**
+   Direct Connect UK→AU transfers are unsupported (confirmed, matches our test).
+   Partners are paid via an OutboundPayment from the Global Payouts financial
+   account, and **"Stripe handles the GBP → AUD/NZD conversion at the point of
+   sending."** So the partner-payout leg is GBP-sourced and converts at send —
+   FX is UNAVOIDABLE here. The Chat-59 "zero FX on partner payouts" ideal is NOT
+   achievable; zero FX applies ONLY to Camel's own commission via MCS.
+
+**CODE IMPLICATION (now confirmed):** the OutboundPaymentQuote `from.currency`
+must be **GBP** (the financial account's currency), with the `to`/amount in
+AUD/NZD — NOT AUD-in/AUD-out as the current draft assumes. Fix before P6 live test.
+
+**STILL TO CONFIRM (possible DOUBLE FX — a real margin risk):** the customer
+pays AUD but the OutboundPayment is GBP-sourced. Confirm with Stripe whether the
+partner's money converts ONCE (GBP→AUD out) or TWICE (AUD→GBP at settlement, then
+GBP→AUD at payout). That is the difference between ~1–2% and ~3–4% on every AU/NZ
+payout. Ask LK explicitly before finalising the economics.
+
+Sandbox Global Payouts enablement (acct_1TwWcWG5yRPYnAl6): still pending Stripe's
+internal team. LK also requested a screen recording of the "only UK bank account
+accepted" error for the MCS currency-add step.
