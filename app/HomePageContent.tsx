@@ -451,6 +451,9 @@ export default function HomePageContent() {
           <div className="w-40 shrink-0">
             <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} className="h-10 w-auto brightness-0 invert" />
           </div>
+          <nav className="flex items-center gap-5">
+            <Link href={`/${locale}/guides`} className="text-sm font-bold text-white hover:underline">Blog</Link>
+          </nav>
           <p className="text-xs font-bold text-white/70">{t("common.copyright", { year })}</p>
         </div>
       </footer>

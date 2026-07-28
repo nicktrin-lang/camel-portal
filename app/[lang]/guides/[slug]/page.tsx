@@ -31,6 +31,7 @@ export async function generateMetadata({
   return {
     title: { absolute: guide.title },
     description: guide.description,
+    robots: { index: true, follow: true },
     alternates: { canonical },
     openGraph: {
       title: guide.title,
@@ -92,9 +93,9 @@ export default async function GuidePost({
               </h2>
               <Link
                 href="/partner/signup"
-                className="inline-block bg-[#ff7a00] px-8 py-4 text-base font-black text-white transition-opacity hover:opacity-90"
+                className="inline-block bg-[#ff7a00] px-14 py-6 text-xl font-black uppercase tracking-wide text-white transition-opacity hover:opacity-90"
               >
-                Join now →
+                Sign Up Now
               </Link>
             </div>
           </div>
