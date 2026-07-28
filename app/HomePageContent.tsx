@@ -20,10 +20,17 @@ function fireGtagEvent(eventName: string, params?: Record<string, string>) {
   } catch {}
 }
 
-export default function HomePageContent() {
+export default function HomePageContent({ guideLangs = [] }: { guideLangs?: string[] }) {
   const { t } = useTranslation();
   const { locale, setLocale } = useLanguage();
   const year = new Date().getFullYear();
+  // Point the Blog link at the current language if it has posts, else the first
+  // language that does — so it never lands on an empty index.
+  const guidesHref = guideLangs.includes(locale)
+    ? `/${locale}/guides`
+    : guideLangs.length > 0
+      ? `/${guideLangs[0]}/guides`
+      : `/${locale}/guides`;
   const [menuOpen, setMenuOpen] = useState(false);
   const [unsubscribed, setUnsubscribed] = useState(false);
 
@@ -455,9 +462,11 @@ export default function HomePageContent() {
           <div className="w-40 shrink-0">
             <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} className="h-10 w-auto brightness-0 invert" />
           </div>
-          <nav className="flex items-center gap-5">
-            <Link href={`/${locale}/guides`} className="text-sm font-bold text-white hover:underline">{GUIDES_LABEL[locale] ?? "Guides"}</Link>
-          </nav>
+          {guideLangs.length > 0 && (
+            <nav className="flex items-center gap-5">
+              <Link href={guidesHref} className="text-sm font-bold text-white hover:underline">{GUIDES_LABEL[locale] ?? "Guides"}</Link>
+            </nav>
+          )}
           <p className="text-xs font-bold text-white/70">{t("common.copyright", { year })}</p>
         </div>
       </footer>

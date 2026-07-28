@@ -7,6 +7,7 @@ import {
   listGuides,
   getGuideLangs,
   GUIDE_LANG_LABEL,
+  GUIDE_LANG_NATIVE,
   type GuideLang,
 } from "@/lib/guides";
 
@@ -53,6 +54,7 @@ export default async function GuidesIndex({
   const { lang } = await params;
   if (!isGuideLang(lang)) notFound();
   const guides = listGuides(lang);
+  const available = getGuideLangs();
   const label = GUIDE_LANG_LABEL[lang as GuideLang];
 
   return (
@@ -71,10 +73,37 @@ export default async function GuidesIndex({
         </div>
       </section>
 
+      {/* Language switcher — only languages that have posts are shown. */}
+      {available.length > 0 && (
+        <section className="w-full border-b border-black/10 bg-[#f7f7f7] px-6 py-4">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2">
+            <span className="mr-2 text-xs font-black uppercase tracking-widest text-black/40">
+              Language
+            </span>
+            {available.map((l) => (
+              <Link
+                key={l}
+                href={`/${l}/guides`}
+                className={`border px-4 py-2 text-sm font-black transition-colors ${
+                  l === lang
+                    ? "border-[#ff7a00] bg-[#ff7a00] text-white"
+                    : "border-black/20 text-black hover:bg-black/5"
+                }`}
+              >
+                {GUIDE_LANG_NATIVE[l]}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="w-full bg-white px-6 py-14">
         <div className="mx-auto max-w-5xl">
           {guides.length === 0 ? (
-            <p className="text-lg font-semibold text-black/60">No guides yet — check back soon.</p>
+            <p className="text-lg font-semibold text-black/60">
+              No guides in {GUIDE_LANG_NATIVE[lang as GuideLang]} yet
+              {available.length > 0 ? " — pick a language above." : " — check back soon."}
+            </p>
           ) : (
             <ul className="divide-y divide-black/10">
               {guides.map((g) => (
