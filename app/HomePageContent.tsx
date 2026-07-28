@@ -7,6 +7,10 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
 
+const GUIDES_LABEL: Record<Locale, string> = {
+  en: "Guides", es: "Guías", fr: "Guides", it: "Guide", pt: "Guias", de: "Ratgeber",
+};
+
 // Fire a GA4 custom event if gtag is available
 function fireGtagEvent(eventName: string, params?: Record<string, string>) {
   try {
@@ -451,6 +455,9 @@ export default function HomePageContent() {
           <div className="w-40 shrink-0">
             <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} className="h-10 w-auto brightness-0 invert" />
           </div>
+          <nav className="flex items-center gap-5">
+            <Link href={`/${locale}/guides`} className="text-sm font-bold text-white hover:underline">{GUIDES_LABEL[locale] ?? "Guides"}</Link>
+          </nav>
           <p className="text-xs font-bold text-white/70">{t("common.copyright", { year })}</p>
         </div>
       </footer>

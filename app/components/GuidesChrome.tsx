@@ -17,7 +17,7 @@ export default function GuidesChrome({
     <div className="min-h-screen flex flex-col bg-white">
       {/* Header */}
       <header className="w-full bg-black">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-4">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
           <Link href={`/${lang}/guides`} className="flex items-center shrink-0">
             <Image
               src="/camel-logo-white.png"
@@ -25,19 +25,20 @@ export default function GuidesChrome({
               width={180}
               height={60}
               priority
-              className="h-11 w-auto"
+              className="h-8 w-auto sm:h-11"
             />
           </Link>
           <nav className="flex items-center gap-3">
+            {/* On mobile the logo already links to the index — hide the text link */}
             <Link
               href={`/${lang}/guides`}
-              className="text-sm font-bold text-white hover:underline"
+              className="hidden text-sm font-bold text-white hover:underline sm:inline-block"
             >
               {guidesLabel}
             </Link>
             <Link
               href="/partner/signup"
-              className="bg-[#ff7a00] px-4 py-2.5 text-sm font-black text-white transition-opacity hover:opacity-90"
+              className="whitespace-nowrap bg-[#ff7a00] px-3 py-2 text-xs font-black text-white transition-opacity hover:opacity-90 sm:px-4 sm:py-2.5 sm:text-sm"
             >
               Become a partner
             </Link>
