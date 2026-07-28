@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import GuidesChrome from "@/app/components/GuidesChrome";
 import { getGuide, relatedGuides, getAllGuideParams, isGuideLang } from "@/lib/guides";
+import GuideCountryNav from "@/app/components/GuideCountryNav";
 
 export const dynamicParams = true;
 
@@ -77,13 +78,16 @@ export default async function GuidePost({
         </header>
 
         <div className="w-full bg-white px-6 py-14">
+          <div className="mx-auto flex max-w-5xl flex-col gap-8 md:flex-row md:gap-12">
+            <GuideCountryNav lang={lang} selected={guide.country} />
+            <div className="min-w-0 flex-1">
           <div
-            className="guide-body mx-auto max-w-3xl"
+            className="guide-body max-w-3xl"
             dangerouslySetInnerHTML={{ __html: stripLeadingH1(guide.html) }}
           />
 
           {/* Partner-signup CTA — the portal funnel */}
-          <div className="mx-auto mt-14 max-w-3xl border-t border-black/10 pt-10">
+          <div className="mt-14 max-w-3xl border-t border-black/10 pt-10">
             <div className="bg-black px-8 py-10 text-center">
               <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">
                 Grow your car hire business
@@ -101,7 +105,7 @@ export default async function GuidePost({
           </div>
 
           {related.length > 0 && (
-            <div className="mx-auto mt-14 max-w-3xl">
+            <div className="mt-14 max-w-3xl">
               <h2 className="mb-6 text-xs font-black uppercase tracking-widest text-black/40">
                 More guides
               </h2>
@@ -122,6 +126,8 @@ export default async function GuidePost({
               </ul>
             </div>
           )}
+            </div>
+          </div>
         </div>
       </article>
     </GuidesChrome>

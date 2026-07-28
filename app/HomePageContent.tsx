@@ -24,13 +24,10 @@ export default function HomePageContent({ guideLangs = [] }: { guideLangs?: stri
   const { t } = useTranslation();
   const { locale, setLocale } = useLanguage();
   const year = new Date().getFullYear();
-  // Point the Blog link at the current language if it has posts, else the first
-  // language that does — so it never lands on an empty index.
-  const guidesHref = guideLangs.includes(locale)
-    ? `/${locale}/guides`
-    : guideLangs.length > 0
-      ? `/${guideLangs[0]}/guides`
-      : `/${locale}/guides`;
+  // Blog link always follows the UI language (so the index heading matches the
+  // switcher). The index aggregates posts across all languages, so /en/guides
+  // still surfaces the Spanish posts under their country.
+  const guidesHref = `/${locale}/guides`;
   const [menuOpen, setMenuOpen] = useState(false);
   const [unsubscribed, setUnsubscribed] = useState(false);
 
