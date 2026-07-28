@@ -11,8 +11,8 @@ import {
   countryName,
   GUIDE_LANG_LABEL,
   PRIMARY_GUIDE_LANG,
-  type GuideLang,
 } from "@/lib/guides";
+import { GuidesHero } from "@/app/components/GuidesText";
 
 export const dynamicParams = true;
 
@@ -68,19 +68,16 @@ export default async function GuidesIndex({
       ? country.toUpperCase()
       : countries[0]?.code ?? null;
   const posts = selected ? guidesByCountry(selected) : listAllGuides();
-  const label = GUIDE_LANG_LABEL[lang as GuideLang];
 
   return (
     <GuidesChrome lang={lang}>
+      {/* Hero — title + subtitle follow the site language switcher */}
       <section className="w-full bg-black px-6 py-14 text-white sm:py-16">
         <div className="mx-auto max-w-5xl">
           <p className="mb-3 text-sm font-black uppercase tracking-widest text-[#ff7a00]">
             Camel Global Partners
           </p>
-          <h1 className="mb-4 text-4xl font-black leading-tight text-white md:text-5xl">{label}</h1>
-          <p className="max-w-2xl text-lg font-semibold leading-relaxed text-white/90">
-            Grow your car hire business — choose a country to explore.
-          </p>
+          <GuidesHero />
         </div>
       </section>
 

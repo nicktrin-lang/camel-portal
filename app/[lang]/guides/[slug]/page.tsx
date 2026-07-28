@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import GuidesChrome from "@/app/components/GuidesChrome";
 import { getGuide, relatedGuides, getAllGuideParams, isGuideLang } from "@/lib/guides";
 import GuideCountryNav from "@/app/components/GuideCountryNav";
+import { GuidesCta } from "@/app/components/GuidesText";
 
 export const dynamicParams = true;
 
@@ -86,22 +87,9 @@ export default async function GuidePost({
             dangerouslySetInnerHTML={{ __html: stripLeadingH1(guide.html) }}
           />
 
-          {/* Partner-signup CTA — the portal funnel */}
+          {/* Partner-signup CTA — chrome text follows the site language switcher */}
           <div className="mt-14 max-w-3xl border-t border-black/10 pt-10">
-            <div className="bg-black px-8 py-10 text-center">
-              <p className="mb-2 text-sm font-black uppercase tracking-widest text-[#ff7a00]">
-                Grow your car hire business
-              </p>
-              <h2 className="mb-6 text-2xl font-black text-white md:text-3xl">
-                Become a Camel Global partner
-              </h2>
-              <Link
-                href="/"
-                className="inline-block w-full max-w-md bg-[#ff7a00] px-8 py-6 text-xl font-black uppercase tracking-wide text-white transition-opacity hover:opacity-90 sm:w-auto sm:px-16"
-              >
-                Join Now
-              </Link>
-            </div>
+            <GuidesCta />
           </div>
 
           {related.length > 0 && (
