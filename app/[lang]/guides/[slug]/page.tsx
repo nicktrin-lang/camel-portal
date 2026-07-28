@@ -92,7 +92,7 @@ export default async function GuidePost({
                 Become a Camel Global partner
               </h2>
               <Link
-                href="/partner/signup"
+                href="/"
                 className="inline-block w-full max-w-md bg-[#ff7a00] px-8 py-6 text-xl font-black uppercase tracking-wide text-white transition-opacity hover:opacity-90 sm:w-auto sm:px-16"
               >
                 Join Now

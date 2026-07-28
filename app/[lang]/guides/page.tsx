@@ -4,8 +4,11 @@ import { notFound } from "next/navigation";
 import GuidesChrome from "@/app/components/GuidesChrome";
 import {
   isGuideLang,
-  listGuides,
   getGuideLangs,
+  getGuideCountries,
+  guidesByCountry,
+  listAllGuides,
+  countryName,
   GUIDE_LANG_LABEL,
   type GuideLang,
 } from "@/lib/guides";
@@ -47,60 +50,99 @@ export async function generateMetadata({
 
 export default async function GuidesIndex({
   params,
+  searchParams,
 }: {
   params: Promise<{ lang: string }>;
+  searchParams: Promise<{ country?: string }>;
 }) {
   const { lang } = await params;
   if (!isGuideLang(lang)) notFound();
-  const guides = listGuides(lang);
+  const { country } = await searchParams;
+
+  const countries = getGuideCountries();
+  const selected =
+    country && countries.some((c) => c.code === country.toUpperCase())
+      ? country.toUpperCase()
+      : countries[0]?.code ?? null;
+  const posts = selected ? guidesByCountry(selected) : listAllGuides();
   const label = GUIDE_LANG_LABEL[lang as GuideLang];
 
   return (
     <GuidesChrome lang={lang}>
-      <section className="w-full bg-black px-6 py-16 text-white">
+      <section className="w-full bg-black px-6 py-14 text-white sm:py-16">
         <div className="mx-auto max-w-5xl">
           <p className="mb-3 text-sm font-black uppercase tracking-widest text-[#ff7a00]">
             Camel Global Partners
           </p>
-          <h1 className="mb-4 text-4xl font-black leading-tight text-white md:text-5xl">
-            {label}
-          </h1>
+          <h1 className="mb-4 text-4xl font-black leading-tight text-white md:text-5xl">{label}</h1>
           <p className="max-w-2xl text-lg font-semibold leading-relaxed text-white/90">
-            Grow your car hire business with meet &amp; greet bookings from real travellers.
+            Grow your car hire business — choose a country to explore.
           </p>
         </div>
       </section>
 
-      <section className="w-full bg-white px-6 py-14">
-        <div className="mx-auto max-w-5xl">
-          {guides.length === 0 ? (
-            <p className="text-lg font-semibold text-black/60">No guides yet — check back soon.</p>
-          ) : (
-            <ul className="divide-y divide-black/10">
-              {guides.map((g) => (
-                <li key={g.slug} className="py-8 first:pt-0">
-                  <Link href={`/${lang}/guides/${g.slug}`} className="group block">
-                    {g.date && (
-                      <p className="mb-2 text-xs font-black uppercase tracking-widest text-[#ff7a00]">
-                        {fmtDate(g.date, lang)}
-                      </p>
-                    )}
-                    <h2 className="text-2xl font-black leading-snug text-black transition-colors group-hover:text-[#ff7a00] md:text-3xl">
-                      {g.title}
-                    </h2>
-                    {g.description && (
-                      <p className="mt-2 max-w-2xl text-base font-medium leading-relaxed text-black/60">
-                        {g.description}
-                      </p>
-                    )}
-                    <span className="mt-3 inline-block text-sm font-black uppercase tracking-widest text-black transition-colors group-hover:text-[#ff7a00]">
-                      Read guide →
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+      <section className="w-full bg-white px-6 py-12 sm:py-14">
+        <div className="mx-auto flex max-w-5xl flex-col gap-8 md:flex-row md:gap-12">
+          {/* Country nav */}
+          <aside className="shrink-0 md:w-56">
+            <p className="mb-3 text-xs font-black uppercase tracking-widest text-black/40">Countries</p>
+            {countries.length === 0 ? (
+              <p className="text-sm font-semibold text-black/50">No guides yet.</p>
+            ) : (
+              <ul className="flex flex-row flex-wrap gap-2 md:flex-col md:gap-1">
+                {countries.map((c) => {
+                  const active = c.code === selected;
+                  return (
+                    <li key={c.code}>
+                      <Link
+                        href={`/${lang}/guides?country=${c.code}`}
+                        className={`flex items-center justify-between gap-3 border px-4 py-2.5 text-sm font-black transition-colors md:border-0 md:border-l-4 md:px-3 ${
+                          active
+                            ? "border-[#ff7a00] bg-[#ff7a00] text-white md:bg-transparent md:text-black"
+                            : "border-black/15 text-black/70 hover:bg-black/5 md:border-transparent md:hover:border-black/20"
+                        }`}
+                      >
+                        <span>{countryName(c.code)}</span>
+                        <span className={active ? "text-white md:text-[#ff7a00]" : "text-black/30"}>{c.count}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </aside>
+
+          {/* Posts */}
+          <div className="flex-1">
+            {posts.length === 0 ? (
+              <p className="text-lg font-semibold text-black/60">No guides yet — check back soon.</p>
+            ) : (
+              <ul className="divide-y divide-black/10">
+                {posts.map((g) => (
+                  <li key={`${g.lang}/${g.slug}`} className="py-7 first:pt-0">
+                    <Link href={`/${g.lang}/guides/${g.slug}`} className="group block">
+                      {g.date && (
+                        <p className="mb-2 text-xs font-black uppercase tracking-widest text-[#ff7a00]">
+                          {fmtDate(g.date, g.lang)}
+                        </p>
+                      )}
+                      <h2 className="text-2xl font-black leading-snug text-black transition-colors group-hover:text-[#ff7a00] md:text-3xl">
+                        {g.title}
+                      </h2>
+                      {g.description && (
+                        <p className="mt-2 max-w-2xl text-base font-medium leading-relaxed text-black/60">
+                          {g.description}
+                        </p>
+                      )}
+                      <span className="mt-3 inline-block text-sm font-black uppercase tracking-widest text-black transition-colors group-hover:text-[#ff7a00]">
+                        Read guide →
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </section>
     </GuidesChrome>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import HomePageContent from "./HomePageContent";
+import { getGuideLangs } from "@/lib/guides";
 
 export const metadata: Metadata = {
   title: "Join Camel Global | Meet & Greet Car Hire Partner Portal Spain",
@@ -8,5 +9,8 @@ export const metadata: Metadata = {
 };
 
 export default function PortalHomePage() {
-  return <HomePageContent />;
+  // Languages that actually have guides — so the footer Blog link never lands on
+  // an empty index (portal content is currently Spanish while the UI defaults to
+  // English). Computed server-side; the client picks the best match.
+  return <HomePageContent guideLangs={getGuideLangs()} />;
 }
