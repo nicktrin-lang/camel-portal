@@ -304,3 +304,35 @@ payout. Ask LK explicitly before finalising the economics.
 Sandbox Global Payouts enablement (acct_1TwWcWG5yRPYnAl6): still pending Stripe's
 internal team. LK also requested a screen recording of the "only UK bank account
 accepted" error for the MCS currency-add step.
+
+### RESOLVED — double-FX question answered by Stripe (Anannya, 2026-07-28)
+The open double-FX question is now settled definitively:
+
+- **DEFAULT (no ACP): DOUBLE conversion, ~3–4% all-in.** AUD charge → GBP at
+  settlement, then GBP → AUD at payout. Confirmed: the partner's AUD round-trips
+  through GBP, exactly the wasteful case we flagged.
+- **WITH ACP (Alternative Currency Payout): SINGLE conversion, ~1–2%.** ACP lets
+  the platform RETAIN an AUD balance and fund Global Payouts directly from it,
+  skipping the AUD→GBP leg.
+
+**ACP is the linchpin for BOTH legs** (commission settled as AUD, and partner
+payouts at ~1–2% instead of ~3–4%). It requires a **GB-domiciled bank account
+that HOLDS AUD** — e.g. a Wise UK account with a UK sort code / account number
+denominated in AUD. An Australian BSB account is NOT supported in this flow (which
+is why the settlement-currency dialog offered no Australia and wanted a GB IBAN).
+
+**Prerequisites to get the good (~1–2%) economics:**
+1. Obtain a GB-domiciled AUD-holding account (Wise UK sort code/account set to AUD)
+   — NOT the Australian BSB details. Confirm Wise can provide this.
+2. Confirm ACP is enabled on acct_1TggMl5bphnFcs5n (may need to request from Stripe).
+3. Add AUD (and NZD) as a settlement currency using that GB-domiciled account.
+
+**CODE IMPLICATION (for when ACP is live):** the OutboundPayment must fund from the
+retained AUD balance (ACP), NOT the GBP financial account, to get the single
+conversion. Our per-booking fee capture records whatever the quote returns either
+way, so reporting is correct regardless — but the `from` source must point at the
+AUD balance once ACP is set up. Not actionable until ACP + the Wise account exist.
+
+**Business decision (Nick's):** AU/NZ payouts cost ~1–2% WITH ACP or ~3–4% WITHOUT.
+Set up ACP before AU goes live properly, or accept the ~3–4% margin hit. Not a
+go-live blocker for the code (Path A works either way) — it's a cost/setup choice.
