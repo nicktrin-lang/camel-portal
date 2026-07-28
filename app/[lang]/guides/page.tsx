@@ -10,6 +10,7 @@ import {
   listAllGuides,
   countryName,
   GUIDE_LANG_LABEL,
+  PRIMARY_GUIDE_LANG,
   type GuideLang,
 } from "@/lib/guides";
 
@@ -39,12 +40,14 @@ export async function generateMetadata({
   const title = `${label} for Partners — Camel Global`;
   const description =
     "Guides for car hire companies: how to become a Camel Global partner, win bookings, and get paid.";
+  // All language variants of the aggregated index consolidate to one canonical.
+  const canonical = `${SITE}/${PRIMARY_GUIDE_LANG}/guides`;
   return {
     title: { absolute: title },
     description,
     robots: { index: true, follow: true },
-    alternates: { canonical: `${SITE}/${lang}/guides` },
-    openGraph: { title, description, url: `${SITE}/${lang}/guides`, type: "website" },
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical, type: "website" },
   };
 }
 
