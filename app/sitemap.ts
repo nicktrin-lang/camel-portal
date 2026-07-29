@@ -1,6 +1,12 @@
 import type { MetadataRoute } from "next";
 import { getGuideLangs, listGuides, getAllGuideParams, PRIMARY_GUIDE_LANG } from "@/lib/guides";
 
+// Read guide content at BUILD time and bake the URLs in. A dynamic sitemap can't
+// reach content/guides on Vercel (outputFileTracingIncludes doesn't apply to
+// metadata routes), and a stale prerender never picks up new content — forcing a
+// fresh static render each build keeps the sitemap in step with the posts.
+export const dynamic = "force-static";
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = "https://portal.camel-global.com";
   const now  = new Date();
