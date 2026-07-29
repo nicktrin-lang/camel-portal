@@ -336,3 +336,29 @@ AUD balance once ACP is set up. Not actionable until ACP + the Wise account exis
 **Business decision (Nick's):** AU/NZ payouts cost ~1–2% WITH ACP or ~3–4% WITHOUT.
 Set up ACP before AU goes live properly, or accept the ~3–4% margin hit. Not a
 go-live blocker for the code (Path A works either way) — it's a cost/setup choice.
+
+### RESOLVED (2026-07-29) — Stripe (Anannya) closed all three open AU/NZ items
+Reply covering the three outstanding questions:
+
+1. **ACP / Multi-Currency Settlement — SELF-SERVE.** Enable it yourself:
+   Dashboard → **Settings → Connect → Multi-Currency Settlement** toggle. No
+   Stripe-side request needed. Retires the "exact steps to enable MCS/ACP" open
+   question and the classic-MCS-vs-ACP confusion above — the Settings→Connect
+   toggle IS the path. ⚠️ **Verify on enabling** that it gives the PLATFORM a
+   retained AUD balance to fund OutboundPayments (the ACP behaviour our economics
+   depend on), not merely per-connected-account settlement — the reply's "for your
+   connected accounts" wording is slightly ambiguous, and our rail funds Global
+   Payouts recipients, not connected accounts.
+2. **Wise UK AUD account — CONFIRMED correct.** A Wise UK account with a UK sort
+   code / account number denominated in AUD (NOT the Australian BSB) is the right
+   vehicle. Cleared to arrange with Wise. Closes prerequisite #1 above.
+3. **Sandbox Global Payouts — ENABLED** on `acct_1TwWcWG5yRPYnAl6`. Sandbox
+   testing of the Global Payouts rail is now unblocked. NOTE: this **supersedes
+   the earlier "LIVE MODE ONLY, no sandbox" claim** — trust this newer
+   confirmation; verify `lib/portal/stripeGlobalPayouts.ts` (still "written from
+   docs, unverified") against the sandbox before going live.
+
+Remaining to reach the good (~1–2%) economics: (a) toggle MCS/ACP, (b) open the
+Wise UK AUD account, (c) add AUD (+NZD) as a settlement currency using it. The
+code (Path A / Units 1–6) works either way; ACP only changes the OutboundPayment
+`from` source (retained AUD balance vs GBP) and the resulting FX cost.
