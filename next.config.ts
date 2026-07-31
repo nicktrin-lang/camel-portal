@@ -36,7 +36,15 @@ const nextConfig: NextConfig = {
     "/sitemap.xml/route": ["./content/guides/**/*"],
   },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    const noindex = [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      // Explicit noindex for internal / logged-in areas (belt-and-suspenders
+      // alongside the robots.txt Disallow). Partner is mixed: signup/terms/privacy
+      // stay indexable, everything else under /partner is noindex.
+      { source: "/(admin|driver)/:path*", headers: noindex },
+      { source: "/partner/:path((?!signup|terms|privacy).*)", headers: noindex },
+    ];
   },
 };
 
