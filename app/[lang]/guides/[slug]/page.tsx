@@ -60,40 +60,44 @@ export default async function GuidePost({
     <GuidesChrome lang={lang}>
       <article className="w-full">
         <header className="w-full bg-black px-6 pt-12 pb-10 text-white">
-          <div className="mx-auto max-w-3xl">
-            <Link
-              href={`/${lang}/guides`}
-              className="mb-6 inline-block text-xs font-black uppercase tracking-widest text-[#ff7a00] hover:underline"
-            >
-              ← Camel Global Guides
-            </Link>
-            {guide.date && (
-              <p className="mb-3 text-xs font-black uppercase tracking-widest text-white/50">
-                {fmtDate(guide.date, lang)}
-              </p>
-            )}
-            <h1 className="text-3xl font-black leading-tight text-white md:text-5xl">
-              {guide.title}
-            </h1>
+          <div className="mx-auto flex max-w-6xl flex-col gap-8 md:flex-row md:gap-12">
+            {/* Spacer matches the country nav below so the title lines up with the body */}
+            <div className="hidden shrink-0 md:block md:w-56" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <Link
+                href={`/${lang}/guides`}
+                className="mb-6 inline-block text-xs font-black uppercase tracking-widest text-[#ff7a00] hover:underline"
+              >
+                ← Camel Global Guides
+              </Link>
+              {guide.date && (
+                <p className="mb-3 text-xs font-black uppercase tracking-widest text-white/50">
+                  {fmtDate(guide.date, lang)}
+                </p>
+              )}
+              <h1 className="text-3xl font-black leading-tight text-white md:text-5xl">
+                {guide.title}
+              </h1>
+            </div>
           </div>
         </header>
 
         <div className="w-full bg-white px-6 py-14">
-          <div className="mx-auto flex max-w-5xl flex-col gap-8 md:flex-row md:gap-12">
+          <div className="mx-auto flex max-w-6xl flex-col gap-8 md:flex-row md:gap-12">
             <GuideCountryNav lang={lang} selected={guide.country} />
             <div className="min-w-0 flex-1">
           <div
-            className="guide-body max-w-3xl"
+            className="guide-body"
             dangerouslySetInnerHTML={{ __html: stripLeadingH1(guide.html) }}
           />
 
           {/* Partner-signup CTA — chrome text follows the site language switcher */}
-          <div className="mt-14 max-w-3xl border-t border-black/10 pt-10">
+          <div className="mt-14 border-t border-black/10 pt-10">
             <GuidesCta />
           </div>
 
           {related.length > 0 && (
-            <div className="mt-14 max-w-3xl">
+            <div className="mt-14">
               <h2 className="mb-6 text-xs font-black uppercase tracking-widest text-black/40">
                 More guides
               </h2>
