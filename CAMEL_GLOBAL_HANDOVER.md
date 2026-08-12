@@ -22,7 +22,49 @@ Working Rules
 - camel-coming-soon is a submodule and always shows modified — ignore it, never `git add` it;
   always `git add <specific-file>`, never `git add .`.
 ═══════════════════════════════════════════════════════════════════════════════
-LATEST SESSION — 2026-07-29  (read this first)
+LATEST SESSION — 2026-08-12  (read this first)
+═══════════════════════════════════════════════════════════════════════════════
+Repo hygiene + doc truth-up: AU/NZ branch was merged all along and the docs said otherwise
+
+## 🧭 State of the repos (verified, not assumed)
+- Both repos pulled to `origin/main` and clean: portal `e6b1d5d`, customer `cb2b119`. The 28
+  portal / 25 customer commits that had accumulated since 2026-08-01 are **100% Growth Engine
+  guide content** — `git diff --stat` excluding `content/guides` is empty in both. No code moved.
+- **The portal working tree had been sitting on `claude/onboarding-country-aunz-9bc42f`, 10
+  commits behind `main`.** That branch is fully merged (PR #5) — `git merge-base --is-ancestor`
+  confirms. Any session that resumed on it would have been editing a stale, already-merged
+  branch. Both repos are now on `main`. **Start every session with `git status` + `git pull`.**
+
+## ✅ Corrected this session (docs were lying about shipped code)
+The AU/NZ Global Payouts rail (Units 1–6) has been on `main` since PR #5, but three docs still
+described it as unbuilt. All corrected against the actual source:
+- `CLAUDE.md` §5 said *"On `main` the cron skips this rail and leaves the booking `ready` — AU/NZ
+  payouts are manual until P5 lands."* **False.** `app/cron/monthly-payout/route.ts` implements
+  the full pipeline: rail derived from canonical **country** (not the stored `payout_rail` flag,
+  so a stale `connect` can't misroute an AU/NZ partner into a failing transfer) → requires
+  `stripe_recipient_id` AND `recipient_payouts_enabled` → financial-account balance check →
+  recipient payout method (refuses to let Stripe pick one) → quote → OutboundPayment, idempotency
+  `gp_payout_${partner}_${YYYYMM}_${ccy}_${hash}`. Failures leave the booking `ready` + email admin.
+- `CLAUDE.md` §5 said `paying` was *"designed, not implemented."* **It is implemented**, on the
+  AU/NZ rail only, meaning *dispatched, not delivered* (OutboundPayments settle in 1–7 days and
+  can be returned). `/api/webhooks/stripe-v2` promotes `paying`→`paid` on `posted`, or back to
+  `ready` on failed/returned/canceled. In-corridor transfers still go `ready`→`paid` in one pass.
+  The design's separate `paying` *claim* state (concurrency guard) genuinely isn't built.
+- The architecture map's cron row + the AU/NZ blocks below in this file — same correction.
+
+## ⚠️ Merged ≠ verified (the important distinction)
+`lib/portal/stripeGlobalPayouts.ts` is merged and wired in, but **has still never run against
+Stripe** — every v2 call shape in it was written from docs. `scripts/verify-global-payouts-sandbox.ts`
+(committed this session; it was sitting untracked on Nick's machine and existed nowhere else) is
+the harness: sandbox-only, refuses a live key, stops at the quote, moves no money.
+Run: `STRIPE_SANDBOX_SECRET_KEY=sk_test_… npx tsx scripts/verify-global-payouts-sandbox.ts`.
+
+## ⏳ Next AU/NZ steps (unchanged, still Nick's)
+See PENDING below — MCS/ACP, the GB-domiciled AUD account, then the sandbox harness, then
+Kingsman re-onboarding (`KINGSMAN_REONBOARD_EMAIL.md`).
+
+═══════════════════════════════════════════════════════════════════════════════
+PREVIOUS SESSION — 2026-07-29
 ═══════════════════════════════════════════════════════════════════════════════
 Guides polish · SITEMAP root-cause fix · never-merge workflow · Vercel cost · Stripe AU/NZ confirms
 
@@ -85,8 +127,11 @@ Guides polish · SITEMAP root-cause fix · never-merge workflow · Vercel cost �
   DENOMINATED IN AUD (not Australian BSB) — confirmed correct; (3) sandbox Global Payouts is
   ENABLED on `acct_1TwWcWG5yRPYnAl6` (supersedes the earlier "live only, no sandbox" claim). Then
   dev-test `lib/portal/stripeGlobalPayouts.ts` (still "written from docs, unverified") against the
-  sandbox. AU/NZ code (Units 1-6) lives on branch `claude/onboarding-country-aunz-9bc42f`, not
-  merged.
+  sandbox — use `scripts/verify-global-payouts-sandbox.ts`.
+  *(Corrected 2026-08-12: this line used to end "AU/NZ code (Units 1-6) lives on branch
+  `claude/onboarding-country-aunz-9bc42f`, not merged." That branch WAS merged via PR #5. The code
+  is on `main`; what remains outstanding is the dashboard setup and sandbox verification, not the
+  build.)*
 - **Growth Engine country/language** is set per project via its Target Countries setting in the
   Growth Engine app (`~/growth-engine`, a SEPARATE repo). Nick manages this himself (had the wrong
   country set once → an English UK post landed in the ES portal). Not a Camel-side concern.
@@ -110,7 +155,10 @@ PREVIOUS SESSION — 2026-07-23
   single-currency guard + settled_at basis; report Stripe-fee bucket). Dead row 1000167 reconciled
   (settled €2.50, no money moved).
 
-## 🚧 IN PROGRESS — AU/NZ Global Payouts (branch `claude/onboarding-country-aunz-9bc42f`, PR open)
+## ✅ MERGED — AU/NZ Global Payouts (was branch `claude/onboarding-country-aunz-9bc42f`; PR #5 merged)
+> **Superseded 2026-08-12.** This section is kept for the SDK-gap and design rationale, which are
+> still true. Its "STILL TO DO" list is NOT — Phases 3/4/5 all shipped and are on `main` (see the
+> latest-session block at the top). The code is unverified against Stripe, not unbuilt.
 - **DB schema for Chat 59 is ALREADY fully applied** (stripe_recipient_id, payout_rail, charge_model,
   outbound_payment_id/quote_id, stripe_fee_total/breakdown, partner_recovery_ledger). No migrations.
 - **SDK GAP (important):** npm `stripe@22.1.1` does NOT expose the Global Payouts v2 preview APIs
