@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import HCaptcha from "@/app/components/HCaptcha";
+import Turnstile from "@/app/components/Turnstile";
 import { CITIES, citiesByCountry, type CityEntry } from "@/lib/cities";
 import { downloadPartnerTermsPDF } from "@/lib/portal/partnerTerms";
 import { useTranslation } from "@/lib/i18n/useTranslation";
@@ -431,7 +431,7 @@ function Step5({ data, onChange, onBack, onSubmit, submitting, error, onCaptchaV
           </span>
         </label>
       </div>
-      <HCaptcha key={captchaKey} onVerify={onCaptchaVerify} onExpire={() => onCaptchaVerify("")} />
+      <Turnstile key={captchaKey} onVerify={onCaptchaVerify} onExpire={() => onCaptchaVerify("")} />
       <div className="border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
         <p className="font-black">{t("signup.step5.whatNext")}</p>
         <p className="mt-1 font-semibold">{t("signup.step5.whatNextBody")}</p>

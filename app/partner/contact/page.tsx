@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import HCaptcha from "@/app/components/HCaptcha";
+import Turnstile from "@/app/components/Turnstile";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 const inputCls = "w-full border border-black/10 bg-[#f0f0f0] px-4 py-3 text-sm font-bold outline-none focus:border-black placeholder:text-black/30";
@@ -158,7 +158,7 @@ export default function PartnerContactPage() {
                   <p className="mt-1 text-right text-xs font-bold text-black/30">{message.length}/5000</p>
                 </div>
 
-                <HCaptcha key={captchaKey}
+                <Turnstile key={captchaKey}
                   onVerify={token => setCaptchaToken(token)}
                   onExpire={() => setCaptchaToken(null)} />
 
