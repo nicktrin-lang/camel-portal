@@ -160,11 +160,22 @@ Guides polish · SITEMAP root-cause fix · never-merge workflow · Vercel cost �
   admin account, which is in the branch-ruleset bypass list, so it opens AND merges its own
   `growth-engine/*` guide PRs with no review. No Camel-side auto-merge workflow is needed (one was
   drafted then deleted as redundant). New posts land as `content/guides/<lang>/<slug>.md`.
-- **Never-merge-PRs:** Nick added a Claude Code permission rule `Bash(gh pr merge:*)`. Claude now
-  merges its own code PRs via `gh pr merge <n> --admin --squash --delete-branch`. Nick merges
-  nothing. NOTE: the session safety classifier blocks direct `git push origin main`, `gh` merge
-  WITHOUT that rule, ruleset edits, and committing GitHub workflow files — the permission rule is
-  what unblocks gh merge.
+- **Never-merge-PRs:** the permission rule `Bash(gh pr merge:*)` lets Claude merge its own code PRs
+  via `gh pr merge <n> --admin --squash --delete-branch`. Nick merges nothing. NOTE: the session
+  safety classifier blocks direct `git push origin main`, `gh` merge WITHOUT that rule, ruleset
+  edits, and committing GitHub workflow files — the permission rule is what unblocks gh merge.
+  - **It lives in `~/.claude/settings.json` (USER scope), re-added 2026-08-12** — it had gone
+    missing, and a whole session's PRs sat unmerged because of it. User scope matters: project
+    scope would not cover `camel-customer`. Claude **cannot add this itself** (self-granting
+    permissions is blocked, correctly) — if merges start getting refused, this rule is the first
+    thing to check, and only Nick can restore it:
+    ```
+    ~/.claude/settings.json → {"permissions": {"allow": ["Bash(gh pr merge:*)"]}}
+    ```
+  - **Prefer `--auto` over a bare `--admin` merge** where repo settings allow it
+    (`gh pr merge <n> --auto --squash --delete-branch`): it merges the instant checks go green,
+    which structurally prevents the stale-snapshot failure recorded in the incident above — the
+    PR cannot sit open long enough for someone to push more work onto it.
 - **Vercel "Ignored Build Step" (both projects, current — Nick, 2026-07-29):**
   `[ "$VERCEL_ENV" = "production" ] && exit 1 || exit 0` — builds production, SKIPS previews
   (canceled ~2s) to kill the Preview+Production double-build. This REPLACED the portal's old
