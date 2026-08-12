@@ -63,9 +63,40 @@ Run: `STRIPE_SANDBOX_SECRET_KEY=sk_test_… npx tsx scripts/verify-global-payout
 See PENDING below — MCS/ACP, the GB-domiciled AUD account, then the sandbox harness, then
 Kingsman re-onboarding (`KINGSMAN_REONBOARD_EMAIL.md`).
 
-## 🔐 hCaptcha → Cloudflare Turnstile (BOTH repos)
+## 🔐 hCaptcha → Cloudflare Turnstile (BOTH repos) — ✅ LIVE AND CONFIRMED WORKING
 Swapped everywhere captcha appeared: partner, admin, driver (portal) and customer. Turnstile is
 normally non-interactive, which is the point — no more puzzles.
+**Confirmed on the live site by Nick, 2026-08-12**, after the render-loop fix below.
+
+### 🐛 The render loop that broke login — DO NOT REINTRODUCE
+The first Turnstile deploy made login unusable: solving "verify you are human" instantly re-asked,
+forever. Cause was **`app/components/Turnstile.tsx`**, not Cloudflare or config.
+
+Callers pass inline arrows — `onExpire={() => setLoginToken("")}` — so that prop has a **new
+identity on every render**. The effect listed `onVerify`/`onExpire` as dependencies, so it re-ran
+on every render, and its cleanup destroyed the widget **and reset `widgetId` to null**. Solving the
+challenge therefore destroyed the solved widget and rendered a fresh unsolved one:
+
+> solve → `callback` → `setState` → re-render → new prop identity → cleanup kills the SOLVED
+> widget → a fresh UNSOLVED one renders → repeat
+
+The old hCaptcha component had the **identical** dependency array but its cleanup only set
+`mounted = false`, leaving `widgetId` non-null so re-runs hit the early-return guard. It leaked a
+widget per unmount but never looped. Adding a correct leak-fix removed the guard that was
+accidentally holding it together.
+
+**Fix (shipped):** callbacks held in refs, render effect given an **empty dependency array** so it
+runs once per mount; unmount cleanup kept, so real unmounts still tear down. `key`-based resets
+still work because changing `key` remounts.
+
+**⚠️ Never add `onVerify`/`onExpire` back to that dependency array** to satisfy an
+`exhaustive-deps` lint rule. The empty array is load-bearing and commented as such in the file.
+The same component is byte-identical in both repos — fix both or neither.
+
+**Verification lesson:** every static check passed while login was broken — CSP header, bundle
+contents, site key baked in, all four callbacks wired. A re-render loop only exists on
+**interaction**. For anything interactive, drive the actual widget or ask Nick to; "the right code
+shipped" is not "it works".
 
 **Env vars: DONE** — Nick added `NEXT_PUBLIC_TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` to both
 Vercel projects on 2026-08-12, before the code merged. The old `*_HCAPTCHA_*` vars were left in
@@ -172,10 +203,18 @@ Guides polish · SITEMAP root-cause fix · never-merge workflow · Vercel cost �
     ```
     ~/.claude/settings.json → {"permissions": {"allow": ["Bash(gh pr merge:*)"]}}
     ```
-  - **Prefer `--auto` over a bare `--admin` merge** where repo settings allow it
-    (`gh pr merge <n> --auto --squash --delete-branch`): it merges the instant checks go green,
-    which structurally prevents the stale-snapshot failure recorded in the incident above — the
-    PR cannot sit open long enough for someone to push more work onto it.
+  - **`--admin` is the working merge. `--auto` does NOT fire here — tested 2026-08-12.**
+    Nick enabled "Allow auto-merge" on both repos and `gh pr merge <n> --auto --squash` armed
+    correctly (`autoMergeRequest` set), the Vercel check went `SUCCESS`… and the PR stayed OPEN at
+    `mergeStateStatus: BLOCKED`, `reviewDecision: REVIEW_REQUIRED`. The `main` ruleset requires an
+    approving review, auto-merge waits for **every** requirement including reviews, and Claude
+    cannot approve its own PR. So auto-merge parks forever.
+    **Use `gh pr merge <n> --admin --squash --delete-branch`** — the admin bypass is what actually
+    satisfies the review requirement.
+    To make `--auto` genuinely work, Nick would have to drop the required-review rule (or set
+    required approvals to 0) in the `main` ruleset — a real loosening of branch protection, and his
+    call, not something to assume. Until then `--auto` silently does nothing, which is worse than
+    not using it: **the PR looks handled and isn't.**
 - **Vercel "Ignored Build Step" (both projects, current — Nick, 2026-07-29):**
   `[ "$VERCEL_ENV" = "production" ] && exit 1 || exit 0` — builds production, SKIPS previews
   (canceled ~2s) to kill the Preview+Production double-build. This REPLACED the portal's old
