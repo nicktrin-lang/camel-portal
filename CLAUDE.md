@@ -117,8 +117,15 @@ anything — a comment, an old handover block — describing `transfer_data.dest
 **`payout_status` state machine** (mirrored onto `payments`):
 `held` (charge succeeded) → `ready` (completed, or <48h-cancelled — owed to partner) → `paid`
 (monthly run), plus `cancelled` (>48h cancel, fully refunded, nothing owed). Orthogonal boolean
-`payout_hold` — cron skips it. Design also specifies a `paying` claim state — **designed, not
-implemented.** Don't assume it exists.
+`payout_hold` — cron skips it.
+
+`paying` exists **only on the AU/NZ `global_payouts` rail**, and means *dispatched, not yet
+delivered*: an OutboundPayment is asynchronous (local settlement 1–7 days, can still fail or be
+returned). The cron parks bookings at `paying`; `/api/webhooks/stripe-v2` promotes them to `paid`
+on `posted`, or returns them to `ready` on failed/returned/canceled so the next run retries.
+**In-corridor transfers never use it** — they go `ready` → `paid` in the same cron pass. The
+design's separate `paying` *claim* state (a concurrency guard for the in-corridor run) is still
+designed-but-not-implemented; don't conflate the two.
 
 **Cancellations** (`lib/portal/cancelBooking.ts`): >48h → refund `car_hire + fuel_deposit`,
 `payout_status='cancelled'`. <48h → refund fuel deposit only, partner keeps car hire,
@@ -128,15 +135,30 @@ the cron pay a cancelled booking.
 
 **Every money-moving Stripe call carries a deterministic idempotency key:**
 `charge_${bid_id}` · `fuelrefund_${booking_id}` · `cancelrefund_${booking_id}` ·
-`payout_${partner}_${YYYYMM}_${ccy}_${hash}`. Never add a Stripe money call without one.
+`payout_${partner}_${YYYYMM}_${ccy}_${hash}` (in-corridor transfer) ·
+`gp_payout_${partner}_${YYYYMM}_${ccy}_${hash}` (AU/NZ OutboundPayment).
+Never add a Stripe money call without one.
 
 **Rails — the ONLY difference is the month-end payout call:**
 - **In-corridor** (EUR/GBP/USD/CAD — UK, EEA, US, Canada, Switzerland): `transfers.create` to the
   partner's Express Connect account.
 - **AU/NZ are OUT of corridor** (`payout_rail='global_payouts'`): v2 recipient object +
-  OutboundPaymentQuote → OutboundPayment. **On `main` the cron skips this rail and leaves the
-  booking `ready`** — AU/NZ payouts are manual until P5 lands. Charge, completion and cancellation
-  are identical across both rails.
+  OutboundPaymentQuote → OutboundPayment. Charge, completion and cancellation are identical
+  across both rails.
+
+  **This rail IS implemented and merged on `main`** (Units 1–6, PR #5 — an older handover saying
+  "not merged / manual until P5 lands" is stale). The cron derives the rail from the partner's
+  canonical **country**, not the stored `payout_rail` flag, so a stale `connect` value on an AU/NZ
+  partner can't misroute them into a transfer that would fail `transfers_not_allowed`. It then
+  requires `stripe_recipient_id` **and** `recipient_payouts_enabled`, checks the platform financial
+  account holds the balance, fetches the recipient's payout method (refusing to let Stripe pick
+  one), quotes, pays, and parks the booking at `paying`. Any failure leaves the booking `ready` and
+  emails admin — it never marks money moved that didn't.
+
+  **What is NOT yet proven:** `lib/portal/stripeGlobalPayouts.ts` was written from Stripe docs and
+  has still never run against Stripe. `scripts/verify-global-payouts-sandbox.ts` is the harness for
+  that (sandbox-only, stops before OutboundPayment, moves no money). Live AU/NZ payouts also wait
+  on Nick's dashboard prerequisites — MCS/ACP and a GB-domiciled AUD account. Merged ≠ verified.
 
 ### 6. Invoicing / VAT
 - Camel is a **marketplace intermediary**. The **partner** is the supplier and issues VAT
@@ -205,7 +227,8 @@ or any code comment as current.
 | `app/api/partner/stripe/connect/route.ts` | `stripeCountry()` + settlement currency. Throws on unknown country. Writes `default_currency` back — Stripe is source of truth |
 | `app/api/partner/bids/route.ts` | Bid submission; uses `coerceCurrency()` |
 | `app/api/admin/applications/make-live/route.ts` | Stamps `live_email_sent_at` (email de-dup). Does NOT write status |
-| `app/cron/monthly-payout/route.ts` | Pays `payout_status='ready' AND payout_hold=false` from stored `settled_partner_net`, one idempotency-keyed `transfers.create` per partner per currency, then emits the commission invoice + monthly statement. Skips the `global_payouts` rail (leaves it `ready`) |
+| `app/cron/monthly-payout/route.ts` | Pays `payout_status='ready' AND payout_hold=false` from stored `settled_partner_net`, then emits the commission invoice + monthly statement. **Two rails:** in-corridor = one idempotency-keyed `transfers.create` per partner per currency (`ready`→`paid`); AU/NZ = quote → OutboundPayment (`ready`→`paying`, webhook finishes it). Rail derived from country, not the stored flag. Also reclaims chargeback debt from `partner_recovery_ledger` when the whole debt fits inside the payout |
+| `app/api/webhooks/stripe-v2/route.ts` | v2 `outbound_payment.*` events — promotes `paying`→`paid` on `posted`, or back to `ready` (clearing the outbound ids) on failed/returned/canceled so the next run retries |
 | `app/api/admin/outreach/webhook/route.ts` | Resend webhook, svix-verified |
 
 ### Cron jobs
