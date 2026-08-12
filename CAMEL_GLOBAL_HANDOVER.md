@@ -63,9 +63,14 @@ Run: `STRIPE_SANDBOX_SECRET_KEY=sk_test_… npx tsx scripts/verify-global-payout
 See PENDING below — MCS/ACP, the GB-domiciled AUD account, then the sandbox harness, then
 Kingsman re-onboarding (`KINGSMAN_REONBOARD_EMAIL.md`).
 
-## 🔐 hCaptcha → Cloudflare Turnstile (BOTH repos) — ⚠️ DO NOT MERGE BEFORE THE ENV VARS EXIST
+## 🔐 hCaptcha → Cloudflare Turnstile (BOTH repos)
 Swapped everywhere captcha appeared: partner, admin, driver (portal) and customer. Turnstile is
 normally non-interactive, which is the point — no more puzzles.
+
+**Env vars: DONE** — Nick added `NEXT_PUBLIC_TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` to both
+Vercel projects on 2026-08-12, before the code merged. The old `*_HCAPTCHA_*` vars were left in
+place (correctly — hCaptcha was still the deployed code until this landed) and can be deleted from
+Vercel once the live CSP shows `challenges.cloudflare.com`.
 
 **Deliberately a drop-in.** `app/components/Turnstile.tsx` keeps the old component's exact props
 (`onVerify` / `onExpire`, `""` meaning no-token), so the 11 call sites changed by only their
@@ -85,21 +90,31 @@ still differ from EN), the customer locale key `contact.hcaptcha` → `contact.t
 cookie-policy third-party list. `HCaptcha.tsx` + `lib/hcaptcha.ts` deleted from both repos.
 `npx tsc --noEmit` clean in both.
 
-**🚨 Deploy order matters — this fails CLOSED.** With no site key the widget renders nothing, so
-no token is produced and every protected form (login, signup, forgot-password, contact) rejects
-the submit. **Set the env vars in Vercel FIRST, then merge:**
-- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` — on **both** Vercel projects,
-  all environments (production + preview).
-- Create the widget at Cloudflare → Turnstile. Add every host that serves a form:
-  `camel-global.com`, `www.camel-global.com`, `test.camel-global.com`,
-  `portal.camel-global.com`, `test-portal.camel-global.com` (plus `localhost` for dev).
-- Widget mode **Managed** is the recommended default — Cloudflare decides from browser signals
-  and almost never shows an interactive challenge.
-- The old `NEXT_PUBLIC_HCAPTCHA_SITE_KEY` / `HCAPTCHA_SECRET_KEY` vars are dead once merged and
-  can be deleted from Vercel afterwards.
-- Cloudflare publishes always-pass test keys (site `1x00000000000000000000AA`, secret
-  `1x0000000000000000000000000000000AA`) if you want to smoke-test a preview before the real ones.
+**This fails CLOSED.** With no site key the widget renders nothing, so no token is produced and
+every protected form (login, signup, forgot-password, contact) rejects the submit. That is why the
+env vars had to exist before the code merged. Registered hosts on the Cloudflare widget:
+`camel-global.com`, `www.camel-global.com`, `test.camel-global.com`, `portal.camel-global.com`,
+`test-portal.camel-global.com`. Mode **Managed**. Cloudflare's always-pass test keys
+(`1x00000000000000000000AA` / `1x0000000000000000000000000000000AA`) are handy for preview smoke tests.
 
+### ⚠️ INCIDENT — a squash merge silently dropped this work (read before batching PRs)
+PRs #63/#67 were opened at 12:45 with docs commits only. Nick merged them at 13:24. The Turnstile
+commits were pushed to those **same branches** at 13:35 — 11 minutes AFTER the merge. A squash
+merge takes the branch as it stands at merge time, so Turnstile never landed, while `main` and both
+live sites carried on serving hCaptcha.
+
+It was then actively disguised: `gh pr edit` was run on the **already-merged** PRs, retitling them
+"+ replace hCaptcha with Cloudflare Turnstile". GitHub allows edits to merged PRs, so #63 read as
+though it had shipped Turnstile while the commit it merged contained none of it.
+
+**Rules this produces:**
+1. **Never push new work onto a PR that is already open and awaiting merge.** Open a second PR.
+   The reviewer acted on what they saw; changing it afterwards invalidates their decision.
+2. **Never `gh pr edit` a merged PR** — the title becomes a lie that outlives the mistake.
+3. **Verify the artefact, not the PR status.** "Merged" is not "deployed". The check that caught
+   this: `git merge-base --is-ancestor <tip> main`, `git ls-tree main | grep <newfile>`, and
+   `curl -sI <domain> | grep -i content-security-policy`.
+   Re-landed as portal #64 / customer #68.
 ═══════════════════════════════════════════════════════════════════════════════
 PREVIOUS SESSION — 2026-07-29
 ═══════════════════════════════════════════════════════════════════════════════
