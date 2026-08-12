@@ -4,7 +4,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import HCaptcha from "@/app/components/HCaptcha";
+import Turnstile from "@/app/components/Turnstile";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function DriverSignupPage() {
@@ -85,7 +85,7 @@ export default function DriverSignupPage() {
                 className="mt-2 w-full border border-black/10 bg-[#f0f0f0] px-4 py-4 text-sm font-bold outline-none focus:border-black"
                 placeholder={t("driver.signup.password.placeholder")} required />
             </div>
-            <HCaptcha key={captchaKey} onVerify={handleCaptcha} onExpire={() => setCaptchaToken("")} />
+            <Turnstile key={captchaKey} onVerify={handleCaptcha} onExpire={() => setCaptchaToken("")} />
             <button type="submit" disabled={loading}
               className="w-full bg-[#ff7a00] px-6 py-4 text-sm font-black text-white hover:opacity-90 transition-opacity disabled:opacity-60">
               {loading ? t("driver.signup.creating") : t("driver.signup.createBtn")}

@@ -6,7 +6,7 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { createAuthSupabaseClient } from "@/lib/supabase/auth-client";
-import HCaptcha from "@/app/components/HCaptcha";
+import Turnstile from "@/app/components/Turnstile";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
 import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
@@ -270,7 +270,7 @@ function PartnerLoginInner() {
                       <input type="password" autoComplete="current-password" required value={password}
                         onChange={e => setPassword(e.target.value)} className={inputCls} placeholder={t("login.password.placeholder")} />
                     </div>
-                    <HCaptcha key={loginKey} onVerify={handleLoginToken} onExpire={() => setLoginToken("")} />
+                    <Turnstile key={loginKey} onVerify={handleLoginToken} onExpire={() => setLoginToken("")} />
                     <button type="submit" disabled={loading}
                       className="w-full bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 disabled:opacity-60 transition-opacity">
                       {loading ? t("login.signingIn") : t("login.signIn")}
@@ -313,7 +313,7 @@ function PartnerLoginInner() {
                         <input type="email" autoComplete="email" required value={email}
                           onChange={e => setEmail(e.target.value)} className={inputCls} placeholder={t("login.email.placeholder")} />
                       </div>
-                      <HCaptcha key={forgotKey} onVerify={handleForgotToken} onExpire={() => setForgotToken("")} />
+                      <Turnstile key={forgotKey} onVerify={handleForgotToken} onExpire={() => setForgotToken("")} />
                       <button type="submit" disabled={resetLoading}
                         className="w-full bg-[#ff7a00] py-4 text-base font-black text-white hover:opacity-90 disabled:opacity-60 transition-opacity">
                         {resetLoading ? t("login.sending") : t("login.sendReset")}

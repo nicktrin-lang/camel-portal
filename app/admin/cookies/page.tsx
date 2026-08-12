@@ -84,7 +84,7 @@ export default function AdminCookiesPage() {
         <div className="bg-white p-8">
           <h2 className="text-xs font-black uppercase tracking-widest text-black mb-4 pb-2 border-b border-black/10">Third-party cookies</h2>
           <p className="text-sm font-bold text-black/70 leading-relaxed">
-            Some features use third-party services that may set their own cookies — including Google Maps (location features) and hCaptcha (bot prevention).
+            Some features use third-party services that may set their own cookies — including Google Maps (location features) and Cloudflare Turnstile (bot prevention).
             These services have their own privacy and cookie policies.
           </p>
         </div>

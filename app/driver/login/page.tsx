@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import HCaptcha from "@/app/components/HCaptcha";
+import Turnstile from "@/app/components/Turnstile";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 async function verifyCaptcha(token: string): Promise<boolean> {
@@ -109,7 +109,7 @@ export default function DriverLoginPage() {
                     className="mt-2 w-full border border-black/10 bg-[#f0f0f0] px-4 py-4 text-sm font-bold outline-none focus:border-black"
                     placeholder={t("driver.login.password.placeholder")} />
                 </div>
-                <HCaptcha key={loginKey} onVerify={handleLoginToken} onExpire={() => setLoginToken("")} />
+                <Turnstile key={loginKey} onVerify={handleLoginToken} onExpire={() => setLoginToken("")} />
                 <button type="submit" disabled={loading}
                   className="w-full bg-[#ff7a00] px-6 py-4 text-sm font-black text-white hover:opacity-90 transition-opacity disabled:opacity-60">
                   {loading ? t("driver.login.signingIn") : t("driver.login.signIn")}
@@ -145,7 +145,7 @@ export default function DriverLoginPage() {
                         className="mt-2 w-full border border-black/10 bg-[#f0f0f0] px-4 py-4 text-sm font-bold outline-none focus:border-black"
                         placeholder={t("driver.login.reset.emailPlaceholder")} />
                     </div>
-                    <HCaptcha key={forgotKey} onVerify={handleForgotToken} onExpire={() => setForgotToken("")} />
+                    <Turnstile key={forgotKey} onVerify={handleForgotToken} onExpire={() => setForgotToken("")} />
                     <button type="submit" disabled={resetLoading}
                       className="w-full bg-[#ff7a00] px-6 py-4 text-sm font-black text-white hover:opacity-90 transition-opacity disabled:opacity-60">
                       {resetLoading ? t("driver.login.reset.sending") : t("driver.login.reset.sendBtn")}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import HCaptcha from "@/app/components/HCaptcha";
+import Turnstile from "@/app/components/Turnstile";
 
 const SUBJECTS = [
   "General enquiry",
@@ -159,7 +159,7 @@ export default function AdminContactPage() {
                   <p className="mt-1 text-right text-xs font-bold text-black/30">{message.length}/5000</p>
                 </div>
 
-                <HCaptcha key={captchaKey}
+                <Turnstile key={captchaKey}
                   onVerify={token => setCaptchaToken(token)}
                   onExpire={() => setCaptchaToken(null)} />
 
@@ -169,7 +169,7 @@ export default function AdminContactPage() {
                 </button>
 
                 <p className="text-center text-xs font-bold text-black/30">
-                  This site is protected by hCaptcha.{" "}
+                  This site is protected by Cloudflare Turnstile.{" "}
                   <a href="/admin/privacy" className="underline hover:text-black/60">Privacy Policy</a>.
                 </p>
               </div>
