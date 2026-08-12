@@ -59,9 +59,26 @@ Stripe** — every v2 call shape in it was written from docs. `scripts/verify-gl
 the harness: sandbox-only, refuses a live key, stops at the quote, moves no money.
 Run: `STRIPE_SANDBOX_SECRET_KEY=sk_test_… npx tsx scripts/verify-global-payouts-sandbox.ts`.
 
-## ⏳ Next AU/NZ steps (unchanged, still Nick's)
-See PENDING below — MCS/ACP, the GB-domiciled AUD account, then the sandbox harness, then
-Kingsman re-onboarding (`KINGSMAN_REONBOARD_EMAIL.md`).
+## ⏳ Next AU/NZ steps — see `AUNZ_GO_LIVE_RUNBOOK.md`
+The ordered path now lives in **`AUNZ_GO_LIVE_RUNBOOK.md`** (added 2026-08-12): dashboard setup →
+sandbox verification → rail migration → Kingsman re-onboarding → first live payout, with an
+owner (Nick vs Claude) and a pass/fail test on every step, plus a table of failure modes. The
+detail still lives in `STRIPE_REWRITE_DESIGN.md` / `AUNZ_PARTNER_JOURNEY.md` — the runbook points
+at them rather than duplicating.
+
+## 🧹 Cleanup done 2026-08-12
+- **Remote branches:** every merged non-Growth-Engine branch deleted in both repos — portal and
+  customer are now `origin/main` only (plus the `growth-engine/*` namespace, deliberately left
+  alone: separate project, ~1082 branches). Unmerged work was preserved as pushed `archive/*` tags
+  first, never discarded: `archive/guides-blog-engine` and
+  `archive/safety-backup-before-rollback` (portal), `archive/guides-blog-engine` and
+  `archive/backup-before-customer-homepage-map` (customer).
+- **`camel-coming-soon` is NOT deployed** — `vercel projects ls` shows only `camel-portal-live` and
+  `camel-customer-live` for Camel. So it needs no favicon and no maintenance; it's a dormant repo,
+  not a live site. (It is also the reason the submodule always shows modified: a `.DS_Store`.)
+- **Still blocked, needs Nick** (the session classifier refuses production-mutating commands):
+  deleting the dead `*_HCAPTCHA_*` vars from both Vercel projects, and deleting the synthetic P3
+  test rows from the production DB (SQL below under "Cleanup still pending").
 
 ## 🔐 hCaptcha → Cloudflare Turnstile (BOTH repos) — ✅ LIVE AND CONFIRMED WORKING
 Swapped everywhere captcha appeared: partner, admin, driver (portal) and customer. Turnstile is
@@ -322,8 +339,12 @@ refund (€50, net €80) · P4 monthly payout (€105 transfer, invoice + state
 
 **Deferred (separate builds, NOT blocking in-corridor EUR/GBP/USD/CAD launch):**
 - **P5 AU/NZ Global Payouts** — Kingsman (AUD) is out-of-corridor. Needs v2 recipient objects +
-  charge to platform balance + explicit OutboundPayment. Cron already branches on
-  `payout_rail === "global_payouts"` and leaves those bookings `ready` (unpaid) for now.
+  charge to platform balance + explicit OutboundPayment.
+  *(STALE as of 2026-08-12 — this bullet used to end "Cron already branches on
+  `payout_rail === 'global_payouts'` and leaves those bookings `ready` (unpaid) for now." That was
+  true in July; P5 shipped and the cron now runs the full quote → OutboundPayment pipeline. It only
+  leaves a booking `ready` when the partner has no payout-ready recipient. See
+  `AUNZ_GO_LIVE_RUNBOOK.md`.)*
 - Optional: add `payout_transfer_id` to admin/partner CSV exports for reconciliation.
 
 ## ✅ DONE & LIVE — Full email LANGUAGE audit (partner + customer)  [2026-07-23]
