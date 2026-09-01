@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import GoogleAnalyticsPageView from "@/app/components/GoogleAnalytics";
+import CookieBanner from "@/app/components/CookieBanner";
 import ChatWidget from "@/app/components/ChatWidget";
 import { LanguageProvider, useLanguage } from "@/lib/i18n/LanguageContext";
 
@@ -30,6 +31,7 @@ function PortalInner({ children }: { children: React.ReactNode }) {
   return (
     <>
       <GoogleAnalyticsPageView />
+      <CookieBanner />
       <main className="flex-1">{children}</main>
       {isLoggedIn && (
         <ChatWidget key={locale} getToken={getToken} apiPath="/api/chat" locale={locale as "en" | "es"} />
