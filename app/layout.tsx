@@ -93,6 +93,20 @@ function htmlLangFromPath(pathname: string): string {
   return m ? m[1] : "en";
 }
 
+// Sitewide Organization schema so search and AI engines have a canonical entity for
+// Camel Global (the partner-recruitment brand). Rendered as JSON-LD in <head>.
+const ORGANIZATION_JSONLD = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Camel Global",
+  url: "https://www.camel-global.com",
+  logo: "https://portal.camel-global.com/camel-logo.png",
+  description:
+    "Spain's meet and greet car hire platform. Camel Global connects car hire partners with travellers at every major Spanish airport - no monthly fees.",
+  areaServed: "ES",
+  sameAs: [] as string[],
+};
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const headerStore = await headers();
   const gaId = getGaId(headerStore.get("host") || "");
@@ -104,10 +118,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSONLD) }}
+        />
         {gaId && (
           <>
             <script dangerouslySetInnerHTML={{
-              __html: `window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=gtag;gtag('js',new Date());gtag('config','${gaId}',{send_page_view:true});`,
+              __html: `window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}window.gtag=gtag;gtag('js',new Date());gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:500});try{if(localStorage.getItem('cookie_consent')==='accepted'){gtag('consent','update',{analytics_storage:'granted'});}}catch(e){}gtag('config','${gaId}',{send_page_view:true});`,
             }} />
             <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`} />
           </>
