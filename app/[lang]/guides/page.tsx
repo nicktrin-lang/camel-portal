@@ -9,7 +9,6 @@ import {
   guidesByCountry,
   listAllGuides,
   countryName,
-  GUIDE_LANG_LABEL,
   PRIMARY_GUIDE_LANG,
 } from "@/lib/guides";
 import { GuidesHero } from "@/app/components/GuidesText";
@@ -55,9 +54,14 @@ export async function generateMetadata({
   if (!isGuideLang(lang)) return {};
   const { country } = await searchParams;
   const code = selectedCountry(country);
-  const label = GUIDE_LANG_LABEL[lang];
   const where = code ? ` in ${countryName(code)}` : "";
-  const title = `${label} for Partners${where} — Camel Global`;
+  // Deliberately ALL-English, not GUIDE_LANG_LABEL[lang]. That produced mongrel titles —
+  // /de/guides?country=PT emitted "Ratgeber for Partners in Portugal — Camel Global",
+  // a German noun bolted onto an English sentence. The index canonicalises to the primary
+  // lang anyway (see below), so one English title for every variant is both correct and
+  // the only one that reads as a sentence. The visible chrome is localised separately, by
+  // the client locale context — it does not come from this URL segment.
+  const title = `Guides for Partners${where} — Camel Global`;
   const description = code
     ? `Guides for car hire companies in ${countryName(code)}: how to become a Camel Global partner, win bookings, and get paid.`
     : "Guides for car hire companies: how to become a Camel Global partner, win bookings, and get paid.";
