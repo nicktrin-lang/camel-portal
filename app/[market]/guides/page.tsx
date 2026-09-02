@@ -3,13 +3,15 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import GuidesChrome from "@/app/components/GuidesChrome";
 import {
-  isGuideLang,
-  getGuideLangs,
+  isGuideMarket,
+  getGuideMarketCodes,
   listGuides,
   getGuideMarkets,
-  countryForLang,
-  langForCountry,
+  marketForCountry,
+  marketCountry,
+  marketHrefLang,
   countryName,
+  MARKET_LANG,
 } from "@/lib/guides";
 import { GuidesHero } from "@/app/components/GuidesText";
 import GuidePostList from "@/app/components/GuidePostList";
@@ -17,7 +19,7 @@ import GuidePostList from "@/app/components/GuidePostList";
 export const dynamicParams = true;
 
 export function generateStaticParams() {
-  return getGuideLangs().map((lang) => ({ lang }));
+  return getGuideMarketCodes().map((market) => ({ market }));
 }
 
 const SITE = "https://portal.camel-global.com";
@@ -40,12 +42,12 @@ function fmtDate(iso: string, lang: string): string {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ lang: string }>;
+  params: Promise<{ market: string }>;
 }): Promise<Metadata> {
-  const { lang } = await params;
-  if (!isGuideLang(lang)) return {};
-  const country = countryForLang(lang);
-  if (!country) return {};
+  const { market } = await params;
+  if (!isGuideMarket(market)) return {};
+  const country = marketCountry(market);
+  if (!listGuides(market).length) return {};
   const where = ` in ${countryName(country)}`;
   // All-English on purpose: a localised noun bolted onto an English sentence produced
   // mongrel titles like "Ratgeber for Partners in Portugal". The guide CONTENT is in the
@@ -53,13 +55,13 @@ export async function generateMetadata({
   const title = `Guides for Partners${where} — Camel Global`;
   const description = `Guides for car hire companies in ${countryName(country)}: how to become a Camel Global partner, win bookings, and get paid.`;
   // Self-canonical. This is the one indexable URL for this market.
-  const canonical = `${SITE}/${lang}/guides`;
+  const canonical = `${SITE}/${market}/guides`;
   return {
     title: { absolute: title },
     description,
     robots: { index: true, follow: true },
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, type: "website", locale: lang },
+    openGraph: { title, description, url: canonical, type: "website", locale: MARKET_LANG[market] },
   };
 }
 
@@ -67,29 +69,29 @@ export default async function GuidesIndex({
   params,
   searchParams,
 }: {
-  params: Promise<{ lang: string }>;
+  params: Promise<{ market: string }>;
   searchParams: Promise<{ country?: string }>;
 }) {
-  const { lang } = await params;
-  if (!isGuideLang(lang)) notFound();
+  const { market } = await params;
+  if (!isGuideMarket(market)) notFound();
   const { country } = await searchParams;
 
   // Legacy ?country= URLs collapse onto the owning market's path — 308, so the old shape
   // stops competing with the new one in the index.
   if (country) {
-    const target = langForCountry(country) ?? lang;
+    const target = marketForCountry(country) ?? market;
     permanentRedirect(`/${target}/guides`);
   }
 
   const markets = getGuideMarkets();
-  const selfCountry = countryForLang(lang);
+  const selfCountry = listGuides(market).length ? marketCountry(market) : null;
   // A language folder with no posts is not a hub — 404 rather than serve an empty,
   // indexable page that dilutes the market hubs.
   if (!selfCountry) notFound();
-  const posts = listGuides(lang);
+  const posts = listGuides(market);
 
   return (
-    <GuidesChrome lang={lang}>
+    <GuidesChrome>
       {/* Hero — title + subtitle follow the site language switcher */}
       <section className="w-full bg-black px-6 py-14 text-white sm:py-16">
         <div className="mx-auto max-w-5xl">
@@ -110,12 +112,12 @@ export default async function GuidesIndex({
             ) : (
               <ul className="flex flex-row flex-wrap gap-2 md:flex-col md:gap-1">
                 {markets.map((c) => {
-                  const active = c.lang === lang;
+                  const active = c.market === market;
                   return (
-                    <li key={c.lang}>
+                    <li key={c.market}>
                       <Link
-                        href={`/${c.lang}/guides`}
-                        hrefLang={c.lang}
+                        href={`/${c.market}/guides`}
+                        hrefLang={marketHrefLang(c.market)}
                         className={`flex items-center justify-between gap-3 border px-4 py-2.5 text-sm font-black transition-colors md:border-0 md:border-l-4 md:px-3 ${
                           active
                             ? "border-[#ff7a00] bg-[#ff7a00] text-white md:bg-transparent md:text-black"
@@ -142,10 +144,10 @@ export default async function GuidesIndex({
                   // Every post on this hub is in this market's language, so the extract
                   // links stay inside /<lang>/ — the card and the article it opens share
                   // one country path.
-                  href: `/${lang}/guides/${g.slug}`,
+                  href: `/${market}/guides/${g.slug}`,
                   title: g.headline || g.title, // article headline (matches the post page); SEO title stays on <title>
                   description: g.description,
-                  dateLabel: g.date ? fmtDate(g.date, lang) : undefined,
+                  dateLabel: g.date ? fmtDate(g.date, MARKET_LANG[market]) : undefined,
                 }))}
               />
             )}

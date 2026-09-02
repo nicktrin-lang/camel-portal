@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import GuidesChrome from "@/app/components/GuidesChrome";
-import { getGuide, relatedGuides, getAllGuideParams, isGuideLang } from "@/lib/guides";
+import { getGuide, relatedGuides, getAllGuideParams, isGuideMarket, MARKET_LANG } from "@/lib/guides";
 import GuideCountryNav from "@/app/components/GuideCountryNav";
 import { GuidesCta } from "@/app/components/GuidesText";
 
@@ -24,12 +24,12 @@ function fmtDate(iso: string, lang: string): string {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ lang: string; slug: string }>;
+  params: Promise<{ market: string; slug: string }>;
 }): Promise<Metadata> {
-  const { lang, slug } = await params;
-  const guide = getGuide(lang, slug);
+  const { market, slug } = await params;
+  const guide = getGuide(market, slug);
   if (!guide) return {};
-  const canonical = guide.canonical || `${SITE}/${lang}/guides/${slug}`;
+  const canonical = guide.canonical || `${SITE}/${market}/guides/${slug}`;
   return {
     title: { absolute: guide.title },
     description: guide.description,
@@ -40,7 +40,7 @@ export async function generateMetadata({
       description: guide.description,
       url: canonical,
       type: "article",
-      locale: lang,
+      locale: isGuideMarket(market) ? MARKET_LANG[market] : undefined,
     },
   };
 }
@@ -48,13 +48,13 @@ export async function generateMetadata({
 export default async function GuidePost({
   params,
 }: {
-  params: Promise<{ lang: string; slug: string }>;
+  params: Promise<{ market: string; slug: string }>;
 }) {
-  const { lang, slug } = await params;
-  if (!isGuideLang(lang)) notFound();
-  const guide = getGuide(lang, slug);
+  const { market, slug } = await params;
+  if (!isGuideMarket(market)) notFound();
+  const guide = getGuide(market, slug);
   if (!guide) notFound();
-  const related = relatedGuides(lang, slug, 3);
+  const related = relatedGuides(market, slug, 3);
   // The body's own H1 is the full on-page headline; show THAT in the header band.
   // The concise SEO `title` (frontmatter) stays on the <title> tag / Google via
   // generateMetadata. Falls back to `title` if a post has no body H1.
@@ -62,7 +62,7 @@ export default async function GuidePost({
   const displayTitle = heading || guide.title;
 
   return (
-    <GuidesChrome lang={lang}>
+    <GuidesChrome>
       <article className="w-full">
         <header className="w-full bg-black px-6 pt-12 pb-10 text-white">
           <div className="mx-auto flex max-w-6xl flex-col gap-8 md:flex-row md:gap-12">
@@ -70,14 +70,14 @@ export default async function GuidePost({
             <div className="hidden shrink-0 md:block md:w-56" aria-hidden />
             <div className="min-w-0 flex-1">
               <Link
-                href={`/${lang}/guides`}
+                href={`/${market}/guides`}
                 className="mb-6 inline-block text-xs font-black uppercase tracking-widest text-[#ff7a00] hover:underline"
               >
                 ← Camel Global Guides
               </Link>
               {guide.date && (
                 <p className="mb-3 text-xs font-black uppercase tracking-widest text-white/50">
-                  {fmtDate(guide.date, lang)}
+                  {fmtDate(guide.date, isGuideMarket(market) ? MARKET_LANG[market] : "en")}
                 </p>
               )}
               {/* The article's full headline (the body's H1), shown as the page H1.
@@ -91,7 +91,7 @@ export default async function GuidePost({
 
         <div className="w-full bg-white px-6 py-14">
           <div className="mx-auto flex max-w-6xl flex-col gap-8 md:flex-row md:gap-12">
-            <GuideCountryNav lang={lang} selected={guide.country} />
+            <GuideCountryNav selected={market} />
             <div className="min-w-0 flex-1">
           {guide.jsonld ? (
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: guide.jsonld }} />
@@ -115,7 +115,7 @@ export default async function GuidePost({
                 {related.map((r) => (
                   <li key={r.slug} className="py-4">
                     <Link
-                      href={`/${lang}/guides/${r.slug}`}
+                      href={`/${market}/guides/${r.slug}`}
                       className="group flex items-baseline justify-between gap-4"
                     >
                       <span className="text-lg font-black text-black transition-colors group-hover:text-[#ff7a00]">

@@ -32,7 +32,10 @@ export default function HomePageContent({ guideLangs = [] }: { guideLangs?: stri
   // Blog link always follows the UI language (so the index heading matches the
   // switcher). The index aggregates posts across all languages, so /en/guides
   // still surfaces the Spanish posts under their country.
-  const guidesHref = `/${locale}/guides`;
+  // Guides are routed by MARKET (a country), not by the UI language, so this cannot be
+  // `/${locale}/guides` — a German-UI visitor would land on a market that may not exist.
+  // Spain is the primary market and holds nearly all partner guides.
+  const guidesHref = "/es/guides";
   const [menuOpen, setMenuOpen] = useState(false);
   const [unsubscribed, setUnsubscribed] = useState(false);
 
