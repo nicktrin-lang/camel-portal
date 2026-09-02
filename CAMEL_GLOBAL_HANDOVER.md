@@ -28,11 +28,11 @@ Guides re-routed by MARKET (country), not language · headline/SEO-title split �
 Reply-To + attribution chain repaired · 11 stale Growth Engine PRs triaged (2 merged, 9 closed)
 
 ## 🧭 State of the repos (verified, not assumed)
-- Portal `main` **bfa985c**, customer `main` **b47a080**. Both pulled, clean, 0 behind.
+- Portal `main` **4a2286d**, customer `main` **ce84bd7**. Both pulled, clean, 0 behind.
 - **0 open PRs in both repos.** `npx tsc --noEmit` exit 0 in both; `next build` succeeds in
   both; all nine guide market hubs verified live over HTTP.
 
-## 🌍 GUIDES ARE ROUTED BY MARKET, NOT LANGUAGE (#93–#96 — read before touching guides)
+## 🌍 GUIDES ARE ROUTED BY MARKET, NOT LANGUAGE (#93–#99 — read before touching guides)
 
 **One folder = one URL segment = one country. Language is an ATTRIBUTE of a market, never
 the axis.** The folder name IS the lowercased ISO country code so the two cannot drift.
@@ -43,8 +43,24 @@ content/guides/pt/  6 -> /pt/guides     de/ 2 -> /de/guides
 content/guides/fr/  2 -> /fr/guides     gb/ 1 -> /gb/guides   (was en/)
 ```
 
-`lib/guides.ts` exports `GUIDE_MARKETS` + `MARKET_LANG` as the ROUTING type; `GuideLang`
-survives only for labels, date formatting and hreflang. Route dir is `app/[market]/`.
+**There is NO hardcoded market list (#99).** A market is ANY ISO 3166-1 alpha-2 code: two
+lowercase letters that `Intl.DisplayNames` recognises as a real region (Intl returns the
+input unchanged for codes it does not know, which is how junk folders are rejected).
+`GUIDE_MARKETS` and `MARKET_LANG` are GONE. Adding a country needs **no code change** —
+deliver `content/guides/<cc>/<slug>.md` and the hub, sitemap entry, canonical and hreflang
+appear on their own. Route dir is `app/[market]/`.
+
+Everything that used to be a table is now derived from the content:
+| was | now |
+|---|---|
+| `MARKET_LANG` record | `marketLanguage()` — reads the posts' own `language` frontmatter |
+| `COUNTRY_NAME` lookup only | `Intl.DisplayNames`, curated `COUNTRY_NAME` kept as override |
+| `GUIDE_MARKET_LANG` table in `app/layout.tsx` | `marketHrefLang()` |
+| `GUIDE_MARKETS.filter(...)` | `getGuideMarketCodes()` reads `content/guides/` |
+
+Proven, not assumed: a probe post in `content/guides/mx/` (`language: es`) built and
+appeared at `/mx/guides` + its post in the sitemap with zero code change. Probe removed.
+`GuideLang` survives only for UI labels.
 
 **Why the distinction matters even though this repo is 1:1.** It is load-bearing in
 `camel-customer`, which has TWO English markets — `gb/` (49 posts about Spain, written for
@@ -68,6 +84,32 @@ Two intermediate shapes were tried and replaced the same day: (#93) self-canonic
 Market paths do the same job without a query string. **`?country=` now 308s** to the market
 that owns those posts — that redirect is the only reason the old shape still resolves.
 
+### 🔗 The canonical is computed by the ROUTE, never frontmatter (#98 / customer #103)
+Every guide carries a `canonical:` frontmatter value written by the delivery pipeline, and
+`generateMetadata` used to prefer it: `guide.canonical || <computed>`. Moving the folders
+made those values stale, so **51 of 52 customer posts and 1 portal post were emitting a
+`/en/guides/<slug>` canonical — a URL that 308-redirects.** Every affected post was pointing
+Google at a redirect.
+
+The route now computes the canonical and **ignores the field** (same for `mainEntityOfPage`
+in the Article JSON-LD). `canonical` still exists in `GuideFrontmatter`/`coerceMeta` and in
+all 104 content files — **that is not dead code to tidy up.** Re-wiring `guide.canonical ||`
+silently reinstates the bug on the next content move. The stale values were deliberately
+left in the files: nothing reads them, and rewriting 104 files is a huge diff for zero
+rendered change.
+
+### ↩️ Old-URL redirects
+- Portal: `/en/guides` and `/en/guides/:slug` → `/gb/guides…` (308). All other old language
+  paths (es, fr, it, pt, de) hold content and return 200, so no others are needed.
+- Customer: `/en/guides…` → `/gb/…`, with the **two Australian posts listed FIRST** (they
+  lived under `/en/` too, so the catch-all would otherwise send them to `gb`).
+- Customer only: `es|it|pt|de` were valid language paths under the old aggregate and started
+  404ing after the move (#104), so they 301 to `/gb/guides`. **Those rules are
+  SELF-DISABLING (#105)** — `next.config.ts` reads `content/guides/` at build time and emits
+  a rule only while the folder is empty. Redirects are evaluated BEFORE routing, so a static
+  rule would have shadowed a real hub the day content arrived: `/es/guides` → `/gb/guides`
+  and `/es/guides/<slug>` → a `/gb/` slug that does not exist → a silent 404.
+
 ### Gotchas that cost time
 - **`next.config.ts` `outputFileTracingIncludes` is keyed by ROUTE PATH.** Left at
   `/[lang]/guides` after renaming the dir, the build succeeds locally and **404s every guide
@@ -84,9 +126,21 @@ that owns those posts — that redirect is the only reason the old shape still r
   is a country. Portal links are pinned to `/es/guides`.
 
 ### ⚠️ COORDINATION — Growth Engine / RankMoss
-It writes to `content/guides/<folder>`. It must now target **market** folders. Spanish
-content still lands in `es/`, but **English partner content must go to `gb/`, never `en/`**,
-or new posts land in a folder that no longer routes and silently do not render.
+It writes to `content/guides/<folder>`, which must be a **market** (lowercased ISO alpha-2
+country), not a language. Spanish content still lands in `es/`, but English partner content
+goes to `gb/`, **never `en/`**.
+
+Since #99 there is **no market list to keep in sync** — any real ISO country code works, so
+opening a market needs nothing on the Camel side. Two rules still bind RankMoss:
+1. The folder is the **reader's** market, not the subject (the customer site's 49 `gb/`
+   posts are about Spanish destinations, written for UK travellers).
+2. `language` frontmatter must be the language actually written — Camel now reads a market's
+   language FROM it, so it drives `hreflang` and `<html lang>`. Wrong value = mislabelled
+   market.
+
+Also still true: **slugs must be unique within a market.** `listGuides()` de-dupes by slug
+with LAST WINS and no error — a collision makes a post vanish from the site and the sitemap
+silently. And `canonical` frontmatter is ignored (see above).
 
 ## ✅ MERGED & LIVE this session (portal)
 - **#76** — ports customer #95/#96: the guide **post page H1 is now the article's own
