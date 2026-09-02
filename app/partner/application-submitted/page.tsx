@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
+import { readOutreachAttribution, attributionParams } from "@/lib/outreachAttribution";
 
 // Fire a GA4 custom event if gtag is available
 function fireGtagEvent(eventName: string, params?: Record<string, string>) {
@@ -42,21 +43,21 @@ export default function PartnerApplicationSubmittedPage() {
   }, [supabase]);
 
   // Fire signup_complete GA event when status resolves to "pending"
-  // (pending = just submitted for the first time, not yet reviewed)
-  // Passes utm_term (country) if the partner arrived via outreach email
+  // (pending = just submitted for the first time, not yet reviewed).
+  //
+  // Attribution comes from readOutreachAttribution, NOT from window.location.search
+  // alone: we arrive here via router.replace("/partner/application-submitted") from a
+  // signup page reached by a <Link> to a bare "/partner/signup", so the outreach query
+  // string is long gone by this point. Reading the URL directly meant every outreach
+  // signup was recorded as organic. `ref` is the prospect id, which is what actually
+  // ties a specific send to a specific signup.
   useEffect(() => {
     if (status !== "pending") return;
-    const params = new URLSearchParams(window.location.search);
-    const utmSource = params.get("utm_source") || "";
-    const utmTerm = params.get("utm_term") || "";
-    const utmCampaign = params.get("utm_campaign") || "";
-    const eventParams: Record<string, string> = {
+    const attr = readOutreachAttribution(window.location.search);
+    fireGtagEvent("partner_signup_complete", {
       method: "partner_signup",
-    };
-    if (utmSource) eventParams.utm_source = utmSource;
-    if (utmTerm) eventParams.utm_term = utmTerm;
-    if (utmCampaign) eventParams.utm_campaign = utmCampaign;
-    fireGtagEvent("partner_signup_complete", eventParams);
+      ...attributionParams(attr),
+    });
   }, [status]);
 
   const year = new Date().getFullYear();

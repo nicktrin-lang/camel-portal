@@ -6,6 +6,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
+import {
+  captureOutreachAttribution,
+  readOutreachAttribution,
+  attributionParams,
+} from "@/lib/outreachAttribution";
 
 const GUIDES_LABEL: Record<Locale, string> = {
   en: "Guides", es: "Guías", fr: "Guides", it: "Guide", pt: "Guias", de: "Ratgeber",
@@ -47,29 +52,31 @@ export default function HomePageContent({ guideLangs = [] }: { guideLangs?: stri
   // email. Security scanners pre-fetch the link server-side and never run JS, so
   // this event only counts genuine human click-throughs — the honest number,
   // distinct from Resend's bot-inflated "clicked" count.
+  //
+  // Also stashes the attribution (including `ref`, the prospect id) for the rest of
+  // the tab session: every signup CTA below is a <Link> to a bare "/partner/signup"
+  // and the signup page ends with router.replace(...), so the query string does not
+  // survive to the conversion event on its own.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("utm_source") === "outreach") {
+    const attr = captureOutreachAttribution(window.location.search);
+    if (attr) {
       fireGtagEvent("outreach_landing", {
-        utm_campaign: params.get("utm_campaign") || "founding-partner",
-        utm_medium:   params.get("utm_medium")   || "email",
-        utm_term:     params.get("utm_term")     || "",
-        utm_content:  params.get("utm_content")  || "",
+        ...attributionParams(attr),
+        utm_campaign: attr.utm_campaign || "founding-partner",
+        utm_medium:   attr.utm_medium   || "email",
       });
     }
   }, []);
 
-  // Track CTA clicks — only fires when utm_source=outreach so organic clicks aren't counted
+  // Track CTA clicks — only fires for outreach arrivals so organic clicks aren't counted.
+  // Reads the stash as well as the URL, so a prospect who navigates around the landing
+  // page before clicking Apply is still attributed.
   const handleOutreachCta = useCallback((position: "hero" | "apply" | "final-cta") => {
-    const params = new URLSearchParams(window.location.search);
-    const utmSource = params.get("utm_source");
-    const utmTerm = params.get("utm_term") || "";
-    const utmContent = params.get("utm_content") || "";
-    if (utmSource === "outreach") {
+    const attr = readOutreachAttribution(window.location.search);
+    if (attr.utm_source === "outreach") {
       fireGtagEvent("outreach_cta_click", {
+        ...attributionParams(attr),
         cta_position: position,
-        utm_term: utmTerm,
-        utm_content: utmContent,
       });
     }
   }, []);
