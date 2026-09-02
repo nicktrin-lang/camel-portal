@@ -23,6 +23,20 @@ export function generateStaticParams() {
 
 const SITE = "https://portal.camel-global.com";
 
+/** The country filter in effect: a valid `?country=` code, or null meaning "show
+ *  everything". `generateMetadata` and the page body MUST agree on this — the canonical
+ *  is derived from it — so both go through this one function.
+ *
+ *  Note it returns null for a missing/unknown code rather than falling back to the first
+ *  country. It used to default to `countries[0]`, which is France alphabetically, so the
+ *  canonical hub /en/guides advertised 2 French posts while all 39 Spanish ones sat on
+ *  ?country=ES canonicalising away to it. */
+function selectedCountry(country?: string): string | null {
+  if (!country) return null;
+  const code = country.toUpperCase();
+  return getGuideCountries().some((c) => c.code === code) ? code : null;
+}
+
 function fmtDate(iso: string, lang: string): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -32,17 +46,26 @@ function fmtDate(iso: string, lang: string): string {
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ lang: string }>;
+  searchParams: Promise<{ country?: string }>;
 }): Promise<Metadata> {
   const { lang } = await params;
   if (!isGuideLang(lang)) return {};
+  const { country } = await searchParams;
+  const code = selectedCountry(country);
   const label = GUIDE_LANG_LABEL[lang];
-  const title = `${label} for Partners — Camel Global`;
-  const description =
-    "Guides for car hire companies: how to become a Camel Global partner, win bookings, and get paid.";
-  // All language variants of the aggregated index consolidate to one canonical.
-  const canonical = `${SITE}/${PRIMARY_GUIDE_LANG}/guides`;
+  const where = code ? ` in ${countryName(code)}` : "";
+  const title = `${label} for Partners${where} — Camel Global`;
+  const description = code
+    ? `Guides for car hire companies in ${countryName(code)}: how to become a Camel Global partner, win bookings, and get paid.`
+    : "Guides for car hire companies: how to become a Camel Global partner, win bookings, and get paid.";
+  // The LANGUAGE segment on this index is cosmetic — every /<lang>/guides renders the same
+  // aggregate, so all six consolidate to the primary lang. A COUNTRY filter is different:
+  // it is a genuinely distinct set of posts, so it keeps its own canonical instead of
+  // collapsing into the unfiltered hub and going unindexed.
+  const canonical = `${SITE}/${PRIMARY_GUIDE_LANG}/guides${code ? `?country=${code}` : ""}`;
   return {
     title: { absolute: title },
     description,
@@ -64,11 +87,9 @@ export default async function GuidesIndex({
   const { country } = await searchParams;
 
   const countries = getGuideCountries();
-  const selected =
-    country && countries.some((c) => c.code === country.toUpperCase())
-      ? country.toUpperCase()
-      : countries[0]?.code ?? null;
+  const selected = selectedCountry(country);
   const posts = selected ? guidesByCountry(selected) : listAllGuides();
+  const totalCount = countries.reduce((n, c) => n + c.count, 0);
 
   return (
     <GuidesChrome lang={lang}>
@@ -91,6 +112,19 @@ export default async function GuidesIndex({
               <p className="text-sm font-semibold text-black/50">No guides yet.</p>
             ) : (
               <ul className="flex flex-row flex-wrap gap-2 md:flex-col md:gap-1">
+                <li>
+                  <Link
+                    href={`/${lang}/guides`}
+                    className={`flex items-center justify-between gap-3 border px-4 py-2.5 text-sm font-black transition-colors md:border-0 md:border-l-4 md:px-3 ${
+                      !selected
+                        ? "border-[#ff7a00] bg-[#ff7a00] text-white md:bg-transparent md:text-black"
+                        : "border-black/15 text-black/70 hover:bg-black/5 md:border-transparent md:hover:border-black/20"
+                    }`}
+                  >
+                    <span>All countries</span>
+                    <span className={!selected ? "text-white md:text-[#ff7a00]" : "text-black/30"}>{totalCount}</span>
+                  </Link>
+                </li>
                 {countries.map((c) => {
                   const active = c.code === selected;
                   return (
