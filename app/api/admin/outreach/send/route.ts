@@ -9,8 +9,10 @@ export const DAILY_LIMIT = 50;
 
 /** Outreach is sent from a noreply@ address, so without an explicit Reply-To an
  *  interested partner who hits Reply reaches nobody. Cold B2B outreach lives on the
- *  reply — set this to a mailbox a human actually monitors. */
-const OUTREACH_REPLY_TO = "nicktrin@gmail.com";
+ *  reply, and the recipient SEES this address — it must be a company mailbox, not a
+ *  personal one. Matches where the contact form already routes "Partnership / become a
+ *  partner" enquiries (app/api/contact/route.ts), so partner replies land in one place. */
+const OUTREACH_REPLY_TO = "partners@camel-global.com";
 
 function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";
