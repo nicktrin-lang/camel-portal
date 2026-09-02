@@ -87,10 +87,16 @@ function getGaId(host: string): string {
   return "";                                                    // localhost / preview / staging / unknown → no tracking
 }
 
-// Guides live at /<lang>/guides/... — declare each post in its own language.
+// Guides live at /<market>/guides/... where the segment is a COUNTRY, not a language.
+// Declare the full BCP-47 tag so each post says which market it targets — language alone
+// would collapse markets that share one (en-GB vs en-AU on the customer site).
+const GUIDE_MARKET_LANG: Record<string, string> = {
+  gb: "en-GB", ie: "en-IE", us: "en-US", ca: "en-CA", au: "en-AU", nz: "en-NZ",
+  nl: "en-NL", es: "es-ES", fr: "fr-FR", it: "it-IT", pt: "pt-PT", de: "de-DE",
+};
 function htmlLangFromPath(pathname: string): string {
-  const m = pathname.match(/^\/(en|es|fr|it|pt|de)\/guides(\/|$)/);
-  return m ? m[1] : "en";
+  const m = pathname.match(/^\/([a-z]{2})\/guides(\/|$)/);
+  return (m && GUIDE_MARKET_LANG[m[1]]) || "en";
 }
 
 // Sitewide Organization schema so search and AI engines have a canonical entity for

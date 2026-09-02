@@ -28,13 +28,22 @@ const nextConfig: NextConfig = {
   // Guides read Markdown from content/guides/ with fs at request time — bundle
   // those files into the serverless functions so runtime reads work on Vercel.
   outputFileTracingIncludes: {
-    "/[lang]/guides": ["./content/guides/**/*"],
-    "/[lang]/guides/[slug]": ["./content/guides/**/*"],
+    "/[market]/guides": ["./content/guides/**/*"],
+    "/[market]/guides/[slug]": ["./content/guides/**/*"],
     // The sitemap is a metadata route → its internal key carries a /route
     // suffix; the bare "/sitemap.xml" key never matched, so guide posts were
     // silently missing from the deployed sitemap. Key both to be safe.
     "/sitemap.xml": ["./content/guides/**/*"],
     "/sitemap.xml/route": ["./content/guides/**/*"],
+  },
+  // Guides moved from language folders to MARKET folders. Only /en/ changed on this repo
+  // (es, fr, it, pt, de already matched their country), so every previously indexed URL is
+  // redirected rather than dropped.
+  async redirects() {
+    return [
+      { source: "/en/guides/:slug", destination: "/gb/guides/:slug", permanent: true },
+      { source: "/en/guides", destination: "/gb/guides", permanent: true },
+    ];
   },
   async headers() {
     const noindex = [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];

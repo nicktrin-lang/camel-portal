@@ -14,7 +14,10 @@ const GUIDES_LABEL: Record<Locale, string> = {
 // Header + footer for the portal Guides section — identical to the portal
 // homepage chrome, localized to whatever language the visitor picks in the
 // switcher. The guide content (children) renders in its own written language.
-export default function GuidesChrome({ children }: { lang?: string; children: React.ReactNode }) {
+// NOTE: no `lang` prop. The chrome language follows the visitor's own locale context
+// (the switcher / navigator.languages), NOT the URL segment — that segment is the MARKET,
+// and /gb/guides and /au/guides would both be English anyway.
+export default function GuidesChrome({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const { locale, setLocale } = useLanguage();
   const year = String(new Date().getFullYear());
@@ -114,7 +117,7 @@ export default function GuidesChrome({ children }: { lang?: string; children: Re
             <Image src="/camel-logo.png" alt="Camel Global" width={160} height={56} className="h-10 w-auto brightness-0 invert" />
           </div>
           <nav className="flex items-center gap-5">
-            <Link href={`/${locale}/guides`} className="text-sm font-bold text-white hover:underline">{GUIDES_LABEL[locale] ?? "Guides"}</Link>
+            <Link href="/es/guides" className="text-sm font-bold text-white hover:underline">{GUIDES_LABEL[locale] ?? "Guides"}</Link>
           </nav>
           <p className="text-xs font-bold text-white/70">{t("common.copyright", { year })}</p>
         </div>

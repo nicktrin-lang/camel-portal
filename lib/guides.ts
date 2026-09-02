@@ -5,24 +5,51 @@ import matter from "gray-matter";
 import { marked } from "marked";
 
 // ── Guides content engine ─────────────────────────────────────────────────────
-// Content is delivered by the external Growth Engine as one Markdown file per
-// post, split by language, at:  content/guides/<lang>/<slug>.md
+// Content is delivered by the external Growth Engine as one Markdown file per post at
+//   content/guides/<market>/<slug>.md
+//
+// THE AXIS IS MARKET, NOT LANGUAGE. A market is one folder = one URL segment = one
+// country, and LANGUAGE IS AN ATTRIBUTE of a market rather than the axis itself. On this
+// repo they currently coincide (Spanish guides for Spanish rental firms), but the sister
+// customer repo has two English markets (gb and au), and keeping one model across both
+// repos is what stops a future session "harmonising" them and breaking one.
 // This module is the ONLY place that reads that content. Presentation lives in
 // the route components. New files (including any in sub-folders) are picked up
 // automatically — no code change per post.
 
+export const GUIDE_MARKETS = [
+  "gb", "ie", "us", "ca", "au", "nz", "nl", "es", "fr", "it", "pt", "de",
+] as const;
+export type GuideMarket = (typeof GUIDE_MARKETS)[number];
+
+/** The six languages the site writes in. Separate from GuideMarket on purpose — several
+ *  markets share `en`. Used for labels, date formatting and hreflang, never for routing. */
 export const GUIDE_LANGS = ["en", "es", "fr", "it", "pt", "de"] as const;
 export type GuideLang = (typeof GUIDE_LANGS)[number];
 
-// The guides index aggregates posts across ALL languages, so /en/guides,
-// /es/guides, … show the same list. To avoid duplicate hub pages in Search
-// Console, every index variant canonicalises to this one primary URL. Posts
-// keep their own per-URL canonicals.
-export const PRIMARY_GUIDE_LANG: GuideLang = "en";
+/** The language each market's guides are written in. */
+export const MARKET_LANG: Record<GuideMarket, GuideLang> = {
+  gb: "en", ie: "en", us: "en", ca: "en", au: "en", nz: "en", nl: "en",
+  es: "es", fr: "fr", it: "it", pt: "pt", de: "de",
+};
 
-export function isGuideLang(v: string | undefined | null): v is GuideLang {
-  return !!v && (GUIDE_LANGS as readonly string[]).includes(v);
+export function isGuideMarket(v: string | undefined | null): v is GuideMarket {
+  return !!v && (GUIDE_MARKETS as readonly string[]).includes(v);
 }
+
+/** ISO country for a market — the folder name is the country, lowercased. */
+export function marketCountry(market: GuideMarket): string {
+  return market.toUpperCase();
+}
+
+/** BCP-47 tag for hreflang: language + region, e.g. es-ES, de-DE, en-GB. */
+export function marketHrefLang(market: GuideMarket): string {
+  return `${MARKET_LANG[market]}-${market.toUpperCase()}`;
+}
+
+/** The market whose hub is linked when nothing more specific applies. Spain is the
+ *  launch market and holds the overwhelming majority of partner guides. */
+export const PRIMARY_GUIDE_MARKET: GuideMarket = "es";
 
 export type GuideFrontmatter = {
   title: string;
@@ -48,8 +75,8 @@ export type Guide = GuideMeta & { html: string; bodyMarkdown: string };
 
 const CONTENT_ROOT = path.join(process.cwd(), "content", "guides");
 
-function langDir(lang: string): string {
-  return path.join(CONTENT_ROOT, lang);
+function marketDir(market: string): string {
+  return path.join(CONTENT_ROOT, market);
 }
 
 /** All Markdown files under `dir`, RECURSIVELY (absolute paths). Safe if missing. */
@@ -102,15 +129,15 @@ function firstMarkdownH1(md: string): string | null {
   return text || null;
 }
 
-/** Languages that actually have at least one post on disk. */
-export function getGuideLangs(): GuideLang[] {
-  return GUIDE_LANGS.filter((l) => walkMarkdown(langDir(l)).length > 0);
+/** Markets that actually have at least one post on disk. */
+export function getGuideMarketCodes(): GuideMarket[] {
+  return GUIDE_MARKETS.filter((m) => walkMarkdown(marketDir(m)).length > 0);
 }
 
-/** All posts for a language, newest first by `date`. Meta only (no body). */
-export function listGuides(lang: string): GuideMeta[] {
-  if (!isGuideLang(lang)) return [];
-  const metas = walkMarkdown(langDir(lang)).map((file) => {
+/** All posts for a market, newest first by `date`. Meta only (no body). */
+export function listGuides(market: string): GuideMeta[] {
+  if (!isGuideMarket(market)) return [];
+  const metas = walkMarkdown(marketDir(market)).map((file) => {
     const raw = fs.readFileSync(file, "utf8");
     const { data, content } = matter(raw);
     const meta = coerceMeta(data, baseSlug(file));
@@ -123,11 +150,11 @@ export function listGuides(lang: string): GuideMeta[] {
   return [...bySlug.values()].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 }
 
-/** One post by language + slug, with its Markdown body rendered to HTML. */
-export function getGuide(lang: string, slug: string): Guide | null {
-  if (!isGuideLang(lang)) return null;
+/** One post by market + slug, with its Markdown body rendered to HTML. */
+export function getGuide(market: string, slug: string): Guide | null {
+  if (!isGuideMarket(market)) return null;
   // Match by the frontmatter slug (authoritative) OR the filename stem.
-  for (const file of walkMarkdown(langDir(lang))) {
+  for (const file of walkMarkdown(marketDir(market))) {
     const raw = fs.readFileSync(file, "utf8");
     const { data, content } = matter(raw);
     const meta = coerceMeta(data, baseSlug(file));
@@ -140,79 +167,46 @@ export function getGuide(lang: string, slug: string): Guide | null {
   return null;
 }
 
-/** Every (lang, slug) pair — for generateStaticParams and the sitemap. */
-export function getAllGuideParams(): { lang: GuideLang; slug: string }[] {
-  const out: { lang: GuideLang; slug: string }[] = [];
-  for (const lang of GUIDE_LANGS) {
-    for (const meta of listGuides(lang)) out.push({ lang, slug: meta.slug });
+/** Every (market, slug) pair — for generateStaticParams and the sitemap. */
+export function getAllGuideParams(): { market: GuideMarket; slug: string }[] {
+  const out: { market: GuideMarket; slug: string }[] = [];
+  for (const market of GUIDE_MARKETS) {
+    for (const meta of listGuides(market)) out.push({ market, slug: meta.slug });
   }
   return out;
 }
 
-/** A post plus the language folder it lives in (drives its URL). */
-export type GuideListItem = GuideMeta & { lang: GuideLang };
+/** A market that has posts, with everything the nav and metadata need. */
+export type GuideMarketInfo = {
+  market: GuideMarket;
+  lang: GuideLang;
+  country: string;
+  count: number;
+};
 
-/** Every post across ALL languages, newest first. The guides index aggregates
- *  these so content is reachable no matter which language index you land on. */
-export function listAllGuides(): GuideListItem[] {
-  const out: GuideListItem[] = [];
-  for (const lang of GUIDE_LANGS) {
-    for (const m of listGuides(lang)) out.push({ ...m, lang });
-  }
-  return out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+/** Every market with posts, by country name. */
+export function getGuideMarkets(): GuideMarketInfo[] {
+  return getGuideMarketCodes()
+    .map((market) => ({
+      market,
+      lang: MARKET_LANG[market],
+      country: marketCountry(market),
+      count: listGuides(market).length,
+    }))
+    .sort((a, b) => countryName(a.country).localeCompare(countryName(b.country)));
 }
 
-export type GuideCountry = { code: string; count: number };
-
-/** One market = one language folder = one country. The content set is strictly 1:1:
- *  every post in content/guides/<lang>/ carries the same `country`, because each market
- *  gets its OWN articles rather than translations of a shared set (the German guides are
- *  about Munich and Dusseldorf, the Spanish ones about Malaga). Language and country are
- *  therefore the same axis, which is why `/<lang>/guides` IS that country's hub. */
-export type GuideMarket = { lang: GuideLang; country: string; count: number };
-
-/** Every language folder that has posts, with the country it targets. */
-export function getGuideMarkets(): GuideMarket[] {
-  const out: GuideMarket[] = [];
-  for (const lang of GUIDE_LANGS) {
-    const posts = listGuides(lang);
-    if (!posts.length) continue;
-    const country = (posts[0].country || "").toUpperCase();
-    if (!country) continue;
-    out.push({ lang, country, count: posts.length });
-  }
-  return out.sort((a, b) => countryName(a.country).localeCompare(countryName(b.country)));
+/** The market that owns a country's guides — drives the legacy ?country= redirect. */
+export function marketForCountry(country: string): GuideMarket | null {
+  const code = (country || "").toLowerCase();
+  return isGuideMarket(code) && listGuides(code).length ? code : null;
 }
 
-/** The country a language's guides target, or null if that folder is empty. */
-export function countryForLang(lang: GuideLang): string | null {
-  return getGuideMarkets().find((m) => m.lang === lang)?.country ?? null;
-}
-
-/** Which language folder holds a country's guides — drives the ?country= redirect. */
-export function langForCountry(country: string): GuideLang | null {
-  const code = (country || "").toUpperCase();
-  return getGuideMarkets().find((m) => m.country === code)?.lang ?? null;
-}
-
-/** Distinct countries that have posts (from the `country` frontmatter), with
- *  counts — drives the country sidebar. */
-export function getGuideCountries(): GuideCountry[] {
-  const counts = new Map<string, number>();
-  for (const p of listAllGuides()) {
-    const c = (p.country || "").toUpperCase();
-    if (!c) continue;
-    counts.set(c, (counts.get(c) || 0) + 1);
-  }
-  return [...counts.entries()]
-    .map(([code, count]) => ({ code, count }))
-    .sort((a, b) => countryName(a.code).localeCompare(countryName(b.code)));
-}
-
-/** Posts targeting a given country (ISO code), across all languages. */
-export function guidesByCountry(country: string): GuideListItem[] {
-  const code = (country || "").toUpperCase();
-  return listAllGuides().filter((p) => (p.country || "").toUpperCase() === code);
+/** The best market hub to link a visitor to, given the UI language they browse in. */
+export function marketForLocale(locale: string): GuideMarket {
+  const withPosts = getGuideMarketCodes();
+  const match = withPosts.find((m) => MARKET_LANG[m] === locale);
+  return match ?? (withPosts.includes(PRIMARY_GUIDE_MARKET) ? PRIMARY_GUIDE_MARKET : withPosts[0] ?? PRIMARY_GUIDE_MARKET);
 }
 
 /** ISO 3166-1 alpha-2 → display name for the country sidebar. */
@@ -225,9 +219,9 @@ export function countryName(code: string): string {
   return COUNTRY_NAME[(code || "").toUpperCase()] || code;
 }
 
-/** A few "related" posts in the same language, excluding the current one. */
-export function relatedGuides(lang: string, currentSlug: string, limit = 3): GuideMeta[] {
-  return listGuides(lang)
+/** A few "related" posts from the same market, excluding the current one. */
+export function relatedGuides(market: string, currentSlug: string, limit = 3): GuideMeta[] {
+  return listGuides(market)
     .filter((g) => g.slug !== currentSlug)
     .slice(0, limit);
 }
