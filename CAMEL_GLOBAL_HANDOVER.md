@@ -24,12 +24,69 @@ Working Rules
 ═══════════════════════════════════════════════════════════════════════════════
 LATEST SESSION — 2026-09-02  (read this first)
 ═══════════════════════════════════════════════════════════════════════════════
-Guide headline/SEO split ported to the portal · outreach attribution chain repaired ·
-11 stale Growth Engine PRs triaged (2 merged, 9 closed)
+Guides re-routed by MARKET (country), not language · headline/SEO-title split · outreach
+Reply-To + attribution chain repaired · 11 stale Growth Engine PRs triaged (2 merged, 9 closed)
 
 ## 🧭 State of the repos (verified, not assumed)
-- Portal `main` **7133e66**, customer `main` **69a8998**. Both pulled, clean, 0 behind.
-- **0 open PRs in both repos.** `npx tsc --noEmit` exit 0 in both.
+- Portal `main` **bfa985c**, customer `main` **b47a080**. Both pulled, clean, 0 behind.
+- **0 open PRs in both repos.** `npx tsc --noEmit` exit 0 in both; `next build` succeeds in
+  both; all nine guide market hubs verified live over HTTP.
+
+## 🌍 GUIDES ARE ROUTED BY MARKET, NOT LANGUAGE (#93–#96 — read before touching guides)
+
+**One folder = one URL segment = one country. Language is an ATTRIBUTE of a market, never
+the axis.** The folder name IS the lowercased ISO country code so the two cannot drift.
+
+```
+content/guides/es/ 39 -> /es/guides     it/ 2 -> /it/guides
+content/guides/pt/  6 -> /pt/guides     de/ 2 -> /de/guides
+content/guides/fr/  2 -> /fr/guides     gb/ 1 -> /gb/guides   (was en/)
+```
+
+`lib/guides.ts` exports `GUIDE_MARKETS` + `MARKET_LANG` as the ROUTING type; `GuideLang`
+survives only for labels, date formatting and hreflang. Route dir is `app/[market]/`.
+
+**Why the distinction matters even though this repo is 1:1.** It is load-bearing in
+`camel-customer`, which has TWO English markets — `gb/` (49 posts about Spain, written for
+UK readers) and `au/` (2 about Australia). There, `country` is the READER's home market,
+not the subject. Both repos deliberately run the SAME model so nobody "harmonises" them and
+breaks the customer side. **Do not collapse markets back into languages.**
+
+### The bug this fixed
+`/en/guides` was the single canonical hub for the whole section and every language variant
+canonicalised into it. With no `?country=` the code fell back to `countries[0]` — the
+alphabetically first country — so:
+- portal `/en/guides` served **2 French** guides of 41
+- customer `/en/guides` served **2 Australian** guides of 52
+
+Everything else sat on `?country=XX`, which declared itself a duplicate of that page. All
+39 Spanish partner guides were effectively invisible.
+
+### Superseded — do NOT reintroduce
+Two intermediate shapes were tried and replaced the same day: (#93) self-canonical
+`?country=` query URLs, and (#95) per-country hubs still keyed on the language folder.
+Market paths do the same job without a query string. **`?country=` now 308s** to the market
+that owns those posts — that redirect is the only reason the old shape still resolves.
+
+### Gotchas that cost time
+- **`next.config.ts` `outputFileTracingIncludes` is keyed by ROUTE PATH.** Left at
+  `/[lang]/guides` after renaming the dir, the build succeeds locally and **404s every guide
+  on Vercel**. Rekeyed to `/[market]/...` in both repos.
+- **Redirect ORDER matters.** On the customer repo the two Australian posts lived under
+  `/en/` like the other 49, so their exact redirects must be listed BEFORE the
+  `/en/guides/:slug -> /gb/guides/:slug` catch-all or they land in the wrong market.
+- **`hreflang` must be the full BCP-47 tag** (`en-GB` vs `en-AU`) — language alone cannot
+  distinguish two markets that share one. Same for `<html lang>`.
+- **`GuidesChrome` never read its `lang` prop** (it destructured only `children`), so the
+  URL segment never drove the chrome language — that follows the visitor's locale context.
+  `/de/guides` rendering English chrome was correct, not a bug. Prop now removed.
+- Any nav/footer link built as `/${locale}/guides` is wrong: locale is a UI language, market
+  is a country. Portal links are pinned to `/es/guides`.
+
+### ⚠️ COORDINATION — Growth Engine / RankMoss
+It writes to `content/guides/<folder>`. It must now target **market** folders. Spanish
+content still lands in `es/`, but **English partner content must go to `gb/`, never `en/`**,
+or new posts land in a folder that no longer routes and silently do not render.
 
 ## ✅ MERGED & LIVE this session (portal)
 - **#76** — ports customer #95/#96: the guide **post page H1 is now the article's own
