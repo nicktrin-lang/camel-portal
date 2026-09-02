@@ -164,6 +164,37 @@ export function listAllGuides(): GuideListItem[] {
 
 export type GuideCountry = { code: string; count: number };
 
+/** One market = one language folder = one country. The content set is strictly 1:1:
+ *  every post in content/guides/<lang>/ carries the same `country`, because each market
+ *  gets its OWN articles rather than translations of a shared set (the German guides are
+ *  about Munich and Dusseldorf, the Spanish ones about Malaga). Language and country are
+ *  therefore the same axis, which is why `/<lang>/guides` IS that country's hub. */
+export type GuideMarket = { lang: GuideLang; country: string; count: number };
+
+/** Every language folder that has posts, with the country it targets. */
+export function getGuideMarkets(): GuideMarket[] {
+  const out: GuideMarket[] = [];
+  for (const lang of GUIDE_LANGS) {
+    const posts = listGuides(lang);
+    if (!posts.length) continue;
+    const country = (posts[0].country || "").toUpperCase();
+    if (!country) continue;
+    out.push({ lang, country, count: posts.length });
+  }
+  return out.sort((a, b) => countryName(a.country).localeCompare(countryName(b.country)));
+}
+
+/** The country a language's guides target, or null if that folder is empty. */
+export function countryForLang(lang: GuideLang): string | null {
+  return getGuideMarkets().find((m) => m.lang === lang)?.country ?? null;
+}
+
+/** Which language folder holds a country's guides — drives the ?country= redirect. */
+export function langForCountry(country: string): GuideLang | null {
+  const code = (country || "").toUpperCase();
+  return getGuideMarkets().find((m) => m.country === code)?.lang ?? null;
+}
+
 /** Distinct countries that have posts (from the `country` frontmatter), with
  *  counts — drives the country sidebar. */
 export function getGuideCountries(): GuideCountry[] {

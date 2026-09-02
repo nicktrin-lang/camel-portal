@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import GuidesChrome from "@/app/components/GuidesChrome";
 import {
   isGuideLang,
   getGuideLangs,
-  getGuideCountries,
-  guidesByCountry,
-  listAllGuides,
+  listGuides,
+  getGuideMarkets,
+  countryForLang,
+  langForCountry,
   countryName,
-  PRIMARY_GUIDE_LANG,
 } from "@/lib/guides";
 import { GuidesHero } from "@/app/components/GuidesText";
 import GuidePostList from "@/app/components/GuidePostList";
@@ -22,20 +22,14 @@ export function generateStaticParams() {
 
 const SITE = "https://portal.camel-global.com";
 
-/** The country filter in effect: a valid `?country=` code, or null meaning "show
- *  everything". `generateMetadata` and the page body MUST agree on this — the canonical
- *  is derived from it — so both go through this one function.
+/** `/<lang>/guides` IS the country hub for that language's market — see GuideMarket in
+ *  lib/guides.ts. Each language folder holds its own articles for one country, so the
+ *  German guides live at /de/guides and canonicalise there, not into an English hub.
  *
- *  Note it returns null for a missing/unknown code rather than falling back to the first
- *  country. It used to default to `countries[0]`, which is France alphabetically, so the
- *  canonical hub /en/guides advertised 2 French posts while all 39 Spanish ones sat on
- *  ?country=ES canonicalising away to it. */
-function selectedCountry(country?: string): string | null {
-  if (!country) return null;
-  const code = country.toUpperCase();
-  return getGuideCountries().some((c) => c.code === code) ? code : null;
-}
-
+ *  A `?country=` query is the OLD shape (one aggregated index, filtered). It now
+ *  permanently redirects to the owning language path, so there is exactly one indexable
+ *  URL per market and Google is never asked to pick between /fr/guides?country=DE and
+ *  /de/guides for the same two German articles. */
 function fmtDate(iso: string, lang: string): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -45,37 +39,27 @@ function fmtDate(iso: string, lang: string): string {
 
 export async function generateMetadata({
   params,
-  searchParams,
 }: {
   params: Promise<{ lang: string }>;
-  searchParams: Promise<{ country?: string }>;
 }): Promise<Metadata> {
   const { lang } = await params;
   if (!isGuideLang(lang)) return {};
-  const { country } = await searchParams;
-  const code = selectedCountry(country);
-  const where = code ? ` in ${countryName(code)}` : "";
-  // Deliberately ALL-English, not GUIDE_LANG_LABEL[lang]. That produced mongrel titles —
-  // /de/guides?country=PT emitted "Ratgeber for Partners in Portugal — Camel Global",
-  // a German noun bolted onto an English sentence. The index canonicalises to the primary
-  // lang anyway (see below), so one English title for every variant is both correct and
-  // the only one that reads as a sentence. The visible chrome is localised separately, by
-  // the client locale context — it does not come from this URL segment.
+  const country = countryForLang(lang);
+  if (!country) return {};
+  const where = ` in ${countryName(country)}`;
+  // All-English on purpose: a localised noun bolted onto an English sentence produced
+  // mongrel titles like "Ratgeber for Partners in Portugal". The guide CONTENT is in the
+  // market's language; this chrome string is not.
   const title = `Guides for Partners${where} — Camel Global`;
-  const description = code
-    ? `Guides for car hire companies in ${countryName(code)}: how to become a Camel Global partner, win bookings, and get paid.`
-    : "Guides for car hire companies: how to become a Camel Global partner, win bookings, and get paid.";
-  // The LANGUAGE segment on this index is cosmetic — every /<lang>/guides renders the same
-  // aggregate, so all six consolidate to the primary lang. A COUNTRY filter is different:
-  // it is a genuinely distinct set of posts, so it keeps its own canonical instead of
-  // collapsing into the unfiltered hub and going unindexed.
-  const canonical = `${SITE}/${PRIMARY_GUIDE_LANG}/guides${code ? `?country=${code}` : ""}`;
+  const description = `Guides for car hire companies in ${countryName(country)}: how to become a Camel Global partner, win bookings, and get paid.`;
+  // Self-canonical. This is the one indexable URL for this market.
+  const canonical = `${SITE}/${lang}/guides`;
   return {
     title: { absolute: title },
     description,
     robots: { index: true, follow: true },
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, type: "website" },
+    openGraph: { title, description, url: canonical, type: "website", locale: lang },
   };
 }
 
@@ -90,10 +74,19 @@ export default async function GuidesIndex({
   if (!isGuideLang(lang)) notFound();
   const { country } = await searchParams;
 
-  const countries = getGuideCountries();
-  const selected = selectedCountry(country);
-  const posts = selected ? guidesByCountry(selected) : listAllGuides();
-  const totalCount = countries.reduce((n, c) => n + c.count, 0);
+  // Legacy ?country= URLs collapse onto the owning market's path — 308, so the old shape
+  // stops competing with the new one in the index.
+  if (country) {
+    const target = langForCountry(country) ?? lang;
+    permanentRedirect(`/${target}/guides`);
+  }
+
+  const markets = getGuideMarkets();
+  const selfCountry = countryForLang(lang);
+  // A language folder with no posts is not a hub — 404 rather than serve an empty,
+  // indexable page that dilutes the market hubs.
+  if (!selfCountry) notFound();
+  const posts = listGuides(lang);
 
   return (
     <GuidesChrome lang={lang}>
@@ -112,36 +105,24 @@ export default async function GuidesIndex({
           {/* Country nav */}
           <aside className="shrink-0 md:w-56">
             <p className="mb-3 text-xs font-black uppercase tracking-widest text-black/40">Countries</p>
-            {countries.length === 0 ? (
+            {markets.length === 0 ? (
               <p className="text-sm font-semibold text-black/50">No guides yet.</p>
             ) : (
               <ul className="flex flex-row flex-wrap gap-2 md:flex-col md:gap-1">
-                <li>
-                  <Link
-                    href={`/${lang}/guides`}
-                    className={`flex items-center justify-between gap-3 border px-4 py-2.5 text-sm font-black transition-colors md:border-0 md:border-l-4 md:px-3 ${
-                      !selected
-                        ? "border-[#ff7a00] bg-[#ff7a00] text-white md:bg-transparent md:text-black"
-                        : "border-black/15 text-black/70 hover:bg-black/5 md:border-transparent md:hover:border-black/20"
-                    }`}
-                  >
-                    <span>All countries</span>
-                    <span className={!selected ? "text-white md:text-[#ff7a00]" : "text-black/30"}>{totalCount}</span>
-                  </Link>
-                </li>
-                {countries.map((c) => {
-                  const active = c.code === selected;
+                {markets.map((c) => {
+                  const active = c.lang === lang;
                   return (
-                    <li key={c.code}>
+                    <li key={c.lang}>
                       <Link
-                        href={`/${lang}/guides?country=${c.code}`}
+                        href={`/${c.lang}/guides`}
+                        hrefLang={c.lang}
                         className={`flex items-center justify-between gap-3 border px-4 py-2.5 text-sm font-black transition-colors md:border-0 md:border-l-4 md:px-3 ${
                           active
                             ? "border-[#ff7a00] bg-[#ff7a00] text-white md:bg-transparent md:text-black"
                             : "border-black/15 text-black/70 hover:bg-black/5 md:border-transparent md:hover:border-black/20"
                         }`}
                       >
-                        <span>{countryName(c.code)}</span>
+                        <span>{countryName(c.country)}</span>
                         <span className={active ? "text-white md:text-[#ff7a00]" : "text-black/30"}>{c.count}</span>
                       </Link>
                     </li>
@@ -158,10 +139,13 @@ export default async function GuidesIndex({
             ) : (
               <GuidePostList
                 posts={posts.map((g) => ({
-                  href: `/${g.lang}/guides/${g.slug}`,
+                  // Every post on this hub is in this market's language, so the extract
+                  // links stay inside /<lang>/ — the card and the article it opens share
+                  // one country path.
+                  href: `/${lang}/guides/${g.slug}`,
                   title: g.headline || g.title, // article headline (matches the post page); SEO title stays on <title>
                   description: g.description,
-                  dateLabel: g.date ? fmtDate(g.date, g.lang) : undefined,
+                  dateLabel: g.date ? fmtDate(g.date, lang) : undefined,
                 }))}
               />
             )}
