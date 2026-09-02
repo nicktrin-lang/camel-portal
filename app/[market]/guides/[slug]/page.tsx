@@ -29,7 +29,12 @@ export async function generateMetadata({
   const { market, slug } = await params;
   const guide = getGuide(market, slug);
   if (!guide) return {};
-  const canonical = guide.canonical || `${SITE}/${market}/guides/${slug}`;
+  // The ROUTE is the authority on where a post lives, never the frontmatter. `canonical`
+  // is written by the delivery pipeline at publish time and goes stale the moment content
+  // moves: when guides were re-filed from language folders into market folders, all 52
+  // posts kept emitting a /en/guides/<slug> canonical — a URL that now 308-redirects, so
+  // every post was pointing Google at a redirect. Compute it and ignore the field.
+  const canonical = `${SITE}/${market}/guides/${slug}`;
   return {
     title: { absolute: guide.title },
     description: guide.description,
