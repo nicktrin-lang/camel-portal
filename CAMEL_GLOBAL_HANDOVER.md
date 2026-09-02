@@ -39,11 +39,17 @@ Guide headline/SEO split ported to the portal · outreach attribution chain repa
   `headline` on `GuideMeta`; `listAllGuides()`/`relatedGuides()` inherit it.
   The old `stripLeadingH1()` **deleted** the headline — 30 of 41 portal guides have a
   body H1 that differs from the frontmatter title, so that text appeared nowhere.
-- **#77** — outreach emails now set `"Reply-To": nicktrin@gmail.com`. They send from
-  `noreply@e.camel-global.com`, so an interested partner who hit Reply reached nobody.
-  `sendEmail()` already forwards a `headers` map to Resend (that is how one-click
-  `List-Unsubscribe` is set) — **`lib/email.ts` needed no change**. Set on the real
-  send AND the `[TEST]` preview so the preview matches what prospects receive.
+- **#77 + #80** — outreach emails now set `"Reply-To": partners@camel-global.com`.
+  They send from `noreply@e.camel-global.com`, so an interested partner who hit Reply
+  reached nobody. `sendEmail()` already forwards a `headers` map to Resend (that is how
+  one-click `List-Unsubscribe` is set) — **`lib/email.ts` needed no change**. Set on the
+  real send AND the `[TEST]` preview so the preview matches what prospects receive.
+  **#77 first set a personal Gmail; #80 corrected it.** A `Reply-To` is VISIBLE to the
+  recipient — it populates their To: field on Reply and most clients display it, so it
+  must be a company mailbox. `partners@camel-global.com` is the right one twice over: it
+  is already where the contact form routes "Partnership / become a partner" enquiries
+  (`app/api/contact/route.ts:12`, both repos), and the email-address table further down
+  this file confirms it exists as a forwarder → artur@ + info@.
 - **#78** — repaired the whole outreach→signup attribution chain. See below.
 
 ## 🔗 Outreach attribution — the chain was dead, now fixed (#78)
