@@ -7,6 +7,11 @@ import { sendEmail } from "@/lib/email";
 
 export const DAILY_LIMIT = 50;
 
+/** Outreach is sent from a noreply@ address, so without an explicit Reply-To an
+ *  interested partner who hits Reply reaches nobody. Cold B2B outreach lives on the
+ *  reply — set this to a mailbox a human actually monitors. */
+const OUTREACH_REPLY_TO = "nicktrin@gmail.com";
+
 function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";
 }
@@ -34,7 +39,12 @@ function buildSignupUrl(prospectId: string, country?: string | null): string {
     utm_term:     countrySlug(country),
     ref:          prospectId,
   });
-  // Links directly to signup page to reduce friction
+  // Deliberately the ROOT, not /partner/signup. The root IS the partner-recruitment
+  // landing page, and it carries the outreach instrumentation: HomePageContent fires
+  // `outreach_landing` (real browsers only — scanners pre-fetch without running JS,
+  // so this is the honest human-click number) and `outreach_cta_click` on the way to
+  // signup, and it renders the unsubscribed banner. Pointing this at /partner/signup
+  // silently breaks all of that. Do not "fix" this URL.
   return `https://portal.camel-global.com/?${params.toString()}`;
 }
 
@@ -107,6 +117,7 @@ export async function POST(req: Request) {
         from:    "Camel Global <noreply@e.camel-global.com>",
         subject: `[TEST] ${emailHtml.subject}`,
         html:    emailHtml.fullHtml,
+        headers: { "Reply-To": OUTREACH_REPLY_TO },
       });
       return NextResponse.json({ ok: true, test: true, subject: emailHtml.subject });
     }
@@ -151,6 +162,7 @@ export async function POST(req: Request) {
       subject: emailHtml.subject,
       html:    emailHtml.fullHtml,
       headers: {
+        "Reply-To":              OUTREACH_REPLY_TO,
         "List-Unsubscribe":      `<${unsubscribeUrl}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
