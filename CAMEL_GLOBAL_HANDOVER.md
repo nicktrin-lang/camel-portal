@@ -22,7 +22,99 @@ Working Rules
 - camel-coming-soon is a submodule and always shows modified — ignore it, never `git add` it;
   always `git add <specific-file>`, never `git add .`.
 ═══════════════════════════════════════════════════════════════════════════════
-LATEST SESSION — 2026-08-12  (read this first)
+LATEST SESSION — 2026-09-02  (read this first)
+═══════════════════════════════════════════════════════════════════════════════
+Guide headline/SEO split ported to the portal · outreach attribution chain repaired ·
+11 stale Growth Engine PRs triaged (2 merged, 9 closed)
+
+## 🧭 State of the repos (verified, not assumed)
+- Portal `main` **7133e66**, customer `main` **69a8998**. Both pulled, clean, 0 behind.
+- **0 open PRs in both repos.** `npx tsc --noEmit` exit 0 in both.
+
+## ✅ MERGED & LIVE this session (portal)
+- **#76** — ports customer #95/#96: the guide **post page H1 is now the article's own
+  headline** (the body's first `# `), while `generateMetadata` keeps the concise
+  frontmatter `title` on `<title>`/canonical/OG for Google. List cards match
+  (`headline || title`). `lib/guides.ts` gained `firstMarkdownH1()` + optional
+  `headline` on `GuideMeta`; `listAllGuides()`/`relatedGuides()` inherit it.
+  The old `stripLeadingH1()` **deleted** the headline — 30 of 41 portal guides have a
+  body H1 that differs from the frontmatter title, so that text appeared nowhere.
+- **#77** — outreach emails now set `"Reply-To": nicktrin@gmail.com`. They send from
+  `noreply@e.camel-global.com`, so an interested partner who hit Reply reached nobody.
+  `sendEmail()` already forwards a `headers` map to Resend (that is how one-click
+  `List-Unsubscribe` is set) — **`lib/email.ts` needed no change**. Set on the real
+  send AND the `[TEST]` preview so the preview matches what prospects receive.
+- **#78** — repaired the whole outreach→signup attribution chain. See below.
+
+## 🔗 Outreach attribution — the chain was dead, now fixed (#78)
+`ref=<prospect_id>` was in every outreach URL and **nothing read it**. Chasing that
+found the real break: the query string dies twice on the way to the conversion.
+```
+/?utm_source=outreach&utm_term=spain&ref=abc-123
+     ↓  <Link href="/partner/signup">                      query dropped
+/partner/signup
+     ↓  router.replace("/partner/application-submitted")   query dropped
+```
+`app/partner/application-submitted/page.tsx` read the utm params straight off
+`window.location.search` and always got nothing, so **every outreach signup was
+recorded as organic** and that utm-reading block was dead code.
+
+Fix: **`lib/outreachAttribution.ts`** stashes attribution on arrival and reads it back
+at the conversion — no query string threaded through every `Link`/redirect.
+`sessionStorage` (not localStorage) so it is tab-scoped and a prospect returning
+organically next week is not credited. Every access is try/catch — private mode
+degrades to no attribution, never a broken page. `outreach_landing`,
+`outreach_cta_click` and `partner_signup_complete` now all carry `ref` + the full utm
+set. Organic arrivals still capture nothing.
+
+## 🚫 `buildSignupUrl()` returns the ROOT on purpose — do not "fix" it
+The old comment claimed it "links directly to signup page to reduce friction". False,
+and the opposite of the design. The root **is** the partner-recruitment landing page
+(`app/page.tsx` — "Join Camel Global … Apply in 5 minutes", six `/partner/signup`
+CTAs) and it carries the outreach instrumentation: `outreach_landing` (fires only for
+real browsers — scanners pre-fetch without running JS, so it is the honest human-click
+number, distinct from Resend's bot-inflated `clicked`), `outreach_cta_click`, and the
+unsubscribed banner. Pointing it at `/partner/signup` silently breaks all of it with
+nothing failing. Comment corrected in #77.
+
+## 🌍 Outreach language — confirmed, not a problem
+`getLocale(prospect.country)` (`app/api/admin/outreach/send/route.ts:14`) maps
+spain/españa/espana → **es**, and the Spanish email is fully translated (subject, body,
+`REGÍSTRATE AHORA` CTA, footer). The Add Prospect form and CSV import both default
+`country` to `"Spain"`, so a row with no country still gets Spanish. Only a value like
+`"ES"` or `"Catalunya"` would fall through to English.
+
+## ⚠️ INCIDENT — the Growth Engine self-merge failed silently 11 times over a month
+The engine is supposed to open AND merge its own `growth-engine/*` guide PRs via admin
+bypass. **11 sat open** (portal #27/#35, customer #28/#48/#51/#52/#54/#63/#65/#66/#79),
+oldest 2026-07-30. Same failure class as the `Bash(gh pr merge:*)` rule going missing.
+**Add a periodic check: any open `growth-engine/*` PR older than a week?**
+
+Triaged rather than bulk-merged, because merging all 11 would have made content
+cannibalisation worse:
+- **Merged: portal #35** (Zaragoza/Pamplona — no overlap on `main`) and
+  **customer #28** (Sydney — `main` had only Adelaide).
+- **Closed 9, deliberately — do NOT re-merge them:**
+  - customer **#79** — its file already existed on `main`. Pure duplicate.
+  - customer **#48/#51/#52/#63/#66** — `main` already carries **6 Málaga guides**;
+    these five differ only in phrasing. Would have made 11 pages on one query.
+  - customer **#65** (Seville) and **#54** (Barcelona airport) — near-title-identical
+    to guides already on `main`.
+  - portal **#27** — would have been a **7th** "listar mi empresa" guide. `main` already
+    has 6, on the exact phrase a Spanish operator searches when ready to sign up.
+- All closes carry a reason on the PR. Reversible with `gh pr reopen <n>`.
+
+**Before merging any future guide PR, check `main` for an existing guide on the same
+city/term.** `ls content/guides/<lang>/ | grep -i <term>`.
+
+## 🔍 Verified live in the browser (not just on disk)
+Loaded the real pages and read the rendered DOM on **both** domains: post pages show
+exactly one `<h1>` = the article headline, `<title>`/canonical/OG = the SEO title, and
+the body no longer repeats the H1. List cards on both sites render the headline
+(checked against the frontmatter on disk). Deployed and serving.
+
+═══════════════════════════════════════════════════════════════════════════════
+PREVIOUS SESSION — 2026-08-12
 ═══════════════════════════════════════════════════════════════════════════════
 Repo hygiene + doc truth-up: AU/NZ branch was merged all along and the docs said otherwise
 
