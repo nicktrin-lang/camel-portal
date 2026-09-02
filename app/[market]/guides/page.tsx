@@ -11,7 +11,7 @@ import {
   marketCountry,
   marketHrefLang,
   countryName,
-  MARKET_LANG,
+  marketLanguage,
 } from "@/lib/guides";
 import { GuidesHero } from "@/app/components/GuidesText";
 import GuidePostList from "@/app/components/GuidePostList";
@@ -61,7 +61,7 @@ export async function generateMetadata({
     description,
     robots: { index: true, follow: true },
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, type: "website", locale: MARKET_LANG[market] },
+    openGraph: { title, description, url: canonical, type: "website", locale: marketLanguage(market) },
   };
 }
 
@@ -147,7 +147,7 @@ export default async function GuidesIndex({
                   href: `/${market}/guides/${g.slug}`,
                   title: g.headline || g.title, // article headline (matches the post page); SEO title stays on <title>
                   description: g.description,
-                  dateLabel: g.date ? fmtDate(g.date, MARKET_LANG[market]) : undefined,
+                  dateLabel: g.date ? fmtDate(g.date, marketLanguage(market)) : undefined,
                 }))}
               />
             )}
