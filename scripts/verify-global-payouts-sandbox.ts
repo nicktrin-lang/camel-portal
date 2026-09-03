@@ -84,14 +84,29 @@ async function main() {
     }
   }
 
-  // D. platform financial account (AUD balance)
+  // D. platform financial account — report EVERY currency it holds, not just AUD. Which
+  //    balances exist is what decides whether payouts are same-currency or GBP-sourced.
   let faId = "";
+  let faAvailable: Record<string, number> = {};
   try {
     const fa = await gp.getPlatformFinancialAccount("aud");
     faId = fa.id;
-    rec("getPlatformFinancialAccount(aud)", !!fa.id, `fa=${fa.id} availableAUD=${fa.availableMajor}`);
+    faAvailable = fa.available;
+    const held = Object.entries(fa.available).map(([c, v]) => `${c}=${v}`).join(" ") || "(empty)";
+    rec("getPlatformFinancialAccount", !!fa.id, `fa=${fa.id} balances: ${held}`);
   } catch (e) {
-    rec("getPlatformFinancialAccount(aud)", false, (e as Error)?.message ?? String(e));
+    rec("getPlatformFinancialAccount", false, (e as Error)?.message ?? String(e));
+  }
+
+  // D2. Which balance would production actually draw from for an A$10 payout?
+  //     Pure function, no network — proves the live decision without moving anything.
+  {
+    const src = gp.resolvePayoutSource(faAvailable, "aud", 10);
+    rec(
+      "resolvePayoutSource(aud, 10)",
+      true,
+      `would fund from ${src.currency.toUpperCase()} (${src.sameCurrency ? "same-currency, no FX" : "cross-currency, Stripe converts at send"}), available=${src.availableMajor}`,
+    );
   }
 
   // E. recipient payout method (null until onboarding completes — expected)
@@ -108,6 +123,7 @@ async function main() {
   // F. OutboundPaymentQuote (locks FX; moves NO money). Needs FA + onboarded
   //    recipient, so it may error — the error shape still validates the request.
   if (faId && recipientId) {
+    // F1. Same-currency (AUD -> AUD) — the path used only if an AUD balance exists.
     try {
       const q = await gp.createOutboundPaymentQuote({
         financialAccountId: faId,
@@ -116,16 +132,42 @@ async function main() {
         amountValue: 1000, // A$10.00
         currency: "aud",
       });
-      rec("createOutboundPaymentQuote", !!q.id, `quote=${q.id} feesAUD=${gp.sumQuoteFees(q.fees, "aud")}`);
+      rec("quote AUD->AUD (same-currency)", !!q.id, `quote=${q.id} feesAUD=${gp.sumQuoteFees(q.fees, "aud")}`);
     } catch (e) {
-      rec("createOutboundPaymentQuote", false, `(expected until onboarding+funds) ${(e as Error)?.message ?? String(e)}`);
+      rec("quote AUD->AUD (same-currency)", false, `(expected until onboarding+funds) ${(e as Error)?.message ?? String(e)}`);
+    }
+
+    // F2. Cross-currency (GBP -> AUD) — THIS is what production does today, so it is the
+    //     shape that actually matters. Stripe converts at send; the partner still receives
+    //     the AUD amount. Verifies `from.currency` != `to.currency` is accepted at all.
+    try {
+      const q = await gp.createOutboundPaymentQuote({
+        financialAccountId: faId,
+        recipientId,
+        payoutMethodId,
+        amountValue: 1000, // partner receives A$10.00
+        currency: "aud",
+        sourceCurrency: "gbp",
+      });
+      const srcAmt = gp.quoteSourceAmountMajor(q.raw, "gbp");
+      rec(
+        "quote GBP->AUD (cross-currency — the LIVE path)",
+        !!q.id,
+        `quote=${q.id} sourceGBP=${srcAmt ?? "not reported"} feesAUD=${gp.sumQuoteFees(q.fees, "aud")}`,
+      );
+    } catch (e) {
+      rec("quote GBP->AUD (cross-currency — the LIVE path)", false, `(expected until onboarding+funds) ${(e as Error)?.message ?? String(e)}`);
     }
   }
 
   console.log("\n─── SUMMARY ───");
   for (const r of out) console.log(`${r.ok ? "PASS" : "FAIL"}  ${r.step}`);
   console.log(
-    "\nNote: the actual OutboundPayment is intentionally NOT called (it moves money). It needs the\n" +
+    "\nRead it like this: the recipient / onboarding-link / financial-account steps MUST pass —\n" +
+      "those are the call shapes written from docs. The quotes failing with a COHERENT Stripe error\n" +
+      "is expected (recipient not onboarded, account unfunded) and still proves the request was\n" +
+      "understood; a 404 on the endpoint itself does not.\n" +
+      "\nNote: the actual OutboundPayment is intentionally NOT called (it moves money). It needs the\n" +
       "recipient to finish hosted onboarding (a human step) + funds in the sandbox financial account.\n" +
       "This harness verifies the v2 call SHAPES — the 'written from docs' risk — against the real sandbox.",
   );
