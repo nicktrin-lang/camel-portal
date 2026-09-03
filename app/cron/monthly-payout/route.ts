@@ -269,22 +269,35 @@ export async function GET(req: Request) {
         if (!payoutMethod) {
           throw new Error("Recipient has no local bank payout method — finish recipient onboarding before paying out.");
         }
-        const quote = await createOutboundPaymentQuote({
-          financialAccountId: fa.id,
-          recipientId:        profile.stripe_recipient_id,
-          payoutMethodId:     payoutMethod,
-          amountValue:        totalCents,
-          currency:           payoutCurrency,
-          sourceCurrency:     src.currency,
-        });
-        obpQuoteId = quote.id || null;
-        payoutFee  = sumQuoteFees(quote.fees, payoutCurrency);
-        // Cross-currency: now Stripe has priced it, check the SOURCE side against the
-        // balance using Stripe's own number rather than any rate we invent. If the quote
-        // does not report a source amount we proceed — the OutboundPayment fails cleanly
-        // and moves no money.
-        if (!src.sameCurrency) {
-          const needSrc = quoteSourceAmountMajor(quote.raw, src.currency);
+        // Quoting is BEST-EFFORT and must never block a payout.
+        //
+        // /v2/money_management/outbound_payment_quotes DOES NOT EXIST on Stripe-Version
+        // 2026-06-24.preview — verified against the sandbox 2026-09-03: it returns "The API
+        // method cannot be found", while financial_accounts, payout_methods, core/accounts
+        // and outbound_payments all resolve. The endpoint was written from documentation
+        // and never existed. A quote only buys the fee figure and a cross-currency balance
+        // pre-check; the OutboundPayment is authoritative, fails cleanly when underfunded,
+        // and is idempotency-keyed, so a missing quote is a loss of reporting, not safety.
+        let quoteRaw: any = null;
+        try {
+          const quote = await createOutboundPaymentQuote({
+            financialAccountId: fa.id,
+            recipientId:        profile.stripe_recipient_id,
+            payoutMethodId:     payoutMethod,
+            amountValue:        totalCents,
+            currency:           payoutCurrency,
+            sourceCurrency:     src.currency,
+          });
+          obpQuoteId = quote.id || null;
+          payoutFee  = sumQuoteFees(quote.fees, payoutCurrency);
+          quoteRaw   = quote.raw;
+        } catch (quoteErr: any) {
+          console.warn(`monthly-payout: ${profile.company_name} — quote unavailable (${quoteErr?.message}); continuing unquoted`);
+        }
+        // Only meaningful when a quote came back. Deliberately OUTSIDE the catch above so
+        // an insufficient-funds stop is fatal, while a missing quote endpoint is not.
+        if (!src.sameCurrency && quoteRaw) {
+          const needSrc = quoteSourceAmountMajor(quoteRaw, src.currency);
           if (needSrc !== null && src.availableMajor + 1e-9 < needSrc) {
             throw new Error(`Insufficient ${src.currency.toUpperCase()} balance to fund ${payoutCurrency} ${totalPayout} (quote needs ${needSrc}, have ${src.availableMajor}) — fund the financial account.`);
           }
@@ -303,6 +316,7 @@ export async function GET(req: Request) {
             payout_month:    runLabel,
             currency:        payoutCurrency,
             source_currency: src.currency,
+            quoted:          obpQuoteId ? "yes" : "no",
             booking_ids:     bookingIds.slice(0, 5).join(","),
           },
           // Same key on a re-run returns the SAME OutboundPayment — never double-pays.
