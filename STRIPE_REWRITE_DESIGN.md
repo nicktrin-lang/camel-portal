@@ -201,12 +201,53 @@ authoritative for AU/NZ Global Payouts.
   required, not optional. Destination charges are separately incompatible with
   our model (they pay at charge time; we refund fuel deposits + cancellations
   after the charge), so we must settle from the platform balance.
-- **Same-currency payout avoids FX — CONDITIONAL on MCS.** Hold AUD → pay AUD =
-  no conversion = no FX fee. BUT this requires the platform to actually hold an
-  **AUD-denominated balance**, which requires **Multi-Currency Settlement (MCS)
-  enabled** so AUD accumulates separately instead of converting to GBP. Same for
-  NZD. Without MCS: ~2% FX in + ~2% out. This resolves the Chat 59 "FX crux" —
-  answer: enable MCS. **MCS for AUD/NZD is now a hard prerequisite.**
+- **Same-currency payout avoids FX — but it is NOT a prerequisite. CORRECTED 2026-09-03.**
+  Holding AUD and paying AUD means no conversion. That needs the platform to hold an
+  AUD-denominated balance. **This was previously written as "MCS for AUD/NZD is a hard
+  prerequisite". That was wrong and it blocked AU/NZ for five weeks.**
+
+  Stripe support confirmed in writing (2026-07-28) that **both paths work**:
+  > "without ACP in place, a double conversion occurs — AUD → GBP at settlement, then
+  > GBP → AUD at payout — bringing the all-in FX cost to approximately 3–4%. Using ACP
+  > to retain your AUD balance … reduces this to a single conversion of approximately 1–2%."
+
+  and earlier: *"you initiate an OutboundPayment from your Global Payouts financial
+  account directly to the partner's local bank account. **Stripe handles the GBP →
+  AUD/NZD conversion at the point of sending.**"*
+
+  The v2 API models it directly — `from.currency` and `to.currency` are **separate
+  fields** on both the quote and the payment. The old code passed the same value to
+  both, which is where the "AUD balance required" belief actually came from: our code,
+  not Stripe.
+
+  **Current behaviour (`resolvePayoutSource`):** prefer the payout currency when the
+  financial account holds enough of it (no FX), otherwise fund from
+  `PLATFORM_BASE_CURRENCY` (gbp) and let Stripe convert at send. **The partner receives
+  the exact amount owed in THEIR currency either way**; Camel absorbs the FX, consistent
+  with §7b (Camel absorbs all Stripe fees). If an AUD balance ever exists, payouts become
+  same-currency automatically with no code change.
+
+  ⚠️ **This is a deliberate, temporary deviation from rule 4** ("no FX on the
+  transactional path"). The bid, charge, booking and payout currencies are all still the
+  partner's currency — the FX is Stripe's, on Camel's side of the line. Accepted trade:
+  ~2% of the partner's share versus AU/NZ partners not being paid at all. Revisit if ACP
+  becomes reachable.
+
+- **ACP / an AUD balance is a COST OPTIMISATION, not a blocker.** Two dead ends found
+  2026-09-03, both worth not repeating:
+  - **Settings → Connect → Multi-Currency Settlement is the WRONG feature.** Its own
+    description reads "Enable multi-currency settlement for **Connected Accounts** … They'll
+    need to add a separate bank account". It governs connected accounts, not the platform
+    balance, and enabling it would touch the 5 in-corridor accounts and loosen the
+    one-currency-per-partner invariant in rule 4. **Leave it off.** Stripe support pointed
+    us here on 2026-07-29 while answering a question about the *platform* balance.
+  - **Wise cannot supply what Stripe asks for.** Stripe (2026-07-29): "a Wise UK account
+    with a UK sort code and UK account number **denominated in AUD** — not the Australian
+    BSB details." Wise's published AUD details are **BSB + account number** (Australian) or
+    SWIFT; there is no UK sort code denominated in AUD. Stripe had said the opposite on
+    2026-07-26 ("your Wise UK business account's AUD account details (BSB + account number)
+    should be accepted"), so the support thread contradicts itself. The real linked-accounts
+    dialog is locked to United Kingdom with no currency field.
 - **Fees (Standard tier), Stripe-quoted:** £0.50 per payout (UK) + cross-border
   0.25–1.25% + FX 0.50–2% *only when a conversion happens*. So same-currency AU
   ≈ £0.50 + ~1% CBP; the 2% FX is avoided under MCS.

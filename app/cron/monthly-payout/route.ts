@@ -9,6 +9,7 @@ import { coerceCurrency } from "@/lib/currency";
 import { canonicalCountryName } from "@/lib/portal/countryCanonical";
 import {
   getPlatformFinancialAccount, getRecipientPayoutMethod,
+  resolvePayoutSource, quoteSourceAmountMajor,
   createOutboundPaymentQuote, createOutboundPayment, sumQuoteFees,
   classifyOutboundPaymentStatus,
 } from "@/lib/portal/stripeGlobalPayouts";
@@ -247,8 +248,20 @@ export async function GET(req: Request) {
       let payoutFee = 0;
       try {
         const fa = await getPlatformFinancialAccount(payoutCurrency);
-        if (fa.availableMajor + 1e-9 < totalPayout) {
-          throw new Error(`Insufficient ${payoutCurrency} balance (have ${fa.availableMajor}, need ${totalPayout}) — fund the financial account (recurring transfer).`);
+        // Fund from the payout currency when the account holds it (no FX — the ACP path),
+        // otherwise from the platform base currency and Stripe converts at send. Stripe
+        // confirmed both work; the difference is ~1-2% vs ~3-4%, absorbed by Camel. The
+        // partner is paid `totalPayout` in THEIR currency either way.
+        const src = resolvePayoutSource(fa.available, payoutCurrency, totalPayout);
+        if (src.sameCurrency) {
+          if (src.availableMajor + 1e-9 < totalPayout) {
+            throw new Error(`Insufficient ${payoutCurrency} balance (have ${src.availableMajor}, need ${totalPayout}) — fund the financial account (recurring transfer).`);
+          }
+        } else if (src.availableMajor <= 0) {
+          // Cross-currency: we cannot know the source amount before quoting, so the only
+          // pre-check is that the funding balance is not empty. The exact check happens
+          // against the quote below.
+          throw new Error(`No ${src.currency.toUpperCase()} balance to fund a ${payoutCurrency} payout — fund the financial account (recurring transfer).`);
         }
         const payoutMethod = await getRecipientPayoutMethod(profile.stripe_recipient_id);
         // Stop rather than quoting/paying with the payout method omitted — that
@@ -262,21 +275,34 @@ export async function GET(req: Request) {
           payoutMethodId:     payoutMethod,
           amountValue:        totalCents,
           currency:           payoutCurrency,
+          sourceCurrency:     src.currency,
         });
         obpQuoteId = quote.id || null;
         payoutFee  = sumQuoteFees(quote.fees, payoutCurrency);
+        // Cross-currency: now Stripe has priced it, check the SOURCE side against the
+        // balance using Stripe's own number rather than any rate we invent. If the quote
+        // does not report a source amount we proceed — the OutboundPayment fails cleanly
+        // and moves no money.
+        if (!src.sameCurrency) {
+          const needSrc = quoteSourceAmountMajor(quote.raw, src.currency);
+          if (needSrc !== null && src.availableMajor + 1e-9 < needSrc) {
+            throw new Error(`Insufficient ${src.currency.toUpperCase()} balance to fund ${payoutCurrency} ${totalPayout} (quote needs ${needSrc}, have ${src.availableMajor}) — fund the financial account.`);
+          }
+        }
         const payment = await createOutboundPayment({
           financialAccountId: fa.id,
           recipientId:        profile.stripe_recipient_id,
           payoutMethodId:     payoutMethod,
           amountValue:        totalCents,
           currency:           payoutCurrency,
+          sourceCurrency:     src.currency,
           quoteId:            obpQuoteId || undefined,
           description:        `Camel Global payout — ${runLabel} — ${partnerBookings.length} booking(s)`,
           metadata: {
             partner_user_id: partnerUserId,
             payout_month:    runLabel,
             currency:        payoutCurrency,
+            source_currency: src.currency,
             booking_ids:     bookingIds.slice(0, 5).join(","),
           },
           // Same key on a re-run returns the SAME OutboundPayment — never double-pays.

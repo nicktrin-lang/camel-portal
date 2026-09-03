@@ -1,8 +1,10 @@
 # AU/NZ Global Payouts — go-live runbook
 
 **Status at 2026-08-12: the code is DONE and on `main`. Nothing here is a build task.**
-What remains is Stripe dashboard setup, one sandbox verification, a data migration, and one
-partner re-onboarding. This file is the ordered path; the detail lives in the docs it points to.
+What remains is one sandbox verification, a data migration, and one partner re-onboarding.
+**Step 1 was rewritten on 2026-09-03: the AUD-balance prerequisite was never real, and the
+dashboard path it named was the wrong feature.** This file is the ordered path; the detail
+lives in the docs it points to.
 
 | Doc | What it holds |
 |---|---|
@@ -29,27 +31,38 @@ automatically", never "wrong money moves".
 
 ---
 
-## Step 1 — Stripe dashboard 🧑
+## Step 1 — Stripe dashboard 🧑  **REWRITTEN 2026-09-03 — the old version was wrong**
 
-**1a. Enable Multi-Currency Settlement / ACP**
-Dashboard → Settings → Connect → **Multi-Currency Settlement**. Self-serve (confirmed by Stripe,
-2026-07-29) — no request needed.
+> The previous version said: *"Enable MCS/ACP — Dashboard → Settings → Connect →
+> Multi-Currency Settlement. Self-serve, no request needed"*, and treated an AUD balance as
+> a hard prerequisite. **All three claims were false**, and they blocked AU/NZ for five
+> weeks. Kept here as a warning, not as instructions.
 
-> ⚠️ **Verify what it actually gives you.** We need the **platform** to hold a retained **AUD
-> balance** that can fund OutboundPayments. Stripe's wording ("for your connected accounts") is
-> ambiguous, and per-connected-account settlement is a *different thing* that does not help us —
-> our rail pays Global Payouts **recipients**, not connected accounts. If after enabling you can't
-> see a platform-level AUD balance, stop and ask Stripe before spending money on step 1b.
+**1a. Enable the Bank transfer payout method** — Settings → **Global Payouts** → Payout
+methods. This is a real blocker: with no method enabled, `getRecipientPayoutMethod()`
+returns null, the cron refuses, and bookings sit at `ready`.
+**Enable Bank transfer only, NOT Debit card.** `getRecipientPayoutMethod` returns
+`data[0]` without filtering by type, so a card enabled alongside could be picked instead of
+the bank. *(Done 2026-09-03.)*
 
-**1b. Open the AUD-denominated account**
-A **Wise UK business account with a UK sort code + account number, denominated in AUD**.
-**Not** an Australian BSB — confirmed correct by Stripe.
+**1b. An AUD/NZD balance is OPTIONAL — do not block on it.** The rail funds from GBP and
+Stripe converts at send (~3–4% all-in). An AUD balance would make it ~1–2%. The code prefers
+the payout currency automatically whenever the balance exists, so this is a later
+optimisation, not a gate. See the FX section of `STRIPE_REWRITE_DESIGN.md`.
 
-**1c. Add AUD (and NZD) as settlement currencies** using that account.
+**Two dead ends — do not repeat them:**
+- **Settings → Connect → Multi-Currency Settlement is the wrong feature.** It governs
+  *connected accounts* ("They'll need to add a separate bank account"), not the platform
+  balance. Enabling it would touch the 5 in-corridor accounts. **Leave it off.**
+- **Wise cannot provide a UK sort code account denominated in AUD.** Its AUD details are
+  Australian BSB, or SWIFT. Stripe asked for the former on 2026-07-26 and forbade it on
+  2026-07-29 — the support thread contradicts itself. The linked-accounts dialog is locked
+  to United Kingdom with no currency field.
 
-**Why it matters:** with ACP, an AU payout costs **~1–2%**; without it, the money round-trips
-AUD→GBP→AUD at **~3–4%**. Camel absorbs this either way, so it's margin, not a blocker. The code
-works on both paths — ACP only changes which balance the OutboundPayment draws from.
+**If you want the cheaper path later**, the question for Stripe is *"which GB-domiciled
+providers satisfy the ACP requirement for an AUD-denominated account, and how does AUD get
+INTO the financial account balance — settlement or inbound transfer?"* Nobody has answered
+the second half yet.
 
 ---
 

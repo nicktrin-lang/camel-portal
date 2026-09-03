@@ -152,15 +152,66 @@ async function stripeV2Get<T = any>(path: string, contextId?: string): Promise<T
  * account id plus its available balance in `currency` (smallest unit → major).
  * Camel has a single platform financial account holding a multi-currency balance.
  */
-export async function getPlatformFinancialAccount(currency: string): Promise<{ id: string; availableMajor: number }> {
+/** The platform's own currency. AUD/NZD payouts are funded from here unless the financial
+ *  account happens to hold the payout currency itself — see resolvePayoutSource(). */
+export const PLATFORM_BASE_CURRENCY = "gbp";
+
+export async function getPlatformFinancialAccount(currency: string): Promise<{
+  id: string;
+  /** Balance in `currency`, major units. */
+  availableMajor: number;
+  /** Every currency the account holds, major units — lets the caller choose a source. */
+  available: Record<string, number>;
+}> {
   const ccy = currency.toLowerCase();
   const json = await stripeV2Get<{ data: Array<{ id: string; balance?: { available?: Record<string, { value: number }> } }> }>(
     "/v2/money_management/financial_accounts",
   );
   const fa = json?.data?.[0];
   if (!fa?.id) throw new Error("No platform financial account found for Global Payouts");
-  const cents = fa.balance?.available?.[ccy]?.value ?? 0;
-  return { id: fa.id, availableMajor: cents / 100 };
+  const raw = fa.balance?.available ?? {};
+  const available: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw)) available[k.toLowerCase()] = Number(v?.value ?? 0) / 100;
+  return { id: fa.id, availableMajor: available[ccy] ?? 0, available };
+}
+
+/** Which balance funds a payout.
+ *
+ *  PREFERS the payout currency, so the moment the financial account holds AUD (the ACP
+ *  path) payouts become same-currency with no FX and nothing here needs changing. Falls
+ *  back to the platform's base currency, where Stripe converts GBP -> AUD/NZD at send.
+ *
+ *  Stripe confirmed both paths in writing (support thread, 2026-07-28): without ACP the
+ *  money double-converts (AUD -> GBP at settlement, GBP -> AUD at payout) for an all-in
+ *  ~3-4%; with an AUD balance it is a single conversion at ~1-2%. The v2 API models this
+ *  directly — `from.currency` and `to.currency` are separate fields. The partner is paid
+ *  the exact amount owed in THEIR currency either way; Camel absorbs the FX, consistent
+ *  with absorbing Stripe fees generally.
+ */
+export function resolvePayoutSource(
+  available: Record<string, number>,
+  payoutCurrency: string,
+  neededMajor: number,
+): { currency: string; sameCurrency: boolean; availableMajor: number } {
+  const want = payoutCurrency.toLowerCase();
+  const inWant = available[want] ?? 0;
+  if (inWant + 1e-9 >= neededMajor) {
+    return { currency: want, sameCurrency: true, availableMajor: inWant };
+  }
+  const base = PLATFORM_BASE_CURRENCY;
+  return { currency: base, sameCurrency: false, availableMajor: available[base] ?? 0 };
+}
+
+/** The source-side amount Stripe locked in a quote, if it reported one. Used to check the
+ *  funding balance across currencies WITHOUT us guessing an FX rate — Stripe's own number
+ *  or nothing. Returns null when the field is absent, in which case the OutboundPayment
+ *  itself is the check (it fails cleanly and moves no money). */
+export function quoteSourceAmountMajor(raw: any, sourceCurrency: string): number | null {
+  const amt = raw?.from?.amount ?? raw?.source_amount ?? null;
+  if (!amt) return null;
+  if (String(amt.currency ?? "").toLowerCase() !== sourceCurrency.toLowerCase()) return null;
+  const v = Number(amt.value);
+  return Number.isFinite(v) ? v / 100 : null;
 }
 
 /** The recipient's default local-bank payout method id (…ba_), or null if none yet. */
@@ -179,14 +230,18 @@ export async function createOutboundPaymentQuote(opts: {
   financialAccountId: string;
   recipientId: string;
   payoutMethodId: string | null;
-  amountValue: number;   // smallest currency unit
-  currency: string;      // same currency both sides (no-FX intent)
+  amountValue: number;   // smallest unit, in `currency` — what the PARTNER receives
+  currency: string;      // destination currency (the booking/bid currency)
+  /** Balance to draw from. Omit for same-currency (no FX). When it differs, Stripe
+   *  converts at send and the partner still receives `amountValue` in `currency`. */
+  sourceCurrency?: string;
 }): Promise<{ id: string; fees: QuoteFee[]; raw: any }> {
   const ccy = opts.currency.toLowerCase();
+  const src = (opts.sourceCurrency ?? opts.currency).toLowerCase();
   const to: any = { recipient: opts.recipientId, currency: ccy };
   if (opts.payoutMethodId) to.payout_method = opts.payoutMethodId;
   const json = await stripeV2Post<any>("/v2/money_management/outbound_payment_quotes", {
-    from:   { financial_account: opts.financialAccountId, currency: ccy },
+    from:   { financial_account: opts.financialAccountId, currency: src },
     to,
     amount: { value: opts.amountValue, currency: ccy },
     delivery_options: { bank_account: "local" },
@@ -214,16 +269,19 @@ export async function createOutboundPayment(opts: {
   payoutMethodId: string | null;
   amountValue: number;
   currency: string;
+  /** See createOutboundPaymentQuote — must match the currency used for the quote. */
+  sourceCurrency?: string;
   quoteId?: string;
   description?: string;
   metadata?: Record<string, string>;
   idempotencyKey?: string;
 }): Promise<OutboundPaymentResult> {
   const ccy = opts.currency.toLowerCase();
+  const src = (opts.sourceCurrency ?? opts.currency).toLowerCase();
   const to: any = { recipient: opts.recipientId, currency: ccy };
   if (opts.payoutMethodId) to.payout_method = opts.payoutMethodId;
   const body: any = {
-    from:   { financial_account: opts.financialAccountId, currency: ccy },
+    from:   { financial_account: opts.financialAccountId, currency: src },
     to,
     amount: { value: opts.amountValue, currency: ccy },
     delivery_options: { bank_account: "local" },
