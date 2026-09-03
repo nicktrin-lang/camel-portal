@@ -28,7 +28,7 @@ Guides re-routed by MARKET (country), not language · headline/SEO-title split �
 Reply-To + attribution chain repaired · 11 stale Growth Engine PRs triaged (2 merged, 9 closed)
 
 ## 🧭 State of the repos (verified, not assumed)
-- Portal `main` **4a2286d**, customer `main` **ce84bd7**. Both pulled, clean, 0 behind.
+- Portal `main` **44fdc9a**, customer `main` **c59b780**. Both pulled, clean, 0 behind.
 - **0 open PRs in both repos.** `npx tsc --noEmit` exit 0 in both; `next build` succeeds in
   both; all nine guide market hubs verified live over HTTP.
 
@@ -200,6 +200,91 @@ spain/españa/espana → **es**, and the Spanish email is fully translated (subj
 `REGÍSTRATE AHORA` CTA, footer). The Add Prospect form and CSV import both default
 `country` to `"Spain"`, so a row with no country still gets Spanish. Only a value like
 `"ES"` or `"Catalunya"` would fall through to English.
+
+## 🇦🇺 AU/NZ GLOBAL PAYOUTS — unblocked and part-verified (#111–#113, 2026-09-03)
+
+Five weeks of "blocked on an AUD balance" turned out to be **our own code**, not Stripe.
+
+### The unblock (#111)
+The rail demanded an AUD balance in the Global Payouts financial account, and obtaining one is
+blocked on a bank account **Wise does not sell**. But Stripe had already confirmed in writing
+(support thread, 2026-07-28) that a **GBP-sourced OutboundPayment works**, converting at send:
+> "without ACP in place, a double conversion occurs — AUD → GBP at settlement, then GBP → AUD
+> at payout — ~3–4%. Using ACP to retain your AUD balance … reduces this to a single
+> conversion of ~1–2%."
+
+The v2 API models it: `from.currency` and `to.currency` are **separate fields**. The old code
+passed the same value to both (`// same currency both sides (no-FX intent)`) — that comment was
+the entire "AUD balance required" belief.
+
+`resolvePayoutSource()` now **prefers** the payout currency and falls back to
+`PLATFORM_BASE_CURRENCY` (gbp). **If an AUD balance ever appears, payouts become same-currency
+automatically with no code change.** The partner receives the exact amount owed in THEIR
+currency either way. ⚠️ **Deliberate, temporary deviation from rule 4** (no FX on the
+transactional path) — recorded in `STRIPE_REWRITE_DESIGN.md`. Accepted: ~2% of the partner's
+share vs AU/NZ partners not being paid at all.
+
+### Sandbox verification — the first time this code EVER ran against Stripe
+Global Payouts was **NOT enabled on the sandbox** until 2026-09-03, despite Stripe confirming on
+2026-07-29 that it was. Once enabled:
+
+| call | result |
+|---|---|
+| `POST /v2/core/accounts` | ✅ created recipient `acct_1UBchgG5yRKsPeB5` |
+| `POST /v2/core/account_links` | ✅ real hosted onboarding URL |
+| `GET /v2/money_management/financial_accounts` | ✅ `fa_test_65VKya…` — the earlier 404 was entitlement, NOT a wrong path |
+| `GET /v2/money_management/payout_methods` | ✅ null (recipient not onboarded — correct) |
+| `POST …/outbound_payment_quotes` | ❌ **endpoint does not exist** |
+| `POST …/outbound_payments` | ⚠️ **exists but has NEVER been called** |
+
+**`/v2/money_management/outbound_payment_quotes` is not a Stripe endpoint** on
+`Stripe-Version: 2026-06-24.preview` — GET on it 404s while every sibling resolves. It was
+written from docs and never ran. The cron quoted BEFORE paying, so every AU/NZ payout would have
+failed there — safely, but permanently.
+
+### #113 — quoting is best-effort
+A quote only bought the fee figure and a cross-currency balance pre-check. The OutboundPayment is
+authoritative, refuses cleanly when underfunded, and is idempotency-keyed. **The
+insufficient-funds stop sits OUTSIDE the try/catch** so it stays fatal while a missing endpoint
+does not. The helper is kept, not deleted — if Stripe ships the endpoint it resumes working with
+no code change. Metadata records `quoted=yes|no`.
+
+### Dead ends — do not repeat
+- **Settings → Connect → Multi-Currency Settlement is the WRONG feature.** It governs *connected
+  accounts* ("They'll need to add a separate bank account"). Enabling it would touch the 5
+  in-corridor accounts and loosen rule 4's one-currency-per-partner. **Leave it off.**
+- **Wise cannot supply a UK sort-code account denominated in AUD.** Its AUD details are
+  Australian BSB or SWIFT. Stripe demanded the former on 2026-07-26 and forbade it on
+  2026-07-29 — the support thread contradicts itself.
+- The linked-accounts dialog (Settings → Global Payouts → Linked bank accounts) is **locked to
+  United Kingdom with no currency field**, despite a USD/US account already being linked.
+- **Bank transfer payout method is now ON** (live). Debit card deliberately OFF —
+  `getRecipientPayoutMethod` returns `data[0]` unfiltered, so a card could otherwise be picked.
+
+### Kingsman — the runbook is WRONG about them (verified in the DB 2026-09-03)
+`AUNZ_GO_LIVE_RUNBOOK.md` says they are on `payout_rail='connect'` with no recipient. **Both
+false.** Actual row (`user_id 116fd343-a034-4153-ac33-34bf1fcd7153`):
+`payout_rail='global_payouts'`, `stripe_recipient_id='acct_1U0B4k9iDSYxtaGV'`,
+`default_currency='AUD'`, application **approved**, **4 fleet vehicles** — but
+`recipient_payouts_enabled=false`, `stripe_onboarding_status='pending'`. They **started** the
+Stripe-hosted onboarding and never finished it (identity + bank details).
+
+So they are **matchable today** — they can receive requests and bid; they just cannot be paid
+until Darrell completes Settings → Payouts (~2 min, generates a fresh hosted link). Their July
+email asking for AUD is **already satisfied**. Zero bookings, zero bids, zero matches, so no row
+was ever snapshotted at a wrong currency. Nick's call 2026-09-03: leave it, sort it if a booking
+appears. `Test AUS` (`f7f5c399-…`) has no recipient at all.
+
+### If an AU booking lands, the order is
+1. Fund the Global Payouts **financial account** by hand — it is a DIFFERENT pot from the
+   payments balance where charges land, and nothing moves money between them automatically.
+   Empty → cron throws "No GBP balance to fund a AUD payout", booking stays `ready`, admin
+   emailed. Safe, but unpaid.
+2. Darrell finishes onboarding.
+3. Cron pays him.
+
+**Budget an hour, not ten minutes:** `outbound_payments` has still never been executed, so the
+first real payout is the first time that request is made.
 
 ## ⚠️ INCIDENT — the Growth Engine self-merge failed silently 11 times over a month
 The engine is supposed to open AND merge its own `growth-engine/*` guide PRs via admin
@@ -467,18 +552,11 @@ Guides polish · SITEMAP root-cause fix · never-merge workflow · Vercel cost �
   watch for.)
 
 ## ⏳ PENDING (Nick's actions — not done yet)
-- **Stripe AU/NZ (recorded in `STRIPE_REWRITE_DESIGN.md`, Anannya 2026-07-29):** (1) enable
-  MCS/ACP self-serve at Dashboard → Settings → Connect → Multi-Currency Settlement toggle —
-  VERIFY it gives the PLATFORM a retained AUD balance to fund OutboundPayments, not merely
-  per-connected-account settlement; (2) open a Wise UK account with UK sort code/account
-  DENOMINATED IN AUD (not Australian BSB) — confirmed correct; (3) sandbox Global Payouts is
-  ENABLED on `acct_1TwWcWG5yRPYnAl6` (supersedes the earlier "live only, no sandbox" claim). Then
-  dev-test `lib/portal/stripeGlobalPayouts.ts` (still "written from docs, unverified") against the
-  sandbox — use `scripts/verify-global-payouts-sandbox.ts`.
-  *(Corrected 2026-08-12: this line used to end "AU/NZ code (Units 1-6) lives on branch
-  `claude/onboarding-country-aunz-9bc42f`, not merged." That branch WAS merged via PR #5. The code
-  is on `main`; what remains outstanding is the dashboard setup and sandbox verification, not the
-  build.)*
+- **Stripe AU/NZ — NOT BLOCKED ANY MORE. Rewritten 2026-09-03; the old three-step list was
+  wrong on all three counts and cost five weeks.** Nick's decision that day: ship it, do not
+  chase Stripe (slow replies), do not test further, **fund the financial account by hand only
+  if AU interest actually appears.** What remains is therefore deliberately deferred, not
+  outstanding work. See the AU/NZ block in the latest-session section for the detail.
 - **Growth Engine country/language** is set per project via its Target Countries setting in the
   Growth Engine app (`~/growth-engine`, a SEPARATE repo). Nick manages this himself (had the wrong
   country set once → an English UK post landed in the ES portal). Not a Camel-side concern.
