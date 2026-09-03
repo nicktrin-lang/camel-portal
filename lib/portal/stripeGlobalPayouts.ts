@@ -226,6 +226,18 @@ export async function getRecipientPayoutMethod(recipientId: string): Promise<str
 export type QuoteFee = { type?: string; amount?: { value: number; currency: string } };
 
 /** Create an OutboundPaymentQuote (locks FX, returns the fee breakdown). */
+/** ⚠️ VERIFIED NON-EXISTENT 2026-09-03. `/v2/money_management/outbound_payment_quotes`
+ *  returns "The API method cannot be found" on Stripe-Version 2026-06-24.preview, while
+ *  financial_accounts, payout_methods, core/accounts and outbound_payments all resolve. It
+ *  was written from documentation and never ran until the sandbox harness executed it.
+ *
+ *  Kept, not deleted: callers treat it as BEST-EFFORT (see the monthly-payout cron), so if
+ *  Stripe ships or renames the endpoint it starts working again with no code change. A
+ *  quote only provides the fee figure and a cross-currency balance pre-check — the
+ *  OutboundPayment is authoritative and refuses cleanly when underfunded.
+ *
+ *  OPEN QUESTION FOR STRIPE: what is the correct way to quote an OutboundPayment, or is
+ *  quoting no longer a separate call? */
 export async function createOutboundPaymentQuote(opts: {
   financialAccountId: string;
   recipientId: string;
