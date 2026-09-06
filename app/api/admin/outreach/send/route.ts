@@ -194,113 +194,101 @@ async function generateEmail(prospect: {
   const unsubscribeUrl = buildUnsubscribeUrl(prospect.id, prospect.country);
 
   const contactFirst = prospect.contact_name ? prospect.contact_name.split(" ")[0] : null;
-  const openingLine =
-    locale === "es" ? `<p>${contactFirst ? `Hola ${contactFirst},` : ""} ¿le gustaría que ${prospect.company_name} atrajera más clientes de alquiler de coches${prospect.city ? ` en ${prospect.city}` : ""}?</p>`
-    : locale === "fr" ? `<p>${contactFirst ? `Bonjour ${contactFirst},` : ""} souhaiteriez-vous que ${prospect.company_name} attire plus de clients recherchant une location de voiture${prospect.city ? ` à ${prospect.city}` : ""} ?</p>`
-    : locale === "it" ? `<p>${contactFirst ? `Buongiorno ${contactFirst},` : ""} vorrebbe che ${prospect.company_name} attirasse più clienti in cerca di autonoleggio${prospect.city ? ` a ${prospect.city}` : ""}?</p>`
-    : locale === "pt" ? `<p>${contactFirst ? `Olá ${contactFirst},` : ""} gostaria que ${prospect.company_name} atraísse mais clientes à procura de aluguer de automóveis${prospect.city ? ` em ${prospect.city}` : ""}?</p>`
-    : locale === "de" ? `<p>${contactFirst ? `Guten Tag ${contactFirst},` : ""} möchten Sie, dass ${prospect.company_name} mehr Kunden gewinnt, die nach einem Mietwagen suchen${prospect.city ? ` in ${prospect.city}` : ""}?</p>`
-    : `<p>${contactFirst ? `Hi ${contactFirst},` : ""} would you like ${prospect.company_name} to attract more customers searching for car hire${prospect.city ? ` in ${prospect.city}` : ""}?</p>`;
+  const city = (prospect.city || "").trim();
 
-  const greeting =
-    locale === "es" ? (prospect.contact_name ? `<p>Estimado/a ${prospect.contact_name},</p>` : `<p>Estimado equipo,</p>`)
-    : locale === "fr" ? (prospect.contact_name ? `<p>Cher/Chère ${prospect.contact_name},</p>` : `<p>Chère équipe,</p>`)
-    : locale === "it" ? (prospect.contact_name ? `<p>Gentile ${prospect.contact_name},</p>` : `<p>Gentile team,</p>`)
-    : locale === "pt" ? (prospect.contact_name ? `<p>Caro/a ${prospect.contact_name},</p>` : `<p>Caro/a equipa,</p>`)
-    : locale === "de" ? (prospect.contact_name ? `<p>Sehr geehrte/r ${prospect.contact_name},</p>` : `<p>Sehr geehrtes Team,</p>`)
-    : (prospect.contact_name ? `<p>Dear ${prospect.contact_name},</p>` : `<p>Dear team,</p>`);
-
-  const subject =
-    locale === "es" ? `Camel Global - Meet & Greet Alquiler de Coches - Invitación a Socio Fundador`
-    : locale === "fr" ? `Camel Global - Location de Voiture Meet & Greet - Invitation Partenaire Fondateur`
-    : locale === "it" ? `Camel Global - Noleggio Auto Meet & Greet - Invito Partner Fondatore`
-    : locale === "pt" ? `Camel Global - Aluguer de Automóveis Meet & Greet - Convite Parceiro Fundador`
-    : locale === "de" ? `Camel Global - Mietwagen Meet & Greet - Einladung Gründungspartner`
-    : `Camel Global - Meet & Greet Car Hire - Founding Partner Invitation`;
-
-  const ctaEs = `
+  // Copy is WRITTEN per locale, not translated literally - a locale that reads like a
+  // translation reads like spam to the operator receiving it. House style: hyphens, never
+  // em dashes (matches the guide content sweep).
+  //
+  // Deliberately absent: any "priority visibility" / "limited founding places" claim. The
+  // match loop in camel-customer emails EVERY live in-radius partner via Promise.allSettled
+  // with no ordering or tier, so that promise was never deliverable.
+  const btn = (label: string) => `
     <p style="text-align:left;margin:32px 0;">
-      <a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">REGÍSTRATE AHORA</a>
+      <a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">${label}</a>
     </p>`;
 
-  const ctaEn = `
-    <p style="text-align:left;margin:32px 0;">
-      <a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">SIGN UP NOW</a>
-    </p>`;
+  type OutreachCopy = { subject: string; greeting: string; body: string };
 
-  const bodyEs = `
-    ${greeting}
-    ${openingLine}
-    <p>Estamos lanzando Camel Global — una plataforma de alquiler de coches meet &amp; greet construida específicamente para empresas de alquiler de coches independientes — y nos gustaría invitar a ${prospect.company_name} a unirse como socio fundador.</p>
-    <p>Cómo funciona: los clientes solicitan un vehículo online, usted envía un presupuesto, el cliente paga y su conductor lo entrega directamente en el aeropuerto, hotel o donde el cliente lo necesite. Funciona junto a su negocio existente como un canal adicional de reservas — nada cambia en cómo opera.</p>
-    <p><strong>Las plazas de socio fundador son limitadas por destino.</strong> Los primeros socios obtienen visibilidad prioritaria cuando lancemos en España y nos expandamos internacionalmente.</p>
-    <p>Unirse es completamente gratuito. Sin cuotas de alta, sin suscripción, sin costes mensuales. El registro tarda aproximadamente cinco minutos.</p>
-    ${ctaEs}
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador — Camel Global</p>
-  `;
+  const COPY: Record<"en" | "es" | "fr" | "it" | "pt" | "de", OutreachCopy> = {
+    en: {
+      subject: city ? `Fill your empty fleet days in ${city}` : `Fill your empty fleet days`,
+      greeting: contactFirst ? `<p>Hi ${contactFirst},</p>` : `<p>Hello,</p>`,
+      body: `
+    <p>Every rental fleet has days when cars sit idle. Camel Global is one way to fill a few of them.</p>
+    <p>We're a meet &amp; greet car hire marketplace. A customer books online, you send a quote, and if they accept it your driver delivers the car to their airport, hotel or address - no desk, no queue.</p>
+    <p>It runs alongside your existing business as an extra booking channel. Your prices, your vehicles, your drivers. Nothing about how you operate changes.</p>
+    <p>Free to join - no sign-up fee, no subscription, no monthly cost. You pay commission only on bookings you complete.</p>
+    <p>Registration takes about five minutes.</p>
+    ${btn("REGISTER NOW")}
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Founder - Camel Global</p>`,
+    },
+    es: {
+      subject: city ? `Llene los días vacíos de su flota en ${city}` : `Llene los días vacíos de su flota`,
+      greeting: contactFirst ? `<p>Estimado/a ${contactFirst}:</p>` : `<p>Estimados señores:</p>`,
+      body: `
+    <p>Toda flota de alquiler tiene días en los que hay coches parados. Camel Global es una forma de llenar algunos de ellos.</p>
+    <p>Somos un marketplace de alquiler de coches con entrega meet &amp; greet: el cliente reserva online, usted envía su presupuesto y, si lo acepta, su conductor le entrega el coche en el aeropuerto, el hotel o la dirección que indique. Sin mostrador y sin colas.</p>
+    <p>Funciona en paralelo a su negocio actual, como un canal de reservas adicional. Sus precios, sus vehículos, sus conductores. No cambia nada en su forma de operar.</p>
+    <p>Darse de alta es gratis: sin cuota de alta, sin suscripción y sin costes mensuales. Solo paga comisión por las reservas que complete.</p>
+    <p>El registro le llevará unos cinco minutos.</p>
+    ${btn("REGÍSTRESE AHORA")}
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador - Camel Global</p>`,
+    },
+    fr: {
+      subject: city ? `Remplissez les jours creux de votre flotte à ${city}` : `Remplissez les jours creux de votre flotte`,
+      greeting: contactFirst ? `<p>Bonjour ${contactFirst},</p>` : `<p>Bonjour,</p>`,
+      body: `
+    <p>Toute flotte de location a des jours où des véhicules restent immobilisés. Camel Global est un moyen d'en remplir quelques-uns.</p>
+    <p>Nous sommes une marketplace de location de voitures avec livraison meet &amp; greet : le client réserve en ligne, vous envoyez votre devis et, s'il l'accepte, votre chauffeur lui livre le véhicule à l'aéroport, à l'hôtel ou à l'adresse de son choix. Sans comptoir et sans file d'attente.</p>
+    <p>Cela fonctionne en parallèle de votre activité actuelle, comme un canal de réservation supplémentaire. Vos tarifs, vos véhicules, vos chauffeurs. Rien ne change dans votre façon de travailler.</p>
+    <p>L'inscription est gratuite : pas de frais d'ouverture, pas d'abonnement, aucun coût mensuel. Vous ne payez de commission que sur les réservations que vous réalisez.</p>
+    <p>L'inscription prend environ cinq minutes.</p>
+    ${btn("S'INSCRIRE MAINTENANT")}
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fondateur - Camel Global</p>`,
+    },
+    it: {
+      subject: city ? `Riempia i giorni vuoti della sua flotta a ${city}` : `Riempia i giorni vuoti della sua flotta`,
+      greeting: contactFirst ? `<p>Gentile ${contactFirst},</p>` : `<p>Gentili Signori,</p>`,
+      body: `
+    <p>Ogni flotta a noleggio ha giorni in cui le auto restano ferme. Camel Global è un modo per riempirne alcuni.</p>
+    <p>Siamo un marketplace di autonoleggio con consegna meet &amp; greet: il cliente prenota online, lei invia il suo preventivo e, se lo accetta, il suo autista gli consegna l'auto in aeroporto, in hotel o all'indirizzo indicato. Senza banco e senza code.</p>
+    <p>Funziona in parallelo alla sua attività attuale, come canale di prenotazione aggiuntivo. I suoi prezzi, i suoi veicoli, i suoi autisti. Non cambia nulla nel suo modo di operare.</p>
+    <p>L'iscrizione è gratuita: nessuna quota di attivazione, nessun abbonamento, nessun costo mensile. Paga una commissione solo sulle prenotazioni che porta a termine.</p>
+    <p>La registrazione richiede circa cinque minuti.</p>
+    ${btn("ISCRIVITI ORA")}
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fondatore - Camel Global</p>`,
+    },
+    pt: {
+      subject: city ? `Preencha os dias vazios da sua frota em ${city}` : `Preencha os dias vazios da sua frota`,
+      greeting: contactFirst ? `<p>Caro/a ${contactFirst},</p>` : `<p>Exmos. Senhores,</p>`,
+      body: `
+    <p>Todas as frotas de aluguer têm dias em que os carros ficam parados. A Camel Global é uma forma de preencher alguns deles.</p>
+    <p>Somos um marketplace de aluguer de automóveis com entrega meet &amp; greet: o cliente reserva online, você envia o seu orçamento e, se o aceitar, o seu motorista entrega-lhe o carro no aeroporto, no hotel ou na morada indicada. Sem balcão e sem filas.</p>
+    <p>Funciona em paralelo com o seu negócio atual, como um canal de reservas adicional. Os seus preços, os seus veículos, os seus motoristas. Não muda nada na sua forma de operar.</p>
+    <p>A adesão é gratuita: sem taxa de inscrição, sem subscrição e sem custos mensais. Só paga comissão pelas reservas que concluir.</p>
+    <p>O registo demora cerca de cinco minutos.</p>
+    ${btn("REGISTAR AGORA")}
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador - Camel Global</p>`,
+    },
+    de: {
+      subject: city ? `Füllen Sie die Leerlauftage Ihrer Flotte in ${city}` : `Füllen Sie die Leerlauftage Ihrer Flotte`,
+      greeting: contactFirst ? `<p>Guten Tag ${contactFirst},</p>` : `<p>Guten Tag,</p>`,
+      body: `
+    <p>In jeder Mietwagenflotte stehen an manchen Tagen Fahrzeuge still. Camel Global ist eine Möglichkeit, einige davon zu füllen.</p>
+    <p>Wir sind ein Mietwagen-Marktplatz mit Meet-&amp;-Greet-Lieferung: Der Kunde bucht online, Sie senden Ihr Angebot, und wenn er es annimmt, liefert Ihr Fahrer den Wagen zum Flughafen, zum Hotel oder an die gewünschte Adresse. Ohne Schalter, ohne Warteschlange.</p>
+    <p>Das läuft parallel zu Ihrem bestehenden Geschäft, als zusätzlicher Buchungskanal. Ihre Preise, Ihre Fahrzeuge, Ihre Fahrer. An Ihrem Betriebsablauf ändert sich nichts.</p>
+    <p>Die Anmeldung ist kostenlos: keine Aufnahmegebühr, kein Abonnement, keine monatlichen Kosten. Provision zahlen Sie nur für Buchungen, die Sie tatsächlich abschließen.</p>
+    <p>Die Registrierung dauert etwa fünf Minuten.</p>
+    ${btn("JETZT ANMELDEN")}
+    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Gründer - Camel Global</p>`,
+    },
+  };
 
-  const bodyEn = `
-    ${greeting}
-    ${openingLine}
-    <p>We're launching Camel Global — a meet &amp; greet car rental platform built specifically for independent car hire companies — and we'd like to invite ${prospect.company_name} to join as a founding partner.</p>
-    <p>How it works: Customers request a vehicle online, you send a quote, the customer pays and your driver delivers it directly to the airport, hotel, or wherever the customer needs it. It works alongside your existing business as an additional booking channel — nothing changes in how you operate.</p>
-    <p><strong>Founding partner positions are limited per destination.</strong> Early partners receive priority visibility when we launch in Spain and expand internationally.</p>
-    <p>Joining is completely free. No sign-up fees, no subscription, no monthly costs. Registration takes approximately five minutes.</p>
-    ${ctaEn}
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Founder — Camel Global</p>
-  `;
-
-  const bodyFr = `
-    ${greeting}
-    ${openingLine}
-    <p>Nous lançons Camel Global — une plateforme de location de voiture meet &amp; greet conçue spécifiquement pour les entreprises de location indépendantes — et nous aimerions inviter ${prospect.company_name} à rejoindre en tant que partenaire fondateur.</p>
-    <p>Comment ça marche : les clients demandent un véhicule en ligne, vous envoyez un devis, le client paie et votre conducteur le livre directement à l'aéroport, à l'hôtel ou où le client en a besoin. Cela fonctionne en parallèle de votre activité existante comme un canal de réservation supplémentaire.</p>
-    <p><strong>Les places de partenaire fondateur sont limitées par destination.</strong> Les premiers partenaires obtiennent une visibilité prioritaire lors de notre lancement en Espagne et de notre expansion internationale.</p>
-    <p>L'adhésion est entièrement gratuite. Pas de frais d'inscription, pas d'abonnement, pas de coûts mensuels. L'inscription prend environ cinq minutes.</p>
-    <p style="text-align:left;margin:32px 0;"><a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">S'INSCRIRE MAINTENANT</a></p>
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fondateur — Camel Global</p>
-  `;
-
-  const bodyIt = `
-    ${greeting}
-    ${openingLine}
-    <p>Stiamo lanciando Camel Global — una piattaforma di autonoleggio meet &amp; greet creata specificamente per le aziende di noleggio indipendenti — e vorremmo invitare ${prospect.company_name} a unirsi come partner fondatore.</p>
-    <p>Come funziona: i clienti richiedono un veicolo online, voi inviate un preventivo, il cliente paga e il vostro autista lo consegna direttamente all'aeroporto, in hotel o dove il cliente ne ha bisogno. Funziona insieme alla vostra attività esistente come canale di prenotazione aggiuntivo.</p>
-    <p><strong>I posti da partner fondatore sono limitati per destinazione.</strong> I primi partner ricevono visibilità prioritaria quando lanciamo in Spagna e ci espandiamo internazionalmente.</p>
-    <p>Aderire è completamente gratuito. Nessuna quota di iscrizione, nessun abbonamento, nessun costo mensile. La registrazione richiede circa cinque minuti.</p>
-    <p style="text-align:left;margin:32px 0;"><a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">ISCRIVITI ORA</a></p>
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fondatore — Camel Global</p>
-  `;
-
-  const bodyPt = `
-    ${greeting}
-    ${openingLine}
-    <p>Estamos a lançar a Camel Global — uma plataforma de aluguer de automóveis meet &amp; greet criada especificamente para empresas de aluguer independentes — e gostaríamos de convidar ${prospect.company_name} a juntar-se como parceiro fundador.</p>
-    <p>Como funciona: os clientes pedem um veículo online, você envia um orçamento, o cliente paga e o seu motorista entrega-o diretamente no aeroporto, hotel ou onde o cliente precisar. Funciona em paralelo com o seu negócio existente como um canal de reservas adicional.</p>
-    <p><strong>As vagas de parceiro fundador são limitadas por destino.</strong> Os primeiros parceiros recebem visibilidade prioritária quando lançarmos em Espanha e expandirmos internacionalmente.</p>
-    <p>Aderir é completamente gratuito. Sem taxas de inscrição, sem subscrição, sem custos mensais. O registo demora aproximadamente cinco minutos.</p>
-    <p style="text-align:left;margin:32px 0;"><a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">REGISTAR AGORA</a></p>
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador — Camel Global</p>
-  `;
-
-  const bodyDe = `
-    ${greeting}
-    ${openingLine}
-    <p>Wir starten Camel Global — eine Meet &amp; Greet Mietwagen-Plattform, die speziell für unabhängige Mietwagenunternehmen entwickelt wurde — und möchten ${prospect.company_name} einladen, als Gründungspartner beizutreten.</p>
-    <p>So funktioniert es: Kunden fordern online ein Fahrzeug an, Sie senden ein Angebot, der Kunde zahlt und Ihr Fahrer liefert es direkt zum Flughafen, Hotel oder wohin der Kunde es benötigt. Es funktioniert parallel zu Ihrem bestehenden Geschäft als zusätzlicher Buchungskanal.</p>
-    <p><strong>Die Gründungspartner-Plätze sind pro Zielort begrenzt.</strong> Frühe Partner erhalten vorrangige Sichtbarkeit, wenn wir in Spanien starten und international expandieren.</p>
-    <p>Der Beitritt ist völlig kostenlos. Keine Anmeldegebühren, kein Abonnement, keine monatlichen Kosten. Die Registrierung dauert etwa fünf Minuten.</p>
-    <p style="text-align:left;margin:32px 0;"><a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">JETZT ANMELDEN</a></p>
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Gründer — Camel Global</p>
-  `;
-
-  const htmlBody =
-    locale === "es" ? bodyEs
-    : locale === "fr" ? bodyFr
-    : locale === "it" ? bodyIt
-    : locale === "pt" ? bodyPt
-    : locale === "de" ? bodyDe
-    : bodyEn;
+  const copy     = COPY[locale];
+  const subject  = copy.subject;
+  const greeting = copy.greeting;
+  const htmlBody = `${greeting}${copy.body}`;
 
   const footerEs = `
     Recibes este email porque tu empresa fue identificada como posible socio en tu área.<br/>
