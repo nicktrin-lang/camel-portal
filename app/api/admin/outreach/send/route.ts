@@ -212,7 +212,9 @@ async function generateEmail(prospect: {
 
   const COPY: Record<"en" | "es" | "fr" | "it" | "pt" | "de", OutreachCopy> = {
     en: {
-      subject: city ? `Fill your empty fleet days in ${city}` : `Fill your empty fleet days`,
+      subject: city
+        ? `Customers are searching for car hire in ${city} right now`
+        : `Customers are searching for car hire in your area right now`,
       greeting: contactFirst ? `<p>Hi ${contactFirst},</p>` : `<p>Hello,</p>`,
       body: `
     <p>Every rental fleet has days when cars sit idle. Camel Global is one way to fill a few of them.</p>
@@ -224,7 +226,9 @@ async function generateEmail(prospect: {
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Founder - Camel Global</p>`,
     },
     es: {
-      subject: city ? `Llene los días vacíos de su flota en ${city}` : `Llene los días vacíos de su flota`,
+      subject: city
+        ? `Ahora mismo hay clientes buscando alquiler de coches en ${city}`
+        : `Ahora mismo hay clientes buscando alquiler de coches en su zona`,
       greeting: contactFirst ? `<p>Estimado/a ${contactFirst}:</p>` : `<p>Estimados señores:</p>`,
       body: `
     <p>Toda flota de alquiler tiene días en los que hay coches parados. Camel Global es una forma de llenar algunos de ellos.</p>
@@ -236,7 +240,9 @@ async function generateEmail(prospect: {
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador - Camel Global</p>`,
     },
     fr: {
-      subject: city ? `Remplissez les jours creux de votre flotte à ${city}` : `Remplissez les jours creux de votre flotte`,
+      subject: city
+        ? `En ce moment, des clients cherchent une location de voiture à ${city}`
+        : `En ce moment, des clients cherchent une location de voiture dans votre région`,
       greeting: contactFirst ? `<p>Bonjour ${contactFirst},</p>` : `<p>Bonjour,</p>`,
       body: `
     <p>Toute flotte de location a des jours où des véhicules restent immobilisés. Camel Global est un moyen d'en remplir quelques-uns.</p>
@@ -248,7 +254,9 @@ async function generateEmail(prospect: {
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fondateur - Camel Global</p>`,
     },
     it: {
-      subject: city ? `Riempia i giorni vuoti della sua flotta a ${city}` : `Riempia i giorni vuoti della sua flotta`,
+      subject: city
+        ? `In questo momento ci sono clienti che cercano un'auto a noleggio a ${city}`
+        : `In questo momento ci sono clienti che cercano un'auto a noleggio nella sua zona`,
       greeting: contactFirst ? `<p>Gentile ${contactFirst},</p>` : `<p>Gentili Signori,</p>`,
       body: `
     <p>Ogni flotta a noleggio ha giorni in cui le auto restano ferme. Camel Global è un modo per riempirne alcuni.</p>
@@ -260,7 +268,9 @@ async function generateEmail(prospect: {
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fondatore - Camel Global</p>`,
     },
     pt: {
-      subject: city ? `Preencha os dias vazios da sua frota em ${city}` : `Preencha os dias vazios da sua frota`,
+      subject: city
+        ? `Neste momento há clientes à procura de aluguer de automóveis em ${city}`
+        : `Neste momento há clientes à procura de aluguer de automóveis na sua zona`,
       greeting: contactFirst ? `<p>Caro/a ${contactFirst},</p>` : `<p>Exmos. Senhores,</p>`,
       body: `
     <p>Todas as frotas de aluguer têm dias em que os carros ficam parados. A Camel Global é uma forma de preencher alguns deles.</p>
@@ -272,7 +282,9 @@ async function generateEmail(prospect: {
     <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador - Camel Global</p>`,
     },
     de: {
-      subject: city ? `Füllen Sie die Leerlauftage Ihrer Flotte in ${city}` : `Füllen Sie die Leerlauftage Ihrer Flotte`,
+      subject: city
+        ? `Gerade jetzt suchen Kunden in ${city} nach einem Mietwagen`
+        : `Gerade jetzt suchen Kunden in Ihrer Region nach einem Mietwagen`,
       greeting: contactFirst ? `<p>Guten Tag ${contactFirst},</p>` : `<p>Guten Tag,</p>`,
       body: `
     <p>In jeder Mietwagenflotte stehen an manchen Tagen Fahrzeuge still. Camel Global ist eine Möglichkeit, einige davon zu füllen.</p>
