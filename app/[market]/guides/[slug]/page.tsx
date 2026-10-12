@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import GuidesChrome from "@/app/components/GuidesChrome";
 import { getGuide, relatedGuides, getAllGuideParams, isGuideMarket, marketLanguage } from "@/lib/guides";
+import { getDirectGuide } from "@/lib/guides.direct";
 import GuideCountryNav from "@/app/components/GuideCountryNav";
 import { GuidesCta } from "@/app/components/GuidesText";
 
@@ -27,7 +28,8 @@ export async function generateMetadata({
   params: Promise<{ market: string; slug: string }>;
 }): Promise<Metadata> {
   const { market, slug } = await params;
-  const guide = getGuide(market, slug);
+  // Filesystem (legacy GitHub-delivered) first, then the direct-push store as a fallback.
+  const guide = getGuide(market, slug) ?? (await getDirectGuide(market, slug));
   if (!guide) return {};
   // The ROUTE is the authority on where a post lives, never the frontmatter. `canonical`
   // is written by the delivery pipeline at publish time and goes stale the moment content
@@ -57,7 +59,8 @@ export default async function GuidePost({
 }) {
   const { market, slug } = await params;
   if (!isGuideMarket(market)) notFound();
-  const guide = getGuide(market, slug);
+  // Filesystem (legacy GitHub-delivered) first, then the direct-push store as a fallback.
+  const guide = getGuide(market, slug) ?? (await getDirectGuide(market, slug));
   if (!guide) notFound();
   const related = relatedGuides(market, slug, 3);
   // The body's own H1 is the full on-page headline; show THAT in the header band.
