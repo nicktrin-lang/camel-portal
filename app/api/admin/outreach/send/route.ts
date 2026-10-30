@@ -18,14 +18,24 @@ function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";
 }
 
+// Countries whose business language is one of our six. The car hire directory adds
+// prospects from every country (with English country names), so Spanish-speaking Latin
+// America, Brazil, Austria etc. get their own language instead of English. Countries with
+// several official languages (Switzerland, Belgium, Canada…) stay English on purpose.
+const LOCALE_BY_COUNTRY: Record<string, "es" | "fr" | "it" | "pt" | "de"> = {
+  spain: "es", "españa": "es", espana: "es", andorra: "es", mexico: "es", argentina: "es", chile: "es",
+  colombia: "es", peru: "es", venezuela: "es", ecuador: "es", guatemala: "es", cuba: "es", bolivia: "es",
+  "dominican republic": "es", honduras: "es", paraguay: "es", "el salvador": "es", nicaragua: "es",
+  "costa rica": "es", panama: "es", uruguay: "es", "puerto rico": "es",
+  france: "fr", monaco: "fr", "french guiana": "fr", "réunion": "fr", reunion: "fr", guadeloupe: "fr", martinique: "fr",
+  italy: "it", italia: "it", "san marino": "it",
+  portugal: "pt", brazil: "pt", angola: "pt", mozambique: "pt", "cape verde": "pt", "cabo verde": "pt",
+  germany: "de", deutschland: "de", austria: "de", liechtenstein: "de",
+};
+
 function getLocale(country?: string | null): "en" | "es" | "fr" | "it" | "pt" | "de" {
   const c = (country || "").toLowerCase().trim();
-  if (["spain", "españa", "espana"].includes(c)) return "es";
-  if (["france"].includes(c)) return "fr";
-  if (["italy", "italia"].includes(c)) return "it";
-  if (["portugal"].includes(c)) return "pt";
-  if (["germany", "deutschland"].includes(c)) return "de";
-  return "en";
+  return LOCALE_BY_COUNTRY[c] ?? "en";
 }
 
 function countrySlug(country?: string | null): string {

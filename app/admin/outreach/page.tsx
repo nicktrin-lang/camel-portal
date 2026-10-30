@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import Link from "next/link";
 
 const DAILY_LIMIT = 50;
 
@@ -409,6 +410,9 @@ export default function OutreachPage() {
             {csvImporting ? "Importing…" : "Import CSV"}
             <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCSVImport} disabled={csvImporting} />
           </label>
+          <Link href="/admin/outreach/directory" className="bg-white border border-[#ff7a00] px-4 py-2 text-sm font-black text-[#ff7a00] hover:bg-[#ff7a00] hover:text-white transition-all whitespace-nowrap">
+            Car Hire Directory
+          </Link>
           <button onClick={() => setShowAdd(s => !s)} className="bg-black px-4 py-2 text-sm font-black text-white hover:opacity-80 transition-opacity">
             {showAdd ? "Cancel" : "+ Add Prospect"}
           </button>

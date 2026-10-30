@@ -22,7 +22,39 @@ Working Rules
 - camel-coming-soon is a submodule and always shows modified — ignore it, never `git add` it;
   always `git add <specific-file>`, never `git add .`.
 ═══════════════════════════════════════════════════════════════════════════════
-LATEST SESSION — 2026-09-02  (read this first)
+LATEST SESSION — 2026-10-30  (read this first)
+═══════════════════════════════════════════════════════════════════════════════
+Partner outreach: a worldwide car hire directory replaces the paid email list.
+
+## 🚗 Car Hire Directory (branch `claude/outreach-directory`)
+**Why:** the paid email list didn't convert. The Launchelo project (`~/lead-finder/pitchsite`)
+finds businesses from **Overture Maps Places** (open data, CDLA-Permissive-2.0, free for
+commercial use). We copied the approach, not the code; the two systems are not connected.
+
+**Pipeline (all run on the Mac):**
+1. `OUTREACH_DIRECTORY_SCHEMA.sql`: run once in the Supabase SQL editor (`outreach_directory`
+   + `outreach_directory_summary()`; RLS on, service role only).
+2. `npm run directory:load`: DuckDB downloads every `car_rental_service`/`car_rental_agency`
+   place from the latest Overture release (all countries) into `.overture/<release>/`, flags
+   chains, upserts. Never overwrites scan results. Re-run monthly (Overture releases monthly).
+3. `npm run directory:scan [-- --countries ES]`: reads each independent's own website (home +
+   contact/legal pages) for an email; one scan per domain; resumable; `--retry-failed`.
+4. `/admin/outreach/directory` (button on Partner Outreach): browse by country, "Add to
+   outreach" → `outreach_prospects` as `pending`. The existing send flow does the rest.
+
+**Measured:** Spain ~780 independent firms (Sept release), ~715 with a website; email
+finder trial on 30 Spanish sites: 18 found (60%), 6 contact-form/WhatsApp only, 6 dead or
+broken sites (now recorded with the reason).
+
+**Also changed:** prospects GET pages through every prospect (was capped at 2000); outreach
+email language now maps Latin America → es, Brazil → pt, Austria → de (multi-language
+countries stay English).
+
+**Open:** cold email consent rules differ by country (Spain's LSSI is stricter than UK PECR):
+confirm before sending to a new country. The 50/day send limit still applies.
+
+═══════════════════════════════════════════════════════════════════════════════
+PREVIOUS SESSION — 2026-09-02  (read this first)
 ═══════════════════════════════════════════════════════════════════════════════
 Guides re-routed by MARKET (country), not language · headline/SEO-title split · outreach
 Reply-To + attribution chain repaired · 11 stale Growth Engine PRs triaged (2 merged, 9 closed)
