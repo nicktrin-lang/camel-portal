@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 .env*.local
 *.bak
+
+# outreach directory: Overture downloads (npm run directory:load)
+/.overture/

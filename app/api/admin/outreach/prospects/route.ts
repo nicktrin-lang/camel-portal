@@ -19,16 +19,22 @@ export async function GET() {
     const { data: adminRow } = await db.from("admin_users").select("role").eq("email", email).maybeSingle();
     if (!adminRow || !isAllowed(adminRow.role)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
-    const [batch1, batch2, appsRes] = await Promise.all([
-      db.from("outreach_prospects").select("*").order("created_at", { ascending: false }).range(0, 999),
-      db.from("outreach_prospects").select("*").order("created_at", { ascending: false }).range(1000, 1999),
+    // Every prospect, 1000 at a time (PostgREST's per-request cap). This used to read only
+    // the first 2000, which the car hire directory (/admin/outreach/directory) easily passes.
+    const allProspects: any[] = [];
+    for (let from = 0; from < 100_000; from += 1000) {
+      const { data, error } = await db.from("outreach_prospects").select("*")
+        .order("created_at", { ascending: false }).order("id").range(from, from + 999);
+      if (error) throw error;
+      allProspects.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+    const [appsRes] = await Promise.all([
       // All partner applications (a small table) — used to auto-detect which
       // prospects actually signed up. "Onboarded" is computed from this, NOT a
       // manual status, so it reflects real conversions.
       db.from("partner_applications").select("email, status, company_name"),
     ]);
-    if (batch1.error) throw batch1.error;
-    if (batch2.error) throw batch2.error;
     if (appsRes.error) throw appsRes.error;
 
     // Match on email first, then fall back to a normalised company-name match —
@@ -45,7 +51,7 @@ export async function GET() {
       if (c) appByCompany.set(c, String((a as any).status || "pending"));
     }
 
-    const prospects = [...(batch1.data || []), ...(batch2.data || [])].map((p: any) => {
+    const prospects = allProspects.map((p: any) => {
       const byEmail   = appByEmail.get(String(p.email || "").toLowerCase().trim()) || null;
       const byCompany = byEmail ? null : (appByCompany.get(normCompany(p.company_name)) || null);
       const appStatus = byEmail || byCompany || null;
