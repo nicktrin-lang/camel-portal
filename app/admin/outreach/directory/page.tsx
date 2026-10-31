@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import type { MapPartner, MapPoint } from "./DirectoryMap";
+
+const DirectoryMap = dynamic(() => import("./DirectoryMap"), {
+  ssr: false,
+  loading: () => <div className="border border-black/10 bg-white p-6 text-sm font-semibold text-black/40">Loading map…</div>,
+});
 
 // Car hire company directory (worldwide, from Overture Maps + website scans). Browse by
 // country, then add companies with an email into Partner Outreach, where the normal
@@ -83,6 +90,9 @@ export default function OutreachDirectoryPage() {
   const [adding, setAdding]     = useState(false);
   const [message, setMessage]   = useState<{ ok: boolean; text: string } | null>(null);
   const [error, setError]       = useState<string | null>(null);
+  const [view, setView]         = useState<"list" | "map">("list");
+  const [mapData, setMapData]   = useState<{ country: string; points: MapPoint[]; partners: MapPartner[] } | null>(null);
+  const [mapLoading, setMapLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,9 +121,28 @@ export default function OutreachDirectoryPage() {
   }, [country, filter, page, query, showChains]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadMap = useCallback(async () => {
+    if (!country) return;
+    setMapLoading(true);
+    try {
+      const params = new URLSearchParams({ country });
+      if (showChains) params.set("chains", "1");
+      const res = await fetch(`/api/admin/outreach/directory/map?${params}`, { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Failed to load the map");
+      setMapData({ country, points: json.points || [], partners: json.partners || [] });
+    } catch (e: any) {
+      setError(e?.message || "Failed to load the map");
+    } finally {
+      setMapLoading(false);
+    }
+  }, [country, showChains]);
+
+  useEffect(() => { if (view === "map") loadMap(); }, [view, loadMap]);
   useEffect(() => { setSelected(new Set()); }, [country, filter, page, query, showChains]);
 
-  async function add(body: { ids?: string[]; country?: string }) {
+  async function add(body: { ids?: string[]; country?: string }): Promise<boolean> {
     setAdding(true);
     setMessage(null);
     try {
@@ -129,8 +158,18 @@ export default function OutreachDirectoryPage() {
       setMessage({ ok: true, text: json.message || parts.join(" · ") });
       setSelected(new Set());
       await load();
+      if (view === "map") {
+        if (body.ids) {
+          const ids = new Set(body.ids);
+          setMapData((d) => d && { ...d, points: d.points.map((p) => (ids.has(p[0]) ? ([...p.slice(0, 3), "added", ...p.slice(4)] as MapPoint) : p)) });
+        } else {
+          await loadMap();
+        }
+      }
+      return true;
     } catch (e: any) {
       setMessage({ ok: false, text: e?.message || "Failed to add" });
+      return false;
     } finally {
       setAdding(false);
     }
@@ -251,6 +290,40 @@ export default function OutreachDirectoryPage() {
                 </div>
               )}
 
+              <div className="flex gap-0">
+                {(["list", "map"] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    className={["px-4 py-1.5 text-xs font-black uppercase tracking-wider", view === v ? "bg-black text-white" : "border border-black/20 bg-white text-black hover:border-black"].join(" ")}
+                  >
+                    {v === "list" ? "List" : "Map"}
+                  </button>
+                ))}
+              </div>
+
+              {view === "map" ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-black/60">
+                    <span>
+                      {mapLoading ? "Loading places…" : mapData?.country === country ? `${n(mapData.points.length)} places in ${countryName(country)}. Click a dot for details; orange dots can be added to outreach.` : ""}
+                    </span>
+                    <label className="flex items-center gap-2 text-xs font-black text-black/60">
+                      <input type="checkbox" checked={showChains} onChange={(e) => setShowChains(e.target.checked)} />
+                      Show chains
+                    </label>
+                  </div>
+                  {mapData?.country === country && (
+                    <DirectoryMap
+                      country={country}
+                      points={mapData.points}
+                      partners={mapData.partners}
+                      onAdd={(id) => add({ ids: [id] })}
+                    />
+                  )}
+                </div>
+              ) : (
+              <>
               <div className="flex flex-col gap-3 border border-black/10 bg-white p-3">
                 <div className="flex flex-wrap gap-2">
                   {FILTERS.map((f) => (
@@ -291,14 +364,16 @@ export default function OutreachDirectoryPage() {
                   </button>
                   <button
                     onClick={() => {
-                      if (confirm(`Add every company in ${countryName(country)} with an email (up to 500 at a time) to Partner Outreach? Nothing is sent: they join the outreach list as pending.`)) {
+                      if (confirm(`Add every company in ${countryName(country)} with an email to Partner Outreach? This adds up to 500 per click; click again for the rest. Nothing is sent: they join the outreach list as pending.`)) {
                         add({ country });
                       }
                     }}
                     disabled={adding || readyInCountry === 0}
                     className="bg-[#ff7a00] px-4 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-30"
                   >
-                    {adding ? "Adding…" : `Add all with email in ${countryName(country)} (${n(Math.min(500, readyInCountry))})`}
+                    {adding ? "Adding…" : readyInCountry > 500
+                      ? `Add next 500 of ${n(readyInCountry)} with email in ${countryName(country)}`
+                      : `Add all ${n(readyInCountry)} with email in ${countryName(country)}`}
                   </button>
                 </div>
               </div>
@@ -383,6 +458,8 @@ export default function OutreachDirectoryPage() {
                   <button disabled={page + 1 >= pages || loading} onClick={() => setPage((p) => p + 1)} className="border border-black/20 px-3 py-1 font-black disabled:opacity-30">→</button>
                 </div>
               </div>
+              </>
+              )}
             </>
           )}
         </div>
