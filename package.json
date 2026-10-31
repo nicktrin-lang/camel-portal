@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "directory:load": "tsx scripts/directory-load.ts",
-    "directory:scan": "tsx scripts/directory-scan.ts"
+    "directory:scan": "tsx scripts/directory-scan.ts",
+    "directory:airports": "tsx scripts/directory-airports.ts"
   },
   "dependencies": {
     "@react-google-maps/api": "^2.20.8",

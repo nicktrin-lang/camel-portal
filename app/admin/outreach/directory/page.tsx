@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { MapPartner, MapPoint } from "./DirectoryMap";
+import AirportsView from "./AirportsView";
 
 const DirectoryMap = dynamic(() => import("./DirectoryMap"), {
   ssr: false,
@@ -90,7 +91,7 @@ export default function OutreachDirectoryPage() {
   const [adding, setAdding]     = useState(false);
   const [message, setMessage]   = useState<{ ok: boolean; text: string } | null>(null);
   const [error, setError]       = useState<string | null>(null);
-  const [view, setView]         = useState<"list" | "map">("list");
+  const [view, setView]         = useState<"list" | "map" | "airports">("list");
   const [mapData, setMapData]   = useState<{ country: string; points: MapPoint[]; partners: MapPartner[] } | null>(null);
   const [mapLoading, setMapLoading] = useState(false);
 
@@ -291,18 +292,32 @@ export default function OutreachDirectoryPage() {
               )}
 
               <div className="flex gap-0">
-                {(["list", "map"] as const).map((v) => (
+                {(["list", "airports", "map"] as const).map((v) => (
                   <button
                     key={v}
                     onClick={() => setView(v)}
                     className={["px-4 py-1.5 text-xs font-black uppercase tracking-wider", view === v ? "bg-black text-white" : "border border-black/20 bg-white text-black hover:border-black"].join(" ")}
                   >
-                    {v === "list" ? "List" : "Map"}
+                    {v === "list" ? "List" : v === "map" ? "Map" : "Airports"}
                   </button>
                 ))}
               </div>
 
-              {view === "map" ? (
+              {view === "airports" ? (
+                <div className="space-y-2">
+                  <label className="flex items-center justify-end gap-2 text-xs font-black text-black/60">
+                    <input type="checkbox" checked={showChains} onChange={(e) => setShowChains(e.target.checked)} />
+                    Show chains
+                  </label>
+                  <AirportsView
+                    country={country}
+                    countryLabel={countryName(country)}
+                    showChains={showChains}
+                    adding={adding}
+                    onAdd={(ids) => add({ ids })}
+                  />
+                </div>
+              ) : view === "map" ? (
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-black/60">
                     <span>
