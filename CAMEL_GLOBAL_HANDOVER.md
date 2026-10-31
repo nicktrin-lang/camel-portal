@@ -63,6 +63,14 @@ approved partners as diamonds (filled = live via `computeLiveReadiness`), "Add t
 in the popup. Data: `GET /api/admin/outreach/directory/map`. Admin guard shared in
 `lib/outreach/requireDirectoryAdmin.ts`. #139 relabels the add-all button (500 is a per-click cap).
 
+**Airports view (2026-10-31):** `OUTREACH_AIRPORTS_SCHEMA.sql` (applied) adds `outreach_airports`
++ `nearest_airport`/`airport_km` on the directory. `npm run directory:airports` loads OurAirports
+(public domain; 4,010 airports with scheduled service + IATA) and stamps each place's nearest
+(straight-line, ≤100 km). **Re-run it after every `directory:load`.** The Airports tab groups a
+country by airport within 30 km (`lib/outreach/groupByAirport.ts`), ranked by companies with
+email still to add, then "not near an airport". 91,201 of 123,958 places are within 30 km.
+Spain: 45 airports, 1,832 near (1,064 with email), 741 further away; AGP leads.
+
 ═══════════════════════════════════════════════════════════════════════════════
 PREVIOUS SESSION — 2026-09-02  (read this first)
 ═══════════════════════════════════════════════════════════════════════════════
