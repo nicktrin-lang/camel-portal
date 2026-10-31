@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
+import AutoSendPanel from "./AutoSendPanel";
 
 const DAILY_LIMIT = 50;
 
@@ -442,6 +443,8 @@ export default function OutreachPage() {
           </button>
         </div>
       </div>
+
+      <AutoSendPanel dailyLimit={DAILY_LIMIT} />
 
       {/* CSV result */}
       {csvResult && (
