@@ -291,14 +291,16 @@ export default function OutreachDirectoryPage() {
                   </button>
                   <button
                     onClick={() => {
-                      if (confirm(`Add every company in ${countryName(country)} with an email (up to 500 at a time) to Partner Outreach? Nothing is sent: they join the outreach list as pending.`)) {
+                      if (confirm(`Add every company in ${countryName(country)} with an email to Partner Outreach? This adds up to 500 per click; click again for the rest. Nothing is sent: they join the outreach list as pending.`)) {
                         add({ country });
                       }
                     }}
                     disabled={adding || readyInCountry === 0}
                     className="bg-[#ff7a00] px-4 py-2 text-sm font-black text-white hover:opacity-90 disabled:opacity-30"
                   >
-                    {adding ? "Adding…" : `Add all with email in ${countryName(country)} (${n(Math.min(500, readyInCountry))})`}
+                    {adding ? "Adding…" : readyInCountry > 500
+                      ? `Add next 500 of ${n(readyInCountry)} with email in ${countryName(country)}`
+                      : `Add all ${n(readyInCountry)} with email in ${countryName(country)}`}
                   </button>
                 </div>
               </div>
