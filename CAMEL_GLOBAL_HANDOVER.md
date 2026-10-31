@@ -71,8 +71,8 @@ country by airport within 30 km (`lib/outreach/groupByAirport.ts`), ranked by co
 email still to add, then "not near an airport". 91,201 of 123,958 places are within 30 km.
 Spain: 45 airports, 1,832 near (1,064 with email), 741 further away; AGP leads.
 
-**Outreach email rewritten (#142):** short founder note in all six languages, From "Nicholas
-Trinnaman <nicholas@e.camel-global.com>" (Reply-To still partners@), no logo banner, no
+**Outreach email rewritten (#142):** short founder note in all six languages, From "Camel
+Global <partners@e.camel-global.com>" (#144; Reply-To still partners@), no logo banner, no
 commission mention (Nick's call: leave it to the homepage), button "See how it works" → root.
 Directory prospects within 30 km of an airport open with their distance to it, airport named in
 the local language from `lib/outreach/airportLabels.ts` (OurAirports' municipality is unusable:
