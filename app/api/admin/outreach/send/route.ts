@@ -274,9 +274,9 @@ async function generateEmail(prospect: {
       body: `
     ${airport
       ? `<p>Your office is ${km} km from ${ap ? `${esc(ap)} airport` : "the nearest airport"} (${iata}), so you'll know most travellers still queue at a desk to collect their hire car.</p>
-    <p>Camel Global lets those travellers book a car delivered to them at arrivals instead. You get the booking request and quote your own price, and if they accept, your driver hands over the keys. It's free to join.</p>`
+    <p>Camel Global lets those travellers skip the desk and have the car delivered wherever they choose: at arrivals, their hotel or any other address. You get the booking request and quote your own price, and if they accept, your driver hands over the keys. It's free to join.</p>`
       : `<p>I'm writing to car hire companies ${city ? `in ${city}` : "in your area"}.</p>
-    <p>Camel Global lets travellers book a hire car delivered to them - at the airport, their hotel or their home - instead of queuing at a desk. You get the booking request and quote your own price, and if they accept, your driver hands over the keys. It's free to join.</p>`}
+    <p>Camel Global lets travellers book a hire car delivered wherever they choose - the airport, their hotel or any other address - instead of queuing at a desk. You get the booking request and quote your own price, and if they accept, your driver hands over the keys. It's free to join.</p>`}
     <p>It takes two minutes to see how it works:</p>
     ${btn("See how it works")}
     <p>Nicholas Trinnaman<br/>Founder, Camel Global</p>`,
@@ -289,9 +289,9 @@ async function generateEmail(prospect: {
       body: `
     ${airport
       ? `<p>Su oficina está a ${km} km ${ap ? `del aeropuerto de ${esc(ap)}` : "del aeropuerto más cercano"} (${iata}), así que sabrá que la mayoría de los viajeros todavía hacen cola en un mostrador para recoger su coche de alquiler.</p>
-    <p>Camel Global permite a esos viajeros reservar un coche que se les entrega en la misma zona de llegadas. Usted recibe la solicitud de reserva y propone su propio precio y, si el cliente lo acepta, su conductor le entrega las llaves. Darse de alta es gratis.</p>`
+    <p>Camel Global permite a esos viajeros reservar un coche que se les entrega donde ellos elijan: en la zona de llegadas, en su hotel o en cualquier otra dirección. Usted recibe la solicitud de reserva y propone su propio precio y, si el cliente lo acepta, su conductor le entrega las llaves. Darse de alta es gratis.</p>`
       : `<p>Le escribo a las empresas de alquiler de coches ${city ? `de ${city}` : "de su zona"}.</p>
-    <p>Camel Global permite a los viajeros reservar un coche de alquiler que se les entrega donde estén (en el aeropuerto, en su hotel o en su domicilio) en lugar de hacer cola en un mostrador. Usted recibe la solicitud de reserva y propone su propio precio y, si el cliente lo acepta, su conductor le entrega las llaves. Darse de alta es gratis.</p>`}
+    <p>Camel Global permite a los viajeros reservar un coche de alquiler que se les entrega donde elijan (en el aeropuerto, en su hotel o en cualquier otra dirección) en lugar de hacer cola en un mostrador. Usted recibe la solicitud de reserva y propone su propio precio y, si el cliente lo acepta, su conductor le entrega las llaves. Darse de alta es gratis.</p>`}
     <p>En dos minutos puede ver cómo funciona:</p>
     ${btn("Ver cómo funciona")}
     <p>Nicholas Trinnaman<br/>Fundador, Camel Global</p>`,
@@ -304,9 +304,9 @@ async function generateEmail(prospect: {
       body: `
     ${airport
       ? `<p>Votre agence est à ${km} km ${ap ? `de l'aéroport ${esc(frDe(ap))}` : "de l'aéroport le plus proche"} (${iata}) : vous savez donc que la plupart des voyageurs font encore la queue à un comptoir pour récupérer leur voiture de location.</p>
-    <p>Camel Global permet à ces voyageurs de réserver une voiture qui leur est livrée directement à l'arrivée. Vous recevez la demande de réservation et proposez votre propre prix ; si le client accepte, votre chauffeur lui remet les clés. L'inscription est gratuite.</p>`
+    <p>Camel Global permet à ces voyageurs de réserver une voiture livrée à l'endroit de leur choix : à l'arrivée, à leur hôtel ou à toute autre adresse. Vous recevez la demande de réservation et proposez votre propre prix ; si le client accepte, votre chauffeur lui remet les clés. L'inscription est gratuite.</p>`
       : `<p>Je m'adresse aux loueurs de voitures ${city ? `de ${city}` : "de votre région"}.</p>
-    <p>Camel Global permet aux voyageurs de réserver une voiture de location livrée là où ils se trouvent (à l'aéroport, à leur hôtel ou à domicile) au lieu de faire la queue à un comptoir. Vous recevez la demande de réservation et proposez votre propre prix ; si le client accepte, votre chauffeur lui remet les clés. L'inscription est gratuite.</p>`}
+    <p>Camel Global permet aux voyageurs de réserver une voiture de location livrée à l'endroit de leur choix (à l'aéroport, à leur hôtel ou à toute autre adresse) au lieu de faire la queue à un comptoir. Vous recevez la demande de réservation et proposez votre propre prix ; si le client accepte, votre chauffeur lui remet les clés. L'inscription est gratuite.</p>`}
     <p>Deux minutes suffisent pour voir comment cela fonctionne :</p>
     ${btn("Voir comment ça marche")}
     <p>Nicholas Trinnaman<br/>Fondateur, Camel Global</p>`,
@@ -319,9 +319,9 @@ async function generateEmail(prospect: {
       body: `
     ${airport
       ? `<p>La sua sede è a ${km} km ${ap ? `dall'aeroporto di ${esc(ap)}` : "dall'aeroporto più vicino"} (${iata}), quindi sa bene che la maggior parte dei viaggiatori fa ancora la fila a un banco per ritirare l'auto a noleggio.</p>
-    <p>Camel Global permette a questi viaggiatori di prenotare un'auto consegnata direttamente agli arrivi. Lei riceve la richiesta di prenotazione e propone il suo prezzo; se il cliente accetta, il suo autista gli consegna le chiavi. L'iscrizione è gratuita.</p>`
+    <p>Camel Global permette a questi viaggiatori di prenotare un'auto consegnata dove preferiscono: agli arrivi, in hotel o a qualsiasi altro indirizzo. Lei riceve la richiesta di prenotazione e propone il suo prezzo; se il cliente accetta, il suo autista gli consegna le chiavi. L'iscrizione è gratuita.</p>`
       : `<p>Scrivo alle società di autonoleggio ${city ? `di ${city}` : "della sua zona"}.</p>
-    <p>Camel Global permette ai viaggiatori di prenotare un'auto a noleggio consegnata dove si trovano (in aeroporto, in hotel o a casa) invece di fare la fila a un banco. Lei riceve la richiesta di prenotazione e propone il suo prezzo; se il cliente accetta, il suo autista gli consegna le chiavi. L'iscrizione è gratuita.</p>`}
+    <p>Camel Global permette ai viaggiatori di prenotare un'auto a noleggio consegnata dove preferiscono (in aeroporto, in hotel o a qualsiasi altro indirizzo) invece di fare la fila a un banco. Lei riceve la richiesta di prenotazione e propone il suo prezzo; se il cliente accetta, il suo autista gli consegna le chiavi. L'iscrizione è gratuita.</p>`}
     <p>Bastano due minuti per vedere come funziona:</p>
     ${btn("Scopra come funziona")}
     <p>Nicholas Trinnaman<br/>Fondatore, Camel Global</p>`,
@@ -334,9 +334,9 @@ async function generateEmail(prospect: {
       body: `
     ${airport
       ? `<p>O seu escritório fica a ${km} km ${ap ? `do aeroporto de ${esc(ap)}` : "do aeroporto mais próximo"} (${iata}), por isso sabe que a maioria dos viajantes ainda faz fila num balcão para levantar o carro alugado.</p>
-    <p>A Camel Global permite que esses viajantes reservem um carro entregue diretamente na zona de chegadas. Recebe o pedido de reserva e propõe o seu próprio preço; se o cliente aceitar, o seu motorista entrega-lhe as chaves. A adesão é gratuita.</p>`
+    <p>A Camel Global permite que esses viajantes reservem um carro entregue onde preferirem: na zona de chegadas, no hotel ou em qualquer outra morada. Recebe o pedido de reserva e propõe o seu próprio preço; se o cliente aceitar, o seu motorista entrega-lhe as chaves. A adesão é gratuita.</p>`
       : `<p>Escrevo às empresas de aluguer de automóveis ${city ? `de ${city}` : "da sua zona"}.</p>
-    <p>A Camel Global permite que os viajantes reservem um carro alugado entregue onde estiverem (no aeroporto, no hotel ou em casa), em vez de fazerem fila num balcão. Recebe o pedido de reserva e propõe o seu próprio preço; se o cliente aceitar, o seu motorista entrega-lhe as chaves. A adesão é gratuita.</p>`}
+    <p>A Camel Global permite que os viajantes reservem um carro alugado entregue onde preferirem (no aeroporto, no hotel ou em qualquer outra morada), em vez de fazerem fila num balcão. Recebe o pedido de reserva e propõe o seu próprio preço; se o cliente aceitar, o seu motorista entrega-lhe as chaves. A adesão é gratuita.</p>`}
     <p>Em dois minutos pode ver como funciona:</p>
     ${btn("Ver como funciona")}
     <p>Nicholas Trinnaman<br/>Fundador, Camel Global</p>`,
@@ -349,9 +349,9 @@ async function generateEmail(prospect: {
       body: `
     ${airport
       ? `<p>Ihr Standort liegt ${km} km ${ap ? `vom Flughafen ${esc(ap)}` : "vom nächstgelegenen Flughafen"} (${iata}) entfernt. Sie wissen also, dass die meisten Reisenden für ihren Mietwagen immer noch am Schalter anstehen.</p>
-    <p>Mit Camel Global können diese Reisenden einen Wagen buchen, der ihnen direkt in der Ankunftshalle übergeben wird. Sie erhalten die Buchungsanfrage und nennen Ihren eigenen Preis; nimmt der Kunde an, übergibt Ihr Fahrer die Schlüssel. Die Anmeldung ist kostenlos.</p>`
+    <p>Mit Camel Global können diese Reisenden einen Wagen buchen, der ihnen dort übergeben wird, wo sie es wünschen: in der Ankunftshalle, am Hotel oder an jeder anderen Adresse. Sie erhalten die Buchungsanfrage und nennen Ihren eigenen Preis; nimmt der Kunde an, übergibt Ihr Fahrer die Schlüssel. Die Anmeldung ist kostenlos.</p>`
       : `<p>Ich schreibe an Autovermietungen ${city ? `in ${city}` : "in Ihrer Region"}.</p>
-    <p>Mit Camel Global können Reisende einen Mietwagen buchen, der ihnen dorthin gebracht wird, wo sie sind (an den Flughafen, ins Hotel oder nach Hause), statt am Schalter anzustehen. Sie erhalten die Buchungsanfrage und nennen Ihren eigenen Preis; nimmt der Kunde an, übergibt Ihr Fahrer die Schlüssel. Die Anmeldung ist kostenlos.</p>`}
+    <p>Mit Camel Global können Reisende einen Mietwagen buchen, der ihnen dort übergeben wird, wo sie es wünschen (am Flughafen, am Hotel oder an jeder anderen Adresse), statt am Schalter anzustehen. Sie erhalten die Buchungsanfrage und nennen Ihren eigenen Preis; nimmt der Kunde an, übergibt Ihr Fahrer die Schlüssel. Die Anmeldung ist kostenlos.</p>`}
     <p>In zwei Minuten sehen Sie, wie es funktioniert:</p>
     ${btn("So funktioniert es")}
     <p>Nicholas Trinnaman<br/>Gründer, Camel Global</p>`,
