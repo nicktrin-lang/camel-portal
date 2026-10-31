@@ -239,6 +239,7 @@ or any code comment as current.
 | `0 8 1 * *` | `/api/cron/monthly-payout` |
 | `0 10 * * *` | `/api/cron/review-reminder` |
 | `0 9 * * *` | `/api/cron/onboarding-reminder` (48h approval resend) |
+| `0 7,8 * * 1-5` | `/api/cron/outreach-autosend` (two entries; sends once at 09:00 Madrid when switched on) |
 
 ---
 
