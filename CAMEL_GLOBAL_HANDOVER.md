@@ -79,6 +79,14 @@ the local language from `lib/outreach/airportLabels.ts` (OurAirports' municipali
 Malpensa = "Ferno"); others get a town version. Send Test Email picks language + version.
 Overture's car_rental_service includes some campervan / event-car firms: skim a group before adding.
 
+**Auto-send (#146):** switch on /admin/outreach (`outreach_autosend`, `OUTREACH_AUTOSEND_SCHEMA.sql`,
+applied; ships OFF). `/api/cron/outreach-autosend` runs 07:00 + 08:00 UTC Mon-Fri, sends only at
+>=09:00 Madrid on a weekday, claims the day once, oldest pending first up to the 50/day limit
+(manual sends count). Emails CAMEL_ADMIN_EMAILS when <50 queued or a send fails. `?dry=1` previews.
+Email build/send lives in `lib/outreach/outreachEmail.ts` (shared with the admin send route).
+Unrelated, NOT fixed: vercel.json calls `/api/cron/monthly-payout` but the route is
+`app/cron/monthly-payout/route.ts` (served at `/cron/monthly-payout`), so the payout cron 404s.
+
 ═══════════════════════════════════════════════════════════════════════════════
 PREVIOUS SESSION — 2026-09-02  (read this first)
 ═══════════════════════════════════════════════════════════════════════════════
