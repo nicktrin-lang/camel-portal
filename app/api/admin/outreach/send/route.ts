@@ -15,10 +15,10 @@ export const DAILY_LIMIT = 50;
  *  partner" enquiries (app/api/contact/route.ts), so partner replies land in one place. */
 const OUTREACH_REPLY_TO = "partners@camel-global.com";
 
-/** Cold outreach reads as a note from the founder, not a newsletter: the recipient sees a
- *  person's name in their inbox. The address is on the verified sending domain and has no
- *  mailbox; replies go to OUTREACH_REPLY_TO. */
-const OUTREACH_FROM = "Nicholas Trinnaman <nicholas@e.camel-global.com>";
+/** Sender shown in the inbox. Nick's call: the company name, not his. The address is on the
+ *  verified sending domain and has no mailbox; replies go to OUTREACH_REPLY_TO. The email
+ *  body is still signed by Nicholas as founder. */
+const OUTREACH_FROM = "Camel Global <partners@e.camel-global.com>";
 
 type Locale = "en" | "es" | "fr" | "it" | "pt" | "de";
 
