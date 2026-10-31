@@ -4,6 +4,7 @@ import {
   createServiceRoleSupabaseClient,
 } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
+import { AIRPORT_LABEL } from "@/lib/outreach/airportLabels";
 
 export const DAILY_LIMIT = 50;
 
@@ -13,6 +14,44 @@ export const DAILY_LIMIT = 50;
  *  personal one. Matches where the contact form already routes "Partnership / become a
  *  partner" enquiries (app/api/contact/route.ts), so partner replies land in one place. */
 const OUTREACH_REPLY_TO = "partners@camel-global.com";
+
+/** Cold outreach reads as a note from the founder, not a newsletter: the recipient sees a
+ *  person's name in their inbox. The address is on the verified sending domain and has no
+ *  mailbox; replies go to OUTREACH_REPLY_TO. */
+const OUTREACH_FROM = "Nicholas Trinnaman <nicholas@e.camel-global.com>";
+
+type Locale = "en" | "es" | "fr" | "it" | "pt" | "de";
+
+/** Nearest airport within this distance is named in the email's opening line. Matches the
+ *  directory's Airports view (lib/outreach/groupByAirport.ts). */
+const AIRPORT_RADIUS_KM = 30;
+
+type NearAirport = { iata: string; km: number };
+
+/** The directory place(s) this prospect came from know their nearest airport. Prospects
+ *  added by hand or CSV have no directory row and get the town-based email instead. */
+async function nearAirportFor(db: ReturnType<typeof createServiceRoleSupabaseClient>, prospectId: string): Promise<NearAirport | null> {
+  const { data } = await db.from("outreach_directory")
+    .select("nearest_airport, airport_km")
+    .eq("prospect_id", prospectId)
+    .not("nearest_airport", "is", null)
+    .lte("airport_km", AIRPORT_RADIUS_KM)
+    .order("airport_km")
+    .limit(1);
+  const row = data?.[0];
+  return row?.nearest_airport && row.airport_km != null ? { iata: row.nearest_airport, km: Number(row.airport_km) } : null;
+}
+
+// One sample prospect per language for "Send Test Email", so each version can be read
+// before it goes out. Real prospects never use these.
+const TEST_PROSPECTS: Record<Locale, { company_name: string; city: string; country: string; airport: NearAirport }> = {
+  en: { company_name: "City Car Hire Ltd",  city: "Manchester", country: "UK",       airport: { iata: "MAN", km: 3.4 } },
+  es: { company_name: "Autos Costa del Sol", city: "Málaga",    country: "Spain",    airport: { iata: "AGP", km: 1.2 } },
+  fr: { company_name: "Azur Location",      city: "Nice",       country: "France",   airport: { iata: "NCE", km: 2.1 } },
+  it: { company_name: "Etna Rent",          city: "Catania",    country: "Italy",    airport: { iata: "CTA", km: 1.8 } },
+  pt: { company_name: "Algarve Rent",       city: "Faro",       country: "Portugal", airport: { iata: "FAO", km: 2.6 } },
+  de: { company_name: "Isar Mietwagen",     city: "München",    country: "Germany",  airport: { iata: "MUC", km: 4.5 } },
+};
 
 function isAllowed(role?: string | null) {
   return role === "admin" || role === "super_admin";
@@ -33,7 +72,7 @@ const LOCALE_BY_COUNTRY: Record<string, "es" | "fr" | "it" | "pt" | "de"> = {
   germany: "de", deutschland: "de", austria: "de", liechtenstein: "de",
 };
 
-function getLocale(country?: string | null): "en" | "es" | "fr" | "it" | "pt" | "de" {
+function getLocale(country?: string | null): Locale {
   const c = (country || "").toLowerCase().trim();
   return LOCALE_BY_COUNTRY[c] ?? "en";
 }
@@ -111,23 +150,18 @@ export async function POST(req: Request) {
     if (!adminRow || !isAllowed(adminRow.role)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
     const body = await req.json().catch(() => null);
-    const { prospect_id, test_email, resend } = body || {};
+    const { prospect_id, test_email, resend, locale: testLocale, near_airport } = body || {};
 
     // TEST MODE
     if (test_email) {
-      const testProspect = {
-        id:           "test-id",
-        company_name: "City Car Hire Ltd",
-        contact_name: "James Smith",
-        city:         "Manchester",
-        country:      "UK",
-        notes:        null,
-      };
-      const emailHtml = await generateEmail(testProspect);
+      const lang: Locale = (["en", "es", "fr", "it", "pt", "de"] as const).includes(testLocale) ? testLocale : "en";
+      const sample = TEST_PROSPECTS[lang];
+      const testProspect = { id: "test-id", company_name: sample.company_name, contact_name: null, city: sample.city, country: sample.country, notes: null };
+      const emailHtml = await generateEmail(testProspect, near_airport === false ? null : sample.airport);
       await sendEmail({
         to:      adminEmail,
-        from:    "Camel Global <noreply@e.camel-global.com>",
-        subject: `[TEST] ${emailHtml.subject}`,
+        from:    OUTREACH_FROM,
+        subject: `[TEST ${lang.toUpperCase()}] ${emailHtml.subject}`,
         html:    emailHtml.fullHtml,
         headers: { "Reply-To": OUTREACH_REPLY_TO },
       });
@@ -165,12 +199,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Prospect has unsubscribed" }, { status: 400 });
     }
 
-    const emailHtml     = await generateEmail(prospect);
+    const emailHtml     = await generateEmail(prospect, await nearAirportFor(db, prospect_id));
     const unsubscribeUrl = buildUnsubscribeUrl(prospect_id, prospect.country);
 
     await sendEmail({
       to:      prospect.email,
-      from:    "Camel Global <noreply@e.camel-global.com>",
+      from:    OUTREACH_FROM,
       subject: emailHtml.subject,
       html:    emailHtml.fullHtml,
       headers: {
@@ -198,112 +232,129 @@ async function generateEmail(prospect: {
   city?: string | null;
   country?: string | null;
   notes?: string | null;
-}) {
+}, airport: NearAirport | null) {
   const locale        = getLocale(prospect.country);
   const signupUrl     = buildSignupUrl(prospect.id, prospect.country);
   const unsubscribeUrl = buildUnsubscribeUrl(prospect.id, prospect.country);
 
-  const contactFirst = prospect.contact_name ? prospect.contact_name.split(" ")[0] : null;
-  const city = (prospect.city || "").trim();
+  const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+  const contactFirst = prospect.contact_name ? esc(prospect.contact_name.split(" ")[0]) : null;
+  const cityText = (prospect.city || "").trim();
+  const city = esc(cityText);
+
+  // Opening line uses the nearest airport when the prospect came from the directory and
+  // sits within AIRPORT_RADIUS_KM of one; otherwise it speaks to the town.
+  const ap = airport ? AIRPORT_LABEL[airport.iata] ?? null : null;
+  const NUM_LOCALE: Record<Locale, string> = { en: "en-GB", es: "es-ES", fr: "fr-FR", it: "it-IT", pt: "pt-PT", de: "de-DE" };
+  const km = airport ? airport.km.toLocaleString(NUM_LOCALE[locale], { maximumFractionDigits: 1 }) : "";
+  const iata = airport?.iata ?? "";
+  const frDe = (name: string) => (/^[aeiouyhàâäéèêëîïôöûüAEIOUYHÀÂÉÈÊÎÔÛ]/.test(name) ? `d'${name}` : `de ${name}`);
 
   // Copy is WRITTEN per locale, not translated literally - a locale that reads like a
   // translation reads like spam to the operator receiving it. House style: hyphens, never
   // em dashes (matches the guide content sweep).
   //
-  // Deliberately absent: any "priority visibility" / "limited founding places" claim. The
-  // match loop in camel-customer emails EVERY live in-radius partner via Promise.allSettled
-  // with no ordering or tier, so that promise was never deliverable.
+  // Short on purpose: the email's only job is the click; the portal homepage explains the
+  // model. Deliberately absent: commission (left to the homepage), and any "priority
+  // visibility" / "limited founding places" claim - the match loop in camel-customer emails
+  // EVERY live in-radius partner via Promise.allSettled with no ordering or tier.
   const btn = (label: string) => `
-    <p style="text-align:left;margin:32px 0;">
-      <a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:14px 36px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.05em;">${label}</a>
+    <p style="text-align:left;margin:28px 0;">
+      <a href="${signupUrl}" style="background:#ff7a00;color:#ffffff;padding:12px 28px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">${label}</a>
     </p>`;
 
   type OutreachCopy = { subject: string; greeting: string; body: string };
 
-  const COPY: Record<"en" | "es" | "fr" | "it" | "pt" | "de", OutreachCopy> = {
+  const COPY: Record<Locale, OutreachCopy> = {
     en: {
-      subject: city
-        ? `Customers are searching for car hire in ${city} right now`
-        : `Customers are searching for car hire in your area right now`,
+      subject: airport
+        ? (ap ? `Car hire bookings at ${ap} airport` : city ? `Airport car hire bookings in ${cityText}` : `Airport car hire bookings`)
+        : (city ? `Car hire bookings in ${cityText}` : `Car hire bookings in your area`),
       greeting: contactFirst ? `<p>Hi ${contactFirst},</p>` : `<p>Hello,</p>`,
       body: `
-    <p>Every rental fleet has days when cars sit idle. Camel Global is one way to fill a few of them.</p>
-    <p>We're a meet &amp; greet car hire marketplace. A customer books online, you send a quote, and if they accept it your driver delivers the car to their airport, hotel or address - no desk, no queue.</p>
-    <p>It runs alongside your existing business as an extra booking channel. Your prices, your vehicles, your drivers. Nothing about how you operate changes.</p>
-    <p>Free to join - no sign-up fee, no subscription, no monthly cost. You pay commission only on bookings you complete.</p>
-    <p>Registration takes about five minutes.</p>
-    ${btn("REGISTER NOW")}
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Founder - Camel Global</p>`,
+    ${airport
+      ? `<p>Your office is ${km} km from ${ap ? `${esc(ap)} airport` : "the nearest airport"} (${iata}), so you'll know most travellers still queue at a desk to collect their hire car.</p>
+    <p>Camel Global lets those travellers book a car delivered to them at arrivals instead. You get the booking request and quote your own price, and if they accept, your driver hands over the keys. It's free to join.</p>`
+      : `<p>I'm writing to car hire companies ${city ? `in ${city}` : "in your area"}.</p>
+    <p>Camel Global lets travellers book a hire car delivered to them - at the airport, their hotel or their home - instead of queuing at a desk. You get the booking request and quote your own price, and if they accept, your driver hands over the keys. It's free to join.</p>`}
+    <p>It takes two minutes to see how it works:</p>
+    ${btn("See how it works")}
+    <p>Nicholas Trinnaman<br/>Founder, Camel Global</p>`,
     },
     es: {
-      subject: city
-        ? `Ahora mismo hay clientes buscando alquiler de coches en ${city}`
-        : `Ahora mismo hay clientes buscando alquiler de coches en su zona`,
-      greeting: contactFirst ? `<p>Estimado/a ${contactFirst}:</p>` : `<p>Estimados señores:</p>`,
+      subject: airport
+        ? (ap ? `Reservas de alquiler de coches en el aeropuerto de ${ap}` : city ? `Reservas de alquiler de coches en ${cityText}` : `Reservas de alquiler de coches en su zona`)
+        : (city ? `Reservas de alquiler de coches en ${cityText}` : `Reservas de alquiler de coches en su zona`),
+      greeting: contactFirst ? `<p>Hola, ${contactFirst}:</p>` : `<p>Buenos días:</p>`,
       body: `
-    <p>Toda flota de alquiler tiene días en los que hay coches parados. Camel Global es una forma de llenar algunos de ellos.</p>
-    <p>Somos un marketplace de alquiler de coches con entrega meet &amp; greet: el cliente reserva online, usted envía su presupuesto y, si lo acepta, su conductor le entrega el coche en el aeropuerto, el hotel o la dirección que indique. Sin mostrador y sin colas.</p>
-    <p>Funciona en paralelo a su negocio actual, como un canal de reservas adicional. Sus precios, sus vehículos, sus conductores. No cambia nada en su forma de operar.</p>
-    <p>Darse de alta es gratis: sin cuota de alta, sin suscripción y sin costes mensuales. Solo paga comisión por las reservas que complete.</p>
-    <p>El registro le llevará unos cinco minutos.</p>
-    ${btn("REGÍSTRESE AHORA")}
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador - Camel Global</p>`,
+    ${airport
+      ? `<p>Su oficina está a ${km} km ${ap ? `del aeropuerto de ${esc(ap)}` : "del aeropuerto más cercano"} (${iata}), así que sabrá que la mayoría de los viajeros todavía hacen cola en un mostrador para recoger su coche de alquiler.</p>
+    <p>Camel Global permite a esos viajeros reservar un coche que se les entrega en la misma zona de llegadas. Usted recibe la solicitud de reserva y propone su propio precio y, si el cliente lo acepta, su conductor le entrega las llaves. Darse de alta es gratis.</p>`
+      : `<p>Le escribo a las empresas de alquiler de coches ${city ? `de ${city}` : "de su zona"}.</p>
+    <p>Camel Global permite a los viajeros reservar un coche de alquiler que se les entrega donde estén (en el aeropuerto, en su hotel o en su domicilio) en lugar de hacer cola en un mostrador. Usted recibe la solicitud de reserva y propone su propio precio y, si el cliente lo acepta, su conductor le entrega las llaves. Darse de alta es gratis.</p>`}
+    <p>En dos minutos puede ver cómo funciona:</p>
+    ${btn("Ver cómo funciona")}
+    <p>Nicholas Trinnaman<br/>Fundador, Camel Global</p>`,
     },
     fr: {
-      subject: city
-        ? `En ce moment, des clients cherchent une location de voiture à ${city}`
-        : `En ce moment, des clients cherchent une location de voiture dans votre région`,
+      subject: airport
+        ? (ap ? `Réservations de location de voitures à l'aéroport ${frDe(ap)}` : city ? `Réservations de location de voitures à ${cityText}` : `Réservations de location de voitures dans votre région`)
+        : (city ? `Réservations de location de voitures à ${cityText}` : `Réservations de location de voitures dans votre région`),
       greeting: contactFirst ? `<p>Bonjour ${contactFirst},</p>` : `<p>Bonjour,</p>`,
       body: `
-    <p>Toute flotte de location a des jours où des véhicules restent immobilisés. Camel Global est un moyen d'en remplir quelques-uns.</p>
-    <p>Nous sommes une marketplace de location de voitures avec livraison meet &amp; greet : le client réserve en ligne, vous envoyez votre devis et, s'il l'accepte, votre chauffeur lui livre le véhicule à l'aéroport, à l'hôtel ou à l'adresse de son choix. Sans comptoir et sans file d'attente.</p>
-    <p>Cela fonctionne en parallèle de votre activité actuelle, comme un canal de réservation supplémentaire. Vos tarifs, vos véhicules, vos chauffeurs. Rien ne change dans votre façon de travailler.</p>
-    <p>L'inscription est gratuite : pas de frais d'ouverture, pas d'abonnement, aucun coût mensuel. Vous ne payez de commission que sur les réservations que vous réalisez.</p>
-    <p>L'inscription prend environ cinq minutes.</p>
-    ${btn("S'INSCRIRE MAINTENANT")}
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fondateur - Camel Global</p>`,
+    ${airport
+      ? `<p>Votre agence est à ${km} km ${ap ? `de l'aéroport ${esc(frDe(ap))}` : "de l'aéroport le plus proche"} (${iata}) : vous savez donc que la plupart des voyageurs font encore la queue à un comptoir pour récupérer leur voiture de location.</p>
+    <p>Camel Global permet à ces voyageurs de réserver une voiture qui leur est livrée directement à l'arrivée. Vous recevez la demande de réservation et proposez votre propre prix ; si le client accepte, votre chauffeur lui remet les clés. L'inscription est gratuite.</p>`
+      : `<p>Je m'adresse aux loueurs de voitures ${city ? `de ${city}` : "de votre région"}.</p>
+    <p>Camel Global permet aux voyageurs de réserver une voiture de location livrée là où ils se trouvent (à l'aéroport, à leur hôtel ou à domicile) au lieu de faire la queue à un comptoir. Vous recevez la demande de réservation et proposez votre propre prix ; si le client accepte, votre chauffeur lui remet les clés. L'inscription est gratuite.</p>`}
+    <p>Deux minutes suffisent pour voir comment cela fonctionne :</p>
+    ${btn("Voir comment ça marche")}
+    <p>Nicholas Trinnaman<br/>Fondateur, Camel Global</p>`,
     },
     it: {
-      subject: city
-        ? `In questo momento ci sono clienti che cercano un'auto a noleggio a ${city}`
-        : `In questo momento ci sono clienti che cercano un'auto a noleggio nella sua zona`,
-      greeting: contactFirst ? `<p>Gentile ${contactFirst},</p>` : `<p>Gentili Signori,</p>`,
+      subject: airport
+        ? (ap ? `Prenotazioni di auto a noleggio all'aeroporto di ${ap}` : city ? `Prenotazioni di auto a noleggio a ${cityText}` : `Prenotazioni di auto a noleggio nella sua zona`)
+        : (city ? `Prenotazioni di auto a noleggio a ${cityText}` : `Prenotazioni di auto a noleggio nella sua zona`),
+      greeting: contactFirst ? `<p>Buongiorno ${contactFirst},</p>` : `<p>Buongiorno,</p>`,
       body: `
-    <p>Ogni flotta a noleggio ha giorni in cui le auto restano ferme. Camel Global è un modo per riempirne alcuni.</p>
-    <p>Siamo un marketplace di autonoleggio con consegna meet &amp; greet: il cliente prenota online, lei invia il suo preventivo e, se lo accetta, il suo autista gli consegna l'auto in aeroporto, in hotel o all'indirizzo indicato. Senza banco e senza code.</p>
-    <p>Funziona in parallelo alla sua attività attuale, come canale di prenotazione aggiuntivo. I suoi prezzi, i suoi veicoli, i suoi autisti. Non cambia nulla nel suo modo di operare.</p>
-    <p>L'iscrizione è gratuita: nessuna quota di attivazione, nessun abbonamento, nessun costo mensile. Paga una commissione solo sulle prenotazioni che porta a termine.</p>
-    <p>La registrazione richiede circa cinque minuti.</p>
-    ${btn("ISCRIVITI ORA")}
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fondatore - Camel Global</p>`,
+    ${airport
+      ? `<p>La sua sede è a ${km} km ${ap ? `dall'aeroporto di ${esc(ap)}` : "dall'aeroporto più vicino"} (${iata}), quindi sa bene che la maggior parte dei viaggiatori fa ancora la fila a un banco per ritirare l'auto a noleggio.</p>
+    <p>Camel Global permette a questi viaggiatori di prenotare un'auto consegnata direttamente agli arrivi. Lei riceve la richiesta di prenotazione e propone il suo prezzo; se il cliente accetta, il suo autista gli consegna le chiavi. L'iscrizione è gratuita.</p>`
+      : `<p>Scrivo alle società di autonoleggio ${city ? `di ${city}` : "della sua zona"}.</p>
+    <p>Camel Global permette ai viaggiatori di prenotare un'auto a noleggio consegnata dove si trovano (in aeroporto, in hotel o a casa) invece di fare la fila a un banco. Lei riceve la richiesta di prenotazione e propone il suo prezzo; se il cliente accetta, il suo autista gli consegna le chiavi. L'iscrizione è gratuita.</p>`}
+    <p>Bastano due minuti per vedere come funziona:</p>
+    ${btn("Scopra come funziona")}
+    <p>Nicholas Trinnaman<br/>Fondatore, Camel Global</p>`,
     },
     pt: {
-      subject: city
-        ? `Neste momento há clientes à procura de aluguer de automóveis em ${city}`
-        : `Neste momento há clientes à procura de aluguer de automóveis na sua zona`,
-      greeting: contactFirst ? `<p>Caro/a ${contactFirst},</p>` : `<p>Exmos. Senhores,</p>`,
+      subject: airport
+        ? (ap ? `Reservas de aluguer de automóveis no aeroporto de ${ap}` : city ? `Reservas de aluguer de automóveis em ${cityText}` : `Reservas de aluguer de automóveis na sua zona`)
+        : (city ? `Reservas de aluguer de automóveis em ${cityText}` : `Reservas de aluguer de automóveis na sua zona`),
+      greeting: contactFirst ? `<p>Olá, ${contactFirst},</p>` : `<p>Bom dia,</p>`,
       body: `
-    <p>Todas as frotas de aluguer têm dias em que os carros ficam parados. A Camel Global é uma forma de preencher alguns deles.</p>
-    <p>Somos um marketplace de aluguer de automóveis com entrega meet &amp; greet: o cliente reserva online, você envia o seu orçamento e, se o aceitar, o seu motorista entrega-lhe o carro no aeroporto, no hotel ou na morada indicada. Sem balcão e sem filas.</p>
-    <p>Funciona em paralelo com o seu negócio atual, como um canal de reservas adicional. Os seus preços, os seus veículos, os seus motoristas. Não muda nada na sua forma de operar.</p>
-    <p>A adesão é gratuita: sem taxa de inscrição, sem subscrição e sem custos mensais. Só paga comissão pelas reservas que concluir.</p>
-    <p>O registo demora cerca de cinco minutos.</p>
-    ${btn("REGISTAR AGORA")}
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Fundador - Camel Global</p>`,
+    ${airport
+      ? `<p>O seu escritório fica a ${km} km ${ap ? `do aeroporto de ${esc(ap)}` : "do aeroporto mais próximo"} (${iata}), por isso sabe que a maioria dos viajantes ainda faz fila num balcão para levantar o carro alugado.</p>
+    <p>A Camel Global permite que esses viajantes reservem um carro entregue diretamente na zona de chegadas. Recebe o pedido de reserva e propõe o seu próprio preço; se o cliente aceitar, o seu motorista entrega-lhe as chaves. A adesão é gratuita.</p>`
+      : `<p>Escrevo às empresas de aluguer de automóveis ${city ? `de ${city}` : "da sua zona"}.</p>
+    <p>A Camel Global permite que os viajantes reservem um carro alugado entregue onde estiverem (no aeroporto, no hotel ou em casa), em vez de fazerem fila num balcão. Recebe o pedido de reserva e propõe o seu próprio preço; se o cliente aceitar, o seu motorista entrega-lhe as chaves. A adesão é gratuita.</p>`}
+    <p>Em dois minutos pode ver como funciona:</p>
+    ${btn("Ver como funciona")}
+    <p>Nicholas Trinnaman<br/>Fundador, Camel Global</p>`,
     },
     de: {
-      subject: city
-        ? `Gerade jetzt suchen Kunden in ${city} nach einem Mietwagen`
-        : `Gerade jetzt suchen Kunden in Ihrer Region nach einem Mietwagen`,
+      subject: airport
+        ? (ap ? `Mietwagenbuchungen am Flughafen ${ap}` : city ? `Mietwagenbuchungen in ${cityText}` : `Mietwagenbuchungen in Ihrer Region`)
+        : (city ? `Mietwagenbuchungen in ${cityText}` : `Mietwagenbuchungen in Ihrer Region`),
       greeting: contactFirst ? `<p>Guten Tag ${contactFirst},</p>` : `<p>Guten Tag,</p>`,
       body: `
-    <p>In jeder Mietwagenflotte stehen an manchen Tagen Fahrzeuge still. Camel Global ist eine Möglichkeit, einige davon zu füllen.</p>
-    <p>Wir sind ein Mietwagen-Marktplatz mit Meet-&amp;-Greet-Lieferung: Der Kunde bucht online, Sie senden Ihr Angebot, und wenn er es annimmt, liefert Ihr Fahrer den Wagen zum Flughafen, zum Hotel oder an die gewünschte Adresse. Ohne Schalter, ohne Warteschlange.</p>
-    <p>Das läuft parallel zu Ihrem bestehenden Geschäft, als zusätzlicher Buchungskanal. Ihre Preise, Ihre Fahrzeuge, Ihre Fahrer. An Ihrem Betriebsablauf ändert sich nichts.</p>
-    <p>Die Anmeldung ist kostenlos: keine Aufnahmegebühr, kein Abonnement, keine monatlichen Kosten. Provision zahlen Sie nur für Buchungen, die Sie tatsächlich abschließen.</p>
-    <p>Die Registrierung dauert etwa fünf Minuten.</p>
-    ${btn("JETZT ANMELDEN")}
-    <p style="margin-top:24px;">Nicholas Trinnaman<br/>Gründer - Camel Global</p>`,
+    ${airport
+      ? `<p>Ihr Standort liegt ${km} km ${ap ? `vom Flughafen ${esc(ap)}` : "vom nächstgelegenen Flughafen"} (${iata}) entfernt. Sie wissen also, dass die meisten Reisenden für ihren Mietwagen immer noch am Schalter anstehen.</p>
+    <p>Mit Camel Global können diese Reisenden einen Wagen buchen, der ihnen direkt in der Ankunftshalle übergeben wird. Sie erhalten die Buchungsanfrage und nennen Ihren eigenen Preis; nimmt der Kunde an, übergibt Ihr Fahrer die Schlüssel. Die Anmeldung ist kostenlos.</p>`
+      : `<p>Ich schreibe an Autovermietungen ${city ? `in ${city}` : "in Ihrer Region"}.</p>
+    <p>Mit Camel Global können Reisende einen Mietwagen buchen, der ihnen dorthin gebracht wird, wo sie sind (an den Flughafen, ins Hotel oder nach Hause), statt am Schalter anzustehen. Sie erhalten die Buchungsanfrage und nennen Ihren eigenen Preis; nimmt der Kunde an, übergibt Ihr Fahrer die Schlüssel. Die Anmeldung ist kostenlos.</p>`}
+    <p>In zwei Minuten sehen Sie, wie es funktioniert:</p>
+    ${btn("So funktioniert es")}
+    <p>Nicholas Trinnaman<br/>Gründer, Camel Global</p>`,
     },
   };
 
@@ -313,7 +364,7 @@ async function generateEmail(prospect: {
   const htmlBody = `${greeting}${copy.body}`;
 
   const footerEs = `
-    Recibes este email porque tu empresa fue identificada como posible socio en tu área.<br/>
+    Recibe este correo porque su empresa fue identificada como posible socio en su zona.<br/>
     <a href="${unsubscribeUrl}" style="color:#bbb;">Cancelar suscripción</a>
   `;
 
@@ -344,13 +395,10 @@ async function generateEmail(prospect: {
 
   const fullHtml = `
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#222;line-height:1.7;max-width:600px;">
-      <div style="background:#000;padding:28px;text-align:center;">
-        <img src="https://portal.camel-global.com/camel-logo-white-new.png" alt="Camel Global" style="height:108px;width:auto;display:inline-block;" />
-      </div>
-      <div style="padding:28px;border:1px solid #eee;border-top:none;">
+      <div style="padding:8px 0 16px;font-size:15px;">
         ${htmlBody}
       </div>
-      <div style="padding:16px 28px;background:#f8f8f8;border:1px solid #eee;border-top:none;font-size:12px;color:#999;line-height:1.8;">
+      <div style="padding:16px 0;border-top:1px solid #eee;font-size:12px;color:#999;line-height:1.8;">
         ${locale === "es" ? footerEs : locale === "fr" ? footerFr : locale === "it" ? footerIt : locale === "pt" ? footerPt : locale === "de" ? footerDe : footerEn}
       </div>
     </div>
