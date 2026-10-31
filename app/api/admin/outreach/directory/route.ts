@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  createRouteHandlerSupabaseClient,
-  createServiceRoleSupabaseClient,
-} from "@/lib/supabase/server";
+import { requireDirectoryAdmin as requireAdmin } from "@/lib/outreach/requireDirectoryAdmin";
 
 // The outreach directory (OUTREACH_DIRECTORY_SCHEMA.sql): every car hire company found in
 // Overture Maps, with emails found on their websites. GET lists it by country; POST
@@ -11,21 +8,6 @@ import {
 
 const PAGE_SIZE = 100;
 const MAX_ADD = 500;
-
-function isAllowed(role?: string | null) {
-  return role === "admin" || role === "super_admin";
-}
-
-async function requireAdmin() {
-  const authed = await createRouteHandlerSupabaseClient();
-  const { data: userData, error: userErr } = await authed.auth.getUser();
-  const email = (userData?.user?.email || "").toLowerCase().trim();
-  if (userErr || !email) return { error: NextResponse.json({ error: "Not signed in" }, { status: 401 }) };
-  const db = createServiceRoleSupabaseClient();
-  const { data: adminRow } = await db.from("admin_users").select("role").eq("email", email).maybeSingle();
-  if (!adminRow || !isAllowed(adminRow.role)) return { error: NextResponse.json({ error: "Not authorized" }, { status: 403 }) };
-  return { db };
-}
 
 // outreach_prospects.country holds a name, and the send route picks the email language
 // from it (getLocale), so promoted rows use the names that route and the outreach page know.
