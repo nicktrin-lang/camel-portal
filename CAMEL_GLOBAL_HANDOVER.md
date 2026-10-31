@@ -53,6 +53,16 @@ countries stay English).
 **Open:** cold email consent rules differ by country (Spain's LSSI is stricter than UK PECR):
 confirm before sending to a new country. The 50/day send limit still applies.
 
+**Loaded + scanned (2026-10-31, Overture 2026-10-21.0):** 123,958 places, 221 countries, 80,424
+independent; 48,117 independents have an email (Overture's own + website scan). Spain 2,573 /
+1,508 with email; Italy 7,923 / 3,691; UK 3,019 / 1,389. Counts are LOCATIONS, not companies;
+"add" dedupes by email. ~6,800 sites didn't load: re-run `directory:scan -- --retry-failed`.
+
+**Map view (#140):** List/Map switch per country. Canvas dots coloured by status, Camel's
+approved partners as diamonds (filled = live via `computeLiveReadiness`), "Add to outreach"
+in the popup. Data: `GET /api/admin/outreach/directory/map`. Admin guard shared in
+`lib/outreach/requireDirectoryAdmin.ts`. #139 relabels the add-all button (500 is a per-click cap).
+
 ═══════════════════════════════════════════════════════════════════════════════
 PREVIOUS SESSION — 2026-09-02  (read this first)
 ═══════════════════════════════════════════════════════════════════════════════
