@@ -109,6 +109,8 @@ export default function OutreachPage() {
   const [countryFilter, setCountryFilter] = useState<string>("All Countries");
   const [sentToday, setSentToday]       = useState(0);
   const [testSending, setTestSending]   = useState(false);
+  const [testLocale, setTestLocale]     = useState<"en" | "es" | "fr" | "it" | "pt" | "de">("es");
+  const [testNearAirport, setTestNearAirport] = useState(true);
   const [totalCount, setTotalCount]     = useState(0);
   const [csvImporting, setCsvImporting] = useState(false);
   const [csvResult, setCsvResult]       = useState<string | null>(null);
@@ -134,7 +136,7 @@ export default function OutreachPage() {
       const res = await fetch("/api/admin/outreach/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ test_email: true }),
+        body: JSON.stringify({ test_email: true, locale: testLocale, near_airport: testNearAirport }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed");
@@ -403,6 +405,28 @@ export default function OutreachPage() {
               : remaining === 0 ? "Limit reached today"
               : `Send Today's Batch (${batchSize})`}
           </button>
+          <select
+            value={testLocale}
+            onChange={(e) => setTestLocale(e.target.value as typeof testLocale)}
+            aria-label="Test email language"
+            className="border border-black/20 bg-white px-2 py-2 text-sm font-bold text-black"
+          >
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+            <option value="pt">Português</option>
+            <option value="de">Deutsch</option>
+          </select>
+          <select
+            value={testNearAirport ? "airport" : "town"}
+            onChange={(e) => setTestNearAirport(e.target.value === "airport")}
+            aria-label="Test email version"
+            className="border border-black/20 bg-white px-2 py-2 text-sm font-bold text-black"
+          >
+            <option value="airport">Near an airport</option>
+            <option value="town">Not near an airport</option>
+          </select>
           <button onClick={handleTestEmail} disabled={testSending} className="bg-white border border-black px-4 py-2 text-sm font-black text-black hover:bg-black hover:text-white disabled:opacity-40 transition-all">
             {testSending ? "Sending test…" : "Send Test Email"}
           </button>
