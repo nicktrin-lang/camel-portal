@@ -33,7 +33,7 @@ export async function GET() {
       // All partner applications (a small table) — used to auto-detect which
       // prospects actually signed up. "Onboarded" is computed from this, NOT a
       // manual status, so it reflects real conversions.
-      db.from("partner_applications").select("email, status, company_name"),
+      db.from("partner_applications").select("user_id, email, status, company_name"),
     ]);
     if (appsRes.error) throw appsRes.error;
 
@@ -44,7 +44,9 @@ export async function GET() {
     const normCompany = (s: any) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const appByEmail   = new Map<string, string>();
     const appByCompany = new Map<string, string>();
+    const appByUser    = new Map<string, string>();
     for (const a of appsRes.data || []) {
+      if ((a as any).user_id) appByUser.set(String((a as any).user_id), String((a as any).status || "pending"));
       const e = String((a as any).email || "").toLowerCase().trim();
       if (e) appByEmail.set(e, String((a as any).status || "pending"));
       const c = normCompany((a as any).company_name);
@@ -52,14 +54,18 @@ export async function GET() {
     }
 
     const prospects = allProspects.map((p: any) => {
-      const byEmail   = appByEmail.get(String(p.email || "").toLowerCase().trim()) || null;
-      const byCompany = byEmail ? null : (appByCompany.get(normCompany(p.company_name)) || null);
-      const appStatus = byEmail || byCompany || null;
+      // Exact first: the signup carried this prospect's ref from the email link
+      // (signed_up_user_id). Then the email / company-name fallbacks for people who
+      // signed up some other way.
+      const byLink    = p.signed_up_user_id ? (appByUser.get(String(p.signed_up_user_id)) || null) : null;
+      const byEmail   = byLink ? null : (appByEmail.get(String(p.email || "").toLowerCase().trim()) || null);
+      const byCompany = byLink || byEmail ? null : (appByCompany.get(normCompany(p.company_name)) || null);
+      const appStatus = byLink || byEmail || byCompany || null;
       return {
         ...p,
         onboarded:          !!appStatus,
         application_status: appStatus,
-        onboarded_match:    byEmail ? "email" : (byCompany ? "company" : null),
+        onboarded_match:    byLink ? "link" : byEmail ? "email" : (byCompany ? "company" : null),
       };
     });
 

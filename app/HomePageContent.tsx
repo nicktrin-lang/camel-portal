@@ -10,6 +10,7 @@ import {
   captureOutreachAttribution,
   readOutreachAttribution,
   attributionParams,
+  sendOutreachBeacon,
 } from "@/lib/outreachAttribution";
 
 const GUIDES_LABEL: Record<Locale, string> = {
@@ -63,6 +64,7 @@ export default function HomePageContent({ guideLangs = [] }: { guideLangs?: stri
   useEffect(() => {
     const attr = captureOutreachAttribution(window.location.search);
     if (attr) {
+      sendOutreachBeacon("landing", attr);
       fireGtagEvent("outreach_landing", {
         ...attributionParams(attr),
         utm_campaign: attr.utm_campaign || "founding-partner",

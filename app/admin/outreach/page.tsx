@@ -9,7 +9,7 @@ const DAILY_LIMIT = 50;
 const COUNTRIES = ["All Countries", "Spain", "France", "Italy", "Portugal", "Germany", "UK", "USA"];
 
 type Status = "pending" | "sent" | "bounced" | "replied" | "onboarded";
-type EngagementFilter = "all" | "sent" | "delivered" | "opened" | "clicked" | "complained" | "onboarded" | "unsubscribed" | "forwarded";
+type EngagementFilter = "all" | "sent" | "delivered" | "opened" | "clicked" | "landed" | "signup_started" | "complained" | "onboarded" | "unsubscribed" | "forwarded";
 
 type Prospect = {
   id: string;
@@ -31,9 +31,13 @@ type Prospect = {
   click_count: number | null;
   last_click_user_agent: string | null;
   click_country: string | null;       // ISO code geolocated from the click IP
+  landed_at: string | null;           // landing page ran in a real browser (our own beacon, no cookies)
+  landing_count: number | null;
+  signup_started_at: string | null;   // opened the partner signup form
+  signed_up_at: string | null;        // signup carried this prospect's ref
   onboarded: boolean | null;          // computed: matched a partner application
   application_status: string | null;  // computed: that application's status
-  onboarded_match: string | null;     // 'email' | 'company' | null (how it matched)
+  onboarded_match: string | null;     // 'link' | 'email' | 'company' | null (how it matched)
   created_at: string;
 };
 
@@ -326,6 +330,8 @@ export default function OutreachPage() {
   const openCount       = realProspects.filter(p => p.opened_at).length;
   const clickCount      = realProspects.filter(p => p.clicked_at).length;
   const humanClickCount = realProspects.filter(isHumanClick).length;
+  const landedCount     = realProspects.filter(p => p.landed_at).length;
+  const startedCount    = realProspects.filter(p => p.signup_started_at).length;
   const complainedCount = realProspects.filter(p => p.complained_at).length;
   const onboardedCount  = realProspects.filter(p => p.onboarded).length;
   const unsubCount      = realProspects.filter(p => p.unsubscribed).length;
@@ -348,6 +354,8 @@ export default function OutreachPage() {
       if (engagementFilter === "delivered")    return !!p.delivered_at;
       if (engagementFilter === "opened")       return !!p.opened_at;
       if (engagementFilter === "clicked")      return !!p.clicked_at;
+      if (engagementFilter === "landed")         return !!p.landed_at;
+      if (engagementFilter === "signup_started") return !!p.signup_started_at;
       if (engagementFilter === "complained")   return !!p.complained_at;
       if (engagementFilter === "onboarded")    return !!p.onboarded;
       if (engagementFilter === "unsubscribed") return !!p.unsubscribed;
@@ -455,7 +463,7 @@ export default function OutreachPage() {
 
       {/* Engagement stats — clickable filters */}
       {sentCount > 0 && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {/* Sent */}
           <button
             onClick={() => toggleEngagementFilter("sent")}
@@ -488,6 +496,30 @@ export default function OutreachPage() {
               <span className="ml-2 text-sm font-bold text-black/40">{sentCount > 0 ? `${Math.round((clickCount / sentCount) * 100)}%` : ""}</span>
             </p>
             <p className="mt-1 text-xs font-semibold text-[#ff7a00]">{humanClickCount} likely human · {clickCount - humanClickCount} bot/scanner</p>
+          </button>
+          {/* Landed — our own cookieless beacon, so real browsers only */}
+          <button
+            onClick={() => toggleEngagementFilter("landed")}
+            className={["border p-4 text-left transition-all", engagementFilter === "landed" ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+          >
+            <p className="text-xs font-black uppercase tracking-widest text-black/40">Visited Site</p>
+            <p className="mt-1 text-2xl font-black text-black">
+              {landedCount}
+              <span className="ml-2 text-sm font-bold text-black/40">{sentCount > 0 ? `${Math.round((landedCount / sentCount) * 100)}%` : ""}</span>
+            </p>
+            <p className="mt-1 text-xs font-semibold text-black/30">real browser, not a scanner</p>
+          </button>
+          {/* Opened the signup form */}
+          <button
+            onClick={() => toggleEngagementFilter("signup_started")}
+            className={["border p-4 text-left transition-all", engagementFilter === "signup_started" ? "border-black ring-2 ring-black" : "border-black/10 bg-white hover:border-black/30"].join(" ")}
+          >
+            <p className="text-xs font-black uppercase tracking-widest text-black/40">Started Signup</p>
+            <p className="mt-1 text-2xl font-black text-black">
+              {startedCount}
+              <span className="ml-2 text-sm font-bold text-black/40">{sentCount > 0 ? `${Math.round((startedCount / sentCount) * 100)}%` : ""}</span>
+            </p>
+            <p className="mt-1 text-xs font-semibold text-black/30">opened the signup form</p>
           </button>
         </div>
       )}
@@ -659,6 +691,7 @@ export default function OutreachPage() {
                   <th className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-black/50">Sent</th>
                   <th className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-black/50">Opened</th>
                   <th className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-black/50">Clicked</th>
+                  <th className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-black/50">On Site</th>
                   <th className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-black/50">Notes</th>
                   <th className="px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-black/50">Actions</th>
                 </tr>
@@ -668,7 +701,7 @@ export default function OutreachPage() {
                   <tr key={p.id} className={["hover:bg-[#f8f8f8] transition-colors", p.unsubscribed ? "opacity-50" : ""].join(" ")}>
                     <td className="px-4 py-3 font-black text-black">
                       {p.company_name}
-                      {p.onboarded && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-green-100 text-green-700 px-1.5 py-0.5">signed up{p.application_status ? ` · ${p.application_status}` : ""}{p.onboarded_match === "company" ? " · by name" : ""}</span>}
+                      {p.onboarded && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-green-100 text-green-700 px-1.5 py-0.5">signed up{p.application_status ? ` · ${p.application_status}` : ""}{p.onboarded_match === "company" ? " · by name" : p.onboarded_match === "link" ? " · via email" : ""}</span>}
                       {isPossiblyForwarded(p) && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-700 px-1.5 py-0.5" title={`Clicked from ${p.click_country}, but listed as ${p.country}`}>forwarded? · {p.click_country}</span>}
                       {p.complained_at && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5">spam</span>}
                       {p.unsubscribed && !p.complained_at && <span className="ml-2 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 px-1.5 py-0.5">unsub</span>}
@@ -688,6 +721,12 @@ export default function OutreachPage() {
                     <td className="px-4 py-3 text-xs font-semibold">
                       {p.clicked_at
                         ? <span className={isHumanClick(p) ? "text-[#ff7a00] font-black" : "text-black/40"} title={p.last_click_user_agent || ""}>✓ {fmt(p.clicked_at)}{isHumanClick(p) ? "" : " · bot"}</span>
+                        : <span className="text-black/30">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-semibold whitespace-nowrap">
+                      {p.signed_up_at ? <span className="font-black text-green-700">✓ signed up {fmt(p.signed_up_at)}</span>
+                        : p.signup_started_at ? <span className="font-black text-[#ff7a00]">started signup {fmt(p.signup_started_at)}</span>
+                        : p.landed_at ? <span className="text-black/70" title={`${p.landing_count || 1} visit${(p.landing_count || 1) === 1 ? "" : "s"}`}>visited {fmt(p.landed_at)}{(p.landing_count || 0) > 1 ? ` ×${p.landing_count}` : ""}</span>
                         : <span className="text-black/30">—</span>}
                     </td>
                     <td className="px-4 py-3 text-xs font-semibold text-black/50 max-w-[120px] truncate" title={p.notes || ""}>{p.notes || "—"}</td>

@@ -10,6 +10,7 @@ import { downloadPartnerTermsPDF } from "@/lib/portal/partnerTerms";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useLanguage, Locale } from "@/lib/i18n/LanguageContext";
 import LanguageToggle from "@/lib/i18n/LanguageToggle";
+import { readOutreachAttribution, sendOutreachBeacon } from "@/lib/outreachAttribution";
 
 const inputCls     = "w-full bg-[#f0f0f0] px-4 py-3 text-base font-medium text-black outline-none focus:bg-[#e8e8e8] transition-colors placeholder:text-black/40";
 const labelCls     = "block text-xs font-black uppercase tracking-widest text-black mb-2";
@@ -458,7 +459,10 @@ export default function PartnerSignupPage() {
   ];
   const [step, setStep]               = useState(1);
 
-  useEffect(() => { trackSignupStep(1, "company_details"); }, []);
+  useEffect(() => {
+    trackSignupStep(1, "company_details");
+    sendOutreachBeacon("signup_started", readOutreachAttribution(window.location.search));
+  }, []);
 
   function trackSignupStep(stepNum: number, stepName: string) {
     if (typeof window !== "undefined" && typeof (window as any).gtag === "function") {
@@ -510,6 +514,9 @@ export default function PartnerSignupPage() {
           baseAddress: fleetAddress, baseAddress1: data.fleetAddress1, baseAddress2: data.fleetAddress2,
           baseCity: data.fleetCity, baseProvince: data.fleetProvince, basePostcode: data.fleetPostcode,
           baseCountry: data.fleetCountry, baseLat: data.fleetLat, baseLng: data.fleetLng,
+          // The outreach prospect id, if they came from an outreach email: links the signup
+          // to the exact prospect (outreach_prospects.signed_up_at).
+          outreachRef: readOutreachAttribution(window.location.search).ref,
         }),
       });
       const json = await res.json().catch(() => null);
