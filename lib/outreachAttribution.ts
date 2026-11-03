@@ -77,3 +77,18 @@ export function attributionParams(attr: OutreachAttribution): Record<string, str
   }
   return out;
 }
+
+/** Records a funnel step against the emailed prospect in our own database
+ *  (POST /api/outreach/track). Cookieless, so unlike GA it counts visitors who never
+ *  accept the cookie banner. No-op without a prospect ref. Fire-and-forget. */
+export function sendOutreachBeacon(event: "landing" | "signup_started", attr: OutreachAttribution) {
+  if (attr.utm_source !== "outreach" || !attr.ref) return;
+  try {
+    const body = JSON.stringify({ event, ref: attr.ref });
+    const sent = typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function" &&
+      navigator.sendBeacon("/api/outreach/track", new Blob([body], { type: "application/json" }));
+    if (!sent) void fetch("/api/outreach/track", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+  } catch {
+    // Tracking must never break the page.
+  }
+}

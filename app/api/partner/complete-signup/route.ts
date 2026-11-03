@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendApplicationReceivedEmail, sendEmail, countryToEmailLocale } from "@/lib/email";
 import { canonicalCountryName } from "@/lib/portal/countryCanonical";
+import { trackProspect } from "@/lib/outreach/trackProspect";
 
 const TERMS_VERSION = "2026-04";
 
@@ -16,6 +17,7 @@ type Body = {
   baseAddress?: string; baseAddress1?: string; baseAddress2?: string;
   baseCity?: string; baseProvince?: string; basePostcode?: string; baseCountry?: string;
   baseLat?: number | string | null; baseLng?: number | string | null;
+  outreachRef?: string;  // outreach_prospects.id when they arrived from an outreach email
 };
 
 function normalizeWebsite(v: string) {
@@ -175,6 +177,9 @@ export async function POST(req: Request) {
     }
 
     await sendApplicationReceivedEmail(email, signupLocale);
+
+    // Credit the outreach email that brought them, if any. Never fails the signup.
+    await trackProspect(body?.outreachRef, "signed_up", userId);
 
     // Notify admin(s) of new partner application
     const adminEmails = String(process.env.CAMEL_ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean);
