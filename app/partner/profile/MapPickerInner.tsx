@@ -34,11 +34,11 @@ export default function MapPickerInner({ lat, lng, onPick }: Props) {
   return (
     <div className="border border-black/10 overflow-hidden" style={{ zIndex: 0, position: "relative" }}>
       <MapContainer center={[defaultLat, defaultLng]} zoom={13} scrollWheelZoom className="h-[360px] w-full">
-        {/* CartoDB Positron — free, no API key, clean modern style */}
+        {/* OpenStreetMap, as every other map here. CARTO's basemaps now serve an
+            "API KEY REQUIRED" image in place of the map. */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           minZoom={0}
           maxZoom={19}
         />
