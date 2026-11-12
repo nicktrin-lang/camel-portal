@@ -166,7 +166,7 @@ function brandEmail(heading: string, body: string, locale: EmailLocale): string 
 // ---------------------------------------------------------------------------
 
 export async function sendApplicationReceivedEmail(to: string, locale: EmailLocale = "en") {
-  const baseUrl = portalBaseUrl("http://localhost:3000");
+  const baseUrl = portalBaseUrl();
 
   const subject: Record<EmailLocale, string> = {
     en: "Your Camel Global partner application has been received",
@@ -227,7 +227,7 @@ export async function sendApplicationReceivedEmail(to: string, locale: EmailLoca
 }
 
 export async function sendApprovalEmail(to: string, locale: EmailLocale = "en", partnerName: string = "") {
-  const baseUrl = portalBaseUrl("http://localhost:3000");
+  const baseUrl = portalBaseUrl();
   const loginUrl = `${baseUrl}/partner/login`;
 
   const greeting: Record<EmailLocale, string> = {
@@ -435,7 +435,7 @@ export async function sendRejectionEmail(to: string, locale: EmailLocale = "en")
 }
 
 export async function sendAccountLiveEmail(to: string, locale: EmailLocale = "en") {
-  const baseUrl = portalBaseUrl("http://localhost:3000");
+  const baseUrl = portalBaseUrl();
 
   const subject: Record<EmailLocale, string> = {
     en: "Your Camel Global account is now live 🚀",
