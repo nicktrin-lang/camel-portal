@@ -4,8 +4,7 @@ import { sendApplicationReceivedEmail, sendEmail, countryToEmailLocale } from "@
 import { canonicalCountryName } from "@/lib/portal/countryCanonical";
 import { trackProspect } from "@/lib/outreach/trackProspect";
 import { portalBaseUrl } from "@/lib/portalBaseUrl";
-
-const TERMS_VERSION = "2026-04";
+import { TERMS_VERSION } from "@/lib/portal/partnerTerms";
 
 type Body = {
   companyName?: string; contactName?: string; email?: string;
