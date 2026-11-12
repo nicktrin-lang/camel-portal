@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { CURRENCIES, currencySymbol } from "@/lib/currency";
+import DeleteAccountPanel from "./DeleteAccountPanel";
 
 const MapPicker = dynamic(() => import("@/app/partner/profile/MapPicker"), { ssr: false });
 
@@ -555,6 +556,11 @@ export default function AdminAccountDetailPage() {
                 </div>
               )}
             </div>
+          </Section>
+
+          {/* Super admin only (enforced server-side); refuses accounts with money history */}
+          <Section title="Delete account">
+            <DeleteAccountPanel applicationId={application.id} />
           </Section>
         </div>
       </div>
