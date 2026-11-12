@@ -4,6 +4,7 @@ import {
   createServiceRoleSupabaseClient,
 } from "@/lib/supabase/server";
 import { CURRENCIES } from "@/lib/currency";
+import { getStripePayoutSummary } from "@/lib/portal/stripePayoutSummary";
 
 const VALID_CURRENCIES = CURRENCIES as readonly string[];
 
@@ -66,7 +67,7 @@ export async function GET(
     if (resolvedUserId) {
       const [profileRes, fleetRes, driversRes] = await Promise.all([
         db.from("partner_profiles")
-          .select("id,user_id,role,company_name,contact_name,phone,address,address1,address2,city,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number,commission_rate")
+          .select("id,user_id,role,company_name,contact_name,phone,address,address1,address2,city,province,postcode,country,website,service_radius_km,base_address,base_address1,base_address2,base_town,base_city,base_province,base_postcode,base_country,base_lat,base_lng,default_currency,legal_company_name,vat_number,company_registration_number,commission_rate,stripe_account_id,stripe_payouts_enabled,stripe_recipient_id,recipient_payouts_enabled,payout_rail")
           .eq("user_id", resolvedUserId)
           .maybeSingle(),
         db.from("partner_fleet")
@@ -104,8 +105,11 @@ export async function GET(
     if (!hasCurrency)               missing.push("Billing currency");
     if (!hasVat)                    missing.push("VAT / NIF number");
 
+    // Live from Stripe (read-only) so admin can see where a partner is stuck.
+    const stripe_payouts = profile ? await getStripePayoutSummary(p) : null;
+
     return NextResponse.json({
-      application, profile, fleet,
+      application, profile, fleet, stripe_payouts,
       fleet_count: fleet.length, drivers,
       is_live_profile: missing.length === 0,
       live_profile_reason: missing.length > 0 ? `Missing: ${missing.join(", ")}` : "",
