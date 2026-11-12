@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
 import { canonicalCountryName } from "@/lib/portal/countryCanonical";
 import { isGlobalPayoutsCountry, createGlobalPayoutRecipient, createRecipientOnboardingLink } from "@/lib/portal/stripeGlobalPayouts";
+import { portalBaseUrl } from "@/lib/portalBaseUrl";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-04-22.dahlia" as any });
 
@@ -82,7 +83,7 @@ export async function POST() {
 
     if (!profile) return NextResponse.json({ error: "Partner profile not found" }, { status: 404 });
 
-    const origin = process.env.PORTAL_BASE_URL || "https://portal.camel-global.com";
+    const origin = portalBaseUrl();
     const countryCode = stripeCountry(profile.base_country);
 
     // ── AU/NZ: OUT of corridor → Global Payouts recipient (separate rail) ──────

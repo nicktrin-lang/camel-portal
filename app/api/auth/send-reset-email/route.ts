@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendEmail, coerceEmailLocale, EmailLocale } from "@/lib/email";
 import { rateLimit, getIp } from "@/lib/rateLimit";
+import { portalBaseUrl } from "@/lib/portalBaseUrl";
 
 export async function POST(req: Request) {
   const ip = getIp(req);
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
   }
 
   // FIX: use PORTAL_BASE_URL not NEXT_PUBLIC_SITE_URL — partner reset must go to portal domain
-  const portalUrl  = process.env.PORTAL_BASE_URL ?? "https://portal.camel-global.com";
+  const portalUrl  = portalBaseUrl();
   const redirect   = redirectTo ?? portalUrl + "/partner/reset-password";
 
   const supabase = createClient(
