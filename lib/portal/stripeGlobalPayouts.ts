@@ -313,8 +313,10 @@ export async function createOutboundPayment(opts: {
 
 /** Fetch a recipient account with the fields needed to judge payout readiness. */
 export async function getRecipientAccount(recipientId: string): Promise<RecipientAccount> {
+  // `include` is an array: one parameter per value. A comma-joined value is rejected
+  // ("Unrecognized enum value 'configuration.recipient,requirements,identity'").
   return stripeV2Get<RecipientAccount>(
-    `/v2/core/accounts/${recipientId}?include=configuration.recipient,requirements,identity`,
+    `/v2/core/accounts/${recipientId}?include=configuration.recipient&include=requirements&include=identity`,
   );
 }
 
