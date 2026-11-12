@@ -27,6 +27,25 @@ LATEST SESSION — 2026-11-12  (read this first)
 Outreach funnel tracking · blank maps fixed · customer GA4 booking funnel · 9 Seater Van +
 Cargo Van · passengers up to 16. Partners are now arriving from the outreach emails.
 
+## 🧾 Prepaid Booking Voucher + terms 2026-11a (branch `claude/booking-voucher`)
+Why: Gamo Rent a Car's desk system won't release a vehicle unless the contract has a payment
+recorded, and they saw nothing in Stripe (platform_hold: Stripe only shows the monthly transfer).
+Industry answer = broker voucher: partner records the rental as prepaid via an agency.
+- `GET /api/partner/bookings/[id]/voucher` → `lib/portal/generateBookingVoucherPDF.tsx`
+  (English, rule 3): PAID IN FULL stamp, "for the rental desk" instructions, amounts, paid date,
+  PaymentIntent ref; CANCELLED stamp if cancelled. Read-only, moves no money.
+- Partner booking page: orange "↓ Prepaid voucher" button + green "Paid in full on …" banner
+  (`payment.paid_at` = `payments.created_at` added to the booking API).
+- Partner terms → **2026-11a, effective 26 Nov 2026** (14 days' notice, clause 15). Clause 7 now
+  describes platform_hold (prepaid to Camel, voucher, monthly settlement + statement; fuel refund
+  from Camel's funds), all 6 languages. Operating rules §9 likewise. `complete-signup` now
+  imports `TERMS_VERSION` (was a stale hardcoded "2026-04").
+- Partner home page + legacy `/marketing` page copy updated the same way.
+- **Nick still to do:** email existing partners the terms change (clause 15 needs notice);
+  legal review of clause 2(c) "processing payments on behalf of Partners" and clause 7
+  "financial liability rests with the Partner" — both predate the Camel-as-MoR model and were
+  left unchanged. Follow-up idea: attach the voucher to the "new booking confirmed" email.
+
 ## ⚠️ main now needs ONE APPROVING REVIEW (both repos)
 A repository ruleset (`pull_request`, 1 approval) blocks merging without a review. Claude
 cannot approve its own PRs and must not use `--admin`: open the PR, then Nick merges.
