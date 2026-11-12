@@ -59,6 +59,16 @@ client_id = booking id, so it isn't joined to the visitor's session (fixing it m
 create-intent's idempotent PaymentIntent params: left alone); the webhook always sends to the
 production property, so staging test payments show as live revenue.
 
+## 🗑️ Admin "Delete account" for partners (portal #153)
+Bottom of `/admin/accounts/[id]`, super_admin only (server-enforced). Preview → type the
+partner's email → hard delete (`lib/portal/deletePartnerAccount.ts`): matches, quotes,
+suggestions, fleet, drivers, members, profile, application, and the partner's + drivers'
+logins. REFUSES partners with bookings / commission invoices / recovery rows (Denia Cars and
+Test Cars are blocked for that). Keeps any login that's also an admin or a customer. Stripe
+connected accounts are not touched. Customers: Nick doesn't want a delete for them.
+Not done: ~15 orphan `partner_drivers` rows whose partner was deleted in the Supabase
+dashboard earlier.
+
 ## 🚐 Fleet categories (portal #150, customer #144, customer #145)
 Added `van-9` "9 Seater Van" (9/9) and `cargo-van` "Cargo Van" (3 passengers, 20 suitcases).
 `app/components/portal/fleetCategories.tsx` exists in BOTH repos and must stay identical:
