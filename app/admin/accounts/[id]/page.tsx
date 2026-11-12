@@ -6,6 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { CURRENCIES, currencySymbol } from "@/lib/currency";
 import DeleteAccountPanel from "./DeleteAccountPanel";
+import StripePayoutPanel from "./StripePayoutPanel";
+import type { StripePayoutSummary } from "@/lib/portal/stripePayoutSummary";
 
 const MapPicker = dynamic(() => import("@/app/partner/profile/MapPicker"), { ssr: false });
 
@@ -128,6 +130,7 @@ export default function AdminAccountDetailPage() {
   const [drivers,          setDrivers]          = useState<DriverRow[]>([]);
   const [isLiveProfile,    setIsLiveProfile]    = useState(false);
   const [liveProfileReason, setLiveProfileReason] = useState("");
+  const [stripePayouts,    setStripePayouts]    = useState<StripePayoutSummary | null>(null);
   const [commissionInput,  setCommissionInput]  = useState("");
   const [currencyInput,    setCurrencyInput]    = useState("EUR");
   const [billingInput,     setBillingInput]     = useState({ legal_company_name: "", company_registration_number: "", vat_number: "" });
@@ -152,6 +155,7 @@ export default function AdminAccountDetailPage() {
       setDrivers(Array.isArray(json?.drivers) ? json.drivers : []);
       setIsLiveProfile(!!json?.is_live_profile);
       setLiveProfileReason(String(json?.live_profile_reason || ""));
+      setStripePayouts((json?.stripe_payouts || null) as StripePayoutSummary | null);
       setCommissionInput(String(profileData?.commission_rate ?? 20));
       setCurrencyInput(profileData?.default_currency || "EUR");
       setBillingInput({
@@ -527,6 +531,11 @@ export default function AdminAccountDetailPage() {
                 <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">{liveProfileReason}</div>
               )}
             </div>
+          </Section>
+
+          {/* Payout setup, live from Stripe */}
+          <Section title="Payouts (Stripe)">
+            <StripePayoutPanel summary={stripePayouts} />
           </Section>
 
           {/* Application */}
