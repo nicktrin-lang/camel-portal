@@ -1782,5 +1782,8 @@
   "bookings.detail.invoiceData.generating": "A gerar...",
   "bookings.detail.customer.billingAddress": "Endereço de faturação",
   "bookings.detail.customer.taxId": "Número fiscal / IVA",
-  "bookings.detail.customer.taxIdHint": "Fornecido pelo cliente para efeitos de faturação IVA. Use o botão ↓ Dados de fatura para descarregar a ficha completa."
+  "bookings.detail.customer.taxIdHint": "Fornecido pelo cliente para efeitos de faturação IVA. Use o botão ↓ Dados de fatura para descarregar a ficha completa.",
+  "bookings.detail.voucher.btn": "↓ Voucher pré-pago",
+  "bookings.detail.paid.title": "Pago na totalidade pelo cliente em {{date}}",
+  "bookings.detail.paid.body": "O cliente pré-pagou este aluguer à Camel Global. Não lhe cobre o aluguer: registe o contrato como pré-pago através da Camel Global, referência {{ref}}, e anexe o voucher pré-pago. É pago na liquidação mensal após a conclusão."
 }

@@ -74,6 +74,7 @@ type PaymentData = {
   cancellation_refund_amount: number | null; cancellation_refund_stripe_id: string | null;
   cancelled_refunded_at: string | null;
   fuel_refund_amount: number | null; fuel_refund_stripe_id: string | null;
+  paid_at?: string | null;
 } | null;
 
 type RequestRow = {
@@ -563,6 +564,7 @@ export default function PartnerBookingDetailPage() {
   const [cancelReason,   setCancelReason]   = useState("");
   const [cancelling,     setCancelling]     = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingVoucher, setDownloadingVoucher] = useState(false);
 
   function hydrateForm(d: BookingApiResponse) {
     const b=d.booking;
@@ -666,6 +668,20 @@ export default function PartnerBookingDetailPage() {
     }
   }
 
+  async function handleDownloadVoucher() {
+    setDownloadingVoucher(true); setError(null);
+    try {
+      const res  = await fetch(`/api/partner/bookings/${bookingId}/voucher`, { credentials: "include" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Failed to generate PDF");
+      if (json?.url) window.open(json.url, "_blank");
+    } catch (e: any) {
+      setError("Failed to generate voucher: " + (e?.message || "Unknown error"));
+    } finally {
+      setDownloadingVoucher(false);
+    }
+  }
+
   if (loading) return <div className="border border-black/5 bg-white p-8"><p className="text-sm font-bold text-black/50">{t("bookings.loading")}</p></div>;
   if (!data?.booking) return <div className="border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">{error||t("bookings.error.notFound")}</div>;
 
@@ -749,7 +765,17 @@ export default function PartnerBookingDetailPage() {
           <h1 className="text-3xl font-black text-black">{t("bookings.detail.title")}</h1>
           <p className="mt-1 text-sm font-bold text-black/50">{t("bookings.detail.subtitle")}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {!isCancelled && (
+            <button
+              type="button"
+              onClick={handleDownloadVoucher}
+              disabled={downloadingVoucher}
+              className="bg-[#ff7a00] px-5 py-2 text-sm font-black text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {downloadingVoucher ? t("bookings.detail.invoiceData.generating") : t("bookings.detail.voucher.btn")}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleDownloadInvoiceData}
@@ -761,6 +787,17 @@ export default function PartnerBookingDetailPage() {
           <Link href="/partner/bookings" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">{t("bookings.detail.backBtn")}</Link>
         </div>
       </div>
+
+      {!isCancelled && (
+        <div className="border border-green-200 bg-green-50 px-5 py-3">
+          <p className="text-sm font-black text-green-800">
+            ✓ {t("bookings.detail.paid.title", { date: new Date(data.payment?.paid_at || bk.created_at).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) })}
+          </p>
+          <p className="mt-0.5 text-xs font-bold text-green-700">
+            {t("bookings.detail.paid.body", { ref: bk.job_number ? `#${bk.job_number}` : bk.id.slice(0, 8).toUpperCase() })}
+          </p>
+        </div>
+      )}
 
       {isCancelled && <CancellationSummary bk={bk} rates={rates} />}
 

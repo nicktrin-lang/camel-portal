@@ -63,6 +63,7 @@ export async function GET(
       cancelled_refunded_at: string | null;
       fuel_refund_amount: number | null;
       fuel_refund_stripe_id: string | null;
+      paid_at: string | null;
     } | null = null;
 
     if (bookingRow.payment_id) {
@@ -72,7 +73,7 @@ export async function GET(
           stripe_fee, stripe_fee_currency, exchange_rate,
           currency, amount_total, amount_car_hire, amount_fuel_deposit,
           cancellation_refund_amount, cancellation_refund_stripe_id, cancelled_refunded_at,
-          fuel_refund_amount, fuel_refund_stripe_id
+          fuel_refund_amount, fuel_refund_stripe_id, created_at
         `)
         .eq("id", bookingRow.payment_id)
         .maybeSingle();
@@ -90,6 +91,7 @@ export async function GET(
           cancelled_refunded_at:         pmtRow.cancelled_refunded_at ?? null,
           fuel_refund_amount:            pmtRow.fuel_refund_amount ?? null,
           fuel_refund_stripe_id:         pmtRow.fuel_refund_stripe_id ?? null,
+          paid_at:                       pmtRow.created_at ?? null,
         };
       }
     }

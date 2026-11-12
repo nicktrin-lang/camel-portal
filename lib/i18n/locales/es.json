@@ -1782,5 +1782,8 @@
   "bookings.detail.invoiceData.generating": "Generando...",
   "bookings.detail.customer.billingAddress": "Dirección de facturación",
   "bookings.detail.customer.taxId": "Número fiscal / IVA",
-  "bookings.detail.customer.taxIdHint": "Proporcionado por el cliente para facturación IVA. Use el botón ↓ Datos de factura para descargar la hoja de datos completa."
+  "bookings.detail.customer.taxIdHint": "Proporcionado por el cliente para facturación IVA. Use el botón ↓ Datos de factura para descargar la hoja de datos completa.",
+  "bookings.detail.voucher.btn": "↓ Bono prepago",
+  "bookings.detail.paid.title": "Pagado íntegramente por el cliente el {{date}}",
+  "bookings.detail.paid.body": "El cliente ha pagado este alquiler por adelantado a Camel Global. No le cobre el alquiler: registre el contrato como prepagado a través de Camel Global, referencia {{ref}}, y adjunte el bono prepago. Se le paga en la liquidación mensual tras la finalización."
 }

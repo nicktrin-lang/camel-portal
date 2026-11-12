@@ -1782,5 +1782,8 @@
   "bookings.detail.invoiceData.generating": "Génération...",
   "bookings.detail.customer.billingAddress": "Adresse de facturation",
   "bookings.detail.customer.taxId": "N° TVA / Fiscal",
-  "bookings.detail.customer.taxIdHint": "Fourni par le client à des fins de facturation TVA. Utilisez le bouton ↓ Données de facturation pour télécharger la fiche complète."
+  "bookings.detail.customer.taxIdHint": "Fourni par le client à des fins de facturation TVA. Utilisez le bouton ↓ Données de facturation pour télécharger la fiche complète.",
+  "bookings.detail.voucher.btn": "↓ Bon prépayé",
+  "bookings.detail.paid.title": "Payé intégralement par le client le {{date}}",
+  "bookings.detail.paid.body": "Le client a prépayé cette location à Camel Global. Ne lui facturez pas la location : enregistrez le contrat comme prépayé via Camel Global, référence {{ref}}, et joignez le bon prépayé. Vous êtes payé lors du règlement mensuel après la fin de la location."
 }

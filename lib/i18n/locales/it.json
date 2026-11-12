@@ -1782,5 +1782,8 @@
   "bookings.detail.invoiceData.generating": "Generazione...",
   "bookings.detail.customer.billingAddress": "Indirizzo di fatturazione",
   "bookings.detail.customer.taxId": "Codice fiscale / P. IVA",
-  "bookings.detail.customer.taxIdHint": "Fornito dal cliente per la fatturazione IVA. Usa il pulsante ↓ Dati fattura per scaricare la scheda completa."
+  "bookings.detail.customer.taxIdHint": "Fornito dal cliente per la fatturazione IVA. Usa il pulsante ↓ Dati fattura per scaricare la scheda completa.",
+  "bookings.detail.voucher.btn": "↓ Voucher prepagato",
+  "bookings.detail.paid.title": "Pagato interamente dal cliente il {{date}}",
+  "bookings.detail.paid.body": "Il cliente ha prepagato questo noleggio a Camel Global. Non addebitategli il noleggio: registrate il contratto come prepagato tramite Camel Global, riferimento {{ref}}, e allegate il voucher prepagato. Venite pagati nella liquidazione mensile dopo il completamento."
 }

@@ -1782,5 +1782,8 @@
   "bookings.detail.invoiceData.generating": "Wird erstellt...",
   "bookings.detail.customer.billingAddress": "Rechnungsadresse",
   "bookings.detail.customer.taxId": "Steuer-ID / USt-IdNr.",
-  "bookings.detail.customer.taxIdHint": "Vom Kunden für Umsatzsteuerzwecke angegeben. Verwenden Sie die Schaltfläche ↓ Rechnungsdaten zum Herunterladen der vollständigen Datenmappe."
+  "bookings.detail.customer.taxIdHint": "Vom Kunden für Umsatzsteuerzwecke angegeben. Verwenden Sie die Schaltfläche ↓ Rechnungsdaten zum Herunterladen der vollständigen Datenmappe.",
+  "bookings.detail.voucher.btn": "↓ Prepaid-Voucher",
+  "bookings.detail.paid.title": "Vom Kunden am {{date}} vollständig bezahlt",
+  "bookings.detail.paid.body": "Der Kunde hat diese Miete bei Camel Global vorausbezahlt. Berechnen Sie ihm die Miete nicht: Erfassen Sie den Vertrag als vorausbezahlt über Camel Global, Referenz {{ref}}, und fügen Sie den Prepaid-Voucher bei. Sie werden nach Abschluss in der monatlichen Abrechnung bezahlt."
 }
