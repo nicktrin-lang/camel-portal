@@ -3,6 +3,7 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sendApplicationReceivedEmail, sendEmail, countryToEmailLocale } from "@/lib/email";
 import { canonicalCountryName } from "@/lib/portal/countryCanonical";
 import { trackProspect } from "@/lib/outreach/trackProspect";
+import { portalBaseUrl } from "@/lib/portalBaseUrl";
 
 const TERMS_VERSION = "2026-04";
 
@@ -200,7 +201,7 @@ export async function POST(req: Request) {
               <p><strong>Country:</strong> ${country}</p>
               <p><strong>Address:</strong> ${fullBusinessAddress}</p>
               <p style="margin-top:24px;">
-                <a href="${process.env.PORTAL_BASE_URL || "https://portal.camel-global.com"}/admin/approvals" style="background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;display:inline-block;">View in Admin</a>
+                <a href="${portalBaseUrl()}/admin/approvals" style="background:#ff7a00;color:#fff;padding:12px 24px;text-decoration:none;font-weight:700;display:inline-block;">View in Admin</a>
               </p>
             </div>
           </div>
