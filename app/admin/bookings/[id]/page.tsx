@@ -706,6 +706,20 @@ export default function AdminBookingDetailPage() {
   const [showCancel,   setShowCancel]   = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling,   setCancelling]   = useState(false);
+  const [voucherBusy,  setVoucherBusy]  = useState(false);
+
+  // Same prepaid voucher the partner downloads (in the partner's language + English),
+  // so admin can send it to a partner who asks. /api/partner/bookings/[id]/voucher lets admins in.
+  async function downloadVoucher() {
+    setVoucherBusy(true); setError(null);
+    try {
+      const res  = await fetch(`/api/partner/bookings/${bookingId}/voucher`, { credentials: "include" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Failed to generate voucher.");
+      if (json?.url) window.open(json.url, "_blank");
+    } catch (e: any) { setError(e?.message || "Failed to generate voucher."); }
+    finally { setVoucherBusy(false); }
+  }
 
   async function load() {
     setLoading(true);
@@ -765,7 +779,15 @@ export default function AdminBookingDetailPage() {
           <h1 className="text-3xl font-black text-black">Booking Detail</h1>
           {bk.job_number && <p className="mt-1 text-sm font-bold text-black/50">Job #{bk.job_number}</p>}
         </div>
-        <Link href="/admin/bookings" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">← Back to Bookings</Link>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {!isCancelled && (
+            <button type="button" onClick={downloadVoucher} disabled={voucherBusy}
+              className="bg-[#ff7a00] px-5 py-2 text-sm font-black text-white hover:opacity-90 transition-opacity disabled:opacity-50">
+              {voucherBusy ? "Generating…" : "↓ Prepaid voucher"}
+            </button>
+          )}
+          <Link href="/admin/bookings" className="border border-black/20 px-5 py-2 text-sm font-black text-black hover:bg-black/5 transition-colors">← Back to Bookings</Link>
+        </div>
       </div>
 
       {error && <div className="border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
