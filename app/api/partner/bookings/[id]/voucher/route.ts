@@ -3,8 +3,9 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { getPortalUserRole } from "@/lib/portal/getPortalUserRole";
 import { isAdminRole } from "@/lib/portal/roles";
 import { generateBookingVoucherPDF } from "@/lib/portal/generateBookingVoucherPDF";
+import { coerceEmailLocale } from "@/lib/email";
 
-// Prepaid booking voucher (English PDF): proof for the partner's rental desk that the
+// Prepaid booking voucher (PDF, bilingual in the partner's language + English): proof for the partner's rental desk that the
 // customer has paid this hire in full to Camel Global. Read-only; moves no money.
 
 export async function GET(
@@ -36,7 +37,7 @@ export async function GET(
       bk.payment_id
         ? db.from("payments").select("stripe_payment_intent_id, amount_car_hire, amount_fuel_deposit, created_at").eq("id", bk.payment_id).maybeSingle()
         : Promise.resolve({ data: null }),
-      db.from("partner_profiles").select("company_name, vat_number").eq("user_id", bk.partner_user_id).maybeSingle(),
+      db.from("partner_profiles").select("company_name, vat_number, communication_locale").eq("user_id", bk.partner_user_id).maybeSingle(),
     ]);
 
     // A booking row only exists once the charge has succeeded (customer-repo webhook),
@@ -66,6 +67,7 @@ export async function GET(
       paidAt:            pmt?.created_at ?? bk.created_at ?? null,
       paymentReference:  pmt?.stripe_payment_intent_id ?? null,
       issuedAt:          new Date().toISOString(),
+      locale:            coerceEmailLocale(profile?.communication_locale),
     });
 
     const BUCKET      = "booking-receipts";

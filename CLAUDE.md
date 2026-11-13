@@ -79,6 +79,9 @@ Break these and you break production. Each one is here because it was broken bef
   This exact pattern was the root cause of a whole class of bugs.
 - Fuel level VALUES ("½ Tank") stay English in all locales; only labels/prose localise.
 - Internal `[Admin]` notification emails stay English (internal audience).
+- **One exception:** the Prepaid Booking Voucher (`generateBookingVoucherPDF.tsx`) is bilingual —
+  partner's `communication_locale` first, English under it, English prevails. It is an
+  operational document for the rental desk. Keep the English text on it.
 
 ### 4. Currency: bid-currency, NO FX
 - **One currency per partner** = their Stripe account settlement currency, derived from their
@@ -217,7 +220,7 @@ or any code comment as current.
 | `lib/portal/stripeGlobalPayouts.ts` | AU/NZ v2 Money Management: recipient onboarding + OutboundPaymentQuote/OutboundPayment. **Written from docs, not yet verified against Stripe** |
 | `lib/portal/generateMonthlyStatementPDF.tsx` | Monthly partner statement PDF (English), emitted by the payout cron |
 | `lib/portal/calculateCommission.ts` | 20%, min €10 floor — the single commission computation |
-| `lib/portal/partnerTerms.ts` | Partner T&Cs, version 2026-06d. Clause 7 chargeback, clause 9 VAT/invoicing |
+| `lib/portal/partnerTerms.ts` | Partner T&Cs, version 2026-11a (effective 26 Nov 2026). Clause 7 = prepaid + voucher + monthly settlement. Clause 7 chargeback, clause 9 VAT/invoicing |
 | `lib/portal/operatingRules.ts` | Operating rules + `downloadOperatingRulesPDF()`. Section 9b invoicing |
 | `lib/i18n/useTranslation.ts` | `t()` hook — dot-notation keys, `{{var}}` interpolation, English fallback |
 
