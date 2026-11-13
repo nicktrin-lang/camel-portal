@@ -1,6 +1,11 @@
 /**
  * Prepaid Booking Voucher PDF — camel-portal
- * Server-side only. Uses @react-pdf/renderer. Always English (NTUK legal, CLAUDE.md rule 3).
+ * Server-side only. Uses @react-pdf/renderer.
+ *
+ * Language: English, or bilingual when the partner's communication_locale isn't English —
+ * their language first for the desk staff, the English text under it. This is the one
+ * deliberate exception to "PDFs are always English" (CLAUDE.md rule 3): it is an operational
+ * document for the rental counter, and the English text stays on it and prevails.
  *
  * What a partner's counter staff attach to their rental contract to release the vehicle:
  * the customer has paid the hire in full to Camel Global, so the contract is recorded as
@@ -10,6 +15,7 @@
 
 import React from "react";
 import { currencyLocale } from "@/lib/currency";
+import STRINGS from "@/lib/portal/bookingVoucherStrings.json";
 import {
   Document, Page, Text, View, Image,
   StyleSheet, renderToBuffer,
@@ -19,50 +25,58 @@ function fmtMoney(amount: number, currency: string): string {
   return new Intl.NumberFormat(currencyLocale(currency), { style: "currency", currency }).format(amount);
 }
 
-function fmtDateTime(iso: string | null | undefined): string {
+export type VoucherLocale = "en" | "es" | "fr" | "it" | "pt" | "de";
+type Strings = typeof STRINGS.en;
+const fill = (s: string, vars: Record<string, string>) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
+
+const DATE_LOCALE: Record<VoucherLocale, string> = { en: "en-GB", es: "es-ES", fr: "fr-FR", it: "it-IT", pt: "pt-PT", de: "de-DE" };
+
+function fmtDateTime(iso: string | null | undefined, locale: VoucherLocale = "en"): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleString("en-GB", {
+    return new Date(iso).toLocaleString(DATE_LOCALE[locale], {
       day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
       timeZone: "Europe/Madrid",
     });
   } catch { return iso; }
 }
 
-function fmtDateShort(iso: string | null | undefined): string {
+function fmtDateShort(iso: string | null | undefined, locale: VoucherLocale = "en"): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+    return new Date(iso).toLocaleDateString(DATE_LOCALE[locale], { day: "2-digit", month: "long", year: "numeric" });
   } catch { return iso; }
 }
 
 const s = StyleSheet.create({
-  page:        { fontFamily: "Helvetica", fontSize: 9, color: "#222", backgroundColor: "#fff", paddingBottom: 40 },
+  page:        { fontFamily: "Helvetica", fontSize: 9, color: "#222", backgroundColor: "#fff", paddingBottom: 30 },
   topBar:      { backgroundColor: "#ff7a00", height: 8 },
-  header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", padding: "16 24 12 24", borderBottom: "1 solid #e5e5e5" },
+  header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", padding: "12 24 10 24", borderBottom: "1 solid #e5e5e5" },
   logo:        { width: 90, height: 28, objectFit: "contain" },
   headerRight: { alignItems: "flex-end" },
   headerSub:   { fontSize: 7, color: "#888", marginBottom: 2 },
   headerDate:  { fontSize: 8, color: "#555" },
-  body:        { padding: "20 24" },
-  titleRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
+  body:        { padding: "16 24" },
+  titleRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   title:       { fontSize: 18, fontFamily: "Helvetica-Bold", color: "#111" },
   voucherNo:   { fontSize: 11, fontFamily: "Helvetica-Bold", color: "#ff7a00", marginTop: 3 },
   stamp:       { borderWidth: 2, borderStyle: "solid", padding: "6 12", alignItems: "center" },
   stampText:   { fontSize: 14, fontFamily: "Helvetica-Bold", letterSpacing: 1 },
   stampSub:    { fontSize: 7, marginTop: 2 },
-  instrBox:    { backgroundColor: "#fff4e8", borderLeft: "3 solid #ff7a00", padding: "8 10", marginBottom: 14 },
+  instrBox:    { backgroundColor: "#fff4e8", borderLeft: "3 solid #ff7a00", padding: "8 10", marginBottom: 10 },
   instrHead:   { fontSize: 7, fontFamily: "Helvetica-Bold", color: "#b45309", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 },
-  instrText:   { fontSize: 8, color: "#333", lineHeight: 1.5, marginBottom: 2 },
-  section:     { marginBottom: 12 },
+  instrText:   { fontSize: 8, color: "#333", lineHeight: 1.4, marginBottom: 1 },
+  section:     { marginBottom: 9 },
   sectionHead: { fontSize: 7, fontFamily: "Helvetica-Bold", color: "#ff7a00", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, borderBottom: "1 solid #f0f0f0", paddingBottom: 3 },
-  row:         { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, borderBottom: "1 solid #f5f5f5" },
+  row:         { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2, borderBottom: "1 solid #f5f5f5" },
   rowLabel:    { color: "#555", flex: 1 },
   rowValue:    { fontFamily: "Helvetica-Bold", color: "#111", textAlign: "right", flex: 1.4 },
   totalRow:    { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#111", padding: "8 10", marginTop: 6 },
   totalLabel:  { fontFamily: "Helvetica-Bold", color: "#fff", fontSize: 10 },
   totalValue:  { fontFamily: "Helvetica-Bold", color: "#ff7a00", fontSize: 10 },
-  note:        { fontSize: 7.5, color: "#777", marginTop: 6, lineHeight: 1.5 },
+  note:        { fontSize: 7.5, color: "#777", marginTop: 5, lineHeight: 1.4 },
+  en:          { fontSize: 6.5, color: "#999", fontFamily: "Helvetica-Oblique" },
+  enPara:      { fontSize: 6.5, color: "#999", fontFamily: "Helvetica-Oblique", lineHeight: 1.3, marginBottom: 2 },
   footer:      { position: "absolute", bottom: 0, left: 0, right: 0, borderTop: "1 solid #e5e5e5", padding: "6 24", flexDirection: "row", justifyContent: "space-between" },
   footerText:  { fontSize: 7, color: "#aaa" },
 });
@@ -89,16 +103,36 @@ export interface BookingVoucherParams {
   paidAt:           string | null;
   paymentReference: string | null;
   issuedAt:         string;
+  locale?:          VoucherLocale;
 }
 
 function VoucherDocument({ p, logoBase64 }: { p: BookingVoucherParams; logoBase64: string | null }) {
+  const locale    = p.locale ?? "en";
+  const L: Strings = STRINGS[locale] ?? STRINGS.en;
+  const E: Strings = STRINGS.en;
+  const bi        = locale !== "en";
   const cur       = p.currency;
   const fmt       = (n: number) => fmtMoney(n, cur);
   const ref       = p.jobNumber ? `#${p.jobNumber}` : p.bookingId.slice(0, 8).toUpperCase();
   const cancelled = p.bookingStatus === "cancelled";
   const stampCol  = cancelled ? "#b91c1c" : "#15803d";
-  const row = (label: string, value: string | null | undefined) =>
-    value ? <View style={s.row}><Text style={s.rowLabel}>{label}</Text><Text style={s.rowValue}>{value}</Text></View> : null;
+  const vars      = { ref, amount: fmt(p.carHire), date: fmtDateShort(p.paidAt, locale) };
+
+  // Label in the partner's language, with the English under it when they differ.
+  const label = (k: keyof Strings) => (
+    <Text style={s.rowLabel}>
+      {L[k]}{bi && <Text style={s.en}>{`  ${E[k]}`}</Text>}
+    </Text>
+  );
+  const row = (k: keyof Strings, value: string | null | undefined) =>
+    value ? <View style={s.row}>{label(k)}<Text style={s.rowValue}>{value}</Text></View> : null;
+  const para = (k: keyof Strings, style: any) => (
+    <View>
+      <Text style={style}>{fill(L[k], vars)}</Text>
+      {bi && <Text style={s.enPara}>{fill(E[k], vars)}</Text>}
+    </View>
+  );
+  const head = (k: keyof Strings) => <Text style={s.sectionHead}>{bi ? `${L[k]} · ${E[k]}` : E[k]}</Text>;
 
   return (
     <Document>
@@ -110,85 +144,75 @@ function VoucherDocument({ p, logoBase64 }: { p: BookingVoucherParams; logoBase6
             ? <Image src={`data:image/png;base64,${logoBase64}`} style={s.logo} />
             : <Text style={{ fontSize: 13, fontFamily: "Helvetica-Bold", color: "#ff7a00" }}>CAMEL GLOBAL</Text>}
           <View style={s.headerRight}>
-            <Text style={s.headerSub}>PREPAID BOOKING VOUCHER</Text>
-            <Text style={s.headerDate}>Issued: {fmtDateShort(p.issuedAt)}</Text>
-            <Text style={s.headerDate}>Voucher: {ref}</Text>
+            <Text style={s.headerSub}>{L.headerSub}</Text>
+            {bi && <Text style={s.headerSub}>{E.headerSub}</Text>}
+            <Text style={s.headerDate}>{L.issued}: {fmtDateShort(p.issuedAt, locale)}</Text>
+            <Text style={s.headerDate}>{L.voucher}: {ref}</Text>
           </View>
         </View>
 
         <View style={s.body}>
           <View style={s.titleRow}>
             <View>
-              <Text style={s.title}>Prepaid Booking Voucher</Text>
-              <Text style={s.voucherNo}>Voucher / booking no. {ref}</Text>
+              <Text style={s.title}>{L.title}</Text>
+              {bi && <Text style={[s.en, { fontSize: 9 }]}>{E.title}</Text>}
+              <Text style={s.voucherNo}>{L.voucherNo} {ref}</Text>
             </View>
             <View style={[s.stamp, { borderColor: stampCol }]}>
-              <Text style={[s.stampText, { color: stampCol }]}>{cancelled ? "CANCELLED" : "PAID IN FULL"}</Text>
+              <Text style={[s.stampText, { color: stampCol }]}>{cancelled ? L.cancelled : L.paid}</Text>
+              {bi && <Text style={[s.stampSub, { color: stampCol }]}>{cancelled ? E.cancelled : E.paid}</Text>}
               <Text style={[s.stampSub, { color: stampCol }]}>
-                {cancelled ? "Do not release a vehicle" : `Prepaid via Camel Global · ${fmtDateShort(p.paidAt)}`}
+                {cancelled ? L.doNotRelease : fill(L.prepaidVia, vars)}
               </Text>
             </View>
           </View>
 
           {!cancelled && (
             <View style={s.instrBox}>
-              <Text style={s.instrHead}>For the rental desk</Text>
-              <Text style={s.instrText}>
-                The customer has paid this hire in full to Camel Global. Do not charge the customer for the car hire.
-              </Text>
-              <Text style={s.instrText}>
-                Record the rental contract as prepaid. Payment method: Camel Global (agency voucher). Reference: {ref}. Amount: {fmt(p.carHire)}.
-              </Text>
-              <Text style={s.instrText}>
-                Camel Global pays you for this booking in the monthly settlement after the hire is completed.
-                The vehicle security deposit is not included and is taken by you at handover under your own terms.
-              </Text>
+              <Text style={s.instrHead}>{bi ? `${L.deskHead} · ${E.deskHead}` : E.deskHead}</Text>
+              {para("desk1", s.instrText)}
+              {para("desk2", s.instrText)}
+              {para("desk3", s.instrText)}
             </View>
           )}
 
           <View style={s.section}>
-            <Text style={s.sectionHead}>Supplier</Text>
-            {row("Issued to", p.partnerCompany || "—")}
-            {row("VAT / tax number", p.partnerVat)}
+            {head("supplier")}
+            {row("issuedTo", p.partnerCompany || "—")}
+            {row("vat", p.partnerVat)}
           </View>
 
           <View style={s.section}>
-            <Text style={s.sectionHead}>Customer and hire</Text>
-            {row("Lead driver", p.customerName || "—")}
-            {row("Phone", p.customerPhone)}
-            {row("Main driver age", p.driverAge != null ? String(p.driverAge) : null)}
-            {row("Additional drivers", p.additionalDrivers > 0 ? String(p.additionalDrivers) : "None")}
-            {row("Vehicle", p.vehicleCategory)}
-            {row("Passengers", p.passengers != null ? String(p.passengers) : null)}
-            {row("Delivery address", p.pickupAddress || "—")}
-            {row("Delivery date / time", fmtDateTime(p.pickupAt))}
-            {row("Collection address", p.dropoffAddress)}
-            {row("Collection date / time", p.dropoffAt ? fmtDateTime(p.dropoffAt) : null)}
+            {head("customerHire")}
+            {row("leadDriver", p.customerName || "—")}
+            {row("phone", p.customerPhone)}
+            {row("driverAge", p.driverAge != null ? String(p.driverAge) : null)}
+            {row("addDrivers", p.additionalDrivers > 0 ? String(p.additionalDrivers) : L.none)}
+            {row("vehicle", p.vehicleCategory)}
+            {row("passengers", p.passengers != null ? String(p.passengers) : null)}
+            {row("delAddr", p.pickupAddress || "—")}
+            {row("delTime", fmtDateTime(p.pickupAt, locale))}
+            {row("colAddr", p.dropoffAddress)}
+            {row("colTime", p.dropoffAt ? fmtDateTime(p.dropoffAt, locale) : null)}
           </View>
 
           <View style={s.section} wrap={false}>
-            <Text style={s.sectionHead}>Payment received by Camel Global</Text>
-            {row("Car hire", fmt(p.carHire))}
-            {row("Fuel deposit", fmt(p.fuelDeposit))}
-            {row("Currency", cur)}
-            {row("Paid on", fmtDateTime(p.paidAt))}
-            {row("Payment reference", p.paymentReference)}
-            {row("Received by", "NTUK Ltd t/a Camel Global")}
+            {head("paymentHead")}
+            {row("carHire", fmt(p.carHire))}
+            {row("fuelDeposit", fmt(p.fuelDeposit))}
+            {row("currency", cur)}
+            {row("paidOn", fmtDateTime(p.paidAt, locale))}
+            {row("payRef", p.paymentReference)}
+            {row("receivedBy", "NTUK Ltd t/a Camel Global")}
             <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Total paid by customer</Text>
+              <Text style={s.totalLabel}>{bi ? `${L.total} · ${E.total}` : E.total}</Text>
               <Text style={s.totalValue}>{fmt(p.carHire + p.fuelDeposit)}</Text>
             </View>
-            <Text style={s.note}>
-              The fuel deposit is held by Camel Global. When the hire is completed, the fuel used is added to your
-              settlement and the unused balance is refunded to the customer by Camel Global. Fuel is not charged at the desk.
-            </Text>
+            {para("fuelNote", s.note)}
           </View>
 
-          <Text style={s.note}>
-            This voucher confirms payment for the booking above. It is not a VAT invoice. You remain the supplier of the
-            hire and issue your own invoice to the customer (Camel Global partner terms, clause 9). Check the current
-            status of this booking at portal.camel-global.com before handover.
-          </Text>
+          {para("footNote", s.note)}
+          {bi && <Text style={s.enPara}>The English text on this voucher prevails in the event of any conflict.</Text>}
         </View>
 
         <View style={s.footer} fixed>
