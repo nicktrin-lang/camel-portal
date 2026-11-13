@@ -307,6 +307,7 @@ export default function HomePageContent({ guideLangs = [] }: { guideLangs?: stri
             <p className="text-base font-bold text-black/70 leading-relaxed">
               {t("home.pricing.body3")} <strong className="text-black">{t("home.pricing.body3.formula")}</strong>{t("home.pricing.body3.end")}
             </p>
+            <p className="mt-4 text-base font-bold text-black/70 leading-relaxed">{t("home.pricing.body4")}</p>
           </div>
           <div className="space-y-3">
             {([1,2,3,4] as const).map(i => {
