@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import StripeActionNeeded, { stripeNeedsAction } from "@/app/components/partner/StripeActionNeeded";
 
 type StripeStatus = {
   connected: boolean; onboarding_complete: boolean;
@@ -170,6 +171,8 @@ export default function PartnerSettingsPage() {
 
         {stripeLoading ? (
           <p className="text-sm font-bold text-black/40">{t("settings.payouts.checking")}</p>
+        ) : stripeNeedsAction(stripeStatus) ? (
+          <StripeActionNeeded requirements={stripeStatus?.requirements ?? []} />
         ) : stripeStatus?.onboarding_complete ? (
           <div className="space-y-4">
             <div className="border border-green-200 bg-green-50 p-4 flex items-center gap-3">

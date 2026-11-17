@@ -1,4 +1,5 @@
 import type { StripePayoutSummary } from "@/lib/portal/stripePayoutSummary";
+import { requirementKey, type StripeRequirementKey } from "@/lib/portal/stripeRequirements";
 
 // "Payouts (Stripe)" on /admin/accounts/[id]: whether the partner can be paid at month
 // end, and if not, what Stripe is still waiting for from them.
@@ -11,29 +12,31 @@ const STATE: Record<StripePayoutSummary["state"], { label: string; cls: string; 
   restricted:   { label: "Restricted",     cls: "bg-red-100 text-red-700",     body: "Stripe has paused this account until the items below are fixed." },
 };
 
-// Stripe requirement codes → plain English. Unknown codes show as-is.
-const REQUIREMENT: [RegExp, string][] = [
-  [/^external_account$/, "Bank account (IBAN)"],
-  [/^tos_acceptance/, "Accept Stripe's terms"],
-  [/^business_type$/, "Business type (company or individual)"],
-  [/^business_profile\.(url|product_description)$/, "Business website or description"],
-  [/^business_profile\.mcc$/, "Business category"],
-  [/^business_profile\.support_phone$/, "Support phone"],
-  [/^company\.tax_id$/, "Company tax ID (CIF)"],
-  [/^company\.(name|structure)$/, "Company name / legal structure"],
-  [/^company\.address/, "Company address"],
-  [/^company\.phone$/, "Company phone"],
-  [/^company\.(owners|directors|executives)_provided$/, "Confirm owners / directors"],
-  [/^company\.verification\.document/, "Company registration document"],
-  [/^representative\.verification\.(document|additional_document)/, "Representative's ID document"],
-  [/^representative\./, "Representative's personal details"],
-  [/^(person_[^.]+|owners|directors)\.verification/, "An owner's or director's ID document"],
-  [/^(person_[^.]+|owners|directors)\./, "Owner / director details"],
-  [/^individual\.verification/, "ID document"],
-  [/^individual\./, "Personal details"],
-];
+// Stripe requirement codes → plain English, via the shared key list the partner pages
+// also use. Unknown codes show as-is (admin wants the raw code).
+const REQUIREMENT: Record<StripeRequirementKey, string> = {
+  bank: "Bank account (IBAN)",
+  tos: "Accept Stripe's terms",
+  businessType: "Business type (company or individual)",
+  website: "Business website or description",
+  mcc: "Business category",
+  supportPhone: "Support phone",
+  taxId: "Company tax ID (CIF)",
+  companyName: "Company name / legal structure",
+  companyAddress: "Company address",
+  companyPhone: "Company phone",
+  owners: "Confirm owners / directors",
+  companyDocument: "Company registration document",
+  repId: "Representative's ID document",
+  repDetails: "Representative's personal details",
+  ownerId: "An owner's or director's ID document",
+  ownerDetails: "Owner / director details",
+  idDocument: "ID document",
+  personal: "Personal details",
+  other: "",
+};
 function describe(code: string) {
-  return REQUIREMENT.find(([re]) => re.test(code))?.[1] ?? code;
+  return REQUIREMENT[requirementKey(code)] || code;
 }
 const unique = (codes: string[]) => [...new Set(codes.map(describe))];
 

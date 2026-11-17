@@ -70,7 +70,9 @@ export async function GET() {
       rail: "connect",
       onboarding_complete: onboardingComplete,
       payouts_enabled: payoutsEnabled,
-      requirements: account.requirements?.currently_due || [],
+      // Everything Stripe is waiting on from the partner (past due first). The partner
+      // pages turn these codes into plain-language items via lib/portal/stripeRequirements.
+      requirements: [...new Set([...(account.requirements?.past_due ?? []), ...(account.requirements?.currently_due ?? [])])],
     });
   } catch (e: any) {
     console.error("Stripe status error:", e);
