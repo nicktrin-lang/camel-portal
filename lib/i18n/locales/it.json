@@ -475,7 +475,7 @@
   "onboarding.payouts.title": "Configura i pagamenti",
   "onboarding.payouts.subtitle": "Collega il tuo conto bancario per ricevere i pagamenti delle prenotazioni completate.",
   "onboarding.payouts.howTitle": "Come funzionano i pagamenti",
-  "onboarding.payouts.howBody": "Quando un cliente paga la prenotazione, i fondi vengono divisi automaticamente — la commissione di Camel Global va a noi, e il tuo importo netto viene conservato nel tuo account Stripe.",
+  "onboarding.payouts.howBody": "Il cliente paga a Camel Global l'intero noleggio più il deposito carburante al momento della prenotazione, quindi ogni prenotazione è prepagata. Al termine del noleggio, rimborsiamo al cliente il carburante non utilizzato e registriamo il tuo importo netto: noleggio meno commissione, più il carburante utilizzato. All'inizio di ogni mese, Camel Global ti paga tutte le prenotazioni completate nel mese precedente con un unico bonifico sul tuo conto bancario tramite Stripe, insieme a un estratto mensile e alla fattura delle commissioni.",
   "onboarding.payouts.stripeTitle": "💳 Alimentato da Stripe",
   "onboarding.payouts.stripeBody": "I pagamenti sono gestiti in modo sicuro da Stripe. Camel Global non vede mai i tuoi dati bancari.",
   "onboarding.payouts.stripeInvoice": "Le fatture mensili delle commissioni vengono generate automaticamente e inviate via email.",

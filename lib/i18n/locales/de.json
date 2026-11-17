@@ -475,7 +475,7 @@
   "onboarding.payouts.title": "Auszahlungen einrichten",
   "onboarding.payouts.subtitle": "Verbinden Sie Ihr Bankkonto, um Zahlungen für abgeschlossene Buchungen zu erhalten.",
   "onboarding.payouts.howTitle": "Wie Auszahlungen funktionieren",
-  "onboarding.payouts.howBody": "Wenn ein Kunde seine Buchung bezahlt, wird der Betrag automatisch aufgeteilt — die Provision von Camel Global geht an uns, und Ihr Nettobetrag (Fahrzeugmiete abzüglich Provision, zuzüglich Kraftstoff) wird sicher in Ihrem Stripe-Konto verwahrt. Am Ende eines jeden Monats werden alle abgeschlossenen Buchungen in einer einzigen Überweisung auf Ihr Bankkonto ausgezahlt.",
+  "onboarding.payouts.howBody": "Der Kunde zahlt Camel Global bei der Buchung die gesamte Miete plus die Kraftstoffkaution, jede Buchung ist also vorausbezahlt. Nach Abschluss der Miete erstatten wir dem Kunden den nicht verbrauchten Kraftstoff und verbuchen Ihren Nettobetrag: Miete abzüglich Provision, zuzüglich verbrauchter Kraftstoff. Zu Beginn jedes Monats zahlt Camel Global Ihnen alle im Vormonat abgeschlossenen Buchungen in einer einzigen Überweisung über Stripe auf Ihr Bankkonto aus, mit einer Monatsabrechnung und der Provisionsrechnung.",
   "onboarding.payouts.stripeTitle": "💳 Powered by Stripe",
   "onboarding.payouts.stripeBody": "Auszahlungen werden sicher über Stripe abgewickelt. Camel Global sieht Ihre Bankdaten nie.",
   "onboarding.payouts.stripeInvoice": "Monatliche Provisionsrechnungen werden automatisch erstellt und Ihnen per E-Mail zugesendet.",

@@ -475,7 +475,7 @@
   "onboarding.payouts.title": "Configurar pagos",
   "onboarding.payouts.subtitle": "Conecta tu cuenta bancaria para recibir los pagos de las reservas completadas.",
   "onboarding.payouts.howTitle": "Cómo funcionan los pagos",
-  "onboarding.payouts.howBody": "Cuando un cliente paga su reserva, los fondos se dividen automáticamente — la comisión de Camel Global va a nosotros y tu importe neto (alquiler menos comisión, más combustible) queda retenido de forma segura en tu cuenta Stripe. Al final de cada mes, todas las reservas completadas se abonan en tu cuenta bancaria en una sola transferencia.",
+  "onboarding.payouts.howBody": "El cliente paga a Camel Global el alquiler completo más el depósito de combustible al reservar, así que todas las reservas están prepagadas. Al completarse el alquiler, devolvemos al cliente el combustible no usado y registramos tu importe neto: alquiler menos comisión, más el combustible usado. A principios de cada mes, Camel Global te paga todas las reservas completadas el mes anterior en una sola transferencia a tu cuenta bancaria a través de Stripe, con un extracto mensual y la factura de comisión.",
   "onboarding.payouts.stripeTitle": "💳 Gestionado por Stripe",
   "onboarding.payouts.stripeBody": "Los pagos se gestionan de forma segura a través de Stripe. Se te pedirá que proporciones los datos de tu empresa y cuenta bancaria directamente a Stripe — Camel Global nunca ve tus datos bancarios.",
   "onboarding.payouts.stripeInvoice": "Las facturas de comisión mensuales se generan automáticamente y se te envían por correo.",

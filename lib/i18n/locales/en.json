@@ -475,7 +475,7 @@
   "onboarding.payouts.title": "Set Up Payouts",
   "onboarding.payouts.subtitle": "Connect your bank account to receive payments from completed bookings.",
   "onboarding.payouts.howTitle": "How payouts work",
-  "onboarding.payouts.howBody": "When a customer pays for their booking, funds are split automatically — Camel Global's commission goes to us, and your net amount (car hire minus commission, plus fuel) is held securely in your Stripe account. At the end of each month, all completed bookings are paid out to your bank account in one transfer.",
+  "onboarding.payouts.howBody": "The customer pays Camel Global the full hire plus the fuel deposit when they book, so every booking is prepaid. When the hire is completed, we refund the customer any unused fuel and record your net amount: car hire minus commission, plus the fuel used. At the start of each month, Camel Global pays all your bookings completed in the previous month to your bank account in one transfer through Stripe, with a monthly statement and commission invoice.",
   "onboarding.payouts.stripeTitle": "💳 Powered by Stripe",
   "onboarding.payouts.stripeBody": "Payouts are handled securely by Stripe. You will be asked to provide your business details and bank account information directly with Stripe — Camel Global never sees your bank details.",
   "onboarding.payouts.stripeInvoice": "Monthly commission invoices are generated automatically and emailed to you.",
