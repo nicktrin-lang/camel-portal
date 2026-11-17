@@ -39,9 +39,9 @@ Cargo Van · passengers up to 16. Partners are now arriving from the outreach em
   - Settings said "connect your bank account", and the onboarding step trusted the stale stored `stripe_onboarding_complete` flag, so it could show "connected" with no button.
   - PR #161 adds `StripeActionNeeded` (Settings, dashboard, onboarding), shared `lib/portal/stripeRequirements.ts` (also used by the admin panel), and 24 keys `stripe.action.*` / `stripe.req.*` in all 6 locales.
   - It also fixes the dashboard "Manage" button, which called the non-existent `/stripe/dashboard-link`.
+- **Also in #161:** `onboarding.payouts.howBody` rewritten for prepaid + monthly settlement (6 locales).
 - **Still open:**
   - Gamo's terms record says `2026-04`; the 2026-11a notice goes with the all-partner email.
-  - The `onboarding.payouts.howBody` text still describes the old model (net "held in your Stripe account").
 
 ## 🧾 Prepaid Booking Voucher + terms 2026-11a (branch `claude/booking-voucher`)
 Why: Gamo Rent a Car's desk system won't release a vehicle unless the contract has a payment
