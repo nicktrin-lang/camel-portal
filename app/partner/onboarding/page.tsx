@@ -591,7 +591,12 @@ function StepPayouts({ profile, onDone, onBack, onRefreshProfile }: {
     } catch (e: any) { setError(e.message); setLoading(false); }
   }
 
-  const isComplete = status?.onboarding_complete || profile?.stripe_onboarding_complete;
+  // Trust Stripe's live answer once we have it. The stored flag can be stale: Stripe can
+  // reject a document after onboarding was marked complete, and the partner must then be
+  // able to get back into Stripe from here. The stored flag only covers the first render.
+  const isComplete = status && !("error" in status)
+    ? status.onboarding_complete
+    : profile?.stripe_onboarding_complete;
 
   return (
     <Card title={t("onboarding.payouts.title")} subtitle={t("onboarding.payouts.subtitle")}>

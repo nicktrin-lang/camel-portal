@@ -160,7 +160,7 @@ export default function PartnerDashboardPage() {
   async function openStripeDashboard() {
     setStripeLinking(true);
     try {
-      const res  = await fetch("/api/partner/stripe/dashboard-link", { method: "POST", credentials: "include" });
+      const res  = await fetch("/api/partner/stripe/dashboard", { method: "POST", credentials: "include" });
       const json = await res.json();
       if (json?.url) window.open(json.url, "_blank");
     } catch {} finally { setStripeLinking(false); }
