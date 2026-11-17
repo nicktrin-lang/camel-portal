@@ -27,6 +27,22 @@ LATEST SESSION — 2026-11-12  (read this first)
 Outreach funnel tracking · blank maps fixed · customer GA4 booking funnel · 9 Seater Van +
 Cargo Van · passengers up to 16. Partners are now arriving from the outreach emails.
 
+## 💳 Partner Stripe "what's still needed" panel (PR #161, branch `claude/stripe-setup-reentry`)
+
+- **Gamo Rent a Car (JOERJU 2020, S.L.)**, checked 17 Nov 2026.
+  - Approved and all 7 live checks pass. Spanish locale. 8 vehicles, 3 drivers (none with a driver login yet). No bids or bookings yet.
+  - Stripe account `acct_1UavQZ9ZYGHfIQFe` is a **live** account, with a BBVA bank account on it.
+  - Stripe rejected the company document (`company.verification.document`, past due), so payouts are off until they upload a nota simple or escritura.
+  - Spanish instructions emailed by Nick.
+- **Trap: a test key can READ a live connected account.** Only creating links fails ("created in live mode"), so reading an account with the local `sk_test` key proves nothing about its mode.
+- **The partner pages used to hide what Stripe needed.**
+  - Settings said "connect your bank account", and the onboarding step trusted the stale stored `stripe_onboarding_complete` flag, so it could show "connected" with no button.
+  - PR #161 adds `StripeActionNeeded` (Settings, dashboard, onboarding), shared `lib/portal/stripeRequirements.ts` (also used by the admin panel), and 24 keys `stripe.action.*` / `stripe.req.*` in all 6 locales.
+  - It also fixes the dashboard "Manage" button, which called the non-existent `/stripe/dashboard-link`.
+- **Still open:**
+  - Gamo's terms record says `2026-04`; the 2026-11a notice goes with the all-partner email.
+  - The `onboarding.payouts.howBody` text still describes the old model (net "held in your Stripe account").
+
 ## 🧾 Prepaid Booking Voucher + terms 2026-11a (branch `claude/booking-voucher`)
 Why: Gamo Rent a Car's desk system won't release a vehicle unless the contract has a payment
 recorded, and they saw nothing in Stripe (platform_hold: Stripe only shows the monthly transfer).
