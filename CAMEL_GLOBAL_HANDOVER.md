@@ -27,13 +27,13 @@ LATEST SESSION — 2026-11-12  (read this first)
 Outreach funnel tracking · blank maps fixed · customer GA4 booking funnel · 9 Seater Van +
 Cargo Van · passengers up to 16. Partners are now arriving from the outreach emails.
 
-## 💳 Partner Stripe "what's still needed" panel (PR #161, branch `claude/stripe-setup-reentry`)
+## 💳 Partner Stripe "what's still needed" panel (PR #161, MERGED 17 Nov 2026)
 
 - **Gamo Rent a Car (JOERJU 2020, S.L.)**, checked 17 Nov 2026.
   - Approved and all 7 live checks pass. Spanish locale. 8 vehicles, 3 drivers (none with a driver login yet). No bids or bookings yet.
   - Stripe account `acct_1UavQZ9ZYGHfIQFe` is a **live** account, with a BBVA bank account on it.
   - Stripe rejected the company document (`company.verification.document`, past due), so payouts are off until they upload a nota simple or escritura.
-  - Spanish instructions emailed by Nick.
+  - Spanish email for María drafted (Ajustes → Configuración de pagos → orange Stripe button → upload the document). Nick to send it once #161 is confirmed in production.
 - **Trap: a test key can READ a live connected account.** Only creating links fails ("created in live mode"), so reading an account with the local `sk_test` key proves nothing about its mode.
 - **The partner pages used to hide what Stripe needed.**
   - Settings said "connect your bank account", and the onboarding step trusted the stale stored `stripe_onboarding_complete` flag, so it could show "connected" with no button.
@@ -41,9 +41,11 @@ Cargo Van · passengers up to 16. Partners are now arriving from the outreach em
   - It also fixes the dashboard "Manage" button, which called the non-existent `/stripe/dashboard-link`.
 - **Also in #161:** `onboarding.payouts.howBody` rewritten for prepaid + monthly settlement (6 locales).
 - **Still open:**
-  - Gamo's terms record says `2026-04`; the 2026-11a notice goes with the all-partner email.
+  - Gamo's terms record says `2026-04`; the 2026-11a notice goes with the all-partner email (clause 15: 14 days' notice before 26 Nov 2026).
+  - Gamo: confirm Stripe accepts the new document (admin → accounts → Gamo → Payouts panel should go to Ready).
+  - Optional: attach the prepaid voucher to the partner's "new booking" email.
 
-## 🧾 Prepaid Booking Voucher + terms 2026-11a (branch `claude/booking-voucher`)
+## 🧾 Prepaid Booking Voucher + terms 2026-11a (PRs #159 + #160, MERGED; bilingual voucher + admin download in #160)
 Why: Gamo Rent a Car's desk system won't release a vehicle unless the contract has a payment
 recorded, and they saw nothing in Stripe (platform_hold: Stripe only shows the monthly transfer).
 Industry answer = broker voucher: partner records the rental as prepaid via an agency.
