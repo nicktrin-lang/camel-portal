@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { FLEET_CATEGORIES } from "@/app/components/portal/fleetCategories";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import StripeActionNeeded, { stripeNeedsAction } from "@/app/components/partner/StripeActionNeeded";
 
 const MapPicker = dynamic(() => import("../profile/MapPicker"), { ssr: false });
 
@@ -565,7 +566,7 @@ function StepPayouts({ profile, onDone, onBack, onRefreshProfile }: {
   const { t } = useTranslation();
   const [loading, setLoading]     = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [status, setStatus]       = useState<{ connected: boolean; onboarding_complete: boolean; payouts_enabled: boolean } | null>(null);
+  const [status, setStatus]       = useState<{ connected: boolean; onboarding_complete: boolean; payouts_enabled: boolean; requirements?: unknown[] } | null>(null);
   const [error, setError]         = useState("");
   const searchParams = useSearchParams();
   const stripeReturn = searchParams.get("stripe");
@@ -623,6 +624,14 @@ function StepPayouts({ profile, onDone, onBack, onRefreshProfile }: {
                 <p className="text-sm font-bold text-green-700">{t("onboarding.payouts.connectedBody")}</p>
               </div>
             </div>
+          </div>
+        ) : stripeNeedsAction(status) ? (
+          <div className="space-y-3">
+            <StripeActionNeeded requirements={status?.requirements ?? []} />
+            <button type="button" onClick={checkStatus} disabled={refreshing}
+              className="w-full border border-black/20 py-2.5 text-sm font-black text-black/50 hover:bg-black/5 disabled:opacity-50 transition-colors">
+              {refreshing ? t("onboarding.payouts.refreshing") : t("onboarding.payouts.refresh")}
+            </button>
           </div>
         ) : (
           <div className="space-y-3">

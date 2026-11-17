@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import StripeActionNeeded, { stripeNeedsAction, type PartnerStripeStatus } from "@/app/components/partner/StripeActionNeeded";
 
 type Profile = {
   contact_name: string | null; company_name: string | null; address: string | null;
@@ -67,6 +68,7 @@ export default function PartnerDashboardPage() {
   const [fleetCount,     setFleetCount]     = useState(0);
   const [liveStatus,     setLiveStatus]     = useState<LiveStatus | null>(null);
   const [stripeComplete, setStripeComplete] = useState(false);
+  const [stripeStatus,   setStripeStatus]   = useState<PartnerStripeStatus | null>(null);
   const [stripeLinking,  setStripeLinking]  = useState(false);
 
   // Translate missing-requirement keys to human labels
@@ -135,6 +137,7 @@ export default function PartnerDashboardPage() {
         setDriverCount(Array.isArray(drvJson?.data) ? drvJson.data.filter((d: any) => d.is_active).length : 0);
         setFleetCount(Array.isArray(fleetRes?.data) ? fleetRes.data.length : 0);
         setStripeComplete(stripeJson?.onboarding_complete ?? false);
+        setStripeStatus(stripeJson);
 
         try {
           const liveRes = await fetch("/api/partner/refresh-live-status", { method: "POST", cache: "no-store", credentials: "include" });
@@ -197,8 +200,13 @@ export default function PartnerDashboardPage() {
         </span>
       </div>
 
+      {/* Stripe needs something specific (e.g. a rejected document) */}
+      {!stripeComplete && stripeNeedsAction(stripeStatus) && (
+        <StripeActionNeeded requirements={stripeStatus.requirements} />
+      )}
+
       {/* Stripe payout banner */}
-      {!stripeComplete && (
+      {!stripeComplete && !stripeNeedsAction(stripeStatus) && (
         <div className="border border-[#ff7a00]/30 bg-[#fff7f0] p-5">
           <div className="flex items-start gap-3">
             <span className="text-xl">💳</span>
