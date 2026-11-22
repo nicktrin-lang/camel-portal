@@ -27,10 +27,10 @@ LATEST SESSION — 2026-11-12  (read this first)
 Outreach funnel tracking · blank maps fixed · customer GA4 booking funnel · 9 Seater Van +
 Cargo Van · passengers up to 16. Partners are now arriving from the outreach emails.
 
-## 📬 Outreach campaigns: each email version + its results (branch `claude/outreach-campaigns`)
-**Nick to do once:** run `OUTREACH_CAMPAIGNS_SCHEMA.sql` in the Supabase SQL editor, then
-`npm run outreach:campaigns-backfill` (or ask Claude to run it). Until then sending is unaffected
-(recording is best-effort) and the panel says "Not set up yet".
+## 📬 Outreach campaigns: each email version + its results (PR #163, MERGED + LIVE 22 Nov 2026)
+Schema applied, backfill run (2,205 sends: 1,450 founding-partner, 755 founder-note), panel
+checked on production. Payout cron path fixed the same day (PR #164, live: `/api/cron/monthly-payout`
+now 401s without the secret instead of 404).
 - `outreach_campaigns` = one row per version of the copy, with the email rendered in all 6
   languages (airport + town versions) stored in `content`. `outreach_sends` = one row per email,
   with its own delivered/opened/clicked/bounced (webhook matches Resend `email_id`), so a prospect
