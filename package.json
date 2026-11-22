@@ -9,7 +9,8 @@
     "lint": "eslint",
     "directory:load": "tsx scripts/directory-load.ts",
     "directory:scan": "tsx scripts/directory-scan.ts",
-    "directory:airports": "tsx scripts/directory-airports.ts"
+    "directory:airports": "tsx scripts/directory-airports.ts",
+    "outreach:campaigns-backfill": "tsx scripts/outreach-campaigns-backfill.ts"
   },
   "dependencies": {
     "@react-google-maps/api": "^2.20.8",

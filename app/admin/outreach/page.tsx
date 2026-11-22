@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import AutoSendPanel from "./AutoSendPanel";
+import CampaignsPanel from "./CampaignsPanel";
+import { isTestAddress, isHumanClick as isHumanClickBy } from "@/lib/outreach/humanClick";
 
 const DAILY_LIMIT = 50;
 
@@ -41,13 +43,8 @@ type Prospect = {
   created_at: string;
 };
 
-// A click whose user-agent is a known corporate security scanner (or a proxy
-// pre-fetcher) is almost certainly a bot, not a human. Best-effort filter.
-const SCANNER_UA = /googleimageproxy|proofpoint|barracuda|mimecast|forcepoint|symantec|fireeye|bitdefender|cloudmark|messagelabs|microsoft|outlook|avast|trendmicro/i;
-function isTestAddress(email: string | null) { return /nicktrin\+/i.test(String(email || "")); }
 function isHumanClick(p: Prospect) {
-  return !!p.clicked_at && !isTestAddress(p.email) &&
-    !(p.last_click_user_agent && SCANNER_UA.test(p.last_click_user_agent));
+  return !isTestAddress(p.email) && isHumanClickBy(p.clicked_at, p.last_click_user_agent);
 }
 
 // Map a prospect's listed country to an ISO code so we can compare it against the
@@ -453,6 +450,8 @@ export default function OutreachPage() {
       </div>
 
       <AutoSendPanel dailyLimit={DAILY_LIMIT} />
+
+      <CampaignsPanel />
 
       {/* CSV result */}
       {csvResult && (

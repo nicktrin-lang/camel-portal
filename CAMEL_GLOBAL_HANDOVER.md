@@ -27,6 +27,28 @@ LATEST SESSION — 2026-11-12  (read this first)
 Outreach funnel tracking · blank maps fixed · customer GA4 booking funnel · 9 Seater Van +
 Cargo Van · passengers up to 16. Partners are now arriving from the outreach emails.
 
+## 📬 Outreach campaigns: each email version + its results (branch `claude/outreach-campaigns`)
+**Nick to do once:** run `OUTREACH_CAMPAIGNS_SCHEMA.sql` in the Supabase SQL editor, then
+`npm run outreach:campaigns-backfill` (or ask Claude to run it). Until then sending is unaffected
+(recording is best-effort) and the panel says "Not set up yet".
+- `outreach_campaigns` = one row per version of the copy, with the email rendered in all 6
+  languages (airport + town versions) stored in `content`. `outreach_sends` = one row per email,
+  with its own delivered/opened/clicked/bounced (webhook matches Resend `email_id`), so a prospect
+  emailed twice keeps both results. `outreach_prospects.campaign_id` = latest campaign.
+- Current version is `OUTREACH_CAMPAIGN` in `lib/outreach/outreachEmail.ts`; the first send
+  creates its row. **Changing the copy = new campaign id**, or its results mix with the old one
+  (a content-hash mismatch is logged).
+- Backfill: `2026-06-founding-partner` (Jun–Sep, paid list, copy from commit 16f7ba4 in
+  `scripts/data/`) and `2026-11-founder-note` (Nov, directory). The Sep fleet-utilisation
+  rewrite (#126/#127) was never sent. Visits/signups were only tracked from 3 Nov.
+- Panel: Partner Outreach → Campaigns. Results per campaign and per country, the stored email
+  per language, and a "What we learned" notes box.
+- Also fixed: Resend reports bounces as Permanent/Transient, and the webhook stored every bounce
+  as "soft". Now Permanent → hard.
+- Results at 22 Nov (Spain): paid list 1,450 sent, ~11% bounced, 0 signups recorded (but
+  untracked). Directory/founder note 755 sent, ~10% bounced, 50 visited site, 5 started signup,
+  3 signed up (Autos Guayre, Gamo, Ibizatop). 206 Spanish prospects still pending (~4 weekdays).
+
 ## 💳 Partner Stripe "what's still needed" panel (PR #161, MERGED 17 Nov 2026)
 
 - **Gamo Rent a Car (JOERJU 2020, S.L.)**, checked 17 Nov 2026.

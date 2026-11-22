@@ -20,6 +20,38 @@ async function geolocateCountry(ip: string): Promise<string | null> {
   }
 }
 
+// The same event on the one email it belongs to (outreach_sends), so each campaign keeps its
+// own results when a prospect is emailed more than once. Matched by Resend's email id; an
+// email sent before sends were recorded has no row and is skipped. Best-effort: never
+// fails the webhook.
+async function recordSendEvent(
+  db: ReturnType<typeof createServiceRoleSupabaseClient>,
+  prospectId: string, emailId: unknown, type: string, prospectUpdates: Record<string, unknown>,
+) {
+  if (typeof emailId !== "string" || !emailId) return;
+  try {
+    const { data: send } = await db.from("outreach_sends")
+      .select("id, delivered_at, opened_at, open_count, clicked_at, click_count")
+      .eq("resend_id", emailId).eq("prospect_id", prospectId).maybeSingle();
+    if (!send) return;
+    const now = new Date().toISOString();
+    const u: Record<string, unknown> = {};
+    if (type === "email.delivered" && !send.delivered_at) u.delivered_at = now;
+    if (type === "email.opened") { if (!send.opened_at) u.opened_at = now; u.open_count = (send.open_count || 0) + 1; }
+    if (type === "email.clicked") {
+      if (!send.clicked_at) u.clicked_at = now;
+      if (!send.opened_at)  u.opened_at  = now;
+      u.click_count = (send.click_count || 0) + 1;
+      if (prospectUpdates.last_click_user_agent) u.last_click_user_agent = prospectUpdates.last_click_user_agent;
+    }
+    if (type === "email.complained") u.complained_at = now;
+    if (type === "email.bounced") { u.bounced_at = now; u.bounce_type = prospectUpdates.bounce_type ?? null; }
+    if (Object.keys(u).length) await db.from("outreach_sends").update(u).eq("id", send.id);
+  } catch (e: any) {
+    console.error("outreach-webhook: send event not recorded:", e?.message || e);
+  }
+}
+
 export async function POST(req: NextRequest) {
   // Read the RAW body first — svix signature verification must run on the
   // exact bytes Resend signed, before any JSON parsing.
@@ -118,8 +150,9 @@ export async function POST(req: NextRequest) {
     if (type === "email.bounced") {
       // Mark bounced; capture hard vs soft so we know whether to retry.
       updates.status      = "bounced";
+      // Resend reports bounce.type as "Permanent" / "Transient" / "Undetermined".
       const bounceType    = data?.bounce?.type || data?.type || null;
-      if (bounceType) updates.bounce_type = String(bounceType).toLowerCase().includes("hard") ? "hard" : "soft";
+      if (bounceType) updates.bounce_type = /permanent|hard/i.test(String(bounceType)) ? "hard" : "soft";
       console.log(`outreach-webhook: bounce (${updates.bounce_type || "unknown"}) from ${toAddress}`);
     }
 
@@ -131,6 +164,8 @@ export async function POST(req: NextRequest) {
 
       console.log(`outreach-webhook: ${type} for ${toAddress} — updated`, updates);
     }
+
+    await recordSendEvent(db, prospect.id, data?.email_id, type, updates);
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
