@@ -11,6 +11,16 @@ type Db = ReturnType<typeof createServiceRoleSupabaseClient>;
 
 export const DAILY_LIMIT = 50;
 
+/** The version of the email copy below. Every send is recorded against it in outreach_sends,
+ *  and the first send creates its outreach_campaigns row holding the email as rendered in all
+ *  six languages, so /admin/outreach can show what each version said and how it did.
+ *  CHANGING THE COPY? Give it a new id (and name), or its results mix with the old version's. */
+export const OUTREACH_CAMPAIGN = {
+  id:          "2026-11-founder-note",
+  name:        "Founder note: nearest airport",
+  description: "Short note signed by Nicholas. Opens with the office's distance to the nearest airport (or the town), delivery wherever the customer chooses, free to join, no commission mention. Button: See how it works.",
+};
+
 /** Outreach is sent from a noreply@ address, so without an explicit Reply-To an
  *  interested partner who hits Reply reaches nobody. Cold B2B outreach lives on the
  *  reply, and the recipient SEES this address — it must be a company mailbox, not a
@@ -129,7 +139,7 @@ export async function sendToProspect(db: Db, prospect: { id: string; email: stri
   const emailHtml      = await generateEmail(prospect, await nearAirportFor(db, prospect.id));
   const unsubscribeUrl = buildUnsubscribeUrl(prospect.id, prospect.country);
 
-  await sendEmail({
+  const sent = await sendEmail({
     to:      prospect.email,
     from:    OUTREACH_FROM,
     subject: emailHtml.subject,
@@ -140,13 +150,72 @@ export async function sendToProspect(db: Db, prospect: { id: string; email: stri
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     },
   });
+  const sentAt = new Date().toISOString();
 
   await db
     .from("outreach_prospects")
-    .update({ status: "sent", sent_at: new Date().toISOString() })
+    .update({ status: "sent", sent_at: sentAt })
     .eq("id", prospect.id);
 
+  await recordSend(db, { prospectId: prospect.id, sentAt, locale: getLocale(prospect.country), subject: emailHtml.subject, resendId: sent?.id ?? null });
+
   return emailHtml.subject;
+}
+
+// ── Campaign record ─────────────────────────────────────────────────────────
+// Recording is best-effort: the email has already gone, so a failure here (e.g. the
+// OUTREACH_CAMPAIGNS_SCHEMA.sql tables not created yet) is logged, never thrown.
+
+/** The current campaign's email, rendered for every language from the test prospects:
+ *  the airport version and the town version. This is what gets stored on the campaign. */
+export async function renderCampaignContent() {
+  const content: Record<string, { airport: { subject: string; html: string }; town: { subject: string; html: string } }> = {};
+  for (const [locale, s] of Object.entries(TEST_PROSPECTS)) {
+    const p = { id: "sample", company_name: s.company_name, contact_name: null, city: s.city, country: s.country, notes: null };
+    const [a, t] = [await generateEmail(p, s.airport), await generateEmail(p, null)];
+    content[locale] = { airport: { subject: a.subject, html: a.fullHtml }, town: { subject: t.subject, html: t.fullHtml } };
+  }
+  return content;
+}
+
+async function sha256(text: string) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Buffer.from(buf).toString("hex").slice(0, 16);
+}
+
+let campaignReady: Promise<void> | null = null;
+
+/** Creates the current campaign's row once per server instance. If the row already exists
+ *  but its stored email differs from what the code now renders, the copy was edited without a
+ *  new OUTREACH_CAMPAIGN id: say so loudly (the stored content stays as first sent). */
+function ensureCampaign(db: Db) {
+  campaignReady ??= (async () => {
+    const content = await renderCampaignContent();
+    const hash    = await sha256(JSON.stringify(content));
+    const { data: existing, error } = await db.from("outreach_campaigns").select("content_hash").eq("id", OUTREACH_CAMPAIGN.id).maybeSingle();
+    if (error) throw error;
+    if (!existing) {
+      const { error: insErr } = await db.from("outreach_campaigns").insert({ ...OUTREACH_CAMPAIGN, content, content_hash: hash, source_ref: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null });
+      if (insErr && insErr.code !== "23505") throw insErr;
+    } else if (existing.content_hash !== hash) {
+      console.error(`outreach: the email copy changed but OUTREACH_CAMPAIGN.id is still "${OUTREACH_CAMPAIGN.id}". Give the new copy a new campaign id so its results are kept apart.`);
+    }
+  })().catch((e) => { campaignReady = null; throw e; });
+  return campaignReady;
+}
+
+async function recordSend(db: Db, s: { prospectId: string; sentAt: string; locale: string; subject: string; resendId: string | null }) {
+  try {
+    await ensureCampaign(db);
+    const { error } = await db.from("outreach_sends").insert({
+      prospect_id: s.prospectId, campaign_id: OUTREACH_CAMPAIGN.id, sent_at: s.sentAt,
+      locale: s.locale, subject: s.subject, resend_id: s.resendId,
+    });
+    if (error) throw error;
+    await db.from("outreach_prospects").update({ campaign_id: OUTREACH_CAMPAIGN.id }).eq("id", s.prospectId);
+  } catch (e: any) {
+    console.error("outreach: send not recorded against its campaign:", e?.message || e);
+  }
 }
 
 export async function generateEmail(prospect: {
