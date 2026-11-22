@@ -16,6 +16,8 @@ import {
 
 // Vercel cron — runs 1st of each month at 08:00 UTC
 // vercel.json: { "path": "/api/cron/monthly-payout", "schedule": "0 8 1 * *" }
+// This file MUST live at app/api/cron/monthly-payout/ to match that path. It used to sit at
+// app/cron/monthly-payout/ (served at /cron/...), so Vercel's call 404ed and no payout ever ran.
 //
 // Platform-hold model: the charge already settled to Camel's balance; this cron is
 // the SINGLE partner payout (there is no charge-time transfer any more). It pays each

@@ -188,8 +188,9 @@ applied; ships OFF). `/api/cron/outreach-autosend` runs 07:00 + 08:00 UTC Mon-Fr
 >=09:00 Madrid on a weekday, claims the day once, oldest pending first up to the 50/day limit
 (manual sends count). Emails CAMEL_ADMIN_EMAILS when <50 queued or a send fails. `?dry=1` previews.
 Email build/send lives in `lib/outreach/outreachEmail.ts` (shared with the admin send route).
-Unrelated, NOT fixed: vercel.json calls `/api/cron/monthly-payout` but the route is
-`app/cron/monthly-payout/route.ts` (served at `/cron/monthly-payout`), so the payout cron 404s.
+FIXED 22 Nov 2026: vercel.json called `/api/cron/monthly-payout` but the route was
+`app/cron/monthly-payout/route.ts` (served at `/cron/monthly-payout`), so the payout cron 404ed. Moved to
+`app/api/cron/monthly-payout/route.ts`; the first scheduled run is 1 Dec 2026.
 
 ═══════════════════════════════════════════════════════════════════════════════
 PREVIOUS SESSION — 2026-09-02  (read this first)
